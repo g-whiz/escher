@@ -1,0 +1,18 @@
+[package]
+name = "escher-cli"
+description = "Command-line program of Escher, a tool for symmetry-based graphics."
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[[bin]]
+name = "escher"
+path = "src/main.rs"
+
+[lints]
+workspace = true

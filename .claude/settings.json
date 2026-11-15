@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(just --list)",
+      "Bash(just check)",
+      "Bash(just check-shell)",
+      "Bash(just check-commit-message:*)",
+      "Bash(just check-commit-message-self-test)",
+      "Bash(just check-prose:*)",
+      "Bash(just check-prose-self-test)",
+      "Bash(just check-rust-comments:*)",
+      "Bash(just check-rust-comments-self-test)",
+      "Bash(just check-doc-headings:*)",
+      "Bash(just check-doc-headings-self-test)",
+      "Bash(just check-doctest-attributes:*)",
+      "Bash(just check-doctest-attributes-self-test)",
+      "Bash(just check-feature-docs:*)",
+      "Bash(just check-feature-docs-self-test)",
+      "Bash(just check-rust)",
+      "Bash(just check-fmt)",
+      "Bash(just check-clippy)",
+      "Bash(just check-doc)",
+      "Bash(just check-doctest)",
+      "Bash(just check-deny)",
+      "Bash(just check-typos)",
+      "Bash(just check-toml)",
+      "Bash(just check-unused-deps)",
+      "Bash(just check-miri)",
+      "Bash(just check-features)",
+      "Bash(just check-workflows)",
+      "Bash(just check-workflow-pins:*)",
+      "Bash(just check-workflow-pins-self-test)",
+      "Bash(just check-doc-references:*)",
+      "Bash(just check-doc-references-self-test)",
+      "Bash(just test)",
+      "Bash(shellcheck:*)",
+      "Bash(git status:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/claude-hook-prose"
+          }
+        ]
+      }
+    ]
+  }
+}

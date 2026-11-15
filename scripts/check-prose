@@ -1,0 +1,195 @@
+#!/usr/bin/env -S python3 -I
+import re
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+try:
+    import rust_lexer
+except ImportError as error:
+    print(f"check-prose: cannot load scripts/rust_lexer.py: {error}", file=sys.stderr)
+    sys.exit(2)
+
+USAGE = """usage: check-prose [file.md | file.rs ...]
+
+Checks Markdown prose for non-ASCII characters, a UTF-8 byte order mark,
+semicolons, and the non-Canadian spellings listed in
+scripts/prose-wordlist.txt. Fenced code blocks and inline code spans are
+ignored, and a code fence left open at the end of a file is a finding.
+A file whose name ends in .rs is Rust: the checks apply to the Markdown
+text of its /// and //! documentation comments, with each run of comments
+that documents one item read as one Markdown document, and every line
+number is the line in the Rust file. Documentation written as a
+#[doc = ...] attribute or a /** */ block comment is not read. A Rust file
+that is not valid UTF-8 cannot be read. Every other file is Markdown.
+With no files, checks every Markdown file and every Rust file in the git
+repository that contains the current directory, tracked or not ignored,
+and prints paths relative to its root. Prints one path:line: message line
+per finding. Exits 1 if there are findings, and 2 if a file cannot be read
+or the setup is broken, after checking every readable file."""
+
+FENCE_OPEN = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+BACKTICK_RUN = re.compile(r"`+")
+BOM = "\ufeff"
+
+
+def load_words():
+    wordlist = Path(__file__).resolve().parent / "prose-wordlist.txt"
+    try:
+        text = wordlist.read_text(encoding="utf-8")
+    except OSError as error:
+        raise rust_lexer.SetupError(f"cannot read word list {wordlist}: {rust_lexer.os_error(error)}") from None
+    words = [w.strip().lower() for w in text.splitlines()]
+    words = [w for w in words if w]
+    if not words:
+        return None
+    alternatives = "|".join(re.escape(w) for w in sorted(set(words), key=len, reverse=True))
+    return re.compile(r"(?<![^\W_])(" + alternatives + r")(?![^\W_])", re.IGNORECASE)
+
+
+def escaped(text, start):
+    before = text[:start]
+    return (len(before) - len(before.rstrip("\\"))) % 2 == 1
+
+
+def prose_segments(lines):
+    segments = []
+    fence = None
+    span = 0
+    for number, line in enumerate(lines, start=1):
+        if fence is not None:
+            char, length, _ = fence
+            stripped = line.strip()
+            if len(stripped) >= length and stripped == char * len(stripped):
+                fence = None
+            continue
+        if span == 0:
+            match = FENCE_OPEN.match(line)
+            if match and not (match.group(1)[0] == "`" and "`" in match.group(2)):
+                fence = (match.group(1)[0], len(match.group(1)), number)
+                continue
+        if not line.strip():
+            span = 0
+            segments.append((number, line))
+            continue
+        kept = []
+        position = 0
+        for run in BACKTICK_RUN.finditer(line):
+            start, end = run.start(), run.end()
+            if span:
+                if end - start == span:
+                    span = 0
+                    position = end
+                continue
+            if start < position:
+                continue
+            if escaped(line, start):
+                start += 1
+                if start == end:
+                    continue
+            length = end - start
+            kept.append(line[position:start])
+            if closes_later(lines, number - 1, end, length):
+                span = length
+            else:
+                kept.append(line[start:end])
+            position = end
+        if not span:
+            kept.append(line[position:])
+        segments.append((number, "".join(kept)))
+    unclosed = fence[2] if fence is not None else None
+    return segments, unclosed
+
+
+def closes_later(lines, index, start, length):
+    current = lines[index][start:]
+    candidates = [current]
+    for following in lines[index + 1:]:
+        if not following.strip() or FENCE_OPEN.match(following):
+            break
+        candidates.append(following)
+    for text in candidates:
+        for run in BACKTICK_RUN.finditer(text):
+            if len(run.group(0)) == length:
+                return True
+    return False
+
+
+def rust_documents(text):
+    source = rust_lexer.Source(text)
+    for doc in ("outer", "inner"):
+        for group in rust_lexer.doc_groups(source, doc):
+            yield [number for number, _ in group], [line for _, line in group]
+
+
+def check_file(path, words):
+    findings = []
+    shown = rust_lexer.display(path)
+    if path.endswith(".rs"):
+        text = rust_lexer.read_source(path)
+    else:
+        text = Path(path).read_text(encoding="utf-8", errors="surrogateescape")
+    if text.startswith(BOM):
+        findings.append((1, f"{shown}:1: UTF-8 byte order mark"))
+        text = text[len(BOM):]
+    if path.endswith(".rs"):
+        for numbers, lines in rust_documents(text):
+            check_document(shown, words, numbers, lines, findings)
+    else:
+        lines = text.splitlines()
+        check_document(shown, words, list(range(1, len(lines) + 1)), lines, findings)
+    return [finding for _, finding in sorted(findings, key=lambda f: f[0])]
+
+
+def check_document(shown, words, numbers, lines, findings):
+    segments, unclosed = prose_segments(lines)
+    for index, prose in segments:
+        number = numbers[index - 1]
+        for char in prose:
+            code = ord(char)
+            if 0xDC80 <= code <= 0xDCFF:
+                findings.append((number, f"{shown}:{number}: invalid UTF-8 byte 0x{code - 0xDC00:02X}"))
+            elif code > 0x7F:
+                findings.append((number, f"{shown}:{number}: non-ASCII character U+{code:04X} {char!r}"))
+            elif char == ";":
+                findings.append((number, f"{shown}:{number}: semicolon"))
+        if words is not None:
+            for match in words.finditer(prose):
+                findings.append((number, f"{shown}:{number}: non-Canadian spelling '{match.group(0)}'"))
+    if unclosed is not None:
+        unclosed = numbers[unclosed - 1]
+        findings.append((unclosed, f"{shown}:{unclosed}: unclosed code fence opened at line {unclosed}"))
+
+
+def main(argv):
+    if any(a in ("-h", "--help") for a in argv):
+        print(USAGE)
+        return 0
+    try:
+        words = load_words()
+        paths = argv or rust_lexer.repository_files("*.md", "*.rs")
+    except rust_lexer.SetupError as error:
+        rust_lexer.emit(f"check-prose: {error}", sys.stderr)
+        return 2
+    findings = []
+    unreadable = False
+    for path in paths:
+        try:
+            findings.extend(check_file(path, words))
+        except OSError as error:
+            rust_lexer.emit(f"check-prose: cannot read {rust_lexer.display(path)}: {rust_lexer.os_error(error)}", sys.stderr)
+            unreadable = True
+        except rust_lexer.SourceError as error:
+            rust_lexer.emit(f"check-prose: cannot read {rust_lexer.display(path)}: {error}", sys.stderr)
+            unreadable = True
+    for finding in findings:
+        rust_lexer.emit(finding)
+    if unreadable:
+        return 2
+    return 1 if findings else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
