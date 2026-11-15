@@ -104,9 +104,17 @@ TOOL-30. `taplo.toml` MUST set `indent_string = "    "` in its `[formatting]` ta
 
 Otherwise `check-toml` and `check-typos` fail on files that are correct. taplo indents with two spaces by default, which disagrees with the four spaces that `.editorconfig` sets for `*.toml`. It does not read `.gitignore`, so without the exclusions it also checks the build directory and every worktree.
 
-typos reports two kinds of correct text in the repository: a two-letter fragment of the regular expression that matches the shell names in the shebang checks of `scripts/justfile-recipes` and `scripts/check-shell`, and the surname of a cited author in `docs/rust-references.md`. `typos.toml` accepts them with two entries in the `extend-ignore-re` list of its `[default]` table. One matches the whole regular expression, and the other matches the author's full name.
+`typos.toml` accepts correct text in three forms: patterns, identifiers, and words. An agent adds each new entry in the narrowest form that accepts the correct text, because every wider form stops typos from checking more of the repository.
 
-typos skips only the text that an entry matches, so it still checks the same letters anywhere else, which accepting the words in `[default.extend-words]` would not do. A document that names this configuration describes the two findings instead of spelling them out, because typos reports such a document too. typos reads its configuration from `typos.toml`, `_typos.toml`, or `.typos.toml`, and the repository uses the first name.
+The one pattern is the entry of the `extend-ignore-re` list in the `[default]` table. It matches the full name of a cited author in `docs/rust-references.md`, whose surname typos reports. The surname is correct only inside that name, and typos skips only the text that a pattern matches, so it still checks the same letters everywhere else.
+
+The `[default.extend-words]` table accepts words: the surname of a cited author, words of cited titles in French and Latin, a journal abbreviation, and part of the name of a cited crate and of a compression format. These words recur in many places, such as the research documents under `docs/research/` and their citation tags, and in both lower and upper case. A word entry accepts all of them, because typos accepts a word in this table wherever it occurs as a word, in any case.
+
+The `[default.extend-identifiers]` table accepts identifiers: mathematical notation, and names quoted from cited code and data. Each is a short token that is correct only as the exact standalone notation or name. typos accepts it only when a whole identifier matches, so it still checks the same letters inside another identifier.
+
+One identifier is a two-letter fragment that occurs in two unrelated places. It is part of the regular expression that matches the shell names in the shebang checks of `scripts/justfile-recipes` and `scripts/check-shell`, and it occurs among the permutation words that the research documents quote from data files. The fragment is correct as a standalone token in each place, so the configuration accepts it as an identifier.
+
+A document that describes this configuration describes the accepted text instead of spelling it out, because typos checks that document too. typos reads its configuration from `typos.toml`, `_typos.toml`, or `.typos.toml`, and the repository uses the first name.
 
 No file is excluded from typos.
 

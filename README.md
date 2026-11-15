@@ -4,11 +4,13 @@ Escher is a Rust application for creating symmetry-based graphics, like those in
 
 ## Contents
 
-The repository holds the tooling, the documents that set its standards, and one placeholder crate. It holds no code that computes or renders a symmetry.
+The repository holds the tooling, the documents that set its standards, the research behind the project, and one placeholder crate. It holds no code that computes or renders a symmetry.
 
 | Crate | Purpose |
 | --- | --- |
 | `escher-cli` | The command-line program `escher`, which prints its package name and version. It is not published. |
+
+The directory `docs/research/` holds references on the mathematics of orbifolds, geometry models, fundamental domains, rendering, and colourings, studies of SymmHub and other existing software, a survey of Rust crates, and a list of sources that the research could not read in full.
 
 ## Requirements
 
@@ -50,7 +52,7 @@ This command installs the git hooks, once per clone:
 just hooks-install
 ```
 
-[`AGENTS.md`](https://github.com/g-whiz/escher/blob/main/AGENTS.md) holds the rules for working in the repository and the recipe to run for each kind of change. These documents are under `docs/`:
+[`AGENTS.md`](https://github.com/g-whiz/escher/blob/main/AGENTS.md) holds the rules for working in the repository and the recipe to run for each kind of change. These documents that set the standards are under `docs/`:
 
 - [Tooling design](https://github.com/g-whiz/escher/blob/main/docs/design/tooling.md): The tool configuration, the recipes, the hooks, the custom checkers, and the continuous integration.
 - [Rust coding standards](https://github.com/g-whiz/escher/blob/main/docs/rust-coding-standards.md): The rules for Rust code.

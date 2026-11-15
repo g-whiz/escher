@@ -4,7 +4,7 @@ Every coding agent reads this file before it works in this repository. `CLAUDE.m
 
 Escher is a Rust application for creating symmetry-based graphics, like those in some works of M. C. Escher, with the SymmHub project as prior art. Its goal is a tool that creates symmetry-based graphics and animations and then renders or exports them, for example as a Slang shader. It covers the planar symmetries that orbifold notation expresses, in Euclidean, spherical, and hyperbolic geometry, and graphics based on other planar tilings, such as aperiodic tilings.
 
-The repository holds only scaffolding and a placeholder binary, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
+The repository holds scaffolding, a placeholder binary, and research documents, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
 
 The owner has set these phases and platforms:
 
@@ -89,13 +89,16 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Project Status
 
-As of 2026-11-15, the repository holds its scaffolding and one placeholder crate, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
+As of 2026-11-15, the repository holds its scaffolding, one placeholder crate, and the research documents under `docs/research/`, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
 
 What exists and works:
 
 - The scaffolding that Repository Layout lists: the standards documents, the tooling design, the tool configuration, the `justfile` and its recipes, the custom checkers and their self-tests, the git hooks, the Claude Code settings, and the CI workflow.
 - The workspace member `crates/escher-cli`, which has a library target that holds only crate-level documentation, and the binary `escher`, which prints its package name and version, `escher-cli 0.1.0`.
 - `just check`, `just check-features`, `just check-msrv`, and `just coverage`, which all pass in the development container. The workspace has no test, so the recipes that run nextest pass with a warning that no test ran.
+- The nine research documents under `docs/research/` that Repository Layout lists: seven subject-matter references, the dated survey `docs/research/rust-ecosystem.md`, and the working list `docs/research/source-requests.md`.
+
+The research documents record what their cited sources establish and mark each claim that no source establishes as unverified. Each of them except `docs/research/source-requests.md` has an Open Questions and Unverified Claims section, which names what would close each question. An agent reads that section before it builds on a claim, because a claim listed there is not established.
 
 What does not exist yet:
 
@@ -103,10 +106,9 @@ What does not exist yet:
 - Any dependency. The workspace manifest has no `[workspace.dependencies]` table, and `escher-cli` declares no dependency.
 - Any test.
 - An architecture design, a milestone plan, and any design document other than `docs/design/tooling.md`.
-- The directory `docs/research/`, with its subject-matter references and `docs/research/source-requests.md`.
 - A Lean development.
 
-Research and planning happen outside this branch. The change that adds their documents updates this section.
+The planning of the proof of concept has not started. The change that adds its documents updates this section.
 
 Section 7.11 of the writing guide and Section 4.8 of the coding standard say which part of each rule a tool or checker enforces. Every rule that no configured tool checks stays a judgement rule.
 
@@ -127,11 +129,20 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 - `deny.toml`: The cargo-deny configuration of Section 8 of `docs/design/tooling.md`.
 - `.config/nextest.toml`: The nextest profiles `default` and `default-miri` of Section 4 of `docs/design/tooling.md`.
 - `taplo.toml`: The taplo configuration, with four-space indentation and the exclusion of `target/` and `.worktrees/`.
-- `typos.toml`: The typos configuration, which accepts two correct patterns that typos would otherwise report (TOOL-30 of `docs/design/tooling.md`).
+- `typos.toml`: The typos configuration, which accepts correct text that typos would otherwise report, as a pattern, words, and identifiers (TOOL-30 of `docs/design/tooling.md`).
 - `docs/writing-documentation.md`: The normative writing guide.
 - `docs/rust-coding-standards.md`: The normative Rust coding standard, with the specification of the lint and tool configuration.
 - `docs/rust-references.md`: The reference list of external sources behind the coding standard, with a topic index.
 - `docs/design/tooling.md`: The tooling design, which is authoritative for the toolchain configuration, the recipes, the hooks, the custom checkers, the CI workflow, the dependency policy, and the requirements on the container image.
+- `docs/research/orbifold-notation.md`: The subject-matter reference on Conway's orbifold notation, with the grammar of a signature, equivalent signatures, the Euler characteristic, the classification by geometry, the lists of spherical, wallpaper, and frieze signatures, presentations, and deformations.
+- `docs/research/geometry-models.md`: The subject-matter reference on the models of the hyperbolic plane, the sphere, and the Euclidean plane, with the conversions between models, isometries, constructions, numerical robustness, distances, and trigonometry.
+- `docs/research/fundamental-domains.md`: The subject-matter reference on building a fundamental polygon and its side-pairing isometries from a signature, with Poincare's polygon theorem, moduli, building blocks, algorithms, and the classes of signature that have a sourced construction.
+- `docs/research/rendering.md`: The subject-matter reference on drawing a tiling into a raster image, with per-pixel folding, forward generation, borders, antialiasing, per-pixel model maps, the sphere, pattern fills, and performance.
+- `docs/research/colourings.md`: The subject-matter reference on tilings associated with a group and colourings that respect their symmetry, with three candidate designs for the polygons of an image.
+- `docs/research/symmhub.md`: The subject-matter reference that studies the SymmHub source code as prior art.
+- `docs/research/prior-art.md`: The subject-matter reference that surveys existing software for symmetry-based graphics.
+- `docs/research/rust-ecosystem.md`: The survey, dated 2026-11-15, of the Rust crates and tools that the project could use, in the skeleton of a subject-matter reference. Its recommendations are not decisions.
+- `docs/research/source-requests.md`: The working list of sources that the research could not read in full, by priority, for the owner to supply in `references/` (Section 5.5 of the writing guide).
 - `justfile`: The root `justfile`, with the groups `checks`, `rust`, and `git` (Section 3.1 of `docs/design/tooling.md`).
 - `.github/workflows/ci.yml`: The CI workflow, with the jobs `check`, `ci-only`, and `coverage` on hosted Linux runners, which Section 7 of `docs/design/tooling.md` specifies.
 - `scripts/check-prose`, `scripts/prose-wordlist.txt`: The prose checker for Markdown files and for the documentation comments of Rust files, and its list of non-Canadian spellings.
@@ -157,9 +168,8 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 
 `target/`, `.worktrees/`, `.code-review/`, `.idea/`, and `.claude/settings.local.json` are local and ignored by git. `references/` is also ignored. It may exist in a checkout to hold copyrighted sources that the owner supplies, and nothing in it is ever committed (Hard Rule 14).
 
-These locations are planned and do not exist yet:
+This location is planned and does not exist yet:
 
-- `docs/research/`: The subject-matter references of Section 3.7 of the writing guide, and `docs/research/source-requests.md`.
 - `docs/design/<component>.md`: One design document for each component, written before the code of the component.
 
 ## Technology Decisions

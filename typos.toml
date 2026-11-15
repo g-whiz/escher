@@ -1,4 +1,27 @@
 [default]
-# The shell name pattern `(ba)?sh` in the shebang checks, and the surname of a
-# cited author.
-extend-ignore-re = ["\\(ba\\)\\?sh", "Rob Ede"]
+# The full name of a cited author, whose surname typos would report.
+extend-ignore-re = ["Rob Ede"]
+
+[default.extend-words]
+# The surname of a cited author, also in upper case inside citation tags.
+voight = "voight"
+# Words of cited titles in French and Latin, and a journal abbreviation.
+calculs = "calculs"
+groupes = "groupes"
+inventiones = "inventiones"
+comput = "comput"
+# Part of the name of a cited crate and of a compression format.
+flate = "flate"
+
+[default.extend-identifiers]
+# Mathematical notation, names quoted from cited code and data, and a fragment
+# of the shell name pattern in the shebang checks.
+Hom = "Hom"
+LOD = "LOD"
+ba = "ba"
+cfor = "cfor"
+iy = "iy"
+iz = "iz"
+nd = "nd"
+pn = "pn"
+tha = "tha"
