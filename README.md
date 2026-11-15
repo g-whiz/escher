@@ -4,13 +4,15 @@ Escher is a Rust application for creating symmetry-based graphics, like those in
 
 ## Contents
 
-The repository holds the tooling, the documents that set its standards, the research behind the project, and one placeholder crate. It holds no code that computes or renders a symmetry.
+The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, and one placeholder crate. It holds no code that computes or renders a symmetry.
 
 | Crate | Purpose |
 | --- | --- |
 | `escher-cli` | The command-line program `escher`, which prints its package name and version. It is not published. |
 
 The directory `docs/research/` holds references on the mathematics of orbifolds, geometry models, fundamental domains, rendering, and colourings, and studies of SymmHub and other existing software. It also holds a survey of Rust crates, three surveys for the roadmap, and a list of sources that the research could not read in full. The roadmap surveys cover aperiodic tilings, partial differential equations on orbifolds, and vector export, animation, and shader export.
+
+The planning documents in `docs/design/` are the architecture design and the milestone plan of the proof of concept, and the roadmap beyond it.
 
 ## Requirements
 

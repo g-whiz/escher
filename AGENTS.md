@@ -4,7 +4,7 @@ Every coding agent reads this file before it works in this repository. `CLAUDE.m
 
 Escher is a Rust application for creating symmetry-based graphics, like those in some works of M. C. Escher, with the SymmHub project as prior art. Its goal is a tool that creates symmetry-based graphics and animations and then renders or exports them, for example as a Slang shader. It covers the planar symmetries that orbifold notation expresses, in Euclidean, spherical, and hyperbolic geometry, and graphics based on other planar tilings, such as aperiodic tilings.
 
-The repository holds scaffolding, a placeholder binary, and research documents, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
+The repository holds scaffolding, a placeholder binary, research documents, and the planning documents of the proof of concept, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
 
 The owner has set these phases and platforms:
 
@@ -20,7 +20,7 @@ The owner has set these goals for the proof of concept:
 - It produces PNG images of a symmetry given in orbifold notation, at a configurable resolution with a default of 512 by 512 pixels.
 - It draws the polygons with black borders and fills a representative set of polygons with colours that the user chooses. The user can also set properties such as the border thickness.
 - A separate command reports information on a symmetry: how many polygons are in the representative set, which says how many colours can be chosen, and whether the symmetry is spherical, Euclidean, or hyperbolic.
-- It renders hyperbolic symmetries in the Poincare disk model first and by default, and later in other models, such as the band and star models that Vladimir Bulatov describes.
+- It renders hyperbolic symmetries in the Poincare disk model first and by default, then in the half-plane, band, and Klein models, and after the proof of concept in other models, such as the star model that Vladimir Bulatov describes.
 - It renders spherical symmetries with simple Phong shading.
 
 Development happens inside the development container, whose image is defined outside this repository (Section 10 of `docs/design/tooling.md`).
@@ -62,7 +62,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
    Every recipe has a help comment, and every shell script starts with `#!/usr/bin/env bash` and `set -euo pipefail`. Every shell script and every recipe that contains shell is `shellcheck`-clean. Section 3.2 of `docs/design/tooling.md` lists every recipe, and Validating Changes names the recipes to run for each kind of change.
 9. **No attribution.** No output contains a generated-by line, a `Co-Authored-By` trailer, or a link to an agent session, because such a line says nothing about the change and a session link can expose a private session. This covers commits, pull requests, issues, and files. The `commit-msg` hook rejects such lines, and `just merge` strips them.
-10. **No extra documentation.** The agent writes no document beyond `README.md`, `AGENTS.md`, `CLAUDE.md`, and the `docs/` tree, with design documents in `docs/design/` and subject-matter references in `docs/research/`, because every extra document is one more place that can diverge from the code.
+10. **No extra documentation.** The agent writes no document beyond `README.md`, `AGENTS.md`, `CLAUDE.md`, and the `docs/` tree, with design documents in `docs/design/` and research documents in `docs/research/`, because every extra document is one more place that can diverge from the code.
 11. **Work in a worktree.** Files change only in a git worktree under `.worktrees/`, never in the main checkout, because the main checkout is where `just merge` runs. Branches are named `feature/<short-description>`, lowercase and hyphenated, because the repository has no ticket keys.
 
    The agent commits without asking and pushes its branch to run CI, because the project opens no pull requests and a push to a branch that matches `feature/**` is what runs CI on a branch.
@@ -89,7 +89,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Project Status
 
-As of 2026-11-15, the repository holds its scaffolding, one placeholder crate, and the research documents under `docs/research/`, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
+As of 2026-11-15, the repository holds its scaffolding, one placeholder crate, the research documents under `docs/research/`, and the planning documents of the proof of concept, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
 
 What exists and works:
 
@@ -97,6 +97,7 @@ What exists and works:
 - The workspace member `crates/escher-cli`, which has a library target that holds only crate-level documentation, and the binary `escher`, which prints its package name and version, `escher-cli 0.1.0`.
 - `just check`, `just check-features`, `just check-msrv`, and `just coverage`, which all pass in the development container. The workspace has no test, so the recipes that run nextest pass with a warning that no test ran.
 - The twelve research documents under `docs/research/` that Repository Layout lists: seven subject-matter references, four dated surveys, and the working list `docs/research/source-requests.md`.
+- The planning documents of the proof of concept: `docs/design/architecture.md`, `docs/design/poc-plan.md`, and `docs/design/roadmap.md`.
 
 The research documents record what their cited sources establish and mark each claim that no source establishes as unverified. Each of them except `docs/research/source-requests.md` has an Open Questions and Unverified Claims section, which names what would close each question. An agent reads that section before it builds on a claim, because a claim listed there is not established.
 
@@ -105,10 +106,10 @@ What does not exist yet:
 - Any code that parses an orbifold signature, computes a tiling, or renders an image.
 - Any dependency. The workspace manifest has no `[workspace.dependencies]` table, and `escher-cli` declares no dependency.
 - Any test.
-- An architecture design, a milestone plan, and any design document other than `docs/design/tooling.md`.
+- The design document of each component, which its milestone writes before the code of the component.
 - A Lean development.
 
-The planning of the proof of concept has not started. The change that adds its documents updates this section.
+The owner has not yet reviewed the plan of the proof of concept or its proposed defaults. No milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
 
 Section 7.11 of the writing guide and Section 4.8 of the coding standard say which part of each rule a tool or checker enforces. Every rule that no configured tool checks stays a judgement rule.
 
@@ -134,6 +135,9 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 - `docs/rust-coding-standards.md`: The normative Rust coding standard, with the specification of the lint and tool configuration.
 - `docs/rust-references.md`: The reference list of external sources behind the coding standard, with a topic index.
 - `docs/design/tooling.md`: The tooling design, which is authoritative for the toolchain configuration, the recipes, the hooks, the custom checkers, the CI workflow, the dependency policy, and the requirements on the container image.
+- `docs/design/architecture.md`: The architecture design of the proof of concept, which is authoritative for the planned crates, the data flow, the conventions between crates, the testing strategy, performance, numerical robustness, the owner's decisions, and the proposed defaults.
+- `docs/design/poc-plan.md`: The milestone plan of the proof of concept, which is authoritative for the workflow of a milestone, the owner's staging, the research prerequisites, the milestones, the documentation obligations of each milestone, and the unverified statements that the proof of concept relies on.
+- `docs/design/roadmap.md`: The roadmap design, which is authoritative for the order of the phases after the proof of concept, the workstreams, the deep-research items, and the closing of unverified statements by sources and by a Lean development.
 - `docs/research/orbifold-notation.md`: The subject-matter reference on Conway's orbifold notation, with the grammar of a signature, equivalent signatures, the Euler characteristic, the classification by geometry, the lists of spherical, wallpaper, and frieze signatures, presentations, and deformations.
 - `docs/research/geometry-models.md`: The subject-matter reference on the models of the hyperbolic plane, the sphere, and the Euclidean plane, with the conversions between models, isometries, constructions, numerical robustness, distances, and trigonometry.
 - `docs/research/fundamental-domains.md`: The subject-matter reference on building a fundamental polygon and its side-pairing isometries from a signature, with Poincare's polygon theorem, moduli, building blocks, algorithms, and the classes of signature that have a sourced construction.
@@ -171,9 +175,10 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 
 `target/`, `.worktrees/`, `.code-review/`, `.idea/`, and `.claude/settings.local.json` are local and ignored by git. `references/` is also ignored. It may exist in a checkout to hold copyrighted sources that the owner supplies, and nothing in it is ever committed (Hard Rule 14).
 
-This location is planned and does not exist yet:
+These locations are planned and do not exist yet:
 
-- `docs/design/<component>.md`: One design document for each component, written before the code of the component.
+- `docs/design/signature.md`, `docs/design/geometry.md`, `docs/design/group.md`, `docs/design/domain.md`, `docs/design/render.md`, and `docs/design/cli.md`: The design documents of the components, which Section 1.5 and `DEC-1` of `docs/design/architecture.md` name.
+- `crates/escher-signature`, `crates/escher-geometry`, `crates/escher-group`, `crates/escher-domain`, and `crates/escher-render`: The planned crates, which Section 3 of `docs/design/architecture.md` specifies.
 
 ## Technology Decisions
 
@@ -197,7 +202,7 @@ The development container provides this environment:
 
 CI installs the latest version of each tool on its runners, so a tool version in CI can differ from the one in the container (Section 7.1 of `docs/design/tooling.md`). Section 4.8 of the coding standard lists what each tool checks, and its Section 1.1 records the versions that were verified. Section 10 of `docs/design/tooling.md` lists every requirement on the image.
 
-The owner has made these decisions for later phases. None of them is implemented yet:
+The owner has made these decisions for the proof of concept and the later phases, and `docs/design/roadmap.md` puts the later phases in order. None of them is implemented yet:
 
 - The workspace grows into several crates, so that each crate holds one concern.
 - Until live rendering exists, the engine renders to PNG files on disk.
@@ -207,9 +212,11 @@ The owner has made these decisions for later phases. None of them is implemented
 - Other planar tilings, such as aperiodic tilings, follow in the medium term.
 - The simulation of planar partial differential equations on orbifolds, accelerated by Slang compute shaders, follows in the longer term.
 
+Section 10.1 of `docs/design/architecture.md` records the owner's decisions for the proof of concept, and its Section 10.2 records the proposed defaults.
+
 ## Development Workflow
 
-A change starts with the section of the design document that covers it. A change that adds a component without a design document writes that document first, in `docs/design/`, and a change that implements mathematics starts from its subject-matter reference (Hard Rule 14).
+A change starts with the section of the design document that covers it. A change that adds a component without a design document writes that document first, in `docs/design/`, and a change that implements mathematics starts from its subject-matter reference (Hard Rule 14). Work on the proof of concept follows the milestones of `docs/design/poc-plan.md` in the order of their dependencies, and each milestone begins with its design branch, as Section 3 of that document states.
 
 Before it writes Rust, the agent reads the sections of the coding standard that Section 1.2 of that standard names. The agent makes the change in a worktree, as Hard Rule 11 requires, runs the checks in Validating Changes, and fixes whatever they report. The agent updates the documentation as Hard Rule 1 requires before it considers the change done.
 
