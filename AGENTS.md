@@ -96,7 +96,7 @@ What exists and works:
 - The scaffolding that Repository Layout lists: the standards documents, the tooling design, the tool configuration, the `justfile` and its recipes, the custom checkers and their self-tests, the git hooks, the Claude Code settings, and the CI workflow.
 - The workspace member `crates/escher-cli`, which has a library target that holds only crate-level documentation, and the binary `escher`, which prints its package name and version, `escher-cli 0.1.0`.
 - `just check`, `just check-features`, `just check-msrv`, and `just coverage`, which all pass in the development container. The workspace has no test, so the recipes that run nextest pass with a warning that no test ran.
-- The nine research documents under `docs/research/` that Repository Layout lists: seven subject-matter references, the dated survey `docs/research/rust-ecosystem.md`, and the working list `docs/research/source-requests.md`.
+- The twelve research documents under `docs/research/` that Repository Layout lists: seven subject-matter references, four dated surveys, and the working list `docs/research/source-requests.md`.
 
 The research documents record what their cited sources establish and mark each claim that no source establishes as unverified. Each of them except `docs/research/source-requests.md` has an Open Questions and Unverified Claims section, which names what would close each question. An agent reads that section before it builds on a claim, because a claim listed there is not established.
 
@@ -142,6 +142,9 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 - `docs/research/symmhub.md`: The subject-matter reference that studies the SymmHub source code as prior art.
 - `docs/research/prior-art.md`: The subject-matter reference that surveys existing software for symmetry-based graphics.
 - `docs/research/rust-ecosystem.md`: The survey, dated 2026-11-15, of the Rust crates and tools that the project could use, in the skeleton of a subject-matter reference. Its recommendations are not decisions.
+- `docs/research/aperiodic-tilings.md`: The survey for the roadmap, dated 2026-11-15, of tilings without a symmetry group, such as the Penrose tilings and the hat and spectre monotiles, with their construction methods, rendering, and existing software.
+- `docs/research/pdes-on-orbifolds.md`: The survey for the roadmap, dated 2026-11-15, of the simulation of partial differential equations on orbifolds, with the candidate numerical methods, pattern formation on curved surfaces, and GPU practice.
+- `docs/research/export-and-animation.md`: The survey for the roadmap, dated 2026-11-15, of vector export, animation, and shader export, with Slang as an export target.
 - `docs/research/source-requests.md`: The working list of sources that the research could not read in full, by priority, for the owner to supply in `references/` (Section 5.5 of the writing guide).
 - `justfile`: The root `justfile`, with the groups `checks`, `rust`, and `git` (Section 3.1 of `docs/design/tooling.md`).
 - `.github/workflows/ci.yml`: The CI workflow, with the jobs `check`, `ci-only`, and `coverage` on hosted Linux runners, which Section 7 of `docs/design/tooling.md` specifies.
