@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | All Rust code in this repository, and the agents that write or review it |
 
 ## Abstract
@@ -20,9 +20,10 @@ This document assigns every rule to one of the two classes, following Section 3.
 
 ### 1.1. Scope
 
-This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has one member:
+This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has two members:
 
 - `escher-cli`: a package with a library target that holds only crate documentation, and the binary `escher`, which prints its package name and version.
+- `escher-signature`: a library crate that parses an orbifold signature into its canonical form and computes its exact Euler characteristic, as `docs/design/signature.md` specifies.
 
 Rules ERR-1 and ERR-2 apply to library crates only, because a binary such as `escher` is an application, which may report errors through `Box<dyn std::error::Error>`.
 
@@ -905,6 +906,10 @@ Reason: each Rust file directly in `tests/` is a separate test binary, so a help
 
 A helper outside `#[cfg(test)]` code also triggers `clippy::unwrap_used` and `unreachable_pub`, because the test options of Section 4.3 cover only `#[test]` functions and `#[cfg(test)]` code. The single-binary layout produced no findings in the run of Section 1.1.
 
+**TEST-11.** Mark each test that runs a loop too long for the Miri interpreter with `#[cfg_attr(miri, ignore = "...")]` and a reason in plain words, and give every property test its configuration from one helper in the crate's shared test module, which under `cfg!(miri)` runs fewer cases and turns off failure persistence. Section 4 of `docs/design/tooling.md` gives the numbers of cases.
+
+Reason: the check runs every test under Miri, which interprets the code far more slowly than it runs natively, so a long loop or a full set of property cases makes the check impractically slow. An `ignore` with a reason stays visible as a skipped test in the report of nextest, and the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses. One helper keeps the case counts in one place. [S-8]
+
 ## 12. Dependencies and Cargo Features
 
 **DEP-1.** Make every Cargo feature additive, so that every combination compiles, and name it after what it enables. A feature never removes behaviour or selects between options that exclude each other. Section 7.8 of the writing guide defines how features are documented.
@@ -1110,6 +1115,7 @@ The identifiers FFI-1 to FFI-11, SYS-1 to SYS-8, and COM-1 to COM-13 are reserve
 | TEST-8 | Withdrawn on 2026-11-15. |
 | TEST-9 | No tests that restate the implementation, and property tests for round trips. |
 | TEST-10 | One integration-test binary per crate, `tests/<suite>/main.rs`, with sibling modules and a `#[cfg(test)] mod common;`. |
+| TEST-11 | Tests too slow for Miri carry `#[cfg_attr(miri, ignore = "...")]` with a plain reason, and property tests take a Miri-aware configuration from one helper. |
 | DEP-1 | Cargo features are additive and named after what they enable. |
 | DEP-2 | Dependencies are few, preferably standard, and declared once in the workspace, except another version requirement on a member. |
 | DEP-3 | A crate that exposes a dependency below 1.0 stays below 1.0, and a breaking upgrade of a public dependency is a breaking release. |

@@ -204,8 +204,8 @@ Section 5 of `docs/design/cli.md` gives the exact text of each command, and its 
 **Dependencies and `deny.toml` work.** `thiserror`, `clap`, `anyhow`, and the dev-dependencies `insta` and `proptest`. This change adds the first `[workspace.dependencies]` table.
 
 - A test resolved these dependencies on 2026-11-16. It found no crate in two versions, and `cargo deny check licenses bans` passed with the licences `Apache-2.0`, `MIT`, which `strsim` brings through `clap`, `Unicode-3.0`, which `unicode-ident` brings, and `GPL-3.0-or-later`. Section 9.2 of `docs/design/cli.md` and Section 13 of `docs/design/signature.md` record the versions and the checks.
-- In that test, the cargo-deny version in the development container did not report on dev-dependencies, so the licences, bans, and duplicates of `insta`, `proptest`, and their dependencies were not checked. The change establishes whether `just check-deny` covers dev-dependencies (Section 9.3 of `docs/design/cli.md`).
-- The change first confirms that each licence is compatible with GPL-3.0-or-later (TOOL-24). `rust-ecosystem.md` 21 records the statements on `MIT` and `Unicode-3.0` as general knowledge.
+- `deny.toml` brings dev-dependencies into the licence check and the duplicate check (Section 8 of the tooling design), so `just check-deny` checks `insta`, `proptest`, and their dependencies as it checks the normal dependencies.
+- A licence enters the allow-list only after its compatibility with GPL-3.0-or-later is confirmed (TOOL-24). Section 8 of the tooling design records the confirmation for `Apache-2.0` and `Unicode-3.0`. `rust-ecosystem.md` 21 records the statement on `MIT` as general knowledge.
 - If the change finds a duplicate, it adds `skip` entries with reasons only if no alignment of versions removes the duplicate (TOOL-26).
 - The change updates the printed `deny.toml` block and the sentences of Section 8 of the tooling design.
 
@@ -213,7 +213,7 @@ Section 5 of `docs/design/cli.md` gives the exact text of each command, and its 
 
 - Rule 4 with a crosscap, and rule 5 (`ox` equals `xxx`, stated by [TG] and [CBG] and not by [CH]), make the canonical form subtle.
 - Degenerate inputs: `1`, `*`, `x`, and the empty string.
-- The dependency tree may need exceptions for the dev-dependencies, whose licences, bans, and duplicates the resolution above did not check.
+- The dependency tree may need exceptions for duplicate versions, which `check-deny` reports for dev-dependencies as well as for normal ones.
 
 **Split.** The canonical form can follow as a second branch.
 
@@ -873,7 +873,7 @@ The plan has these failure modes:
 | --- | --- |
 | A milestone grows beyond a design branch and a few code branches | It splits along its Split field |
 | A research prerequisite finds no construction | The milestone proceeds on the unverified statements of Section 7, or the owner decides to move the work to the roadmap (`DEC-19`) |
-| A test reads a file, starts a process, or runs long numeric loops | It is excluded from Miri under the policy of `DEC-5` |
+| A test reads a file, starts a process, or runs long numeric loops | It is excluded from Miri under the policy of `DEC-5`, in the form that TEST-11 of the coding standard and Section 4 of the tooling design state |
 | A golden image differs between the container and CI | The comparison limits of Section 7 of `docs/design/architecture.md` apply, and a golden file changes only through its recipe |
 | A CI job is cancelled because no runner acquired it | The job is rerun, and the merge waits (Section 14.4 of the tooling design) |
 

@@ -5,12 +5,14 @@ all-features = true
 unused-ignored-advisory = "deny"
 
 [licenses]
-allow = ["GPL-3.0-or-later"]
+allow = ["GPL-3.0-or-later", "Apache-2.0", "Unicode-3.0"]
 confidence-threshold = 0.8
+include-dev = true
 unused-allowed-license = "deny"
 
 [bans]
 multiple-versions = "deny"
+multiple-versions-include-dev = true
 wildcards = "deny"
 allow-wildcard-paths = false
 

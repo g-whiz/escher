@@ -522,7 +522,7 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Test | Plan item | Kind and module | Asserts | Under Miri |
 | --- | --- | --- | --- | --- |
 | Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, and `*236`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself | Ignored |
-| Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Sections 9.3 and 9.5 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, and a span after the infinity sign | Ignored |
+| Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Section 12.1 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, and a span after the infinity sign | Ignored |
 | Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, `--version`, `-V`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, and a missing signature | Ignored |
 | Status tests | Failure paths | Plain tests, `usage` and `info` | `Success` for `*732`, `Failure` for `23`, `Usage` for an unknown subcommand and for an argument that is not UTF-8, and equal output for `*22(inf)` and the same signature with the infinity sign | Runs |
 | Output error tests | Failure paths | Plain tests, `info` | A writer that fails with a broken pipe gives `Failure` and empty standard error. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6 | Runs |
@@ -556,10 +556,10 @@ CLI-12. An agent MUST NOT set `INSTA_FORCE_PASS` in a recipe, a hook, or a workf
 The change that adds `insta` updates these statements, which it would otherwise make false:
 
 - Section 14.2 of `docs/design/tooling.md`, which lists every environment variable that the checks read. It gains at least `INSTA_UPDATE`, `CI`, `INSTA_FORCE_PASS`, `INSTA_WORKSPACE_ROOT`, and `INSTA_OUTPUT`, each with its confirmed behaviour when unset.
-- Section 8 of `docs/design/tooling.md`, for the licences that `deny.toml` gains (Section 9.2) and the coverage of dev-dependencies (Section 9.3).
+- Section 8 of `docs/design/tooling.md`, for the licences that `deny.toml` gains (Section 9.2).
 - `.gitignore`, which gains the pending snapshot files that the confirmation above finds, expected to be `*.snap.new` and `*.pending-snap`.
 
-Section 6 of `docs/design/architecture.md` names the documents that state how a test that cannot run under Miri is marked, which the first change that adds tests updates.
+Section 6 of `docs/design/architecture.md` names the documents that state how a test that cannot run under Miri is marked, and the tests of this crate follow them.
 
 ### 8.3. Tests Under Miri
 
@@ -614,9 +614,9 @@ Before it adds `MIT`, the change confirms that the licence is compatible with GP
 
 ### 9.3. Dependency Risks
 
-In the test of Section 9.2, cargo-deny 0.20.2, the version in the development container, did not report on dev-dependencies. `cargo deny list` named none of `insta`, `similar`, `tempfile`, `proptest`, and `rand`. The licence check passed with an allow-list without `Apache-2.0`, although `insta` and `similar` are under `Apache-2.0` alone. Setting `exclude-dev = false` in the `[graph]` table changed nothing, and the cause was not isolated.
+cargo-deny leaves dev-dependencies out of the licence check and the duplicate check by default. `deny.toml` overrides both defaults, as Section 8 of `docs/design/tooling.md` states, so `just check-deny` checks dev-dependencies. In the test of Section 9.2, which ran without the overrides, `cargo deny list` named none of `insta`, `similar`, `tempfile`, `proptest`, and `rand`.
 
-CLI-14. The change that adds `insta` MUST establish whether `just check-deny` checks dev-dependencies, find the setting that includes them if it does not, and record the result in Section 8 of `docs/design/tooling.md`, because otherwise the licences, advisories, and duplicates of the snapshot library go unchecked while the dependency policy appears to cover them.
+CLI-14. The change that adds `insta` MUST confirm that `cargo deny list` names `insta` and its dependencies, because otherwise the licences, advisories, and duplicates of the snapshot library go unchecked while the dependency policy appears to cover them.
 
 ## 10. Unverified Statements
 
@@ -671,11 +671,11 @@ The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as 
 - Unsafe code: the crate has none, and the workspace denies `unsafe_code`.
 - Files: the crate reads no file and writes no file. It writes only to the two streams that `run` receives.
 - Build scripts: the crate has none.
-- Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under Section 8 of `docs/design/tooling.md`, with the gap of Section 9.3 for dev-dependencies. Only `insta` is a dev-dependency, and it never reaches the binary.
+- Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under Section 8 of `docs/design/tooling.md`, for the dev-dependencies as well as the normal ones (Section 9.3). Only `insta` is a dev-dependency, and it never reaches the binary.
 
 Attacks on the repository, the build machine, or the terminal itself are out of scope, because this document governs the crate and not access control or the terminal.
 
-The residual risk is a usage error from `clap` that echoes an unknown argument with its control characters unchanged, which is not verified (Section 11.1). A second residual risk is the gap of Section 9.3, until the change that adds `insta` closes it.
+The residual risk is a usage error from `clap` that echoes an unknown argument with its control characters unchanged, which is not verified (Section 11.1). A second residual risk is that no run has confirmed the check of `insta` and its dependencies (Section 9.3), until the change that adds `insta` does so.
 
 ## 13. Operational Considerations
 
@@ -723,4 +723,4 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-11 | 7 | Every signature error, including a bad orbifold, gives `Failure`. |
 | CLI-12 | 8.2 | No recipe, hook, or workflow sets `INSTA_FORCE_PASS`. |
 | CLI-13 | 8.3 | Every test that uses `insta` is ignored under Miri with a reason. |
-| CLI-14 | 9.3 | The change that adds `insta` establishes whether cargo-deny checks dev-dependencies and records it. |
+| CLI-14 | 9.3 | The change that adds `insta` confirms that cargo-deny lists `insta` and its dependencies. |

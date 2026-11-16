@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The repository's configuration, recipes, hooks, and continuous integration |
 
 ## Abstract
@@ -217,6 +217,11 @@ TOOL-12. A recipe that runs nextest MUST pass when its profile selects no test. 
 Every nextest command of Section 4.8 of the coding standard therefore passes `--no-tests=warn`, with which an empty run passes and nextest still prints that no test ran. A recipe keeps that option.
 
 nextest does not run doctests, so `check-doctest` runs them, as Section 4.8 of the coding standard states.
+
+Under Miri, `default-miri` selects every test, so the tests themselves decide what runs in the interpreter, as TEST-11 of the coding standard requires:
+
+- A test that runs a loop too long for the interpreter carries `#[cfg_attr(miri, ignore = "...")]` with a reason in plain words. nextest reports such a test as skipped under Miri and runs it in `test` and `coverage`. Section 12.2 of `docs/design/signature.md` names the tests of `escher-signature` that carry it.
+- Every property test takes its `proptest` configuration from one helper in the `common` module of its crate's integration tests. Under `cfg!(miri)` the helper returns 8 cases with `failure_persistence` set to `None`, and otherwise it returns the default configuration of `proptest`, with 256 cases. The file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and 256 cases take too long in the interpreter.
 
 ## 5. Git Hooks
 
@@ -618,12 +623,14 @@ all-features = true
 unused-ignored-advisory = "deny"
 
 [licenses]
-allow = ["GPL-3.0-or-later"]
+allow = ["GPL-3.0-or-later", "Apache-2.0", "Unicode-3.0"]
 confidence-threshold = 0.8
+include-dev = true
 unused-allowed-license = "deny"
 
 [bans]
 multiple-versions = "deny"
+multiple-versions-include-dev = true
 wildcards = "deny"
 allow-wildcard-paths = false
 
@@ -633,6 +640,17 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
 ```
+
+cargo-deny 0.20.2 leaves dev-dependencies out of the licence check and the duplicate check by default. `include-dev = true` and `multiple-versions-include-dev = true` bring them in, so that TOOL-24 and TOOL-26 hold for every dependency, including those that only tests use.
+
+The licences other than `GPL-3.0-or-later` in `allow` are those of the dependencies in `Cargo.lock`, and each is compatible with GPL-3.0-or-later, as the Free Software Foundation's licence list states [FSF-LIST]:
+
+| Licence | Why it is in the list | Compatibility |
+| --- | --- | --- |
+| `Apache-2.0` | It satisfies every `MIT OR Apache-2.0` expression | Compatible with version 3 of the GNU GPL |
+| `Unicode-3.0` | `unicode-ident` carries `(MIT OR Apache-2.0) AND Unicode-3.0` | Compatible with all versions of the GNU GPL |
+
+`MIT` is not in the list, because `Apache-2.0` already satisfies every expression that offers it, so `unused-allowed-license = "deny"` would reject it as unused.
 
 The `[advisories]` table has no `ignore` list and the `[bans]` table has no `skip` list. The change that adds an exception under TOOL-26 adds the list, with one entry per line and its reason, and the change that adds a licence under TOOL-24 extends `allow`.
 
@@ -851,6 +869,10 @@ The directory `references/` at the root of the repository holds copyrighted sour
 
 - [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC 2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.
 - [RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words", BCP 14, RFC 8174, May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+### 15.2. Informative References
+
+- [FSF-LIST] Free Software Foundation, "Various Licenses and Comments about Them", section "GPL-Compatible Free Software Licenses", <https://www.gnu.org/licenses/license-list.html>.
 
 ## Appendix A. Requirement Summary
 

@@ -172,7 +172,7 @@ Every public type is `Send`, `Sync`, and `'static`, and a compile-time assertion
 
 The crate has these private modules, each a file named after the module:
 
-- `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, and the re-exports.
+- `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, the re-exports, and the unit test "Auto traits" of Section 12.1.
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
 - `src/order.rs`: `Order`.
 - `src/rational.rs`: `Rational` and the private greatest common divisor.
@@ -385,7 +385,7 @@ SIG-9. The constructor MUST store the features in the form that this algorithm p
 The input is the counts and lists of the scanner after a scan without an error. Canonicalization runs before the computation of $\chi$ and the checks of Section 6, so both see the canonical features. Each step names the rule of Section 4.1 of the reference that it applies:
 
 1. Rule 6. The parser has already dropped every order of 1 (Section 3.5 of the reference).
-2. Rule 5. If the crosscap count $c$ is greater than 0, set $c$ to $c + 2h$ and the handle count $h$ to 0. So `ox` and `xxx` both give `xxx`, `oox` gives `xxxxx`, and `o` alone stays `o`. This is the rule of `DEC-9`, which is a choice of this design.
+2. Rule 5. If the crosscap count $c$ is greater than 0, set $c$ to $c + 2h$ and the handle count $h$ to 0. So `ox` and `xxx` both give `xxx`, `oox` gives `xxxxx`, and `o` alone stays `o`. This is the rule of `DEC-9`, which is a choice of this design. The new count $c + 2h$ is computed with checked arithmetic. A count that does not fit `u32` is a `LimitExceeded` error for the size, with the span of the whole text. The size limit of Section 16 makes such a count impossible, so no input reaches this error.
 3. Rule 1. Sort the cone orders in descending order, with the order of Section 7.1.
 4. Rules 3 and 4. For a sequence $s$ of corner orders, its largest rotation is the lexicographically greatest of its rotations, and it is $s$ itself when $s$ is empty. Sequences compare element by element with the order of Section 7.1, and a proper prefix is smaller than the longer sequence, which is the order of Rust slices of `Order`.
    - If $c > 0$, replace each boundary $s$ by the greater of the largest rotation of $s$ and the largest rotation of the reverse of $s$, then sort the boundaries in descending order. Rule 4 allows the reversal of a single boundary when a crosscap is present.
@@ -447,7 +447,7 @@ A signature with a crosscap never reports a handle, so `oox` reports 0 handles a
 
 ### 8.1. Rational Type
 
-`Rational` holds a private `i64` numerator and a private `NonZeroU64` denominator, in lowest terms. A private constructor takes a numerator and a denominator as `i128`, reduces them, fixes the sign, and narrows them, and it fails when a reduced part does not fit. The type has no arithmetic operator and no `Ord`. A private Euclidean greatest common divisor on unsigned integers serves it.
+`Rational` holds a private `i64` numerator and a private `NonZeroU64` denominator, in lowest terms. A private constructor takes a numerator and a denominator as `i128`, reduces them, fixes the sign, and narrows them, and it fails when a reduced part does not fit. A private method returns the absolute value and fails when the numerator is `i64::MIN`. The type has no arithmetic operator and no `Ord`. A private Euclidean greatest common divisor on unsigned integers serves it.
 
 The type is written in the crate, because the crate table of Section 3.1 of the architecture gives it only `thiserror` (DEP-2 of the coding standard), and a type from `num-rational` in the public surface would make that crate a public dependency (DEP-3).
 
@@ -466,7 +466,7 @@ The finite orders are taken in one fixed sequence: the cone orders as `cone_orde
    which is $D$ times the defect rule: a finite cone point of order $A$ has the defect $1 - 1/A$, a finite corner of order $a$ has $1/2 - 1/(2a)$, an infinite cone point has 1, and an infinite corner has $1/2$ (Section 6.1 of the reference). The crate sums it in this order: it computes $2 - 2h - c - b - k$, multiplies it by $D$, subtracts $L\,l$, adds each $D / A_i$ in the fixed sequence, and then adds each $L / a_j$ in the fixed sequence.
 4. The Euler characteristic is $\chi = N / D$, reduced and narrowed to `Rational`.
 5. Twice the characteristic is $2\chi = N / L$, reduced and narrowed to `Rational`, because `area_over_pi` needs it. This step multiplies nothing, so no intermediate value of it can overflow.
-6. The absolute values of the reduced $\chi$ and $2\chi$ must also fit `Rational`, so neither numerator is `i64::MIN`.
+6. The crate checks that the absolute values of the reduced $\chi$ and $2\chi$ fit `Rational`, which holds exactly when neither reduced numerator is `i64::MIN`.
 
 ### 8.3. Overflow
 
@@ -485,7 +485,7 @@ These signatures show where the boundary lies:
 | `(43)(41)(37)(32)(31)(29)(27)(25)(23)(19)(17)(13)(11)7` | `Overflow`, because the reduced numerator of $\chi$ does not fit `i64` |
 | `(3037000493)(3037000499)x` | `Overflow`, because the reduced $\chi$ fits but the reduced numerator of $2\chi$ does not |
 
-Rejecting a signature whose $2\chi$, or the absolute value of $\chi$ or $2\chi$, does not fit `Rational`, as the last row does for $2\chi$, is a choice of this design. Construction rejects such a signature with `Overflow`, so `area_over_pi` cannot fail and has no error path (Section 9.4).
+Rejecting a signature whose $2\chi$, or the absolute value of $\chi$ or $2\chi$, does not fit `Rational`, as the last row does for $2\chi$, is a choice of this design. Construction rejects such a signature with `Overflow`, and Section 9.4 states what this gives `area_over_pi`.
 
 ### 8.4. Recomputation
 
@@ -519,7 +519,9 @@ Section 2.1 of the architecture defines the term. `is_general_non_compact()` rea
 - The signature is not a triangle group with ideal corners, which is the form `*pqr`: no handle, no crosscap, no cone point, and exactly one boundary with exactly three corners.
 - The signature is not a rotation subgroup of such a group, which is the form `pqr`: no handle, no crosscap, no boundary, and exactly three cone points.
 
-So `3*(inf)` and `(inf)(inf)(inf)(inf)` are general non-compact signatures, while `*23(inf)`, `(inf)32`, and `*22(inf)` are not.
+A corner or cone point of infinite order counts toward the three corners and the three cone points, so `*(inf)(inf)(inf)`, the triangle group whose three corners are all ideal, is not a general non-compact signature.
+
+By this definition, `3*(inf)` and `(inf)(inf)(inf)(inf)` are general non-compact signatures, while `*23(inf)`, `(inf)32`, `*22(inf)`, `*(inf)(inf)(inf)`, and the compact `*732` are not.
 
 ### 9.3. Group Order
 
@@ -529,7 +531,7 @@ So `3*(inf)` and `(inf)(inf)(inf)(inf)` are general non-compact signatures, whil
 
 `area_over_pi()` returns $2\lvert\chi\rvert$ for every spherical and every hyperbolic signature, including a non-compact hyperbolic one. Section 7.3 of the reference states the formula for an elliptic or hyperbolic orbifold without recording whether it covers a non-compact one, so the value for a non-compact signature rests on `UNV-21`. Section 15.3 raises this with the owner.
 
-The method cannot fail and has no error path. Construction has already checked that $2\chi$ and its absolute value fit `Rational` (Section 8.3), so the method returns `None` only for a Euclidean signature.
+The method has no failure path, because step 6 of Section 8.2 has checked that the absolute value of the reduced $2\chi$ fits `Rational`.
 
 ### 9.5. Deformation Dimension
 
@@ -537,7 +539,7 @@ For a compact hyperbolic signature, `deformation_dimension()` returns the dimens
 
 $$\dim T(O) = -3\chi(X_O) + 2k + l = -6 + 6h + 3c + 3b + 2k + l$$
 
-The second form reads $\chi(X_O)$ as $2 - 2h - c - b$, the part of the defect rule that comes from `o`, `x`, and `*` (Section 15.1). The method returns `None` for a Euclidean signature, because the counts of Section 10.2 of the reference are open (`UNV-10`), and for a non-compact signature (`UNV-21`). The plan states 0 for `*732` and 1 for `*3333` (Section 5.1 of the plan), and [CBG] states 13 for `4*235*74xx` (Section 10.1 of the reference). The value 0 for `4*3` follows from the formula, and no document states it.
+The second form reads $\chi(X_O)$ as $2 - 2h - c - b$, the part of the defect rule that comes from `o`, `x`, and `*` (Section 15.1). The method returns `None` for a Euclidean signature, because the counts of Section 10.2 of the reference are open (`UNV-10`), and for a non-compact signature (`UNV-21`). The plan states 0 for `*732` and 1 for `*3333` (Section 5.1 of the plan), and [CBG] states 13 for `4*235*74xx` (Section 10.1 of the reference).
 
 The constructor computes the dimension of every compact hyperbolic signature with checked arithmetic, after the checks of Section 6, and returns `Overflow` when the value does not fit `u32`, which includes a negative value. So `deformation_dimension()` has no failure path. No cited source states that the value is never negative for a compact hyperbolic signature. Section 15.1 records this as an assumption, and the property test "Dimension sign" of Section 12.1 checks it.
 
@@ -568,13 +570,13 @@ SIG-15. `Display` for `Error` MUST be `cannot parse orbifold signature: ` follow
 | `UnclosedParenthesis` | Nothing | `unclosed parenthesis` |
 | `ZeroOrder` | Nothing | `order 0 is not allowed` |
 | `MultiDigitOrder` | Nothing | `a digit 1 followed by another digit is ambiguous, write an order of 10 or more in parentheses, such as (12)` |
-| `AmbiguousOrder` | The order | `order 3 after a boundary and a handle or crosscap is ambiguous`, with `inf` for an infinite order |
+| `AmbiguousOrder` | The order | `order 3 after a boundary and a handle or crosscap is ambiguous`, with the bare value for an order of 10 or more, such as `order 12 after ...` and not `(12)`, and with `inf` for an infinite order |
 | `LimitExceeded` | Which limit | `the signature is longer than 1024 bytes`, `order is larger than 4294967295`, or `the signature has more than 64 features` |
 | `BadOrbifold` | Nothing | `bad orbifold, no symmetry group has this signature` |
 | `PositiveNonCompact` | Nothing | `an infinite order needs an Euler characteristic of 0 or less` |
 | `Overflow` | Which value | `the Euler characteristic does not fit exact 64-bit arithmetic`, `the group order is not a whole number or does not fit a 64-bit unsigned integer`, or `the deformation dimension does not fit a 32-bit unsigned integer` |
 
-Every fixed text is in lower case and has no trailing punctuation (ERR-4 of the coding standard). Only the character that `UnexpectedCharacter` shows can be in upper case. The public accessors are `kind()` and `span()` only. The order or character in the text has no accessor, because no caller needs one.
+Every fixed text is in lower case, except the proper name "Euler", and has no trailing punctuation (ERR-4 of the coding standard). The character that `UnexpectedCharacter` quotes can be in any case. The public accessors are `kind()` and `span()` only. The order or character in the text has no accessor, because no caller needs one.
 
 ## 11. Resource Limits
 
@@ -584,7 +586,7 @@ The crate limits the length of the text, each order, and the size of a signature
 
 ### 12.1. Tests
 
-The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-signature/tests/signature/main.rs`, with the modules `parsing`, `tables`, `canonical`, `properties`, `enumeration`, and `common` (TEST-10). Its root has a `//!` line, because `missing_docs` covers test roots. The snapshot tests of the item "Snapshots" of the plan live in `escher-cli`, and `docs/design/cli.md` specifies them. Every error text of this crate that a known input produces passes through one of those snapshots, so this crate has no `insta` dependency. The `Overflow` texts for the group order and the deformation dimension, which no known input produces (Sections 9.3 and 9.5), are checked by the unit test "Error text".
+The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-signature/tests/signature/main.rs`, with the modules `parsing`, `tables`, `canonical`, `properties`, `enumeration`, and `common` (TEST-10). Its root has a `//!` line, because `missing_docs` covers test roots. The snapshot tests of the item "Snapshots" of the plan live in `escher-cli`, and `docs/design/cli.md` specifies them. Every error text of this crate that a known input produces passes through one of those snapshots, so this crate has no `insta` dependency. No known input produces the `Overflow` of the group order or of the deformation dimension. So the unit test "Error text" checks their texts, and the unit test "Classification functions" checks their failure paths on the private functions directly.
 
 Each test below names the item of the field "Tests and acceptance" of Section 5.1 of the plan that it serves:
 
@@ -595,34 +597,35 @@ Each test below names the item of the field "Tests and acceptance" of Section 5.
 | Frieze table | Tables | Table test, `tables` | The 7 friezes, written with `(inf)` and with U+221E, have $\chi = 0$, are Euclidean, friezes, not compact, and not general non-compact | Section 8.3 of the reference |
 | Characteristic examples | Tables | Table test, `tables` | `4*3` gives $-1/12$, `*3333` gives $-1/3$, `*532` gives $1/60$ and order 120, and `*22(inf)` gives 0 | Section 6.4 of the reference |
 | Bad families | Tables, failure paths | Table test, `tables` | `m`, `mn`, `*m`, and `*mn` for small orders return `BadOrbifold` with the whole span, while `mm` and `*mm` are accepted | Section 7.2 of the reference |
-| Area and dimension | Tables | Table test, `tables` | The area over $\pi$ is $2/3$ for `*3333` and $1/42$ for `*732`. The dimension is 0 for `*732` and `4*3`, 1 for `*3333`, 13 for `4*235*74xx`, and `None` for Euclidean, spherical, and non-compact signatures | Sections 7.3 and 10.1 of the reference, Section 5.1 of the plan |
+| Area and dimension | Tables | Table test, `tables` | The area over $\pi$ is $2/3$ for `*3333`, $1/42$ for `*732`, $1/30$ for `*532`, $1/3$ for `3*(inf)`, and `None` for `*632`. The dimension is 0 for `*732` and `4*3`, 1 for `*3333`, 13 for `4*235*74xx`, and `None` for the Euclidean `*632` and `o`, the spherical `*532` and `1`, and the non-compact `*22(inf)`, `3*(inf)`, and `*23(inf)` | Section 7.3 of the reference for `*3333`, Section 5.1 of the plan for `*732` and `*3333`, and Section 10.1 of the reference for `4*235*74xx`. The areas of `*532` and `3*(inf)` and the dimension of `4*3` follow from the formulas of Sections 9.4 and 9.5 |
 | Order two | Tables | Table test, `tables` | `x`, `22`, and `*` are three different signatures, each of order 2, and `*632` differs from `632` | Sections 4.2 and 8.2 of the reference |
-| General non-compact | Tables | Table test, `tables` | The values of Section 9.2 | Section 2.1 of the architecture |
+| General non-compact | Tables | Table test, `tables` | The values of Section 9.2. Signatures that combine a triangle shape with something else are general non-compact, such as `o*23(inf)`, `x*23(inf)`, `2*23(inf)`, `(inf)32*`, and `*732*(inf)` | Section 2.1 of the architecture |
 | Euclidean enumeration | Enumeration | Depth-first enumeration, `enumeration` | Over up to 2 handles, up to 3 crosscaps, up to 5 cone points, up to 3 boundaries of up to 5 corners each, and orders 2 to 8, the canonical strings with $\chi = 0$ are exactly the 17 of Section 8.1 of the reference. A branch stops when $\chi < 0$, because every defect of Section 6.1 of the reference is positive | Section 32 of [FG], Sections 7.1 and 8.1 of the reference |
-| Equivalence classes | Properties | Bounded exhaustive test, `enumeration` | A test-side model applies rules 1 to 5 in both directions, with the reversal of a single boundary only when a crosscap is present, to every signature within two bounds and groups them into classes. Each class has exactly one canonical string, no two classes share one, and each canonical string lies in its own class. The bounds are, first, up to 2 cone points with orders in 2, 3, and $\infty$, up to 3 boundaries with up to 4 corners with orders in 2, 3, 4, and $\infty$, and $2h + c \leq 4$, and second, no cone point, up to 2 boundaries with up to 6 corners with orders in 2, 3, and 4, and $2h + c \leq 3$ | Section 4.1 of the reference |
+| Equivalence classes | Properties | Bounded exhaustive test, `enumeration` | A test-side model applies rules 1 to 5 in both directions, with the reversal of a single boundary only when a crosscap is present, to every signature within two bounds and groups them into classes. Each class has exactly one canonical string, no two classes share one, and each canonical string lies in its own class. The bounds are, first, up to 2 cone points with orders in 2, 3, and $\infty$, up to 3 boundaries with up to 4 corners in total across all boundaries with orders in 2, 3, 4, and $\infty$, and $2h + c \leq 4$, and second, no cone point, up to 2 boundaries with up to 6 corners in total across all boundaries with orders in 2, 3, and 4, and $2h + c \leq 3$. The corners are counted in total and not per boundary, because a bound per boundary gives billions of signatures for the first bound | Section 4.1 of the reference |
 | Random equivalence | Properties | `proptest`, `properties` | A random sequence of rule applications on a test-side model gives an equal `Signature`, an equal string, and an equal $\chi$, or errors of the same kind. The model permutes cone points and boundaries, rotates, reverses every boundary, reverses a single boundary only when a crosscap is present, applies rule 5 in both directions, which trades a handle for two crosscaps and two crosscaps for a handle while a crosscap remains, and inserts an order of 1 only where the grammar accepts it, as `(1)` anywhere or as `1` before a character that is not a digit, while the text stays within 1024 bytes | Section 4.1 of the reference |
 | Layout variants | Properties | `proptest`, `properties` | Changes of layout that the grammar accepts give an equal `Signature`: upper case, `(7)` for `7`, U+221E for `(inf)`, and an `o` or an `x` moved to another place where the grammar accepts it | `DEC-8` |
-| Dimension sign | Properties | `proptest`, `properties` | Every compact hyperbolic signature that a test-side model generates within the size limit parses, and its deformation dimension is `Some` | Section 9.5, and the assumption of Section 15.1 |
+| Dimension sign | Properties | `proptest`, `properties` | A test-side model generates compact signatures of every geometry, with up to 4 handles, up to 6 crosscaps, up to 10 cone points, and up to 4 boundaries of up to 6 corners each, with orders 2 to 12, so the size stays within 52. Each text parses or fails with `BadOrbifold` and no other kind. Each parsed signature is compact, a hyperbolic one has a `Some` deformation dimension that equals the value that the formula of Section 9.5 gives from the features that the public accessors return, and any other has `None` | Section 9.5, and the assumption of Section 15.1 |
 | Round trip | Properties | `proptest`, `properties` | The canonical form is idempotent, and `to_string` followed by `parse` round-trips | `DEC-9` |
 | Any text | Failure paths | `proptest`, `properties` | For any string, `parse` returns without a panic, an error has a span inside the text on character boundaries, and every spherical result has `Some` group order | ERR-5 and TEST-6 of the coding standard |
 | Kinds and spans | Failure paths | Unit tests in `parse.rs`, and `parsing` | Every row of the table of Section 5.5, 65 features, a run of `o` at the handle weight, and the four rows of the table of Section 8.3 | Sections 5 and 8.3 |
-| Error text | Failure paths | Unit test in `error.rs` | The `Display` of every kind starts with `cannot parse orbifold signature: ` and, apart from the character that `UnexpectedCharacter` shows, is in lower case | ERR-4 of the coding standard |
+| Error text | Failure paths | Unit test in `error.rs` | The `Display` of every kind starts with `cannot parse orbifold signature: ` and, apart from the proper name "Euler" and the character that `UnexpectedCharacter` quotes, is in lower case | ERR-4 of the coding standard |
 | Canonical examples | Risks of the plan | Table test, `canonical` | Every row of the tables of Sections 4.3 and 7.2, and `1`, `*`, and `x` | Sections 3.5 and 4.1 of the reference |
-| Rational | None | Unit tests in `rational.rs` | Reduction, sign, zero, `Display`, and the failure to narrow | Section 8.1 |
-| Auto traits | None | Compile-time assertion | Each public type is `Send`, `Sync`, and `'static` | CONC-1 of the coding standard |
+| Rational | None | Unit tests in `rational.rs` | Reduction, sign, zero, `Display`, the failure to narrow, and the absolute value, which fails only for the numerator `i64::MIN` | Section 8.1 |
+| Classification functions | Failure paths | Unit tests in `classify.rs` | Step 6 of Section 8.2 rejects a reduced numerator of `i64::MIN` for $\chi$ and for $2\chi$ and accepts one that fits. The group order is 120 for $\chi = 1/60$ and 1 for $\chi = 2$, and fails for $3/5$ and for $1/(2^{64} - 1)$. The deformation dimension is 0 for `732` and 2 for `2223`, and fails for `22` and for the trivial signature | Sections 8.2, 9.3, and 9.5. The values follow from the formulas of those sections |
+| Auto traits | None | Compile-time assertion in a unit test in `lib.rs`, which calls a generic function with the bounds `Send + Sync + 'static` once for each public type | Each public type is `Send`, `Sync`, and `'static` | CONC-1 of the coding standard |
 | Doctests | None | Doctests | The examples of the crate-level documentation | Sections 7.4 and 7.5 of `docs/writing-documentation.md` |
 
 The property tests commit their regression files (TEST-9 of the coding standard).
 
 ### 12.2. Tests Under Miri
 
-`DEC-5` applies to the tests of this crate in this way:
+`DEC-5` and TEST-11 of the coding standard apply to the tests of this crate in this way:
 
 - The table tests, the unit tests, the canonical examples, and the auto-trait test run under Miri unchanged.
 - The Euclidean enumeration and the equivalence classes carry `#[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]`. The reason is in plain words and cites no document.
 - The doctests do not run under Miri, because Miri runs the tests through nextest, which runs no doctest.
 
-SIG-16. The property tests MUST take their configuration from one helper in `common`, which under `cfg!(miri)` sets `cases: 8` and `failure_persistence: None` and otherwise returns the default of 256 cases, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and 256 cases take too long in the interpreter.
+SIG-16. The property tests MUST take their configuration from one helper in `common`, with the numbers of cases and the failure persistence that Section 4 of `docs/design/tooling.md` states, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and a full set of cases takes too long in the interpreter.
 
 ## 13. Dependencies
 
@@ -637,17 +640,12 @@ The crate declares these dependencies, each from one entry in the `[workspace.de
 
 The crate sets `publish = false` (`DEC-22`), inherits the workspace fields and lints, and declares no Cargo feature.
 
-These facts were verified on 2026-11-16 by running `cargo generate-lockfile`, `cargo tree -d --target all`, and `cargo deny check` on a workspace with these dependencies and those of `escher-cli`:
+These facts were verified on 2026-11-16 with `cargo deny check` and `just check` on the workspace, whose `Cargo.lock` fixes these versions:
 
 - The resolved versions are `thiserror` and `thiserror-impl` 2.0.21, `syn` 3.0.10, `proc-macro2` 1.0.107, `quote` 1.0.47, and `unicode-ident` 1.0.27, and for the tests `proptest` 1.12.0, `rand` 0.10.4, `rand_core` 0.10.1, `rand_xorshift` 0.5.0, and `getrandom` 0.4.3.
 - No crate appears in two versions, so `syn` 2 and 3 do not both occur.
-- With the normal dependencies of this crate, `cargo deny check licenses bans` passes with the allow-list `Apache-2.0`, `GPL-3.0-or-later`, and `Unicode-3.0`, and reports no unused licence. `Unicode-3.0` comes from `unicode-ident`.
+- With every dependency of this crate, including `proptest` and the other dev-dependencies, `cargo deny check` passes and reports no unused licence. `Unicode-3.0` comes from `unicode-ident`. Section 8 of `docs/design/tooling.md` states the allow-list, the settings that make `deny.toml` cover dev-dependencies, and why `Apache-2.0` and `Unicode-3.0` are compatible with GPL-3.0-or-later.
 - The highest minimum Rust version that a dependency declares is 1.88, for `proptest`, below the workspace MSRV of 1.99.
-
-These points remain to be confirmed by the code that adds the dependencies:
-
-- In those runs, cargo-deny 0.20.2 listed no dev-dependency, so the licences, bans, and duplicates of `proptest` and its dependencies were not checked. The change that adds `proptest` establishes whether `deny.toml` covers dev-dependencies and records the result in Section 8 of `docs/design/tooling.md`.
-- The compatibility of `Unicode-3.0` and `Apache-2.0` with GPL-3.0-or-later is confirmed before either enters the allow-list (TOOL-24).
 - The feature set of `proptest` in the table builds and runs the property tests.
 
 ## 14. Unverified Statements
@@ -682,6 +680,7 @@ No other document dictates these choices:
 | Whitespace is rejected everywhere | 4.2, reading rule 11 |
 | `(inf)` in lower case only, U+221E only on its own, parenthesized orders below 10 accepted, and leading zeros read by value | 4.2, reading rules 7 and 12 |
 | Every handle becomes two crosscaps when a crosscap is present (`DEC-9`). For example `oox` becomes `xxxxx` | 7.2, step 2 |
+| A crosscap count $c + 2h$ that does not fit `u32` is `LimitExceeded` for the size | 7.2, step 2 |
 | An infinite order sorts above every finite order | 7.1 |
 | Without a crosscap, the boundaries are the greater of the two sorted lists before and after reversing every boundary | 7.2, step 4 |
 | $\chi$ is computed on the canonical features, in a fixed order, over one common denominator in `i128`, and returned with an `i64` numerator and a `NonZeroU64` denominator, and $\chi$, $2\chi$, and the absolute value of each must fit | 8 |
@@ -694,7 +693,7 @@ No other document dictates these choices:
 | The span is a `Range<usize>`, and the error holds no input text beyond the character or order that its text shows | 10.1 |
 | `Order` is opaque, `Geometry` has no `Display`, and `FromStr` is the only constructor | 3 |
 | The limits of 1024 bytes and 64 features, with a handle counted twice | 16 |
-| 8 property-test cases under Miri | 12.2 |
+| Fewer property-test cases under Miri | 12.2 |
 
 ### 15.3. Points for the Owner
 
@@ -725,7 +724,7 @@ The other topics of Section 3.2 of `docs/writing-documentation.md` apply as foll
 - Unsafe code: the crate has none, because the workspace denies `unsafe_code`, and it calls no native library.
 - Untrusted input and file paths: the text is the only input. The crate reads and writes no file and keeps no state between calls.
 - Build scripts: the crate has none. The procedural macro of `thiserror`, with `syn`, `quote`, and `proc-macro2`, runs at build time on the source of this crate only.
-- Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under the policy of Section 8 of `docs/design/tooling.md`, with the gap for dev-dependencies that Section 13 records.
+- Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under the policy of Section 8 of `docs/design/tooling.md`, for the dev-dependencies as well as the normal ones.
 
 Attacks on the build machine, the repository, or the caller, and the display of the untrusted text, are out of scope, because this crate neither builds nor prints anything, and `docs/design/cli.md` governs what `escher-cli` echoes.
 
@@ -786,6 +785,6 @@ The tags of the mathematical sources resolve to the reference sections of `docs/
 | SIG-13 | Each classification method returns its defined value, or `None` | 9.1 |
 | SIG-14 | `Error` follows ERR-1, with the operation that failed | 10.1 |
 | SIG-15 | The `Display` text of each kind is the one stated | 10.2 |
-| SIG-16 | Property tests use 8 cases and no failure persistence under Miri | 12.2 |
+| SIG-16 | Property tests take their configuration from one helper that is Miri-aware | 12.2 |
 | SIG-17 | `thiserror` is the only normal dependency, and no dependency type is public | 13 |
 | SIG-18 | The length, order, and size limits are enforced with `LimitExceeded` | 16 |

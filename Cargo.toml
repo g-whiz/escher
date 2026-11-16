@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/escher-cli"]
+members = ["crates/escher-cli", "crates/escher-signature"]
 
 [workspace.package]
 authors = ["George Gianacopoulos <gpg.software@gmail.com>"]
@@ -10,6 +10,10 @@ rust-version = "1.99"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/g-whiz/escher"
 readme = "README.md"
+
+[workspace.dependencies]
+proptest = { version = "1.12.0", default-features = false, features = ["std"] }
+thiserror = "2.0.21"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

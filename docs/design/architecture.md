@@ -4,11 +4,11 @@
 | --- | --- |
 | Status | Living document |
 | Date | 2026-11-16 |
-| Applies to | The planned workspace crates of the proof of concept, the conventions between them, and the decisions that bind them |
+| Applies to | The workspace crates of the proof of concept, the conventions between them, and the decisions that bind them |
 
 ## Abstract
 
-This document specifies the architecture of the Escher proof of concept, a Linux command-line tool that renders Portable Network Graphics (PNG) images of planar symmetry groups named in orbifold notation and reports information on them. It defines the planned crates with their responsibilities, public surfaces, and dependencies, the flow of data from a signature to an image and to the information output, and the conventions that every crate shares, such as the linear models, the sign of the side test, and the units. It also states the constraints that the repository's standards place on the design, the testing strategy, the performance expectations, and the numerical robustness measures. It records the decisions of the owner and the proposed defaults for the open decisions.
+This document specifies the architecture of the Escher proof of concept, a Linux command-line tool that renders Portable Network Graphics (PNG) images of planar symmetry groups named in orbifold notation and reports information on them. It defines the crates with their responsibilities, public surfaces, and dependencies, the flow of data from a signature to an image and to the information output, and the conventions that every crate shares, such as the linear models, the sign of the side test, and the units. It also states the constraints that the repository's standards place on the design, the testing strategy, the performance expectations, and the numerical robustness measures. It records the decisions of the owner and the proposed defaults for the open decisions.
 
 ## 1. Introduction
 
@@ -26,7 +26,7 @@ The primary readers are the coding agents that write a crate design document or 
 
 ### 1.4. Scope
 
-This document covers the six crates of the proof of concept, their dependencies, the data flow, the cross-crate conventions, the constraints from the standards documents, testing, performance, numerical robustness, and the decisions. Every crate, type, function, command, and option that it names is planned. The placeholder `crates/escher-cli` is planned to become the crate `escher-cli` of Section 3.
+This document covers the six crates of the proof of concept, their dependencies, the data flow, the cross-crate conventions, the constraints from the standards documents, testing, performance, numerical robustness, and the decisions. It describes every crate, type, function, command, and option that it names as a design, whether or not the code exists. Project Status in `AGENTS.md` says which crates exist. The crate `escher-cli` of Section 3 grows from the placeholder `crates/escher-cli`.
 
 ### 1.5. Non-Goals
 
@@ -95,7 +95,7 @@ Section 5.8 requires an error type in every library crate. The table lists `this
 
 ### 3.2. Public Surface
 
-Each list below is the planned public surface of one crate, as types and operations. The crate design document refines the names and signatures.
+Each list below is the public surface of one crate as this document designs it, as types and operations. The crate design document refines the names and signatures.
 
 `escher-signature`: `Signature`, valid by construction and in canonical form, with its feature accessors, its exact Euler characteristic, and its classification, and an `Error` that carries the byte span of the offending input. Section 3 of `docs/design/signature.md` specifies the public surface.
 
@@ -286,7 +286,7 @@ Eight facts of the repository shape the design. Each row names the document that
 
 | Fact | Imposed by | Consequence |
 | --- | --- | --- |
-| Miri runs every test | The command `cargo +nightly miri nextest run --workspace --no-tests=warn` of Section 4.8 of `docs/rust-coding-standards.md`, and the profile `default-miri` without a filter of Section 4 of `docs/design/tooling.md` | A test that reads a file, starts a process, or calls native code fails under Miri, and a heavy numeric test is too slow for the 60-minute timeout of every CI job (Section 7.1 of `docs/design/tooling.md`). The first change that adds tests changes Section 4 of `docs/design/tooling.md` and Section 11 of `docs/rust-coding-standards.md` (`DEC-5`) |
+| Miri runs every test | The command `cargo +nightly miri nextest run --workspace --no-tests=warn` of Section 4.8 of `docs/rust-coding-standards.md`, and the profile `default-miri` without a filter of Section 4 of `docs/design/tooling.md` | A test that reads a file, starts a process, or calls native code fails under Miri, and a heavy numeric test is too slow for the 60-minute timeout of every CI job (Section 7.1 of `docs/design/tooling.md`). Section 4 of `docs/design/tooling.md` and TEST-11 of `docs/rust-coding-standards.md` state how such a test is ignored under Miri and how property tests run fewer cases there (`DEC-5`) |
 | Rust source has no licence header | Hard Rule 5 of `AGENTS.md`, Section 7.2 of `docs/writing-documentation.md`, and `check-rust-comments` | The MIT notice that Section 3.3 of `docs/research/symmhub.md` requires for ported code needs another place (`DEC-18`) |
 | Code cites no project document | Hard Rule 15 of `AGENTS.md` | Code and tests use no milestone wording, so unverified statements are tracked only in design documents |
 | Documents mirror configuration | Section 8 of `docs/design/tooling.md` states the settings of `deny.toml` and says that it has no `skip` or `ignore` list. Section 3.2 lists every recipe (TOOL-6). Section 1.1 of `docs/rust-coding-standards.md` lists the workspace members. Repository Layout and Project Status of `AGENTS.md` and the crate table of `README.md` do the same | Each of these changes in the same change as the first crates, dependencies, and recipes (Hard Rule 1 of `AGENTS.md`). Section 6 of `docs/design/poc-plan.md` lists the updates of each milestone |
@@ -415,7 +415,7 @@ Decided defaults, which keep their labels in Section 10.2 because other document
 
 - `DEC-3`, reference arithmetic: `astro-float`, which is pure Rust under the MIT licence, with one comparison against MPFR recorded (`UNV-25`). Section 12.1 of `docs/research/rust-ecosystem.md` recommends `rug` if a C toolchain in CI is acceptable, because MPFR is the reference standard, and `astro-float` for pure Rust, checked once against `rug` or MPFR because nobody has verified its claims of correct rounding. `DEC-3` takes the pure-Rust branch, because a native build rebuilds in every CI job (Section 6, last row) and native code fails under Miri (Section 6, first row). `rug` also adds the licence `LGPL-3.0-or-later`.
 - `DEC-4`, linear algebra: the real vectors and matrices are the `glam` types `DVec2`, `DVec3`, and `DMat3`, and the project writes no vector or matrix type of its own. `num-complex` provides complex numbers from `M12`. The owner chose `glam` because much of the logic moves to Slang after the proof of concept, so a vector and matrix library of the project's own would be wasted work. The double-precision types are the ones that Section 6.1 of `docs/research/rust-ecosystem.md` recommends. Section 5.1 states the conventions over these types, and Section 3.5 states what rule DEP-3 requires as a result.
-- `DEC-5`, Miri: tests that use files, processes, or long numeric loops carry `#[cfg_attr(miri, ignore = "...")]`, and property tests use fewer cases under Miri. Section 6, first row, gives the reason and says which documents the first change that adds tests updates.
+- `DEC-5`, Miri: tests that use files, processes, or long numeric loops carry `#[cfg_attr(miri, ignore = "...")]`, and property tests use fewer cases under Miri. Section 6, first row, gives the reason and names the documents that state the rule.
 - `DEC-18`, MIT notice: ported SymmHub code carries its MIT notice in a notices file at the repository root and in a section of the crate-level documentation of each crate with ported code. The notice arrives in the first change that ports SymmHub code, and not before, and that change records it in `AGENTS.md` and `docs/design/tooling.md`. Rust source holds no licence header (Section 6, second row), and `UNV-24` tracks the open licence question.
 - `DEC-19`, completion: the general non-compact signatures (Section 2.1) are not part of the proof of concept and are a workstream of Section 4 of `docs/design/roadmap.md`, because the research records no implementation for them (Section 5.18 of `docs/design/poc-plan.md`). The friezes and the triangle groups with ideal corners stay in milestone `M18`, and the completion audit `M19` covers every other valid signature. Section 5.8 states how `info` and `render` treat such a signature.
 

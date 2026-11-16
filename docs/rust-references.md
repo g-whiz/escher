@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | Agents that write, review, or extend Rust code in this repository, and the standards document `docs/rust-coding-standards.md` |
 
 ## Abstract
@@ -481,7 +481,7 @@ Rules: TEST-5. Section 7 of `docs/writing-documentation.md` governs API document
 | [IR-84] | 3 | Testing each locking branch. |
 | [IR-9] | 1 | Syntax for unit tests and doctests. |
 
-Unit tests, doctests, snapshot tests, fuzzing, and Miri are each covered above. Rules: TEST-1 to TEST-7, TEST-9, and TEST-10.
+Unit tests, doctests, snapshot tests, fuzzing, and Miri are each covered above. Rules: TEST-1 to TEST-7, and TEST-9 to TEST-11.
 
 ### 2.28. Lints and Tooling
 
@@ -1986,7 +1986,7 @@ The catalogue holds 104 entries: one for each of the 95 entries of the curated l
 - Relevance: medium. It checks the unsafe code of a crate, but it cannot run a native library.
 - Consult when: deciding which tests run under Miri, setting up its CI job, or testing a wrapper without its native library.
 - Chapters: the README sections on foreign functions, what Miri cannot do, the CI example, and nextest.
-- Cited by: TEST-7.
+- Cited by: TEST-7, TEST-11.
 
 **[S-9] The Rust Performance Book: Build Configuration**
 

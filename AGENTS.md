@@ -4,7 +4,7 @@ Every coding agent reads this file before it works in this repository. `CLAUDE.m
 
 Escher is a Rust application for creating symmetry-based graphics, like those in some works of M. C. Escher, with the SymmHub project as prior art. It covers the planar symmetries that orbifold notation expresses, in Euclidean, spherical, and hyperbolic geometry. Its goal is a tool in which an artist draws a motif on one or more fundamental domains of a symmetry and sees it replicated live over the tiling, reshapes the tiles, animates the result, and renders it as raster images: first stills, then video, and possibly other outputs later. Tilings without a symmetry group, such as aperiodic tilings, are not a goal for now.
 
-The repository holds scaffolding, a placeholder binary, research documents, the planning documents of the proof of concept, and the design documents of its first milestone, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
+The repository holds scaffolding, a placeholder binary, a library that parses and classifies orbifold signatures, research documents, the planning documents of the proof of concept, and the design documents of its first milestone, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
 
 The owner has set these phases and platforms:
 
@@ -89,13 +89,16 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Project Status
 
-As of 2026-11-16, the repository holds its scaffolding, one placeholder crate, the research documents under `docs/research/`, the planning documents of the proof of concept, and the design documents of milestone `M1`, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
+As of 2026-11-16, the repository holds its scaffolding, one placeholder crate, the library crate `escher-signature`, the research documents under `docs/research/`, the planning documents of the proof of concept, and the design documents of milestone `M1`, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
 
 What exists and works:
 
 - The scaffolding that Repository Layout lists: the standards documents, the tooling design, the tool configuration, the `justfile` and its recipes, the custom checkers and their self-tests, the git hooks, the Claude Code settings, and the CI workflow.
 - The workspace member `crates/escher-cli`, which has a library target that holds only crate-level documentation, and the binary `escher`, which prints its package name and version, `escher-cli 0.1.0`.
-- `just check`, `just check-features`, `just check-msrv`, and `just coverage`, which all pass in the development container. The workspace has no test, so the recipes that run nextest pass with a warning that no test ran.
+- The workspace member `crates/escher-signature`, a library that parses a signature in orbifold notation into a `Signature` that is valid and canonical by construction, prints its canonical form, gives its exact Euler characteristic, and classifies it. The classification gives the geometry, whether the signature is compact, a frieze, or general non-compact, and the group order, area, and deformation dimension where `docs/design/signature.md` defines them. The command `escher` does not use the crate.
+- The first `[workspace.dependencies]` table, with `thiserror`, which `escher-signature` uses, and `proptest`, which its tests use.
+- The tests of `escher-signature`: unit tests and one integration-test binary, with property tests and enumeration tests. `check-miri` skips the enumeration tests, which run a loop too long for the Miri interpreter.
+- `just check`, `just check-features`, `just check-msrv`, and `just coverage`, which all pass in the development container.
 - The twelve research documents under `docs/research/` that Repository Layout lists: seven subject-matter references, four surveys, and the working list `docs/research/source-requests.md`.
 - The planning documents of the proof of concept: `docs/design/architecture.md`, `docs/design/poc-plan.md`, and `docs/design/roadmap.md`.
 - The design documents of milestone `M1`: `docs/design/signature.md` for the crate `escher-signature`, and `docs/design/cli.md` for the crate `escher-cli` and the command `escher info`.
@@ -104,14 +107,13 @@ The research documents record what their cited sources establish, including the 
 
 What does not exist yet:
 
-- Any code that parses an orbifold signature, computes a tiling, or renders an image.
-- Any dependency. The workspace manifest has no `[workspace.dependencies]` table, and `escher-cli` declares no dependency.
-- Any test.
-- Any code of milestone `M1`, including the crate `escher-signature`.
+- Any code that computes a tiling or renders an image.
+- Any dependency of `escher-cli`, which declares none.
+- The rest of milestone `M1`: the command `escher info` in `escher-cli`.
 - The design document of each component other than `escher-signature` and `escher-cli`, which its milestone writes before the code of the component.
 - A Lean development.
 
-The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The owner stated the scope after the proof of concept on 2026-11-16, and `docs/design/roadmap.md` records it with the proposals that the owner has yet to confirm. Milestone `M1` has started with its design branch, and no other milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
+The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The owner stated the scope after the proof of concept on 2026-11-16, and `docs/design/roadmap.md` records it with the proposals that the owner has yet to confirm. Milestone `M1` is in progress: its design branch and the crate `escher-signature` are done, and the command `escher info` remains. No other milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
 
 Section 7.11 of the writing guide and Section 4.8 of the coding standard say which part of each rule a tool or checker enforces. Every rule that no configured tool checks stays a judgement rule.
 
@@ -121,15 +123,18 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 
 - `AGENTS.md`: This file.
 - `CLAUDE.md`: A one-line file that imports `AGENTS.md` for Claude Code.
-- `Cargo.toml`: The workspace manifest, with resolver 3, the one member `crates/escher-cli`, the `[workspace.package]` fields that every member inherits, such as edition 2024, `rust-version`, and the licence, and the workspace lint tables of Section 4.2 of the coding standard.
+- `Cargo.toml`: The workspace manifest, with resolver 3, the members `crates/escher-cli` and `crates/escher-signature`, the `[workspace.package]` fields that every member inherits, such as edition 2024, `rust-version`, and the licence, the `[workspace.dependencies]` table with `thiserror` and `proptest`, and the workspace lint tables of Section 4.2 of the coding standard.
 - `Cargo.lock`: The lock file of the workspace.
 - `LICENSE`: The text of version 3 of the GNU General Public License.
-- `README.md`: The README, which is also the readme of `escher-cli` through the inherited `readme` field.
+- `README.md`: The README, which is also the readme of `escher-cli` and `escher-signature` through the inherited `readme` field.
 - `crates/escher-cli/Cargo.toml`: The manifest of the package `escher-cli`, which sets `publish = false`, inherits the workspace fields and lints, declares the binary `escher`, and has no dependencies.
 - `crates/escher-cli/src/lib.rs`: The library target, which holds only crate-level documentation with a `# Features` section.
 - `crates/escher-cli/src/main.rs`: The binary `escher`, with the lint exception for `clippy::print_stdout` that Section 4.4 of the coding standard describes.
+- `crates/escher-signature/Cargo.toml`: The manifest of the package `escher-signature`, which sets `publish = false`, inherits the workspace fields and lints, depends on `thiserror`, has the dev-dependency `proptest`, and declares no Cargo feature.
+- `crates/escher-signature/src/`: The library, with the modules that Section 3.3 of `docs/design/signature.md` lists and their unit tests.
+- `crates/escher-signature/tests/signature/`: The one integration-test binary of the crate, `main.rs`, with the test modules and the shared helpers in `common.rs` (TEST-10 of the coding standard).
 - `clippy.toml`: The Clippy configuration of Section 4.3 of the coding standard.
-- `deny.toml`: The cargo-deny configuration of Section 8 of `docs/design/tooling.md`.
+- `deny.toml`: The cargo-deny configuration of Section 8 of `docs/design/tooling.md`, which also checks dev-dependencies.
 - `.config/nextest.toml`: The nextest profiles `default` and `default-miri` of Section 4 of `docs/design/tooling.md`.
 - `taplo.toml`: The taplo configuration, with four-space indentation and the exclusion of `target/` and `.worktrees/`.
 - `typos.toml`: The typos configuration, which accepts correct text that typos would otherwise report, as a pattern, words, and identifiers (TOOL-30 of `docs/design/tooling.md`).
@@ -137,10 +142,10 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 - `docs/rust-coding-standards.md`: The normative Rust coding standard, with the specification of the lint and tool configuration.
 - `docs/rust-references.md`: The reference list of external sources behind the coding standard, with a topic index.
 - `docs/design/tooling.md`: The tooling design, which is authoritative for the toolchain configuration, the recipes, the hooks, the custom checkers, the CI workflow, the dependency policy, and the requirements on the container image.
-- `docs/design/architecture.md`: The architecture design of the proof of concept, which is authoritative for the planned crates, the data flow, the conventions between crates, the testing strategy, performance, numerical robustness, the owner's decisions, and the proposed defaults.
+- `docs/design/architecture.md`: The architecture design of the proof of concept, which is authoritative for the crates of the proof of concept, the data flow, the conventions between crates, the testing strategy, performance, numerical robustness, the owner's decisions, and the proposed defaults.
 - `docs/design/poc-plan.md`: The milestone plan of the proof of concept, which is authoritative for the workflow of a milestone, the owner's staging, the research prerequisites, the milestones, the documentation obligations of each milestone, and the unverified statements that the proof of concept relies on.
 - `docs/design/roadmap.md`: The roadmap design, which is authoritative for the order of the phases after the proof of concept, the workstreams, the deep-research items, and the closing of unverified statements by sources and by a Lean development.
-- `docs/design/signature.md`: The design of the planned crate `escher-signature`, which is authoritative for its public surface, the input grammar of a signature, parsing and its errors, the canonical form, the exact Euler characteristic, the classification, and the limits on untrusted input.
+- `docs/design/signature.md`: The design of the crate `escher-signature`, which is authoritative for its public surface, the input grammar of a signature, parsing and its errors, the canonical form, the exact Euler characteristic, the classification, and the limits on untrusted input.
 - `docs/design/cli.md`: The design of the package `escher-cli`, which is authoritative for the public surface of its library target, the binary `escher`, the commands and options, the information text of `escher info`, the diagnostics, the exit statuses, and the snapshot tests.
 - `docs/research/orbifold-notation.md`: The subject-matter reference on Conway's orbifold notation, with the grammar of a signature, equivalent signatures, the Euler characteristic, the classification by geometry, the lists of spherical, wallpaper, and frieze signatures, presentations, and deformations.
 - `docs/research/geometry-models.md`: The subject-matter reference on the models of the hyperbolic plane, the sphere, and the Euclidean plane, with the conversions between models, isometries, constructions, numerical robustness, distances, and trigonometry.
@@ -182,7 +187,7 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 These locations are planned and do not exist yet:
 
 - `docs/design/geometry.md`, `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/render.md`: The design documents of the other components, which Section 1.5 and `DEC-1` of `docs/design/architecture.md` name.
-- `crates/escher-signature`, `crates/escher-geometry`, `crates/escher-group`, `crates/escher-domain`, and `crates/escher-render`: The planned crates, which Section 3 of `docs/design/architecture.md` specifies.
+- `crates/escher-geometry`, `crates/escher-group`, `crates/escher-domain`, and `crates/escher-render`: The planned crates, which Section 3 of `docs/design/architecture.md` specifies.
 
 ## Technology Decisions
 
@@ -194,8 +199,8 @@ These decisions are in force:
 - The crates use edition 2024 and Cargo resolver 3. The licence is GPL-3.0-or-later, and `LICENSE` holds its text.
 - The workspace denies `unsafe_code` (Hard Rule 7).
 - CI runs on GitHub Actions on hosted Linux runners, with the jobs of Section 7.1 of `docs/design/tooling.md`.
-- `.config/nextest.toml` defines the profiles `default`, for `test` and `coverage`, and `default-miri`, which Miri uses. Neither has a filter, so each selects every test. `just check` passes without a graphics processing unit (GPU) or a display (TOOL-8).
-- No crate is published, and `escher-cli` sets `publish = false`. Nothing is published without the owner's explicit go-ahead.
+- `.config/nextest.toml` defines the profiles `default`, for `test` and `coverage`, and `default-miri`, which Miri uses. Neither has a filter, so each selects every test, and a test that is too slow for Miri skips itself there (TEST-11 of the coding standard). `just check` passes without a graphics processing unit (GPU) or a display (TOOL-8).
+- No crate is published, and `escher-cli` and `escher-signature` set `publish = false`. Nothing is published without the owner's explicit go-ahead.
 
 The development container provides this environment:
 
@@ -206,7 +211,7 @@ The development container provides this environment:
 
 CI installs the latest version of each tool on its runners, so a tool version in CI can differ from the one in the container (Section 7.1 of `docs/design/tooling.md`). Section 4.8 of the coding standard lists what each tool checks, and its Section 1.1 records the versions that were verified. Section 10 of `docs/design/tooling.md` lists every requirement on the image.
 
-The owner has made these decisions for the proof of concept and the later phases. None of them is implemented yet:
+The owner has made these decisions for the proof of concept and the later phases. The workspace has started to grow into several crates, as Project Status states, and none of the other decisions is implemented yet:
 
 - The workspace grows into several crates, so that each crate holds one concern.
 - Until live rendering exists, the engine renders to PNG files on disk.
@@ -276,7 +281,7 @@ just check-deny
 just check-unused-deps
 ```
 
-To run the tests under Miri after a change to unsafe code, run this recipe. The profile `default-miri` selects every test, and a test that calls a native library or starts a process fails under Miri:
+To run the tests under Miri after a change to unsafe code, run this recipe. The profile `default-miri` selects every test, and a test that calls a native library or starts a process fails under Miri. A test that runs a loop too long for the interpreter is skipped there, and property tests run fewer cases (Section 4 of `docs/design/tooling.md`):
 
 ```sh
 just check-miri
