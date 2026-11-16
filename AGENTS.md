@@ -2,7 +2,7 @@
 
 Every coding agent reads this file before it works in this repository. `CLAUDE.md` imports it, so Claude Code loads the same instructions.
 
-Escher is a Rust application for creating symmetry-based graphics, like those in some works of M. C. Escher, with the SymmHub project as prior art. Its goal is a tool that creates symmetry-based graphics and animations and then renders or exports them, for example as a Slang shader. It covers the planar symmetries that orbifold notation expresses, in Euclidean, spherical, and hyperbolic geometry, and graphics based on other planar tilings, such as aperiodic tilings.
+Escher is a Rust application for creating symmetry-based graphics, like those in some works of M. C. Escher, with the SymmHub project as prior art. It covers the planar symmetries that orbifold notation expresses, in Euclidean, spherical, and hyperbolic geometry. Its goal is a tool in which an artist draws a motif on one or more fundamental domains of a symmetry and sees it replicated live over the tiling, reshapes the tiles, animates the result, and renders it as raster images: first stills, then video, and possibly other outputs later. Tilings without a symmetry group, such as aperiodic tilings, are not a goal for now.
 
 The repository holds scaffolding, a placeholder binary, research documents, and the planning documents of the proof of concept, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
 
@@ -108,7 +108,7 @@ What does not exist yet:
 - The design document of each component, which its milestone writes before the code of the component.
 - A Lean development.
 
-The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The scope after the proof of concept is under discussion with the owner, so `docs/design/roadmap.md` is expected to change. No milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
+The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The owner stated the scope after the proof of concept on 2026-11-16, and `docs/design/roadmap.md` records it with the proposals that the owner has yet to confirm. No milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
 
 Section 7.11 of the writing guide and Section 4.8 of the coding standard say which part of each rule a tool or checker enforces. Every rule that no configured tool checks stays a judgement rule.
 
@@ -145,9 +145,9 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 - `docs/research/symmhub.md`: The subject-matter reference that studies the SymmHub source code as prior art.
 - `docs/research/prior-art.md`: The subject-matter reference that surveys existing software for symmetry-based graphics.
 - `docs/research/rust-ecosystem.md`: The survey of the Rust crates and tools that the project could use, in the skeleton of a subject-matter reference. Its recommendations are not decisions.
-- `docs/research/aperiodic-tilings.md`: The survey for the roadmap of tilings without a symmetry group, such as the Penrose tilings and the hat and spectre monotiles, with their construction methods, rendering, and existing software.
+- `docs/research/aperiodic-tilings.md`: The survey of tilings without a symmetry group, such as the Penrose tilings and the hat and spectre monotiles, with their construction methods, rendering, and existing software. The roadmap does not use it, because aperiodic tilings are out of scope for now.
 - `docs/research/pdes-on-orbifolds.md`: The survey for the roadmap of the simulation of partial differential equations on orbifolds, with the candidate numerical methods, pattern formation on curved surfaces, and GPU practice.
-- `docs/research/export-and-animation.md`: The survey for the roadmap of vector export, animation, and shader export, with Slang as an export target.
+- `docs/research/export-and-animation.md`: The survey of vector export, animation, and shader export, with Slang as an export target. The roadmap uses its parts on animation and shader export, and Escher has no vector output.
 - `docs/research/source-requests.md`: The working list of sources that the research could not read in full, by priority, for the owner to supply in `references/` (Section 5.5 of the writing guide).
 - `justfile`: The root `justfile`, with the groups `checks`, `rust`, and `git` (Section 3.1 of `docs/design/tooling.md`).
 - `.github/workflows/ci.yml`: The CI workflow, with the jobs `check`, `ci-only`, and `coverage` on hosted Linux runners, which Section 7 of `docs/design/tooling.md` specifies.
@@ -201,17 +201,17 @@ The development container provides this environment:
 
 CI installs the latest version of each tool on its runners, so a tool version in CI can differ from the one in the container (Section 7.1 of `docs/design/tooling.md`). Section 4.8 of the coding standard lists what each tool checks, and its Section 1.1 records the versions that were verified. Section 10 of `docs/design/tooling.md` lists every requirement on the image.
 
-The owner has made these decisions for the proof of concept and the later phases, and `docs/design/roadmap.md` puts the later phases in order. None of them is implemented yet:
+The owner has made these decisions for the proof of concept and the later phases. None of them is implemented yet:
 
 - The workspace grows into several crates, so that each crate holds one concern.
 - Until live rendering exists, the engine renders to PNG files on disk.
 - Slint provides the user interface of the GUI application.
 - Live rendering of graphics and animations uses Slang, through the crates `slango` and `slang-slint` of the sibling project slang-rust, once those crates are published.
-- Vector graphics follow the proof of concept.
-- Other planar tilings, such as aperiodic tilings, follow in the medium term.
-- The simulation of planar partial differential equations on orbifolds, accelerated by Slang compute shaders, follows in the longer term.
+- The proof of concept fills polygons with solid colours only.
+- All rendering is raster and per pixel. Escher has no vector output and no forward rendering path.
+- Aperiodic tilings are out of scope for now.
 
-Section 10.1 of `docs/design/architecture.md` records the owner's decisions for the proof of concept, and its Section 10.2 records the proposed defaults.
+Section 3 of `docs/design/roadmap.md` states the decisions for the later phases, marks which of them are the owner's, and puts them in order. Section 10.1 of `docs/design/architecture.md` records the owner's decisions for the proof of concept, and its Section 10.2 records the proposed defaults.
 
 ## Development Workflow
 

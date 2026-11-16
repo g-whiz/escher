@@ -384,7 +384,7 @@ The crates use no jitter (Section 5.9). The linear model uses unit normals and m
 
 ### 10.1. Decisions of the Owner
 
-This section records the decisions of the owner for the proof of concept and the roadmap. They bind every design document until the owner changes them.
+This section records the decisions of the owner for the proof of concept. They bind every design document until the owner changes them. Section 3 of `docs/design/roadmap.md` records the phases after the proof of concept and marks which of their decisions are the owner's.
 
 Goals of the proof of concept:
 
@@ -408,6 +408,7 @@ Image content:
 - The hyperbolic models of the proof of concept are the Poincare disk, then the upper half-plane, the band, and the Klein model. The star, ring, and bent band models go to the roadmap.
 - The sphere is a lit ball in orthographic projection with Phong shading and a single light, and its viewing rotation is adjustable on the command line.
 - Each signature and model has one canonical view, centred on the fundamental domain. View control, which is rotation, shift, and zoom, goes to the roadmap.
+- The proof of concept fills each polygon with a solid colour for its coset, so that the mathematical and geometric foundations are settled first. The owner abstracts a later motif as a colour sampler (Section 3.3 of `docs/design/roadmap.md`). The data flow of Section 4.1 already computes the point in the fundamental domain and the coset (steps 5.3 and 5.4) before step 5.6 chooses the colour. The proof of concept defines no interface for a sampler.
 
 Engineering:
 
@@ -416,12 +417,6 @@ Engineering:
 - The dependencies are the picks of `docs/research/rust-ecosystem.md`: `png`, `clap`, `rayon`, `num-complex` and `glam` (`DEC-4`), `palette`, `thiserror`, `anyhow`, `proptest`, `insta`, and a reference-arithmetic crate for tests (`DEC-3`). The licence and duplicate-version work in `deny.toml` happens in the milestone where each dependency first appears.
 - Work proceeds on unverified statements. Each is flagged in its design document, tested numerically against high-precision reference arithmetic, and tracked until a source or a Lean proof closes it. No unverified statement blocks the proof of concept.
 - Lean is not part of the proof of concept. It is a roadmap workstream that starts after the requested sources are read, beginning with what the fold depends on. The elan installer has no checksum verification, so it is pinned by the digest of its GitHub release asset.
-
-Roadmap:
-
-- The first phase after the proof of concept is live rendering with wgpu and Slang, through the crates `slango` and `slang-slint` of the slang-rust project once they are published. The Slint development graphical user interface (GUI) on Linux follows, then a release on Linux, macOS, and Windows, and later Android and iOS.
-- Vector graphics follow, then other planar tilings in the medium term, then the simulation of partial differential equations on orbifolds in the long term.
-- The roadmap has a deep-research item for each topic that the research only surveyed: aperiodic tilings, partial differential equations on orbifolds, vector export, animation, and shader export.
 
 Decided defaults, which keep their labels in Section 10.2 because other documents cite them:
 
