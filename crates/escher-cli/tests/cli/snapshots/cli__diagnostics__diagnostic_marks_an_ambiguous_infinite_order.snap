@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"*o(inf)\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: order inf after a boundary and a handle or crosscap is ambiguous
+  *o(inf)
+    ^^^^^
+--- end

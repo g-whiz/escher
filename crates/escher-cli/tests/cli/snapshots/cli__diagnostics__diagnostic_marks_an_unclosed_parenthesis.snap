@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"(12\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: unclosed parenthesis
+  (12
+  ^^^
+--- end

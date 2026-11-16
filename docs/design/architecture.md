@@ -26,7 +26,7 @@ The primary readers are the coding agents that write a crate design document or 
 
 ### 1.4. Scope
 
-This document covers the six crates of the proof of concept, their dependencies, the data flow, the cross-crate conventions, the constraints from the standards documents, testing, performance, numerical robustness, and the decisions. It describes every crate, type, function, command, and option that it names as a design, whether or not the code exists. Project Status in `AGENTS.md` says which crates exist. The crate `escher-cli` of Section 3 grows from the placeholder `crates/escher-cli`.
+This document covers the six crates of the proof of concept, their dependencies, the data flow, the cross-crate conventions, the constraints from the standards documents, testing, performance, numerical robustness, and the decisions. It describes every crate, type, function, command, and option that it names as a design, whether or not the code exists. Project Status in `AGENTS.md` says which crates exist. The crate `escher-cli` of Section 3 is the package in `crates/escher-cli`.
 
 ### 1.5. Non-Goals
 

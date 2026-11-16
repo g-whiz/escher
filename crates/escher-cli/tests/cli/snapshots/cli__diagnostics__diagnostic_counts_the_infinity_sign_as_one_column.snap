@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"*22\\u{221E}q\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: unexpected character 'q'
+  *22∞q
+      ^
+--- end

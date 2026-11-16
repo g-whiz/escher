@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"2*12\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: a digit 1 followed by another digit is ambiguous, write an order of 10 or more in parentheses, such as (12)
+  2*12
+    ^^
+--- end

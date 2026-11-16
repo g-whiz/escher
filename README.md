@@ -4,11 +4,11 @@ Escher is a Rust application for creating symmetry-based graphics, like those in
 
 ## Contents
 
-The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, a placeholder crate, and a crate that parses and classifies orbifold signatures. It holds no code that computes a tiling or renders a symmetry.
+The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, and a crate that parses and classifies orbifold signatures. It holds no code that computes a tiling or renders a symmetry.
 
 | Crate | Purpose |
 | --- | --- |
-| `escher-cli` | The command-line program `escher`, which prints its package name and version. It is not published. |
+| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature. It is not published. |
 | `escher-signature` | A library that parses an orbifold signature, such as `*632`, into its canonical form, computes its exact Euler characteristic, and classifies it as spherical, Euclidean, or hyperbolic, with its group order, area, and deformation dimension where they apply. It is not published. |
 
 The directory `docs/research/` holds references on the mathematics of orbifolds, geometry models, fundamental domains, rendering, and colourings, and studies of SymmHub and other existing software. It also holds a survey of Rust crates, three surveys of topics beyond the proof of concept, and a list of sources that the research could not read in full. These three surveys cover aperiodic tilings, partial differential equations on orbifolds, and vector export, animation, and shader export.
@@ -19,10 +19,10 @@ The planning documents in `docs/design/` are the architecture design and the mil
 
 Building the workspace needs Rust 1.99 or later, as the `rust-version` field of the workspace manifest declares. Cargo downloads the crates that the workspace depends on from crates.io, so the first build needs network access.
 
-This command builds and runs the program from the workspace root:
+This command builds and runs the program from the workspace root, and prints its help:
 
 ```sh
-cargo run -p escher-cli --bin escher
+cargo run -p escher-cli --bin escher -- --help
 ```
 
 Running the checks also needs these tools:
@@ -34,6 +34,54 @@ Running the checks also needs these tools:
 - pre-commit, for the git hooks.
 
 `just check` also needs network access, because cargo-deny fetches the security advisory database on every run.
+
+## Usage
+
+`escher info` prints the canonical form of a signature in orbifold notation, its geometry, its Euler characteristic, and the properties that depend on them. The examples call the built program as `escher`. From the workspace root, `cargo run -p escher-cli --bin escher --` followed by the same arguments runs it too.
+
+In a POSIX shell, `*`, `(`, and `)` are special characters, so put a signature that contains any of them in single quotes. This command prints the properties of a spherical signature:
+
+```sh
+escher info '*532'
+```
+
+```text
+Signature: *532
+Geometry: spherical
+Euler characteristic: 1/60
+Compact: yes
+Group order: 120
+Area: pi/30
+```
+
+An infinite order is written `(inf)` or `∞`, and an order of 10 or more in parentheses. This command prints a frieze, whose canonical form puts the infinite order first:
+
+```sh
+escher info '*22(inf)'
+```
+
+```text
+Signature: *(inf)22
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: no
+Frieze: yes
+General non-compact: no
+```
+
+A signature that is not valid gives an error on standard error, with a caret under the offending characters, and exit status 1. This command shows the error for an order of 12 without parentheses:
+
+```sh
+escher info '2*12'
+```
+
+```text
+error: cannot parse orbifold signature: a digit 1 followed by another digit is ambiguous, write an order of 10 or more in parentheses, such as (12)
+  2*12
+    ^^
+```
+
+A wrong command line, such as an unknown command, gives exit status 2.
 
 ## Development
 

@@ -106,3 +106,7 @@ http-client.private.env.json
 .idea/
 references/
 .claude/settings.local.json
+
+# Pending snapshots that insta writes for review
+*.snap.new
+*.pending-snap

@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", &\"x\".repeat(1025)])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: the signature is longer than 1024 bytes
+  at bytes 0..1025
+--- end

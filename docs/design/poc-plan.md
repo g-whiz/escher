@@ -146,7 +146,7 @@ The research on the general non-compact signatures is not a prerequisite of any 
 
 ## 5. Milestones
 
-Every command in this section is planned. Each output is what the milestone delivers, and `docs/design/cli.md` defines the exact text. Each subsection uses these fields in this order: Goal, Command line, Scope, Design documents, Sources, Unverified statements relied on, Tests and acceptance, Dependencies and `deny.toml` work, Risks, and Split where one applies.
+Each command in this section illustrates its milestone, and Project Status in `AGENTS.md` says which milestones are complete. Each output is what the milestone delivers, and `docs/design/cli.md` defines the exact text. Each subsection uses these fields in this order: Goal, Command line, Scope, Design documents, Sources, Unverified statements relied on, Tests and acceptance, Dependencies and `deny.toml` work, Risks, and Split where one applies.
 
 ### 5.1. M1: Signature and Classification
 
@@ -205,7 +205,7 @@ Section 5 of `docs/design/cli.md` gives the exact text of each command, and its 
 
 - A test resolved these dependencies on 2026-11-16. It found no crate in two versions, and `cargo deny check licenses bans` passed with the licences `Apache-2.0`, `MIT`, which `strsim` brings through `clap`, `Unicode-3.0`, which `unicode-ident` brings, and `GPL-3.0-or-later`. Section 9.2 of `docs/design/cli.md` and Section 13 of `docs/design/signature.md` record the versions and the checks.
 - `deny.toml` brings dev-dependencies into the licence check and the duplicate check (Section 8 of the tooling design), so `just check-deny` checks `insta`, `proptest`, and their dependencies as it checks the normal dependencies.
-- A licence enters the allow-list only after its compatibility with GPL-3.0-or-later is confirmed (TOOL-24). Section 8 of the tooling design records the confirmation for `Apache-2.0` and `Unicode-3.0`. `rust-ecosystem.md` 21 records the statement on `MIT` as general knowledge.
+- A licence enters the allow-list only after its compatibility with GPL-3.0-or-later is confirmed (TOOL-24). Section 8 of the tooling design records the confirmation for `Apache-2.0`, `MIT`, and `Unicode-3.0`.
 - If the change finds a duplicate, it adds `skip` entries with reasons only if no alignment of versions removes the duplicate (TOOL-26).
 - The change updates the printed `deny.toml` block and the sentences of Section 8 of the tooling design.
 

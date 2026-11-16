@@ -1,0 +1,15 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*(inf)32\"])"
+---
+status: Success
+--- stdout
+Signature: *(inf)32
+Geometry: hyperbolic
+Euler characteristic: -1/12
+Compact: no
+Frieze: no
+General non-compact: no
+Area: pi/6
+--- stderr
+--- end

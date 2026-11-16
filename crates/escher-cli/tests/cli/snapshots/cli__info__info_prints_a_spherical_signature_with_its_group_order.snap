@@ -1,0 +1,14 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*532\"])"
+---
+status: Success
+--- stdout
+Signature: *532
+Geometry: spherical
+Euler characteristic: 1/60
+Compact: yes
+Group order: 120
+Area: pi/30
+--- stderr
+--- end

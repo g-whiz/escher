@@ -22,7 +22,7 @@ This document assigns every rule to one of the two classes, following Section 3.
 
 This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has two members:
 
-- `escher-cli`: a package with a library target that holds only crate documentation, and the binary `escher`, which prints its package name and version.
+- `escher-cli`: a package with a library target that runs the command line, and the binary `escher`, which calls it, as `docs/design/cli.md` specifies.
 - `escher-signature`: a library crate that parses an orbifold signature into its canonical form and computes its exact Euler characteristic, as `docs/design/signature.md` specifies.
 
 Rules ERR-1 and ERR-2 apply to library crates only, because a binary such as `escher` is an application, which may report errors through `Box<dyn std::error::Error>`.
@@ -251,7 +251,7 @@ The workspace denies `unsafe_code` instead of forbidding it, because `forbid` ca
 
 One kind of lint exception exists in the repository and follows a fixed form:
 
-- A binary that prints to the terminal opts out of `clippy::print_stdout` or `clippy::print_stderr` at its crate root. The binary `escher` of `crates/escher-cli` carries `#![expect(clippy::print_stdout, reason = "...")]` in `src/main.rs`, because it prints its package name and version on standard output.
+- A deliberate discard of a `#[must_use]` value is the statement `let _ = expr;` under `#[expect(clippy::let_underscore_must_use, reason = "...")]`, with `#[expect(let_underscore_drop, reason = "...")]` as well when the value has a destructor, as ERR-5 states. The function `write_stderr` in `crates/escher-cli/src/diagnostic.rs` carries both on the statement that discards a failed write to standard error, because that failure has no other stream to be reported on.
 
 ### 4.5. Enforced Lints by Purpose
 
@@ -910,6 +910,8 @@ A helper outside `#[cfg(test)]` code also triggers `clippy::unwrap_used` and `un
 
 Reason: the check runs every test under Miri, which interprets the code far more slowly than it runs natively, so a long loop or a full set of property cases makes the check impractically slow. An `ignore` with a reason stays visible as a skipped test in the report of nextest, and the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses. One helper keeps the case counts in one place. [S-8]
 
+**TEST-12.** Write a snapshot of the output of a program as its status and each of its output streams after a fixed marker line, and end the snapshot with a final marker line. Reason: `insta` trims the whitespace at the end of a snapshot before it compares, so without a final marker a missing or extra line feed at the end of the last stream passes the test, and without a marker before each stream a reviewer cannot tell which stream a line belongs to.
+
 ## 12. Dependencies and Cargo Features
 
 **DEP-1.** Make every Cargo feature additive, so that every combination compiles, and name it after what it enables. A feature never removes behaviour or selects between options that exclude each other. Section 7.8 of the writing guide defines how features are documented.
@@ -1116,6 +1118,7 @@ The identifiers FFI-1 to FFI-11, SYS-1 to SYS-8, and COM-1 to COM-13 are reserve
 | TEST-9 | No tests that restate the implementation, and property tests for round trips. |
 | TEST-10 | One integration-test binary per crate, `tests/<suite>/main.rs`, with sibling modules and a `#[cfg(test)] mod common;`. |
 | TEST-11 | Tests too slow for Miri carry `#[cfg_attr(miri, ignore = "...")]` with a plain reason, and property tests take a Miri-aware configuration from one helper. |
+| TEST-12 | A snapshot of program output holds the status and each stream after a fixed marker line, and ends with a final marker line. |
 | DEP-1 | Cargo features are additive and named after what they enable. |
 | DEP-2 | Dependencies are few, preferably standard, and declared once in the workspace, except another version requirement on a member. |
 | DEP-3 | A crate that exposes a dependency below 1.0 stays below 1.0, and a breaking upgrade of a public dependency is a breaking release. |

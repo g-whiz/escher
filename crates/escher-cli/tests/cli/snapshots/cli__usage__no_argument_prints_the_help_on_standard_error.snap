@@ -1,0 +1,18 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[])"
+---
+status: Usage
+--- stdout
+--- stderr
+Command-line program of Escher, a tool for symmetry-based graphics.
+
+Usage: escher <COMMAND>
+
+Commands:
+  info  Print the canonical form, the geometry, and other properties of a signature in orbifold notation
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+--- end

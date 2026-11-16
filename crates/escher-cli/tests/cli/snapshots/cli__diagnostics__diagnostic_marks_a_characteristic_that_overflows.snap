@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"(3037000493)(3037000499)x\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: the Euler characteristic does not fit exact 64-bit arithmetic
+  (3037000493)(3037000499)x
+  ^^^^^^^^^^^^^^^^^^^^^^^^^
+--- end

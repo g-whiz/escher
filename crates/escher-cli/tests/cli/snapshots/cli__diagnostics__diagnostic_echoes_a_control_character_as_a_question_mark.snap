@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"*7\\u{1B}[31m2\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: unexpected character '\u{1b}'
+  *7?[31m2
+    ^
+--- end

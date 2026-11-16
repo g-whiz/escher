@@ -61,6 +61,7 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md` a
 - broken pipe: The output error whose `std::io::ErrorKind` is `BrokenPipe`, which a write returns when the reader of a pipe has closed it.
 - status: The value of the type `Status` that `run` returns, which the binary converts to the exit status of the process.
 - snapshot: A file of expected output that an `insta` test compares with the actual output.
+- control character: A character of the Unicode general category Cc, such as the escape character U+001B or the line feed.
 
 ## 3. Package Structure
 
@@ -77,7 +78,7 @@ pub fn run<I, T>(
 ) -> Status
 where
     I: IntoIterator<Item = T>,
-    T: Into<std::ffi::OsString> + Clone;
+    T: Into<std::ffi::OsString>;
 
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -102,7 +103,7 @@ CLI-2. `run` MUST write only to the two streams it is given and MUST NOT panic o
 
 `run` returns no error. Each command returns `anyhow::Result<()>` inside the crate, and one private function writes the diagnostic of Section 6 and chooses the status. No `anyhow::Error` therefore appears in a public signature, which rule ERR-2 of `docs/rust-coding-standards.md` forbids.
 
-`run` flushes `stdout` before it returns, so that a write error that buffering delays still reaches the status.
+Every path of `run` that writes to `stdout` does so through one private helper, which writes the whole text and then flushes `stdout`, so that a write error that buffering delays still reaches the status. A path that writes nothing to `stdout` does not flush it.
 
 ### 3.3. Status
 
@@ -133,7 +134,7 @@ fn main() -> std::process::ExitCode {
 
 CLI-3. `main.rs` MUST hold only the call of `run` and the conversion of its status, because code in the binary runs only in a test that starts a process, and this crate has no such test (Section 8.1).
 
-The binary prints nothing itself, so `main.rs` carries no lint exception for `clippy::print_stdout`, which would fail as an unfulfilled expectation. Section 4.4 of `docs/rust-coding-standards.md` and the entry of `main.rs` in Repository Layout of `AGENTS.md` describe such an exception, and the change that implements this design updates both.
+The binary prints nothing itself, so `main.rs` carries no lint exception for `clippy::print_stdout`, which would fail as an unfulfilled expectation.
 
 ### 3.5. Private Modules
 
@@ -166,6 +167,14 @@ These settings differ from the defaults of `clap`:
 | Cargo feature `color` | Off | The output goes to the given streams as plain text |
 
 The command name stays the package name, `escher-cli`, so that `--version` prints the package name.
+
+The help text has these summaries, and no other text beyond what `clap` generates:
+
+| Item | Summary |
+| --- | --- |
+| `escher` | The package description, `Command-line program of Escher, a tool for symmetry-based graphics.` |
+| `info` | `Print the canonical form, the geometry, and other properties of a signature in orbifold notation` |
+| `SIGNATURE` | `The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'` |
 
 CLI-4. `escher --version` and `escher -V` MUST write the package name, one space, the package version, and a newline to standard output, which is `escher-cli 0.1.0` for version 0.1.0, and return `Success`, because Section 5.1 of `docs/design/poc-plan.md` keeps this output, and a script may read it.
 
@@ -482,13 +491,21 @@ escher info '2*(12)'
 
 ### 6.5. Usage Errors
 
-On an error of `try_parse_from`, `run` writes the text of `error.render()` as plain text. When `error.use_stderr()` is false, which is the case for `--help` and `--version`, the text goes to standard output. Otherwise it goes to standard error. A usage error covers an unknown subcommand or option, a missing signature, an argument that is not UTF-8, and `escher` with no argument. Section 7 gives the status of each case.
+On an error of `try_parse_from`, `run` takes the text of `error.render()` as plain text and replaces each control character in it other than the line feed with `?`. When `error.use_stderr()` is false, which is the case for `--help` and `--version`, the text goes to standard output. Otherwise it goes to standard error. A usage error covers an unknown subcommand or option, a missing signature, an argument that is not UTF-8, and `escher` with no argument. Section 7 gives the status of each case, and a failed write of the help or the version text follows Section 6.6.
+
+`clap` copies an unknown argument into its error message with its control characters unchanged. Without the replacement, an argument that starts with `--` and holds an escape sequence reaches standard error unchanged.
+
+CLI-15. `run` MUST replace every control character other than the line feed with `?` in the help, version, and usage text that `clap` produces, before it writes that text, because `clap` echoes an untrusted argument unchanged, and an echoed control character can send an escape sequence to the user's terminal.
+
+The help text and the version text hold no control character other than the line feed, so the replacement leaves them unchanged.
 
 ### 6.6. Output Errors
 
 CLI-10. `run` MUST return `Failure` when a write to standard output fails, and MUST NOT write a diagnostic when the failure is a broken pipe, because a status of 0 would report output that never arrived, while a diagnostic for a closed pipe, as in `escher info '*632' | head -c0`, reports the reader's choice as an error.
 
-When a write to standard output fails in any other way, `run` writes this diagnostic to standard error:
+CLI-10 covers every write to standard output, including the help and the version text of Section 6.5. A failed flush counts as a failed write.
+
+When a write to standard output fails in any other way than a broken pipe, `run` writes this diagnostic to standard error:
 
 ```text
 error: cannot write to standard output
@@ -505,7 +522,7 @@ This is a choice of this design. It is the simplest behaviour that never panics:
 
 | Status | When |
 | --- | --- |
-| `Success` | `info` wrote its text, or `--help` or `--version` was given |
+| `Success` | `info` wrote its text, or `--help` or `--version` wrote the help or the version text |
 | `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`), or a write to standard output failed (Section 6.6) |
 | `Usage` | `clap` reports a usage error (Section 6.5) |
 
@@ -515,23 +532,37 @@ CLI-11. `run` MUST return `Failure` for every signature error, including a bad o
 
 ### 8.1. Tests
 
-The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. Every test calls `run` with `Vec<u8>` streams, or with a test writer that fails.
+The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. Every test outside `main.rs` calls `run` with `Vec<u8>` streams, or with a test writer that fails. The two tests in `main.rs` test `Status` alone.
 
 The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1 of `docs/design/poc-plan.md` that each test serves. The tables, the enumeration, and the properties of that field belong to `escher-signature`.
 
 | Test | Plan item | Kind and module | Asserts | Under Miri |
 | --- | --- | --- | --- | --- |
-| Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, and `*236`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself | Ignored |
-| Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Section 12.1 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, and a span after the infinity sign | Ignored |
-| Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, `--version`, `-V`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, and a missing signature | Ignored |
-| Status tests | Failure paths | Plain tests, `usage` and `info` | `Success` for `*732`, `Failure` for `23`, `Usage` for an unknown subcommand and for an argument that is not UTF-8, and equal output for `*22(inf)` and the same signature with the infinity sign | Runs |
-| Output error tests | Failure paths | Plain tests, `info` | A writer that fails with a broken pipe gives `Failure` and empty standard error. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6 | Runs |
-| Auto traits | None | Compile-time assertion | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`) | Runs |
+| Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself | Ignored |
+| Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Section 12.1 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, a span after the infinity sign, and a span that is the infinity sign, under one caret | Ignored |
+| Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, and a missing signature | Ignored |
+| Version tests | None | Plain tests, `usage` | `--version` and `-V` give `Success`, empty standard error, and standard output equal to the package name, one space, the package version, and a line feed. Each test takes the name and the version from the package when it compiles, so a new version needs no change to the tests | Runs |
+| Echo limit tests | Failure paths | Plain tests, `diagnostics` | The status and the exact diagnostic for a signature of exactly 120 characters, which gets the echo line and the caret line, for one of 121 characters, which gets the byte span, and for one of 42 characters and 124 bytes, built with the infinity sign, which gets the echo line and the caret line because the limit counts characters | Runs |
+| Status tests | Failure paths | Plain tests, `main.rs`, `usage`, and `info` | `Success` for `*732`, `Failure` for `23`, `Usage` for an unknown subcommand and for an argument that is not UTF-8, each with the start of the standard output or standard error that it writes, equal output for `*22(inf)` and the same signature with the infinity sign, and the exit statuses 0, 1, and 2 of the three values of `Status` | Runs |
+| Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info` and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
+| Control characters | Failure paths | Plain test, `usage` | A usage error for an argument with control characters writes `?` in place of each of them (CLI-15) | Runs |
+| Auto traits | None | Plain test, `main.rs` | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`). The test calls a generic function whose type parameter is bounded by `Send + Sync`, so it fails to compile if `Status` loses either trait | Runs |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 
 The argument that is not UTF-8 is built with `std::os::unix::ffi::OsStringExt`, so that test compiles only on Unix, which covers Linux, the supported platform.
 
-A snapshot holds the status, the standard output, and the standard error of one `run` call. Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency.
+A snapshot holds the status, the standard output, and the standard error of one `run` call, in this form, which a helper in the module `common` builds (rule TEST-12 of `docs/rust-coding-standards.md`):
+
+```text
+status: <Debug text of the Status>
+--- stdout
+<standard output>--- stderr
+<standard error>--- end
+```
+
+Each stream follows its marker line unchanged, so a stream that ends with a line feed puts the next marker on a line of its own, and a stream that does not runs into it. The final marker `--- end` is needed because `insta` trims the whitespace at the end of a snapshot before it compares, so without it a missing or extra final line feed of standard error would pass. The writer that fails, `FailingWriter`, is also in `common`.
+
+Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency.
 
 This crate has no test that starts a process. The one smoke test of the binary as a process belongs to M3 (Section 5.3 of `docs/design/poc-plan.md`).
 
@@ -545,19 +576,24 @@ A search of the source of `insta` 1.49.0 on 2026-11-16 found that it reads these
 - `INSTA_TEST_RUNNER`, `INSTA_TEST_RUNNER_FALLBACK`, `INSTA_GLOB_FILTER`, `INSTA_GLOB_FAIL_FAST`, `INSTA_PENDING_DIR`, `INSTA_SNAPSHOT_REFERENCES_FILE`, `INSTA_WARNINGS_FILE`, `INSTA_YAML_BLOCK_STYLE`, and `INSTA_DIFF_TOOL`.
 - `NEXTEST_RUN_ID`, `TF_BUILD`, and `CARGO`.
 
-That search read the source and ran no test. The change that adds `insta` confirms these points by running the tests:
+A reading of `src/env.rs`, `src/utils.rs`, `src/snapshot.rs`, and `src/macros.rs` of `insta` 1.49.0 and runs of the snapshot tests of this crate on 2026-11-16 established this behaviour of the variables that matter here:
 
-- The behaviour of each variable when it is unset.
-- Whether `insta` writes pending snapshot files under nextest, locally and in CI.
-- Whether `insta` starts a `cargo metadata` process to find the workspace root unless `INSTA_WORKSPACE_ROOT` gives it, and whether that process succeeds in a nextest run.
+| Variable | Behaviour when unset |
+| --- | --- |
+| `INSTA_UPDATE` | `auto`, unless an `insta.yaml` file sets it, and the repository has none. Outside CI, a failing snapshot test writes the new snapshot beside the committed one as a `.snap.new` file. With `CI=true`, a failing run wrote no such file |
+| `CI` | Not CI. `insta` counts a run as CI when `CI` has any value other than `false`, `0`, or the empty string, or when `CI` is unset and `TF_BUILD` is set |
+| `INSTA_FORCE_PASS` | False. Any value other than `0`, `1`, or the empty string is an error |
+| `INSTA_OUTPUT` | `diff` |
+| `INSTA_REQUIRE_FULL_MATCH` | False, so `insta` trims the whitespace at the end of a snapshot before it compares, which is why the snapshot form of Section 8.1 ends with a marker line |
+| `INSTA_FORCE_UPDATE`, `INSTA_FORCE_UPDATE_SNAPSHOTS` | No effect. Either one set to `1` forces `INSTA_UPDATE=force` |
+| `INSTA_WORKSPACE_ROOT` | `insta` runs `cargo metadata --format-version=1 --no-deps` in the manifest directory of the crate, with the `cargo` that `CARGO` names, or plain `cargo` when `CARGO` is unset, to find the workspace root. It runs the command once per process and keeps the result. When the command fails, it uses the manifest directory and writes a warning to standard error. The variable is read at compile time as well as at run time |
+| `NEXTEST_RUN_ID` | It gives only the run identifier of pending inline snapshots, which this crate does not use |
+
+A run of the test binary without nextest, with a wrapper for `cargo` set as `CARGO`, showed exactly one `cargo metadata` call. Under nextest, which runs each test in its own process, and for which Cargo sets `CARGO` to its own path, no warning appeared and every snapshot resolved. That the `cargo metadata` call succeeds under nextest, once for each snapshot test, is inferred from that result and was not observed directly.
+
+`.gitignore` ignores `*.snap.new`, which a failing test writes, and `*.pending-snap`, which `insta` writes only for inline snapshots. Section 14.2 of `docs/design/tooling.md` lists the variables that a contributor or CI needs to know.
 
 CLI-12. An agent MUST NOT set `INSTA_FORCE_PASS` in a recipe, a hook, or a workflow, because it turns a failing snapshot test into a pass, and a changed text then reaches `main` unreviewed.
-
-The change that adds `insta` updates these statements, which it would otherwise make false:
-
-- Section 14.2 of `docs/design/tooling.md`, which lists every environment variable that the checks read. It gains at least `INSTA_UPDATE`, `CI`, `INSTA_FORCE_PASS`, `INSTA_WORKSPACE_ROOT`, and `INSTA_OUTPUT`, each with its confirmed behaviour when unset.
-- Section 8 of `docs/design/tooling.md`, for the licences that `deny.toml` gains (Section 9.2).
-- `.gitignore`, which gains the pending snapshot files that the confirmation above finds, expected to be `*.snap.new` and `*.pending-snap`.
 
 Section 6 of `docs/design/architecture.md` names the documents that state how a test that cannot run under Miri is marked, and the tests of this crate follow them.
 
@@ -567,7 +603,7 @@ The snapshot tests carry `#[cfg_attr(miri, ignore = "the snapshot library reads 
 
 CLI-13. Every test that uses `insta` MUST carry that attribute, because without it `just check-miri` fails on every snapshot test.
 
-The other tests of Section 8.1 run under Miri unchanged, because they use only memory. The design expects `clap` to run under Miri, which no run has confirmed. A test that fails under Miri only because Miri does not support an operation is marked in the same way, with its own reason.
+The other tests of Section 8.1 run under Miri unchanged, because they use only memory, and `clap` runs under Miri: on 2026-11-16 every one of them passed under `just check-miri`. A snapshot test run under Miri with its attribute overridden failed with `unsupported operation: 'open' not available when isolation is enabled`. A test that fails under Miri only because Miri does not support an operation is marked in the same way, with its own reason.
 
 ## 9. Dependencies
 
@@ -593,9 +629,9 @@ insta = { version = "1.49", default-features = false }
 | Dependency | Kind | Features | Reason |
 | --- | --- | --- | --- |
 | `escher-signature` | Normal | None | Parses and classifies the signature. The path dependency carries a version (TOOL-25) |
-| `clap` | Normal | The list above, without `color`, `env`, and `wrap_help` | The derive API (Section 3.1 of `docs/design/architecture.md`). Without `color`, `anstream` and its dependencies are expected not to be built, which the change confirms with `cargo tree` |
+| `clap` | Normal | The list above, without `color`, `env`, and `wrap_help` | The derive API (Section 3.1 of `docs/design/architecture.md`). Without `color`, `anstream` and its dependencies are not built (Section 9.2) |
 | `anyhow` | Normal | Default | The chain of errors that Section 5.8 of `docs/design/architecture.md` requires. Version 1.0.103 fixes RUSTSEC-2026-0190 (Section 10 of `docs/research/rust-ecosystem.md`) |
-| `insta` | Dev | None, so without `colors` | Snapshot tests (rule TEST-2). Without `colors`, `console` is expected not to be built, which the change confirms with `cargo tree` |
+| `insta` | Dev | None, so without `colors` | Snapshot tests (rule TEST-2). Without `colors`, `console` is not built (Section 9.2) |
 
 The package keeps `publish = false` (`DEC-22`) and declares no Cargo feature.
 
@@ -610,13 +646,21 @@ An adversarial test resolved these dependencies with network access on 2026-11-1
 - The highest minimum Rust version that the dependencies of this crate declare is 1.85, for `clap`, within `rust-version = "1.99"`.
 - A prototype of this crate printed `escher-cli 0.1.0` for `--version` and `-V` on standard output with status 0, and the help for `--help` on standard output with status 0. With no argument it printed the help on standard error with status 2. A missing signature, an unknown subcommand, `-x`, and an argument that is not UTF-8 each gave an error on standard error with status 2. The usage line named `escher`.
 
-Before it adds `MIT`, the change confirms that the licence is compatible with GPL-3.0-or-later, as TOOL-24 of `docs/design/tooling.md` requires.
+The build of the package, checked with `cargo tree` on 2026-11-16, has these properties:
+
+- `cargo tree -e features -i clap_builder` shows only the features `derive`, `error-context`, `help`, `std`, `suggestions`, and `usage`.
+- `cargo tree --target all` lists none of `anstream`, `console`, `colorchoice`, and `terminal_size`.
+- `insta` is built with no features.
+- The resolved versions also include `anstyle` 1.0.14, which `clap_builder` always needs, and the dependencies of `insta`: `once_cell` 1.21.4, `fastrand` 2.5.0, `rustix` 1.1.6, `linux-raw-sys` 0.12.1, `errno` 0.3.15, `getrandom` 0.4.3, `windows-sys` 0.61.2, and `windows-link` 0.2.1.
+- `cargo tree -d --target all` prints no duplicate version.
+
+`deny.toml` allows `MIT`, and Section 8 of `docs/design/tooling.md` records its compatibility with GPL-3.0-or-later, as TOOL-24 of that document requires. `just check-deny` passes with no unused licence.
 
 ### 9.3. Dependency Risks
 
-cargo-deny leaves dev-dependencies out of the licence check and the duplicate check by default. `deny.toml` overrides both defaults, as Section 8 of `docs/design/tooling.md` states, so `just check-deny` checks dev-dependencies. In the test of Section 9.2, which ran without the overrides, `cargo deny list` named none of `insta`, `similar`, `tempfile`, `proptest`, and `rand`.
+cargo-deny leaves dev-dependencies out of the licence check and the duplicate check by default. `deny.toml` overrides both defaults, as Section 8 of `docs/design/tooling.md` states, so `just check-deny` checks dev-dependencies. With the overrides, `cargo deny list` names `insta` 1.49.0, its dependencies such as `similar`, `tempfile`, `once_cell`, `fastrand`, and `rustix`, and `proptest`. In the test of Section 9.2, which ran without the overrides, it named none of `insta`, `similar`, `tempfile`, `proptest`, and `rand`.
 
-CLI-14. The change that adds `insta` MUST confirm that `cargo deny list` names `insta` and its dependencies, because otherwise the licences, advisories, and duplicates of the snapshot library go unchecked while the dependency policy appears to cover them.
+CLI-14. The dev-dependencies of this crate MUST stay inside the dependency policy of Section 8 of `docs/design/tooling.md`, so that `cargo deny list` names `insta` and its dependencies, because otherwise the licences, advisories, and duplicates of the snapshot library go unchecked while the dependency policy appears to cover them.
 
 ## 10. Unverified Statements
 
@@ -632,25 +676,26 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 ### 11.1. Assumptions
 
 - The infinity sign takes one column in the terminal. Unicode gives it an ambiguous East Asian width, so a terminal that renders such characters as wide shifts the caret one column to the right for each infinity sign before the span.
-- With its features `env` and `wrap_help` off, `clap` reads no environment variable, so the output does not depend on the environment. No run has confirmed this.
-- `clap` echoes the text of an unknown argument in a usage error. Whether it escapes control characters in that text is not verified (Section 12).
+- With its features `env` and `wrap_help` off, `clap` reads no environment variable, so the output does not depend on the environment. A reading of the source of `clap_builder` 4.6.7 on 2026-11-16 found that it reads the environment only in `Arg::env`, which needs the feature `env`, and for `COLUMNS` and `LINES`, which need the feature `wrap_help`. No run has confirmed this.
 
 ### 11.2. Choices of This Design
 
 These choices are made here, and no other document dictates them:
 
 1. `run` returns `Status` and not `std::process::ExitCode`, and the `clap` types are private.
-2. `run` flushes standard output before it returns.
+2. `run` flushes standard output after each write to it (Section 3.2).
 3. `clap` has no colour and only the features of Section 9.1, and `insta` has no colour.
-4. `escher` with no argument is a usage error that prints the help. The placeholder binary prints its version with no argument instead.
+4. `escher` with no argument is a usage error that prints the help.
 5. The subcommand `help` is disabled.
 6. The labels and order of the information text, with `Frieze` and `General non-compact` printed only for a non-compact signature, and the label `Deformation dimension`. In M1 no parameter can be set, and the named list of parameters arrives with the signatures that have them (Section 5.4).
 7. The format of the area, such as `2pi/3`.
 8. The diagnostic format: the bound of 120 characters, `?` for each unsafe character, and the byte range for a longer argument.
 9. Three statuses, with one status for every signature error (Section 7).
-10. A failed write to standard output gives `Failure`, and a broken pipe gives no diagnostic (Section 6.6).
+10. A failed write to standard output, including the help and the version text, gives `Failure`, and a broken pipe gives no diagnostic (Section 6.6).
 11. Snapshots live only in this crate, with one snapshot for each `run` call.
 12. No recipe wraps `cargo insta`.
+13. The help, version, and usage text of `clap` has each control character other than the line feed replaced with `?` (Section 6.5).
+14. A snapshot holds the status and each stream between fixed marker lines, with a final marker line (Section 8.1).
 
 ### 11.3. Points for the Owner
 
@@ -664,7 +709,7 @@ None of these blocks the implementation:
 
 The threat model is a user who passes a signature from an untrusted party to `escher info`. The attacker can choose any argument within the limits of the command line, including invalid UTF-8, control characters, and very long text. The attacker cannot change the binary, its dependencies, or the files of the repository.
 
-The attacks in scope are exhaustion of memory or time through the signature, and injection of terminal escape sequences through the diagnostic. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states, and this crate adds no limit of its own. The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`.
+The attacks in scope are exhaustion of memory or time through the signature, and injection of terminal escape sequences through the diagnostic. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states, and this crate adds no limit of its own. The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`. The help, version, and usage text that `clap` produces has every control character other than the line feed replaced with `?` (CLI-15).
 
 The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -675,7 +720,7 @@ The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as 
 
 Attacks on the repository, the build machine, or the terminal itself are out of scope, because this document governs the crate and not access control or the terminal.
 
-The residual risk is a usage error from `clap` that echoes an unknown argument with its control characters unchanged, which is not verified (Section 11.1). A second residual risk is that no run has confirmed the check of `insta` and its dependencies (Section 9.3), until the change that adds `insta` does so.
+The residual risk is that a usage error still echoes every character of an unknown argument that is not a control character, including characters outside ASCII, such as the formatting characters of the Unicode general category Cf. The replacement tests only for the category Cc.
 
 ## 13. Operational Considerations
 
@@ -723,4 +768,5 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-11 | 7 | Every signature error, including a bad orbifold, gives `Failure`. |
 | CLI-12 | 8.2 | No recipe, hook, or workflow sets `INSTA_FORCE_PASS`. |
 | CLI-13 | 8.3 | Every test that uses `insta` is ignored under Miri with a reason. |
-| CLI-14 | 9.3 | The change that adds `insta` confirms that cargo-deny lists `insta` and its dependencies. |
+| CLI-14 | 9.3 | The dev-dependencies stay inside the dependency policy, so cargo-deny lists `insta` and its dependencies. |
+| CLI-15 | 6.5 | The help, version, and usage text of `clap` has every control character other than the line feed replaced with `?`. |

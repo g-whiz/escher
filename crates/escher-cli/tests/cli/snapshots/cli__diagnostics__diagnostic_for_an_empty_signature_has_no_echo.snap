@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: the signature is empty
+--- end

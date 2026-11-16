@@ -1,11 +1,11 @@
-//! The command-line program `escher`, which prints its package name and
-//! version.
+//! The command-line program `escher`, which calls `escher_cli::run` with the
+//! arguments, standard output, and standard error of the process.
 
-#![expect(
-    clippy::print_stdout,
-    reason = "the program reports its name and version on standard output"
-)]
-
-fn main() {
-    println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+fn main() -> std::process::ExitCode {
+    let status = escher_cli::run(
+        std::env::args_os(),
+        &mut std::io::stdout().lock(),
+        &mut std::io::stderr().lock(),
+    );
+    std::process::ExitCode::from(status)
 }

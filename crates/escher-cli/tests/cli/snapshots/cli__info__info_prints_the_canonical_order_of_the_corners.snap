@@ -1,0 +1,12 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*236\"])"
+---
+status: Success
+--- stdout
+Signature: *632
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+--- stderr
+--- end

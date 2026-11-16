@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"(4294967296)\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: order is larger than 4294967295
+  (4294967296)
+  ^^^^^^^^^^^^
+--- end

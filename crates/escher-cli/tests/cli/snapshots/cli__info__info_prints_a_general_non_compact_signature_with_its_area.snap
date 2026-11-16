@@ -1,0 +1,15 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"3*(inf)\"])"
+---
+status: Success
+--- stdout
+Signature: 3*(inf)
+Geometry: hyperbolic
+Euler characteristic: -1/6
+Compact: no
+Frieze: no
+General non-compact: yes
+Area: pi/3
+--- stderr
+--- end

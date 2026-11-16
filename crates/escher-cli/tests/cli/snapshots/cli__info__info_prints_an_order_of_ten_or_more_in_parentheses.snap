@@ -1,0 +1,14 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"2*(12)\"])"
+---
+status: Success
+--- stdout
+Signature: 2*(12)
+Geometry: spherical
+Euler characteristic: 1/24
+Compact: yes
+Group order: 48
+Area: pi/12
+--- stderr
+--- end

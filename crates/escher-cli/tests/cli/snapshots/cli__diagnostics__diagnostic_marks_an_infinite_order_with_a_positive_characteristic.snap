@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"2(inf)\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: an infinite order needs an Euler characteristic of 0 or less
+  2(inf)
+  ^^^^^^
+--- end

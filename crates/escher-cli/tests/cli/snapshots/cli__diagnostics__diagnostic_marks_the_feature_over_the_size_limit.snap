@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", &\"x\".repeat(65)])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: the signature has more than 64 features
+  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                                                                  ^
+--- end

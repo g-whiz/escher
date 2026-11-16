@@ -1,0 +1,13 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"draw\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: unrecognized subcommand 'draw'
+
+Usage: escher <COMMAND>
+
+For more information, try '--help'.
+--- end

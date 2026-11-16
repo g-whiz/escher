@@ -1,0 +1,17 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"info\", \"--help\"])"
+---
+status: Success
+--- stdout
+Print the canonical form, the geometry, and other properties of a signature in orbifold notation
+
+Usage: escher info <SIGNATURE>
+
+Arguments:
+  <SIGNATURE>  The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'
+
+Options:
+  -h, --help  Print help
+--- stderr
+--- end

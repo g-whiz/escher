@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"*2x3\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: order 3 after a boundary and a handle or crosscap is ambiguous
+  *2x3
+     ^
+--- end

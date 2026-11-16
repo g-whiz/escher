@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/diagnostics.rs
+expression: "snapshot(&[\"info\", \"(\\u{221E})\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: unexpected character '∞'
+  (∞)
+   ^
+--- end

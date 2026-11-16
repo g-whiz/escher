@@ -221,6 +221,7 @@ nextest does not run doctests, so `check-doctest` runs them, as Section 4.8 of t
 Under Miri, `default-miri` selects every test, so the tests themselves decide what runs in the interpreter, as TEST-11 of the coding standard requires:
 
 - A test that runs a loop too long for the interpreter carries `#[cfg_attr(miri, ignore = "...")]` with a reason in plain words. nextest reports such a test as skipped under Miri and runs it in `test` and `coverage`. Section 12.2 of `docs/design/signature.md` names the tests of `escher-signature` that carry it.
+- A test that does something that the isolation of Miri refuses, such as opening a file, carries the same attribute with its own reason. Section 8.3 of `docs/design/cli.md` names the tests of `escher-cli` that carry it, which are its snapshot tests.
 - Every property test takes its `proptest` configuration from one helper in the `common` module of its crate's integration tests. Under `cfg!(miri)` the helper returns 8 cases with `failure_persistence` set to `None`, and otherwise it returns the default configuration of `proptest`, with 256 cases. The file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and 256 cases take too long in the interpreter.
 
 ## 5. Git Hooks
@@ -623,7 +624,7 @@ all-features = true
 unused-ignored-advisory = "deny"
 
 [licenses]
-allow = ["GPL-3.0-or-later", "Apache-2.0", "Unicode-3.0"]
+allow = ["GPL-3.0-or-later", "Apache-2.0", "MIT", "Unicode-3.0"]
 confidence-threshold = 0.8
 include-dev = true
 unused-allowed-license = "deny"
@@ -648,9 +649,10 @@ The licences other than `GPL-3.0-or-later` in `allow` are those of the dependenc
 | Licence | Why it is in the list | Compatibility |
 | --- | --- | --- |
 | `Apache-2.0` | It satisfies every `MIT OR Apache-2.0` expression | Compatible with version 3 of the GNU GPL |
+| `MIT` | `strsim` carries `MIT` alone, and `clap_builder` needs it for the `clap` feature `suggestions` | Compatible with the GNU GPL. The list names it the Expat licence |
 | `Unicode-3.0` | `unicode-ident` carries `(MIT OR Apache-2.0) AND Unicode-3.0` | Compatible with all versions of the GNU GPL |
 
-`MIT` is not in the list, because `Apache-2.0` already satisfies every expression that offers it, so `unused-allowed-license = "deny"` would reject it as unused.
+`Apache-2.0` satisfies every expression that offers `MIT` as an alternative, so `MIT` is in the list only for a crate that offers no alternative, such as `strsim`.
 
 The `[advisories]` table has no `ignore` list and the `[bans]` table has no `skip` list. The change that adds an exception under TOOL-26 adds the list, with one entry per line and its reason, and the change that adds a licence under TOOL-24 extends `allow`.
 
@@ -768,12 +770,18 @@ This table lists every recipe parameter and its default. Every other recipe take
 
 ### 14.2. Environment Variables
 
-This table lists every environment variable that the recipes, the hooks, or the checks read.
+This table lists every environment variable that the recipes, the hooks, or the checks read, except the variables of the snapshot library `insta` that no contributor or workflow needs to set, which the paragraph after the table points to.
 
 | Variable | Read by | Default and behaviour when unset |
 | --- | --- | --- |
 | `CARGO_BUILD_WARNINGS` | Cargo, in the commands of Section 4.8 of the coding standard | The recipes set it to `deny` for those commands. Outside them it is unset, and Cargo reports warnings without failing. |
 | `CLAUDE_PROJECT_DIR` | The hook in `.claude/settings.json` | Set by Claude Code. The hook does not run outside it. |
+| `CI` | `insta`, in the snapshot tests that `test` and `coverage` run | Not CI. A failing snapshot test then writes a `.snap.new` file beside the committed snapshot, for review with `cargo insta review`. In CI, a failing snapshot test writes no file. |
+| `INSTA_UPDATE` | `insta` | `auto`, as the row of `CI` describes. No recipe or workflow sets it. |
+| `INSTA_FORCE_PASS` | `insta` | False. No recipe, hook, or workflow sets it (CLI-12 of `docs/design/cli.md`). |
+| `INSTA_WORKSPACE_ROOT` | `insta` | `insta` finds the workspace root with `cargo metadata`, through the `cargo` that `CARGO` names. |
+
+Section 8.2 of `docs/design/cli.md` gives the behaviour of the variables of `insta` in full, including those that this table leaves out, such as `TF_BUILD`, `INSTA_OUTPUT`, and `NEXTEST_RUN_ID`.
 
 ### 14.3. Platforms and Minimum Supported Rust Version
 

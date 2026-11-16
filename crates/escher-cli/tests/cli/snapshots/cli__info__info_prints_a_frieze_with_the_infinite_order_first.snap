@@ -1,0 +1,14 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*22(inf)\"])"
+---
+status: Success
+--- stdout
+Signature: *(inf)22
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: no
+Frieze: yes
+General non-compact: no
+--- stderr
+--- end

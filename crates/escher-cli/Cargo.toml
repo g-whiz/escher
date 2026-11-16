@@ -14,5 +14,13 @@ readme.workspace = true
 name = "escher"
 path = "src/main.rs"
 
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+escher-signature.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+
 [lints]
 workspace = true

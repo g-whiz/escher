@@ -1,0 +1,14 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"ox\"])"
+---
+status: Success
+--- stdout
+Signature: xxx
+Geometry: hyperbolic
+Euler characteristic: -1
+Compact: yes
+Area: 2pi
+Deformation dimension: 3
+--- stderr
+--- end

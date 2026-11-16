@@ -1,0 +1,13 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"help\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: unrecognized subcommand 'help'
+
+Usage: escher <COMMAND>
+
+For more information, try '--help'.
+--- end

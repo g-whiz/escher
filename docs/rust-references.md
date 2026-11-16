@@ -481,7 +481,7 @@ Rules: TEST-5. Section 7 of `docs/writing-documentation.md` governs API document
 | [IR-84] | 3 | Testing each locking branch. |
 | [IR-9] | 1 | Syntax for unit tests and doctests. |
 
-Unit tests, doctests, snapshot tests, fuzzing, and Miri are each covered above. Rules: TEST-1 to TEST-7, and TEST-9 to TEST-11.
+Unit tests, doctests, snapshot tests, fuzzing, and Miri are each covered above. Rules: TEST-1 to TEST-7, and TEST-9 to TEST-12.
 
 ### 2.28. Lints and Tooling
 
