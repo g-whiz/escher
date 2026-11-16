@@ -213,6 +213,11 @@ check-doctest:
 test:
     CARGO_BUILD_WARNINGS=deny cargo nextest run --workspace --all-features --profile default --no-tests=warn
 
+# Overwrite each committed golden PNG file with the image that its test renders, by running the golden-image test of escher-render with ESCHER_UPDATE_GOLDEN=1
+[group('rust')]
+update-golden:
+    ESCHER_UPDATE_GOLDEN=1 CARGO_BUILD_WARNINGS=deny cargo nextest run -p escher-render --all-features --profile default --no-tests=warn -E 'test(=images::golden_images_match_the_committed_files)'
+
 # Check licences, security advisories, duplicate crates, and crate sources with cargo-deny, which needs network access
 [group('checks')]
 check-deny:

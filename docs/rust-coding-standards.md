@@ -20,11 +20,12 @@ This document assigns every rule to one of the two classes, following Section 3.
 
 ### 1.1. Scope
 
-This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has four members:
+This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has five members:
 
 - `escher-cli`: a package with a library target that runs the command line, and the binary `escher`, which calls it, as `docs/design/cli.md` specifies.
 - `escher-domain`: a library crate that builds and verifies the fundamental domain of a compact hyperbolic reflection triangle, as `docs/design/domain.md` specifies.
 - `escher-geometry`: a library crate that holds the linear model of the hyperbolic plane over the `glam` types, with the map to and from the Poincare disk, as `docs/design/geometry.md` specifies.
+- `escher-render`: a library crate that renders the fundamental domain of a compact hyperbolic reflection triangle as the pixels of an image in the Poincare disk and encodes them as a PNG file, as `docs/design/render.md` specifies.
 - `escher-signature`: a library crate that parses an orbifold signature into its canonical form and computes its exact Euler characteristic, as `docs/design/signature.md` specifies.
 
 Rules ERR-1 and ERR-2 apply to library crates only, because a binary such as `escher` is an application, which may report errors through `Box<dyn std::error::Error>`.
@@ -501,7 +502,7 @@ CARGO_BUILD_WARNINGS=deny cargo doc --workspace --no-deps --all-features
 cargo deny check
 ```
 
-Every command that runs Clippy, runs the tests or the doctests, builds the documentation, or measures coverage passes `--workspace` and `--all-features`, so that it covers every member and the code of every Cargo feature, as Section 3.1 of `docs/design/tooling.md` states.
+Every command of this section that runs Clippy, runs the tests or the doctests, builds the documentation, or measures coverage passes `--workspace` and `--all-features`, so that it covers every member and the code of every Cargo feature, as Section 3.1 of `docs/design/tooling.md` states.
 
 These commands run the checks of the tools from `cargo hack` to Miri. The first checks the features, and the second checks the MSRV. The feature powerset includes every combination of one feature, so no separate command for each single feature is needed.
 
@@ -516,7 +517,7 @@ taplo fmt --check
 actionlint
 ```
 
-These command lines are those of the recipes. They hold two additions that TOOL-7 of `docs/design/tooling.md` permits. The first is `--profile default` in the nextest command and the `cargo llvm-cov` command, which selects the nextest profile. The second is `--lcov --output-path target/lcov.info`, the arguments of the `coverage` recipe, which make the `cargo llvm-cov` command write an LCOV report to `target/lcov.info`. With these options, the command prints no coverage summary.
+These command lines are those of the recipes, except that the recipe `update-golden` narrows the test command, as TOOL-7 of `docs/design/tooling.md` states. They hold two additions that TOOL-7 permits. The first is `--profile default` in the nextest command and the `cargo llvm-cov` command, which selects the nextest profile. The second is `--lcov --output-path target/lcov.info`, the arguments of the `coverage` recipe, which make the `cargo llvm-cov` command write an LCOV report to `target/lcov.info`. With these options, the command prints no coverage summary.
 
 The command for `cargo semver-checks` is chosen with the first release, because the tool fails on a crate that has no published version.
 
@@ -918,6 +919,10 @@ Reason: the check runs every test under Miri, which interprets the code far more
 
 Reason: the last bits of a transcendental function differ between platform libraries and between the host and the Miri interpreter, so a bit-for-bit assertion fails on a correct result. A tolerance without the scale of its quantity either fails on large inputs or hides a defect on small ones. An implementation that shares code with the crate shares its transcription errors. A tolerance set from a measurement with a margin passes on a correct implementation, while a guessed tolerance either fails on it or hides a defect, and the record lets a reviewer check each tolerance against its measurement.
 
+**TEST-14.** Compare a golden image, a committed PNG file that a test renders again, by its decoded pixels and not by the bytes of the file, within an allowance of a largest difference per pixel and a number of pixels that may differ, and set the allowance from a measurement that the design document of the crate records with its input. On a failure, write the actual image and an image of the differences to a directory under the build output, and change the committed files only through the recipe that regenerates them.
+
+Reason: the bytes of a PNG file depend on the encoder and its compression settings, so a byte comparison fails on an image that is pixel for pixel the same. A platform mathematics library can move a sample across a border, so an exact comparison fails on a correct renderer, while a guessed allowance either fails on it or hides a defect. The written images let a developer see what changed, and a single recipe keeps a test from rewriting its own expected result during an ordinary run.
+
 ## 12. Dependencies and Cargo Features
 
 **DEP-1.** Make every Cargo feature additive, so that every combination compiles, and name it after what it enables. A feature never removes behaviour or selects between options that exclude each other. Section 7.8 of the writing guide defines how features are documented.
@@ -1126,6 +1131,7 @@ The identifiers FFI-1 to FFI-11, SYS-1 to SYS-8, and COM-1 to COM-13 are reserve
 | TEST-11 | Tests too slow for Miri carry `#[cfg_attr(miri, ignore = "...")]` with a plain reason, and property tests take a Miri-aware configuration from one helper. |
 | TEST-12 | A snapshot of program output holds the status and each stream after a fixed marker line, and ends with a final marker line. |
 | TEST-13 | Floating-point results are compared with a tolerance that follows their scale and checked against an independent high-precision implementation, with each tolerance at least 8 times a recorded measured error. |
+| TEST-14 | Golden images are compared by decoded pixels within a recorded, measured allowance, write the actual and difference images on failure, and change only through their recipe. |
 | DEP-1 | Cargo features are additive and named after what they enable. |
 | DEP-2 | Dependencies are few, preferably standard, and declared once in the workspace, except another version requirement on a member. |
 | DEP-3 | A crate that exposes a dependency below 1.0 stays below 1.0, and a breaking upgrade of a public dependency is a breaking release. |

@@ -1,0 +1,330 @@
+use core::fmt;
+
+use crate::options::{
+    LARGEST_BORDER_WIDTH, LARGEST_FOLD_CAP, LARGEST_GRID, LARGEST_PIXELS, LARGEST_SIDE,
+};
+
+/// A specialized [`Result`](core::result::Result) whose error is [`Error`].
+pub type Result<T> = core::result::Result<T, Error>;
+
+/// The reason why building options, rendering rows, or encoding an image
+/// failed.
+///
+/// Match on [`Error::kind`] to tell the causes apart. The
+/// [`Display`](fmt::Display) text starts with `cannot `, names the operation
+/// that failed, states the cause, and is meant for a person, not for
+/// matching.
+///
+/// # Examples
+///
+/// ```
+/// use escher_render::{Colour, ErrorKind, Fill, RenderOptions};
+///
+/// let error = RenderOptions::builder(Fill::One(Colour::WHITE)).samples(17).build().err();
+/// assert_eq!(error.as_ref().map(|error| error.kind()), Some(ErrorKind::LimitExceeded));
+/// assert_eq!(
+///     error.map(|error| error.to_string()).as_deref(),
+///     Some("cannot build render options: the sample grid 17 is larger than 16"),
+/// );
+/// ```
+#[derive(Debug)]
+pub struct Error {
+    operation: &'static str,
+    detail: Detail,
+}
+
+const BUILD: &str = "build render options";
+const RENDER: &str = "render rows";
+const ENCODE: &str = "encode image";
+
+impl Error {
+    pub(crate) fn empty_size(width: u32, height: u32) -> Self {
+        Self::build(Detail::EmptySize { width, height })
+    }
+
+    pub(crate) fn empty_grid() -> Self {
+        Self::build(Detail::EmptyGrid)
+    }
+
+    pub(crate) fn negative_border(width: f64) -> Self {
+        Self::build(Detail::NegativeBorder(width))
+    }
+
+    pub(crate) fn large_side(width: u32, height: u32) -> Self {
+        Self::build(Detail::LargeSide { width, height })
+    }
+
+    pub(crate) fn many_pixels(width: u32, height: u32) -> Self {
+        Self::build(Detail::ManyPixels { width, height })
+    }
+
+    pub(crate) fn large_grid(grid: u32) -> Self {
+        Self::build(Detail::LargeGrid(grid))
+    }
+
+    pub(crate) fn wide_border(width: f64) -> Self {
+        Self::build(Detail::WideBorder(width))
+    }
+
+    pub(crate) fn large_cap(cap: u32) -> Self {
+        Self::build(Detail::LargeCap(cap))
+    }
+
+    pub(crate) fn partial_rows(length: usize, row: usize) -> Self {
+        Self {
+            operation: RENDER,
+            detail: Detail::PartialRows { length, row },
+        }
+    }
+
+    pub(crate) fn rows_outside(first: u64, last: u64, height: u32) -> Self {
+        Self {
+            operation: RENDER,
+            detail: Detail::RowsOutside {
+                first,
+                last,
+                height,
+            },
+        }
+    }
+
+    pub(crate) fn wrong_image(length: usize, width: u32, height: u32) -> Self {
+        Self {
+            operation: ENCODE,
+            detail: Detail::WrongImage {
+                length,
+                width,
+                height,
+            },
+        }
+    }
+
+    pub(crate) fn encoding(source: png::EncodingError) -> Self {
+        Self {
+            operation: ENCODE,
+            detail: Detail::Encoding(source),
+        }
+    }
+
+    fn build(detail: Detail) -> Self {
+        Self {
+            operation: BUILD,
+            detail,
+        }
+    }
+
+    /// Returns the cause of the error as an [`ErrorKind`].
+    #[must_use]
+    pub fn kind(&self) -> ErrorKind {
+        match self.detail {
+            Detail::EmptySize { .. } | Detail::EmptyGrid | Detail::NegativeBorder(_) => {
+                ErrorKind::InvalidOption
+            }
+            Detail::LargeSide { .. }
+            | Detail::ManyPixels { .. }
+            | Detail::LargeGrid(_)
+            | Detail::WideBorder(_)
+            | Detail::LargeCap(_) => ErrorKind::LimitExceeded,
+            Detail::PartialRows { .. } | Detail::RowsOutside { .. } | Detail::WrongImage { .. } => {
+                ErrorKind::InvalidBuffer
+            }
+            Detail::Encoding(_) => ErrorKind::Encoding,
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "cannot {}: {}", self.operation, self.detail)
+    }
+}
+
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match &self.detail {
+            Detail::Encoding(source) => Some(source),
+            Detail::EmptySize { .. }
+            | Detail::EmptyGrid
+            | Detail::NegativeBorder(_)
+            | Detail::LargeSide { .. }
+            | Detail::ManyPixels { .. }
+            | Detail::LargeGrid(_)
+            | Detail::WideBorder(_)
+            | Detail::LargeCap(_)
+            | Detail::PartialRows { .. }
+            | Detail::RowsOutside { .. }
+            | Detail::WrongImage { .. } => None,
+        }
+    }
+}
+
+/// The cause of an [`Error`], for a caller to match on.
+///
+/// The enum is `#[non_exhaustive]`, so a `match` on it needs a wildcard arm.
+///
+/// # Examples
+///
+/// ```
+/// use escher_render::{ErrorKind, encode_png};
+///
+/// let kind = encode_png(16, 32, &[0; 1535]).map_err(|error| error.kind());
+/// assert_eq!(kind.err(), Some(ErrorKind::InvalidBuffer));
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ErrorKind {
+    /// An option has a value that means nothing, such as an empty image, an
+    /// empty sample grid, or a negative or non-finite border width.
+    InvalidOption,
+    /// An option is larger than its limit, which bounds the memory and the
+    /// time of a render.
+    LimitExceeded,
+    /// A buffer does not fit the image: its length does not hold whole rows
+    /// or the whole image, or its rows lie outside the image.
+    InvalidBuffer,
+    /// The PNG encoder failed, and [`source`](core::error::Error::source)
+    /// returns its error.
+    Encoding,
+}
+
+#[derive(Debug, thiserror::Error)]
+enum Detail {
+    #[error("the image size {width}x{height} is empty")]
+    EmptySize { width: u32, height: u32 },
+    #[error("the sample grid 0 is empty")]
+    EmptyGrid,
+    #[error("the border width {0} is negative or not finite")]
+    NegativeBorder(f64),
+    #[error("the image size {width}x{height} is larger than {LARGEST_SIDE} pixels on a side")]
+    LargeSide { width: u32, height: u32 },
+    #[error("the image size {width}x{height} has more than {LARGEST_PIXELS} pixels")]
+    ManyPixels { width: u32, height: u32 },
+    #[error("the sample grid {0} is larger than {LARGEST_GRID}")]
+    LargeGrid(u32),
+    #[error("the border width {0} is larger than {LARGEST_BORDER_WIDTH}")]
+    WideBorder(f64),
+    #[error("the fold cap {0} is larger than {LARGEST_FOLD_CAP}")]
+    LargeCap(u32),
+    #[error("the buffer of {length} bytes does not hold whole rows of {row} bytes")]
+    PartialRows { length: usize, row: usize },
+    #[error("the rows {first} to {last} are outside the image of {height} rows")]
+    RowsOutside { first: u64, last: u64, height: u32 },
+    #[error("the buffer of {length} bytes does not hold an image of {width}x{height} pixels")]
+    WrongImage {
+        length: usize,
+        width: u32,
+        height: u32,
+    },
+    #[error("the PNG encoder failed")]
+    Encoding(png::EncodingError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Error, ErrorKind};
+
+    fn png_error() -> png::EncodingError {
+        png::EncodingError::LimitsExceeded
+    }
+
+    fn errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
+            (
+                Error::empty_size(0, 512),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the image size 0x512 is empty",
+            ),
+            (
+                Error::empty_grid(),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the sample grid 0 is empty",
+            ),
+            (
+                Error::negative_border(-1.0),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the border width -1 is negative or not finite",
+            ),
+            (
+                Error::large_side(16385, 512),
+                ErrorKind::LimitExceeded,
+                "cannot build render options: the image size 16385x512 is larger than 16384 pixels on a side",
+            ),
+            (
+                Error::many_pixels(16384, 8192),
+                ErrorKind::LimitExceeded,
+                "cannot build render options: the image size 16384x8192 has more than 67108864 pixels",
+            ),
+            (
+                Error::large_grid(17),
+                ErrorKind::LimitExceeded,
+                "cannot build render options: the sample grid 17 is larger than 16",
+            ),
+            (
+                Error::wide_border(1025.0),
+                ErrorKind::LimitExceeded,
+                "cannot build render options: the border width 1025 is larger than 1024",
+            ),
+            (
+                Error::large_cap(100_001),
+                ErrorKind::LimitExceeded,
+                "cannot build render options: the fold cap 100001 is larger than 100000",
+            ),
+            (
+                Error::partial_rows(1535, 1536),
+                ErrorKind::InvalidBuffer,
+                "cannot render rows: the buffer of 1535 bytes does not hold whole rows of 1536 bytes",
+            ),
+            (
+                Error::rows_outside(510, 513, 512),
+                ErrorKind::InvalidBuffer,
+                "cannot render rows: the rows 510 to 513 are outside the image of 512 rows",
+            ),
+            (
+                Error::wrong_image(1535, 16, 32),
+                ErrorKind::InvalidBuffer,
+                "cannot encode image: the buffer of 1535 bytes does not hold an image of 16x32 pixels",
+            ),
+            (
+                Error::encoding(png_error()),
+                ErrorKind::Encoding,
+                "cannot encode image: the PNG encoder failed",
+            ),
+        ]
+    }
+
+    #[test]
+    fn display_of_each_cause_is_the_documented_text() {
+        for (error, _, text) in errors() {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn display_of_each_cause_is_lower_case_apart_from_png_without_trailing_punctuation() {
+        for (error, _, _) in errors() {
+            let text = error.to_string();
+            let rest = text.replace("PNG", "");
+            assert_eq!(rest, rest.to_lowercase(), "{text}");
+            assert!(!text.ends_with('.'), "{text}");
+        }
+    }
+
+    #[test]
+    fn kind_matches_each_cause() {
+        for (error, kind, text) in errors() {
+            assert_eq!(error.kind(), kind, "{text}");
+        }
+    }
+
+    #[test]
+    fn source_is_the_png_error_only_for_an_encoding_error() {
+        for (error, kind, text) in errors() {
+            let source = core::error::Error::source(&error).map(ToString::to_string);
+            if kind == ErrorKind::Encoding {
+                assert_eq!(source, Some(png_error().to_string()), "{text}");
+            } else {
+                assert_eq!(source, None, "{text}");
+            }
+        }
+    }
+}

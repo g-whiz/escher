@@ -90,9 +90,11 @@ TOOL-7. A recipe that runs a command of Section 4.8 of the coding standard MUST 
 1. The option `--profile` with a nextest profile of Section 4.
 2. The arguments that Section 4.8 names for the recipe `coverage`.
 
+The recipe `update-golden` is the one exception. It MUST run the command of `test` narrowed to the golden image test of `escher-render`, with `-p escher-render` in place of `--workspace`, that test as the filter of `-E`, and `ESCHER_UPDATE_GOLDEN=1` in its environment, because its purpose is to rewrite the golden files, and a failure of an unrelated test would make it fail after it has written them. It is not part of `check` and verifies nothing, so the narrowing loses no check.
+
 An agent that has to change the command MUST change Section 4.8 in the same change. Two command lines for one check diverge, and an agent that runs the documented command then gets a result different from the recipe's.
 
-The commands of Section 4.8 that run Clippy, build the documentation, run the doctests, run the tests, and measure coverage pass `--workspace` and `--all-features`, so each of these checks covers every member and the code of every Cargo feature. `check-features` builds each combination of features separately, with the feature powerset of cargo hack.
+The commands of Section 4.8 that run Clippy, build the documentation, run the doctests, run the tests, and measure coverage pass `--workspace` and `--all-features`, so each of these checks covers every member and the code of every Cargo feature. Only the recipe `update-golden` narrows one of these commands, under the exception of TOOL-7. `check-features` builds each combination of features separately, with the feature powerset of cargo hack.
 
 The formatting command of Section 4.8 ends with the list of every Rust file that git tracks or does not ignore. `fmt` and `check-fmt` compute that list with `git ls-files`, and it is part of the command, not an addition.
 
@@ -145,6 +147,7 @@ This table lists every recipe, what it runs, and whether `check` runs it. The co
 | `check-doc` | `checks` | The documentation command of Section 4.8 | Yes, through `check-rust` |
 | `check-doctest` | `checks` | The doctest command of Section 4.8 | Yes, through `check-rust` |
 | `test` | `rust` | The nextest command of Section 4.8 with the `default` profile | Yes, through `check-rust` |
+| `update-golden` | `rust` | Only the golden image test of `escher-render`, `images::golden_images_match_the_committed_files`, through the command of `test` with `-p escher-render` in place of `--workspace` and that test as the filter of `-E`, with `ESCHER_UPDATE_GOLDEN=1` in its environment, so that the test writes each image it renders over its committed PNG file (Section 14.9) | No |
 | `check-deny` | `checks` | The cargo-deny command of Section 4.8 | Yes, through `check-rust` |
 | `check-rust-comments` | `checks` | The comment checker of Section 6.2 | Yes, through `check-rust` |
 | `check-doc-headings` | `checks` | The heading checker of Section 6.3 | Yes, through `check-rust` |
@@ -206,7 +209,7 @@ retries = 0
 [profile.default-miri]
 ```
 
-Neither profile sets `default-filter`, so each selects every test of the workspace. A filter that the command line adds with `-E` is intersected with the default filter of the profile, so it narrows the selection of the profile and never widens it. No recipe adds such a filter.
+Neither profile sets `default-filter`, so each selects every test of the workspace. A filter that the command line adds with `-E` is intersected with the default filter of the profile, so it narrows the selection of the profile and never widens it. Only the recipe `update-golden` adds such a filter (TOOL-7).
 
 TOOL-11. A profile MUST NOT retry a failed test, because a retry turns an intermittent failure into a pass, which hides the defect that caused the failure.
 
@@ -220,8 +223,8 @@ nextest does not run doctests, so `check-doctest` runs them, as Section 4.8 of t
 
 Under Miri, `default-miri` selects every test, so the tests themselves decide what runs in the interpreter, as TEST-11 of the coding standard requires:
 
-- A test that runs a loop too long for the interpreter carries `#[cfg_attr(miri, ignore = "...")]` with a reason in plain words. nextest reports such a test as skipped under Miri and runs it in `test` and `coverage`. Section 12.2 of `docs/design/signature.md` names the tests of `escher-signature` that carry it, and Section 10.4 of `docs/design/geometry.md` names those of `escher-geometry`, which are its tests against high-precision reference arithmetic, with two exceptions, and its deterministic sweeps. Section 12.3 of `docs/design/domain.md` names those of `escher-domain`, which are its tests against high-precision reference arithmetic and its test of the checks at the worst cases.
-- A test that does something that the isolation of Miri refuses, such as opening a file, carries the same attribute with its own reason. Section 8.3 of `docs/design/cli.md` names the tests of `escher-cli` that carry it, which are its snapshot tests.
+- A test that runs a loop too long for the interpreter carries `#[cfg_attr(miri, ignore = "...")]` with a reason in plain words. nextest reports such a test as skipped under Miri and runs it in `test` and `coverage`. Section 12.2 of `docs/design/signature.md` names the tests of `escher-signature` that carry it, and Section 10.4 of `docs/design/geometry.md` names those of `escher-geometry`, which are its tests against high-precision reference arithmetic, with two exceptions, and its deterministic sweeps. Section 12.3 of `docs/design/domain.md` names those of `escher-domain`, which are its tests against high-precision reference arithmetic and its test of the checks at the worst cases. Section 8.5 of `docs/design/render.md` names those of `escher-render`, which are its tests against high-precision reference arithmetic, including one property test and the self-check of the reference arithmetic in both of its test binaries, and its tests that render whole images.
+- A test that does something that the isolation of Miri refuses, such as opening a file, carries the same attribute with its own reason. Section 8.3 of `docs/design/cli.md` names the tests of `escher-cli` that carry it, which are its snapshot tests, and Section 8.5 of `docs/design/render.md` names the golden image test of `escher-render`.
 - Every property test takes its `proptest` configuration from one helper in the `common` module of its crate's integration tests. Under `cfg!(miri)` the helper returns 8 cases with `failure_persistence` set to `None`, and otherwise it returns the default configuration of `proptest`, with 256 cases. The file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and 256 cases take too long in the interpreter.
 
 The root `Cargo.toml` sets `opt-level = 3` for the dev-dependency `astro-float-num` alone in the `dev` profile, from which the `test` profile of Cargo inherits, for the reason that Section 11 of `docs/design/geometry.md` states. The crates of the workspace stay unoptimized in that profile.
@@ -662,6 +665,14 @@ cargo-deny checks the dependency graph of every target, because the `[graph]` ta
 
 `check-deny` fetches the advisory database on every run, so it needs network access (Section 14.6).
 
+`Cargo.lock` holds `flate2` at version 1.1.9. `png` depends on `flate2` and on `miniz_oxide`, and the newest version of `flate2` brings a second version of `miniz_oxide`, which fails the duplicate check of TOOL-26. At 1.1.9, both resolve to `miniz_oxide` 0.8.9, so the check passes with no exception in `deny.toml`. A plain `cargo update` moves `flate2` to its newest version and brings the duplicate back. This command, which no recipe wraps, restores the pin:
+
+```sh
+cargo update -p flate2 --precise 1.1.9
+```
+
+Section 9 of `docs/design/render.md` states why the crate keeps the pin, and its Section 12.3 keeps a `skip` entry in `deny.toml` as the alternative for the owner to decide.
+
 ## 9. Publishing Readiness
 
 This section defines how the repository is kept ready to publish a crate. Whether a crate is published is outside this document.
@@ -782,6 +793,7 @@ This table lists every environment variable that the recipes, the hooks, or the 
 | `INSTA_UPDATE` | `insta` | `auto`, as the row of `CI` describes. No recipe or workflow sets it. |
 | `INSTA_FORCE_PASS` | `insta` | False. No recipe, hook, or workflow sets it (CLI-12 of `docs/design/cli.md`). |
 | `INSTA_WORKSPACE_ROOT` | `insta` | `insta` finds the workspace root with `cargo metadata`, through the `cargo` that `CARGO` names. |
+| `ESCHER_UPDATE_GOLDEN` | The golden image tests of `escher-render`, in the runs of `test`, `coverage`, and `update-golden` | Unset. A golden image test compares its rendering with the committed file. The recipe `update-golden` sets it to `1`, and the test then writes its rendering over the committed file (Section 14.9). No other recipe, hook, or workflow sets it. |
 
 Section 8.2 of `docs/design/cli.md` gives the behaviour of the variables of `insta` in full, including those that this table leaves out, such as `TF_BUILD`, `INSTA_OUTPUT`, and `NEXTEST_RUN_ID`.
 
@@ -873,6 +885,17 @@ The agent creates a new branch from `main` that holds the identical tree of the 
 
 The directory `references/` at the root of the repository holds copyrighted source material, such as the papers and books that a subject-matter reference under `docs/research/` cites. `.gitignore` ignores it, and nothing in it is ever committed, because the repository has no right to redistribute that material.
 
+### 14.9. Updating Golden Images
+
+A golden image test that fails under `test` writes the rendered image and an image of the differences under the directory that `CARGO_TARGET_TMPDIR` names, inside `target/`, and its output names the number of differing pixels (Section 8.4 of `docs/design/render.md`). The developer follows these steps:
+
+1. Opens the rendered image and the difference image, and decides whether the change to the image is intended.
+2. When it is not intended, fixes the code and runs `just test` again.
+3. When it is intended, runs `just update-golden`, which runs only the golden image test of `escher-render` and writes each rendered image over its committed file, so that no other test affects the result, and inspects the new files.
+4. Runs `just test`, which compares with the new files, and commits the changed PNG files with the change that caused them, saying in the commit message why the images changed.
+
+A golden file that is missing, cannot be decoded, or differs from the rendered image in size, colour type, or bit depth fails that image with a message that names `just update-golden`, and the test still checks the other images. Running that recipe a second time leaves the files unchanged, byte for byte. The developer never edits a golden file by hand and never sets `ESCHER_UPDATE_GOLDEN` in another recipe, a hook, or a workflow (TEST-14 of the coding standard).
+
 ## 15. References
 
 ### 15.1. Normative References
@@ -893,7 +916,7 @@ This table lists every labelled requirement of this document with a one-line sum
 | TOOL-4 | 9 | Licence, `rust-version` 1.99, repository, and readme are workspace fields that every member inherits. |
 | TOOL-5 | 9 | `rust-version` changes only in a change whose purpose is to raise it. |
 | TOOL-6 | 3.1 | Recipes have the name, group, and `check` membership of Section 3.2. |
-| TOOL-7 | 3.1 | Recipes run the commands of Section 4.8 of the coding standard as written there, including the file list of the formatting command, adding only a nextest profile or the arguments that Section 4.8 names for `coverage`. |
+| TOOL-7 | 3.1 | Recipes run the commands of Section 4.8 of the coding standard as written there, including the file list of the formatting command, adding only a nextest profile or the arguments that Section 4.8 names for `coverage`. The one exception is `update-golden`, which narrows the test command to the golden image test of `escher-render` with `ESCHER_UPDATE_GOLDEN` set, because it only rewrites the golden files and verifies nothing. |
 | TOOL-8 | 3.1 | `check` passes in the container without a hardware GPU or a display. |
 | TOOL-9 | 3.1 | No recipe for a tool before the image provides it. |
 | TOOL-11 | 4 | No profile retries a failed test. |

@@ -4,6 +4,7 @@ members = [
     "crates/escher-cli",
     "crates/escher-domain",
     "crates/escher-geometry",
+    "crates/escher-render",
     "crates/escher-signature",
 ]
 
@@ -37,6 +38,7 @@ glam = { version = "0.34.3", default-features = false, features = [
     "std",
 ] }
 insta = { version = "1.49", default-features = false }
+png = "0.18.1"
 proptest = { version = "1.12.0", default-features = false, features = ["std"] }
 thiserror = "2.0.21"
 

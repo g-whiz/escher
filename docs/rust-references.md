@@ -481,7 +481,7 @@ Rules: TEST-5. Section 7 of `docs/writing-documentation.md` governs API document
 | [IR-84] | 3 | Testing each locking branch. |
 | [IR-9] | 1 | Syntax for unit tests and doctests. |
 
-Unit tests, doctests, snapshot tests, fuzzing, and Miri are each covered above. No source above covers floating-point tolerances or tests against high-precision arithmetic, so TEST-13 rests on its reason alone. Rules: TEST-1 to TEST-7, and TEST-9 to TEST-13.
+Unit tests, doctests, snapshot tests, fuzzing, and Miri are each covered above. No source above covers floating-point tolerances or tests against high-precision arithmetic, so TEST-13 rests on its reason alone. [IR-17] covers snapshot tests of text with `insta`, but no source above covers golden-image tests that compare decoded pixels within an allowance, so TEST-14 also rests on its reason alone. Rules: TEST-1 to TEST-7, and TEST-9 to TEST-14.
 
 ### 2.28. Lints and Tooling
 

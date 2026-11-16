@@ -84,14 +84,14 @@ The workspace of the proof of concept has six members under `crates/`. Every mem
 | `escher-geometry` | Linear models and model maps | None | `glam` (`DEC-4`) and `thiserror`, then `num-complex` from `M12` |
 | `escher-group` | Presentations, coset enumeration, low-index search, and colourings | `escher-signature` | None |
 | `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` and `thiserror` |
-| `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` from `M8` | `glam` and `png`, and `palette` only if the owner adopts it at `M8` (`DEC-29`) |
+| `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, and `escher-group` from `M8`, with `escher-signature` as a dev-dependency | `glam`, `png`, and `thiserror`, and `palette` only if the owner adopts it at `M8` (`DEC-29`) |
 | `escher-cli` | The binary `escher`, with the commands `info` and `render` | All five, with `escher-group` from `M7` | `clap` with the derive API, `anyhow`, and `rayon` (`DEC-21`) |
 
 The dev-dependencies are `insta`, `proptest`, and `astro-float-num`, the reference-arithmetic crate of `DEC-3`.
 
 `escher-domain` and `escher-render` compute with the `glam` types that `escher-geometry` exposes, so each declares `glam` itself, from the one entry in `[workspace.dependencies]` that rule DEP-2 in Section 12 of `docs/rust-coding-standards.md` requires.
 
-Section 5.8 requires an error type in every library crate. The table lists `thiserror` for `escher-signature`, `escher-geometry`, and `escher-domain`, whose design documents choose it. Whether another library crate implements its error type with `thiserror` is for its design document to decide.
+Section 5.8 requires an error type in every library crate. The table lists `thiserror` for `escher-signature`, `escher-geometry`, `escher-domain`, and `escher-render`, whose design documents choose it. Whether another library crate implements its error type with `thiserror` is for its design document to decide.
 
 ### 3.2. Public Surface
 
@@ -320,14 +320,14 @@ Coverage stays a report with no threshold (Section 7.1 of `docs/design/tooling.m
 
 ### 7.2. Golden Image Tests
 
-The repository has no definition of a golden image test. This section proposes one. The change that adds the first golden image writes it into Section 11 of `docs/rust-coding-standards.md` as a new TEST rule (Hard Rule 13 of `AGENTS.md`) and into `docs/design/tooling.md` (`DEC-6`):
+TEST-14 in Section 11 of `docs/rust-coding-standards.md` states the general rule for a golden image test (`DEC-6`). The golden image tests of the proof of concept take this form:
 
 - A golden image is a small PNG file, such as 192 by 192 pixels with fixed options, committed under `tests/<suite>/golden/` of its crate.
 - The test renders the image, decodes the golden file with `png`, and compares channel by channel with two limits: the largest allowed difference and the number of pixels allowed to differ. Section 11.1 of `docs/research/rust-ecosystem.md` recommends this comparison.
 - The comparison is in linear light, because samples are averaged in linear light (Section 4.1), so the weight of one sample in stored 8-bit sRGB units depends on the colours. The largest difference is the weight of one sample in the sample grid plus the size of one 8-bit sRGB step at the stored value, in linear light.
-- The count comes from a perturbation run that the design of the crate defines numerically. The change that adds the first golden image measures both limits and records them in the design of the crate and in the test.
-- On failure, the test writes the actual image and the difference image under `target/`.
-- Golden files change only through a new recipe, which the change adds to the table of Section 3.2 of `docs/design/tooling.md` (TOOL-6), with its environment variable in Section 14.2 of that document. The name of the recipe and of the variable are left to that change.
+- The design of the crate sets the number of pixels allowed to differ and records the evidence for it. Section 8.4 of `docs/design/render.md` gives the allowance of `escher-render` and the figures behind it.
+- On failure, the test writes the actual image and the difference image under the directory that `CARGO_TARGET_TMPDIR` names, which is under `target/`.
+- Golden files change only through the recipe `update-golden`. Section 3.2 of `docs/design/tooling.md` lists the recipe, and its Section 14.2 lists its environment variable.
 - Golden image tests and process tests do not run under Miri (`DEC-5`).
 
 ## 8. Performance
@@ -435,7 +435,7 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-3` | Reference-arithmetic crate | Decided by the owner: astro-float. The tests use its number crate `astro-float-num`, which Section 13.3 of `docs/design/geometry.md` raises with the owner | Section 10.1 |
 | `DEC-4` | Linear algebra | Decided by the owner: `glam` and `num-complex`, with no vector or matrix type of the project's own | Section 10.1 |
 | `DEC-5` | Miri | Decided by the owner: tests that cannot run under Miri carry `#[cfg_attr(miri, ignore = "...")]` | Section 10.1 |
-| `DEC-6` | Golden images | As Section 7.2, compared in linear light | No golden image test is defined yet |
+| `DEC-6` | Golden images | As Section 7.2, compared in linear light | TEST-14 of `docs/rust-coding-standards.md` defines the test, and samples are averaged in linear light |
 | `DEC-7` | Render defaults | A 4 by 4 sample grid, a black border 1 pixel wide, and a fold cap of 1500. Samples at the cap take the border colour. An opaque white background, and no `transparent` background. `--output` is required. The default colouring is the first two-colour colouring when one exists, else one colour. The default fill colours are `#e9c46a` and `#2a9d8f` | Section 9.1. Published caps range from 10 to 4000. `escher-domain` accepts a corner of order 1000, which needed 1000 folds on a prototype, and the cap covers every fold count that the prototype measured (Section 11 of `docs/design/render.md`). A fixed cap is simpler than one derived from the signature. Averaging samples with alpha has no source. The fill colours are the example pair of `M3` in `docs/design/poc-plan.md` |
 | `DEC-8` | Input text | Features in any order, as SymmHub accepts them, but text with two readings is rejected, such as an order after a `*` and an `o` or `x`, and a `1` directly followed by a digit, so `11` and `*11` are errors. Whitespace and the empty string are rejected. Upper-case `O` and `X` are accepted. Of the characters outside American Standard Code for Information Interchange (ASCII), only the infinity sign is accepted. An order 1 is accepted and dropped, with `1` as the trivial group. Section 4.2 of `docs/design/signature.md` states the reading rules | The SymmHub parser is the precedent (Section 11.1 of `docs/research/orbifold-notation.md`), and the proposal accepts only input whose meaning is unambiguous. `UNV-20` |
 | `DEC-9` | Canonical form | The feature order of [CH], cone orders descending with an infinite order above every finite order, each boundary at its largest rotation, boundaries descending, and every handle turned into two crosscaps when a crosscap is present, so `oox` becomes `xxxxx`. Parentheses from order 10, and `(inf)` in output. Section 7 of `docs/design/signature.md` states the algorithm, including the reversal of boundaries | No primary source defines a canonical form (`UNV-20`) |
@@ -483,7 +483,7 @@ The residual risk is a limit that a crate design document sets too high for the 
 
 ## 12. Operational Considerations
 
-No crate declares a Cargo feature (Section 3.1) or has a build script (Section 11), so no crate reads an environment variable at build time. The golden image recipe of Section 7.2 adds one environment variable, which Section 14.2 of `docs/design/tooling.md` will list.
+No crate declares a Cargo feature (Section 3.1) or has a build script (Section 11), so no crate reads an environment variable at build time. The golden image tests read one environment variable at run time, `ESCHER_UPDATE_GOLDEN`, which the recipe of Section 7.2 sets and Section 14.2 of `docs/design/tooling.md` lists.
 
 The supported platform of the proof of concept is Linux. The crates render on the CPU and need no graphics processing unit (GPU) or display, so `just check` runs every test (TOOL-8 in Section 3.1 of `docs/design/tooling.md`). The minimum supported Rust version (MSRV) is the one that Technology Decisions of `AGENTS.md` states.
 
