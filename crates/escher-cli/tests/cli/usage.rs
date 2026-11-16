@@ -101,6 +101,15 @@ fn missing_signature_is_a_usage_error() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn repeated_check_option_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&["info", "--check", "--check", "*732"]));
+}
+
+#[test]
 fn unknown_subcommand_returns_usage() {
     let outcome = run_args(&["draw"]);
     assert_eq!(outcome.status, Status::Usage);

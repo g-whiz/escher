@@ -1,0 +1,15 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*(1001)32\"])"
+---
+status: Success
+--- stdout
+Signature: *(1001)32
+Geometry: hyperbolic
+Euler characteristic: -995/12012
+Compact: yes
+Area: 995pi/6006
+Deformation dimension: 0
+Domain: none, cannot build fundamental domain: order 1001 is larger than 1000
+--- stderr
+--- end

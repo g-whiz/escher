@@ -10,5 +10,6 @@ Euler characteristic: -1/12
 Compact: yes
 Area: pi/6
 Deformation dimension: 0
+Domain: none, cannot build fundamental domain: the signature 4*3 is not supported
 --- stderr
 --- end

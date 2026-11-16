@@ -1,0 +1,18 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*433\"])"
+---
+status: Success
+--- stdout
+Signature: *433
+Geometry: hyperbolic
+Euler characteristic: -1/24
+Compact: yes
+Area: pi/12
+Deformation dimension: 0
+Domain: 3 mirror sides
+Corner angles in degrees: 45.000000, 60.000000, 60.000000
+Side lengths: 0.860706, 0.860706, 0.727040
+Domain area: 0.261799
+--- stderr
+--- end

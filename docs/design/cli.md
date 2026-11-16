@@ -155,7 +155,7 @@ escher --help
 escher --version
 ```
 
-`-h` is the short form of `--help` and `-V` of `--version`. `escher info --help` prints the help of `info`. `--check` has no short form.
+`-h` is the short form of `--help` and `-V` of `--version`. `escher info --help` prints the help of `info`. `--check` has no short form. The usage line in the help of `info` is the form that `clap` generates, `escher info [OPTIONS] <SIGNATURE>`.
 
 ### 4.2. Parser Settings
 
@@ -186,7 +186,7 @@ CLI-4. `escher --version` and `escher -V` MUST write the package name, one space
 
 ### 4.3. The `info` Command
 
-`info` takes one required positional argument, the signature, as a `String` named `SIGNATURE`, and the optional flag `--check`. An argument that is not valid UTF-8 is a usage error. The flag may stand before or after the signature.
+`info` takes one required positional argument, the signature, as a `String` named `SIGNATURE`, and the optional flag `--check`. An argument that is not valid UTF-8 is a usage error. The flag may stand before or after the signature. A repeated `--check` is a usage error, because `clap` rejects a flag that is given more than once, and `info` keeps that behaviour.
 
 CLI-5. `info` MUST pass its argument unchanged to the `FromStr` implementation of `Signature` from `escher-signature`, and MUST NOT trim, normalize, or check it first, because a second reading of the grammar diverges from the one that `docs/design/signature.md` specifies, and the byte spans of the error then no longer match the argument.
 
@@ -622,7 +622,7 @@ escher info '2*(12)'
 
 ### 6.5. Usage Errors
 
-On an error of `try_parse_from`, `run` takes the text of `error.render()` as plain text and replaces each control character in it other than the line feed with `?`. When `error.use_stderr()` is false, which is the case for `--help` and `--version`, the text goes to standard output. Otherwise it goes to standard error. A usage error covers an unknown subcommand or option, a missing signature, an argument that is not UTF-8, and `escher` with no argument. Section 7 gives the status of each case, and a failed write of the help or the version text follows Section 6.6.
+On an error of `try_parse_from`, `run` takes the text of `error.render()` as plain text and replaces each control character in it other than the line feed with `?`. When `error.use_stderr()` is false, which is the case for `--help` and `--version`, the text goes to standard output. Otherwise it goes to standard error. A usage error covers an unknown subcommand or option, a missing signature, a repeated `--check`, an argument that is not UTF-8, and `escher` with no argument. Section 7 gives the status of each case, and a failed write of the help or the version text follows Section 6.6.
 
 `clap` copies an unknown argument into its error message with its control characters unchanged. Without the replacement, an argument that starts with `--` and holds an escape sequence reaches standard error unchanged.
 
@@ -688,20 +688,21 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself. Each text includes its `Domain` line, and the text of `*732` its domain summary | Ignored |
 | Domain snapshots | Command line of Section 5.2 of the plan | `insta`, `info` | The text and status for `info '*542'`, `info '*433'`, `info '*(1001)32'`, `info --check '*732'`, `info --check '*632'`, and `info --check '*(1000)32'`. The plan writes the triangle $(3, 3, 4)$, whose canonical signature is `*433` | Ignored |
 | Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Section 12.1 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, a span after the infinity sign, and a span that is the infinity sign, under one caret | Ignored |
-| Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, and a missing signature. The help of `info` shows `--check` | Ignored |
+| Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, a missing signature, and a repeated `--check`. The help of `info` shows `--check` | Ignored |
 | Version tests | None | Plain tests, `usage` | `--version` and `-V` give `Success`, empty standard error, and standard output equal to the package name, one space, the package version, and a line feed. Each test takes the name and the version from the package when it compiles, so a new version needs no change to the tests | Runs |
 | Echo limit tests | Failure paths | Plain tests, `diagnostics` | The status and the exact diagnostic for a signature of exactly 120 characters, which gets the echo line and the caret line, for one of 121 characters, which gets the byte span, and for one of 42 characters and 124 bytes, built with the infinity sign, which gets the echo line and the caret line because the limit counts characters | Runs |
 | Status tests | Failure paths | Plain tests, `main.rs`, `usage`, and `info` | `Success` for `*732`, `Failure` for `23`, `Usage` for an unknown subcommand and for an argument that is not UTF-8, each with the start of the standard output or standard error that it writes, equal output for `*22(inf)` and the same signature with the infinity sign, and the exit statuses 0, 1, and 2 of the three values of `Status` | Runs |
 | Verification status tests | Command line of Section 5.2 of the plan, failure paths | Plain tests, `info` | `Success`, empty standard error, and a standard output that ends with `Verification: passed` and a line feed for `info --check '*732'`, and the same with `--check` after the signature. `Failure`, the diagnostic of Section 6.7, and a standard output that ends with the `Domain` line for `info --check '*632'`. `Success` and empty standard error for `info '*632'` | Runs |
-| Failed check text | Failure paths | Unit tests in `info.rs` | The private formatter, given a failed check as plain numbers, writes `failed, residual 2.5e-3, tolerance 1.0e-6`, writes `inf` for an infinite residual, and writes `NaN` when given a NaN, which no residual of `escher-domain` is, and the private function that writes the diagnostic of Section 6.7 writes `2 of 6 checks failed` for two failed checks | Runs |
-| Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info`, for `info --check`, and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
+| Failed check text | Failure paths | Unit tests in `info.rs` | The private formatter, given a failed check as plain numbers, writes `failed, residual 2.5e-3, tolerance 1.0e-6`, writes `inf` for an infinite residual, and writes `NaN` when given a NaN, which no residual of `escher-domain` is, and the private function that writes the diagnostic of Section 6.7 writes `2 of 6 checks failed` for two failed checks. Given rows of label, verdict, residual, and tolerance with one failed check of six, the private function that builds the verification lines adds the six check lines and `Verification: failed` and returns an error. The private function that writes the text writes those lines first and then returns that error, whose diagnostic is `error: cannot verify fundamental domain: 1 of 6 checks failed` | Runs |
+| Residual labels | Command line of Section 5.2 of the plan | Plain test, `info` | `Success` for `info --check '*(11)(10)5'`, and each line that starts with `Check ` equals the line that the format of Section 5.6 gives for the residual and the tolerance of the matching accessor of `Verification`, computed in the same process for the same signature | Ignored |
+| Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info`, for `info --check`, and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. For `info --check '*632'`, the failed write gives only that diagnostic and no verification diagnostic. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
 | Control characters | Failure paths | Plain test, `usage` | A usage error for an argument with control characters writes `?` in place of each of them (CLI-15) | Runs |
 | Auto traits | None | Plain test, `main.rs` | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`). The test calls a generic function whose type parameter is bounded by `Send + Sync`, so it fails to compile if `Status` loses either trait | Runs |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 
 The argument that is not UTF-8 is built with `std::os::unix::ffi::OsStringExt`, so that test compiles only on Unix, which covers Linux, the supported platform.
 
-No known input makes a check fail, so the failed-check path is tested on the private formatter and the private diagnostic function, as Section 12.1 of `docs/design/signature.md` does for its `Overflow` texts.
+No known input makes a check fail, so the failed-check path is tested through private functions, as Section 12.1 of `docs/design/signature.md` does for its `Overflow` texts. The test "Failed check text" covers the formatter of one check, the check lines, the `Verification` line, and the count of failed checks built from the rows, the writing of the text before the verdict is returned, and the diagnostic function.
 
 A snapshot holds the status, the standard output, and the standard error of one `run` call, in this form, which a helper in the module `common` builds (rule TEST-12 of `docs/rust-coding-standards.md`):
 
@@ -716,8 +717,8 @@ Each stream follows its marker line unchanged, so a stream that ends with a line
 
 Every snapshot must be deterministic (rule TEST-2 of `docs/rust-coding-standards.md`), and two kinds of floating-point value in the output need a rule for that:
 
-- The residual of a passed check is a rounding error, whose last digits can depend on the mathematics library of the platform. In every line that starts with `Check `, the snapshot helper replaces the text between `residual ` and the next `,` with `<residual>`, as the example of Section 5.3 shows. The tolerance, the result, and the line `Verification` stay in the snapshot. The test "Failed check text" covers the form of a residual.
-- The values of rows 11 to 13 are printed with six digits after the point (Section 5.5). A snapshot input is chosen so that the exact value of each of these rows lies farther from a rounding boundary of the sixth digit than the bound of Section 9.3 of `docs/design/domain.md` in the column for the orders of that input, converted to degrees for an angle. The column "Orders up to 12" applies to `*732`, `*542`, and `*433`, and the column "(1000, 3, 2)" to `*(1000)32`. Every correct build then prints the same digits. A 256-bit computation of `*732` confirms this for every value of its summary, as Section 5.3 shows. The test "Triangles" of `docs/design/domain.md` checks the values of the other inputs against the reference arithmetic of `escher-domain`, within the bound of that column (Section 12.1 of that document). The change that adds the snapshots replaces an input whose printed value fails the condition.
+- The residual of a passed check is a rounding error, whose last digits can depend on the mathematics library of the platform. In every line that starts with `Check `, the snapshot helper replaces the text between `residual ` and the next `,` with `<residual>`, as the example of Section 5.3 shows. The tolerance, the result, and the line `Verification` stay in the snapshot. The test "Failed check text" covers the form of a residual. The test "Residual labels" covers which residual each label prints, without a snapshot, because it compares the output with values computed in the same process. Its input `*(11)(10)5` is the only reflection triangle with corner orders up to 30 whose six residuals print pairwise distinct in the development container, so there a swap of any two checks changes the output. The test does not assert that the residuals are distinct, so on a platform where two of them print the same, a swap of those two checks goes unnoticed.
+- The values of rows 11 to 13 are printed with six digits after the point (Section 5.5). A snapshot input is chosen so that the exact value of each of these rows lies farther from a rounding boundary of the sixth digit than the bound of Section 9.3 of `docs/design/domain.md` in the column for the orders of that input, converted to degrees for an angle. The column "Orders up to 12" applies to `*732`, `*542`, and `*433`, and the column "(1000, 3, 2)" to `*(1000)32`. Every correct build then prints the same digits. A 256-bit computation of `*732` confirms this for every value of its summary, as Section 5.3 shows. The test "Triangles" of `docs/design/domain.md` checks the values of the other inputs against the reference arithmetic of `escher-domain`, within the bound of that column (Section 12.1 of that document). For each of these inputs, the distance of every exact value to the nearest rounding boundary of the sixth digit, computed in double precision, is larger than that bound, so every snapshot input meets the condition.
 
 CLI-20. A snapshot MUST NOT hold a residual of a check, and its inputs MUST meet the condition on rounding boundaries above, because a value that depends on the last bits of floating-point arithmetic makes the snapshot test fail on a platform whose mathematics library rounds differently, although the program is correct.
 
@@ -758,13 +759,15 @@ Section 6 of `docs/design/architecture.md` names the documents that state how a 
 
 ### 8.3. Tests Under Miri
 
-The snapshot tests carry `#[cfg_attr(miri, ignore = "the snapshot library reads snapshot files and starts a process")]`, because Miri's isolation refuses file access and process creation (`DEC-5`). The reason is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`). The domain snapshots carry the same attribute.
+The snapshot tests carry `#[cfg_attr(miri, ignore = "the snapshot library reads snapshot files and starts a process")]`, because Miri's isolation refuses file access and process creation (`DEC-5`). The reason is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`).
 
 CLI-13. Every test that uses `insta` MUST carry that attribute, because without it `just check-miri` fails on every snapshot test.
 
+The test "Residual labels" carries `#[cfg_attr(miri, ignore = "the interpreter rounds the transcendental functions differently on each call, so two builds of one domain differ in the last digits of a residual")]`, because it compares the residuals of two builds of one domain, the one that it makes and the one that `info` makes.
+
 The other tests of Section 8.1 run under Miri unchanged, because they use only memory, and `clap` runs under Miri: on 2026-11-16 every such test of rows 1 to 9, the diagnostics of Sections 6.1 to 6.6, and the usage text passed under `just check-miri`. A snapshot test run under Miri with its attribute overridden failed with `unsupported operation: 'open' not available when isolation is enabled`. A test that fails under Miri only because Miri does not support an operation is marked in the same way, with its own reason.
 
-The plain tests that run `info` on `*732` build and verify its domain under Miri, and so run the arithmetic of `glam` and the floating-point functions of the standard library in the interpreter. The verification of `*732` needs few matrix products (Section 8.2 of `docs/design/domain.md`), so these tests need no attribute. They assert the status and the start or the end of the output, and no digit of a floating-point value, because the interpreter need not reproduce the last bits of the host library (Section 12.3 of `docs/design/domain.md`). The implementing change confirms that they pass under `just check-miri`.
+The plain tests that run `info` on `*732` build its domain under Miri, and those that pass `--check` also verify it, so they run the arithmetic of `glam` and the floating-point functions of the standard library in the interpreter. The verification of `*732` needs few matrix products (Section 8.2 of `docs/design/domain.md`), so these tests need no attribute. They assert the status and the start or the end of the output, and no digit of a floating-point value, because the interpreter need not reproduce the last bits of the host library (Section 12.3 of `docs/design/domain.md`). They pass under `just check-miri`.
 
 ## 9. Dependencies
 
@@ -821,7 +824,7 @@ The build of the package, checked with `cargo tree` on 2026-11-16, has these pro
 
 `deny.toml` allows `MIT`, and Section 8 of `docs/design/tooling.md` records its compatibility with GPL-3.0-or-later, as TOOL-24 of that document requires. `just check-deny` passes with no unused licence.
 
-The dependencies that `escher-domain` brings were resolved on 2026-11-16 as Section 11 of `docs/design/geometry.md` records: `glam` adds no transitive dependency, no duplicate version, and no licence. `thiserror` is already in the workspace. The change that adds `escher-domain` to this crate confirms the resolution of the whole package with `just check-deny` and `just check-msrv`.
+The dependencies that `escher-domain` brings were resolved on 2026-11-16 as Section 11 of `docs/design/geometry.md` records: `glam` adds no transitive dependency, no duplicate version, and no licence. `thiserror` is already in the workspace. With `escher-domain` in the package, `just check-deny` and `just check-msrv` passed on 2026-11-16, and `cargo tree -d --target all -p escher-cli` printed no duplicate version.
 
 ### 9.3. Dependency Risks
 
@@ -872,6 +875,7 @@ These choices are made here, and no other document dictates them:
 19. The information text is written before the verification diagnostic (Section 6.7).
 20. The snapshot helper replaces the residual of each check line, and the snapshot inputs keep the printed digits away from rounding boundaries (Section 8.1).
 21. The `clap` flag `--check` is a `bool` converted at once into a private enum (Section 4.3).
+22. A repeated `--check` stays the usage error that `clap` gives (Section 4.3).
 
 ### 11.3. Points for the Owner
 

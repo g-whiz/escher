@@ -129,6 +129,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "escher-domain",
  "escher-signature",
  "insta",
 ]

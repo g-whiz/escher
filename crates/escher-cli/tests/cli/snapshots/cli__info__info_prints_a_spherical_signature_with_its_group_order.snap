@@ -10,5 +10,6 @@ Euler characteristic: 1/60
 Compact: yes
 Group order: 120
 Area: pi/30
+Domain: none, cannot build fundamental domain: the signature *532 is not supported
 --- stderr
 --- end

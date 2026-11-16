@@ -11,5 +11,6 @@ Compact: no
 Frieze: no
 General non-compact: no
 Area: pi/6
+Domain: none, cannot build fundamental domain: the signature *(inf)32 is not supported
 --- stderr
 --- end

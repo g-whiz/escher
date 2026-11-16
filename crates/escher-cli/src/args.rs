@@ -23,5 +23,10 @@ pub(crate) enum Command {
             help = "The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'"
         )]
         signature: String,
+        #[arg(
+            long,
+            help = "Verify the fundamental domain of the signature and print the result of each check"
+        )]
+        check: bool,
     },
 }

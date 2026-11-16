@@ -1,0 +1,25 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--check\", \"*732\"])"
+---
+status: Success
+--- stdout
+Signature: *732
+Geometry: hyperbolic
+Euler characteristic: -1/84
+Compact: yes
+Area: pi/42
+Deformation dimension: 0
+Domain: 3 mirror sides
+Corner angles in degrees: 25.714286, 60.000000, 90.000000
+Side lengths: 0.545275, 0.620672, 0.283128
+Domain area: 0.074800
+Check isometries: passed, residual <residual>, tolerance 1.0e-9
+Check pairings: passed, residual <residual>, tolerance 1.0e-9
+Check walls: passed, residual <residual>, tolerance 1.0e-9
+Check relators: passed, residual <residual>, tolerance 2.0e-6
+Check angles: passed, residual <residual>, tolerance 1.0e-9
+Check area: passed, residual <residual>, tolerance 1.0e-9
+Verification: passed
+--- stderr
+--- end

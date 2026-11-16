@@ -17,6 +17,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+escher-domain.workspace = true
 escher-signature.workspace = true
 
 [dev-dependencies]

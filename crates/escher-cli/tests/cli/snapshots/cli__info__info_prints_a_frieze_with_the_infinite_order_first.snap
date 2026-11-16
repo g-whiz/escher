@@ -10,5 +10,6 @@ Euler characteristic: 0
 Compact: no
 Frieze: yes
 General non-compact: no
+Domain: none, cannot build fundamental domain: the signature *(inf)22 is not supported
 --- stderr
 --- end

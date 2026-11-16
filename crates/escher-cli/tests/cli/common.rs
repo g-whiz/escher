@@ -30,8 +30,30 @@ pub(crate) fn snapshot(args: &[&str]) -> String {
     let outcome = run_args(args);
     format!(
         "status: {:?}\n--- stdout\n{}--- stderr\n{}--- end\n",
-        outcome.status, outcome.stdout, outcome.stderr
+        outcome.status,
+        without_residuals(&outcome.stdout),
+        outcome.stderr
     )
+}
+
+fn without_residuals(text: &str) -> String {
+    let mut redacted = String::new();
+    for line in text.split_inclusive('\n') {
+        let parts = line
+            .strip_prefix("Check ")
+            .and_then(|rest| rest.split_once("residual "))
+            .and_then(|(head, rest)| Some((head, rest.split_once(',')?.1)));
+        match parts {
+            Some((head, tail)) => {
+                redacted.push_str("Check ");
+                redacted.push_str(head);
+                redacted.push_str("residual <residual>,");
+                redacted.push_str(tail);
+            }
+            None => redacted.push_str(line),
+        }
+    }
+    redacted
 }
 
 #[derive(Debug, Default)]

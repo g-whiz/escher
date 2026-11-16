@@ -1,0 +1,15 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--check\", \"*632\"])"
+---
+status: Failure
+--- stdout
+Signature: *632
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Domain: none, cannot build fundamental domain: the signature *632 is not supported
+--- stderr
+error: cannot verify fundamental domain
+  caused by: cannot build fundamental domain: the signature *632 is not supported
+--- end

@@ -11,5 +11,6 @@ Compact: no
 Frieze: no
 General non-compact: yes
 Area: pi/3
+Domain: none, cannot build fundamental domain: the signature 3*(inf) is not supported
 --- stderr
 --- end

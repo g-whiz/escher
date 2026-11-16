@@ -10,5 +10,6 @@ Euler characteristic: 1/2
 Compact: yes
 Group order: 4
 Area: pi
+Domain: none, cannot build fundamental domain: the signature 2* is not supported
 --- stderr
 --- end

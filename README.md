@@ -8,7 +8,7 @@ The repository holds the tooling, the documents that set its standards, the rese
 
 | Crate | Purpose |
 | --- | --- |
-| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature. It is not published. |
+| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, and, with `--check`, verifies that domain. It is not published. |
 | `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, with a wall and a reflection for each side, measures its side lengths, corner angles, and area, and checks it numerically. It is not published. |
 | `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model over the vector and matrix types of `glam`: points, distances, walls, reflections and other isometries, and the map to and from the Poincare disk. It is not published. |
 | `escher-signature` | A library that parses an orbifold signature, such as `*632`, into its canonical form, computes its exact Euler characteristic, and classifies it as spherical, Euclidean, or hyperbolic, with its group order, area, and deformation dimension where they apply. It is not published. |
@@ -39,7 +39,7 @@ Running the checks also needs these tools:
 
 ## Usage
 
-`escher info` prints the canonical form of a signature in orbifold notation, its geometry, its Euler characteristic, and the properties that depend on them. The examples call the built program as `escher`. From the workspace root, `cargo run -p escher-cli --bin escher --` followed by the same arguments runs it too.
+`escher info` prints the canonical form of a signature in orbifold notation, its geometry, its Euler characteristic, and the properties that depend on them. A `Domain` line says whether `escher-domain` builds a fundamental domain for the signature. When it does, the corner angles, the side lengths, and the area of the domain follow. The examples call the built program as `escher`. From the workspace root, `cargo run -p escher-cli --bin escher --` followed by the same arguments runs it too.
 
 In a POSIX shell, `*`, `(`, and `)` are special characters, so put a signature that contains any of them in single quotes. This command prints the properties of a spherical signature:
 
@@ -54,6 +54,7 @@ Euler characteristic: 1/60
 Compact: yes
 Group order: 120
 Area: pi/30
+Domain: none, cannot build fundamental domain: the signature *532 is not supported
 ```
 
 An infinite order is written `(inf)` or `∞`, and an order of 10 or more in parentheses. This command prints a frieze, whose canonical form puts the infinite order first:
@@ -69,7 +70,18 @@ Euler characteristic: 0
 Compact: no
 Frieze: yes
 General non-compact: no
+Domain: none, cannot build fundamental domain: the signature *(inf)22 is not supported
 ```
+
+The option `--check` verifies the fundamental domain and prints the result of each check. This command verifies the domain of a hyperbolic reflection triangle:
+
+```sh
+escher info --check '*732'
+```
+
+After the properties and the domain summary, it prints one line for each of the six checks, with its result, residual, and tolerance, and then a `Verification` line with the overall result.
+
+With `--check`, the exit status is 1 when a check fails or the signature has no fundamental domain.
 
 A signature that is not valid gives an error on standard error, with a caret under the offending characters, and exit status 1. This command shows the error for an order of 12 without parentheses:
 

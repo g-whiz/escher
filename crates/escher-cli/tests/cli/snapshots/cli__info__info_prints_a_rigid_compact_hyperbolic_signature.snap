@@ -10,5 +10,9 @@ Euler characteristic: -1/84
 Compact: yes
 Area: pi/42
 Deformation dimension: 0
+Domain: 3 mirror sides
+Corner angles in degrees: 25.714286, 60.000000, 90.000000
+Side lengths: 0.545275, 0.620672, 0.283128
+Domain area: 0.074800
 --- stderr
 --- end

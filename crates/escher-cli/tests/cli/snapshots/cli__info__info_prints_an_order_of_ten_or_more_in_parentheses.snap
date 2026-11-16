@@ -10,5 +10,6 @@ Euler characteristic: 1/24
 Compact: yes
 Group order: 48
 Area: pi/12
+Domain: none, cannot build fundamental domain: the signature 2*(12) is not supported
 --- stderr
 --- end

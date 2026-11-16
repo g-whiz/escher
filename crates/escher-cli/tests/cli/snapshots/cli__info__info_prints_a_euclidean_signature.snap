@@ -8,5 +8,6 @@ Signature: *632
 Geometry: Euclidean
 Euler characteristic: 0
 Compact: yes
+Domain: none, cannot build fundamental domain: the signature *632 is not supported
 --- stderr
 --- end

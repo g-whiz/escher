@@ -5,14 +5,20 @@
 //! the arguments of the process, standard output, and standard error. The
 //! crate `escher-signature` parses and classifies an orbifold signature, a
 //! short text such as `*632` that names a symmetry group of the plane, the
-//! sphere, or the hyperbolic plane. This crate turns those results into text,
+//! sphere, or the hyperbolic plane. The crate `escher-domain` builds and
+//! verifies the fundamental domain of a signature, a polygon whose copies
+//! under the group tile the plane. This crate turns those results into text,
 //! diagnostics, and an exit status. Use [`run`] to call the program from Rust,
 //! such as in a test, without starting a process.
 //!
 //! The command `escher info <SIGNATURE>` prints the canonical form of the
 //! signature, its geometry, its Euler characteristic, and the values that
-//! depend on them. A malformed signature produces a diagnostic on standard
-//! error that locates the error in the signature.
+//! depend on them. It then prints a summary of the fundamental domain, or
+//! `none` and the reason when the signature has no domain. A malformed
+//! signature produces a diagnostic on standard error that locates the error
+//! in the signature. With the option `--check`, the command also verifies the
+//! domain, prints the result of each check, and fails when a check fails or
+//! the signature has no domain.
 //!
 //! ```
 //! use escher_cli::{Status, run};
@@ -23,7 +29,8 @@
 //! assert_eq!(status, Status::Success);
 //! assert_eq!(
 //!     String::from_utf8(stdout)?,
-//!     "Signature: *632\nGeometry: Euclidean\nEuler characteristic: 0\nCompact: yes\n",
+//!     "Signature: *632\nGeometry: Euclidean\nEuler characteristic: 0\nCompact: yes\n\
+//!      Domain: none, cannot build fundamental domain: the signature *632 is not supported\n",
 //! );
 //! assert!(stderr.is_empty());
 //! # Ok::<(), Box<dyn std::error::Error>>(())
@@ -73,7 +80,8 @@ use crate::args::{Cli, Command};
 pub enum Status {
     /// The command wrote its output, or it printed the help or the version.
     Success,
-    /// The signature is not valid, or a write to standard output failed.
+    /// The signature is not valid, a write to standard output failed, or the
+    /// option `--check` found a failed check or no domain to verify.
     Failure,
     /// The command line itself is wrong, such as an unknown subcommand or a
     /// missing argument.
@@ -136,7 +144,9 @@ fn run_args(args: Vec<OsString>, stdout: &mut dyn Write, stderr: &mut dyn Write)
         Err(error) => return usage(&error, stdout, stderr),
     };
     let result = match cli.command {
-        Command::Info { signature } => info::info(&signature, stdout),
+        Command::Info { signature, check } => {
+            info::info(&signature, info::Verify::from_flag(check), stdout)
+        }
     };
     match result {
         Ok(()) => Status::Success,
