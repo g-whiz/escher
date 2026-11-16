@@ -212,10 +212,10 @@ A point is a `glam` `DVec3` with the time coordinate as its last component (`DEC
 
 The support for the time-last order is in `docs/research/geometry-models.md`:
 
-- Section 2.4 records that [CFKP], [KC24], and the code of [HR] put the time coordinate last.
+- Section 2.4 records that [CFKP], [KC24], [DUN86], and the code of [HR] put the time coordinate last, and that [RAT] puts it last from its Section 4.5 on.
 - Section 6.1 gives the isometry condition and the inverse $J M^t J$ from [CFKP] Theorem 10.1.
 - Section 11.1 gives the sphere of [KC24], and Section 13.4 gives the signature table of [HR].
-- Section 4.2 gives the forward maps from the hyperboloid to the disk and to the Klein model of [KC24], which are time-last.
+- Section 4.2 gives the forward maps from the hyperboloid to the disk and to the Klein model of [KC24], which are time-last, and the time-last maps of [RAT] and [DUN86] between the hyperboloid and the disk in both directions.
 
 Formulas from the time-first sources [W-HYPERBOLOID], equation 1 of [HT], and [OBL] are not used unless the crate design document records them as unverified. Section 2.4 of `docs/research/geometry-models.md` converts no formula between conventions, because a conversion is a derivation that no source checks.
 
@@ -279,7 +279,7 @@ This table records the pick for each topic on which the sources differ:
 | Sign of the side test | Outward normals, a positive value is outside | Section 2.4 of `docs/research/symmhub.md`, Section 2.3 of `docs/research/rendering.md` |
 | Cosets | Left cosets | Sections 2.3 and 4.1 of `docs/research/colourings.md` |
 | Band | The strip $\lvert \operatorname{Im} w \rvert < 1$ with $w = \frac{4}{\pi} \operatorname{artanh} z$ | Sections 5.1 and 14 of `docs/research/geometry-models.md`, Section 2.3 of `docs/research/rendering.md` |
-| Disk and half-plane | The connecting maps of [CFKP] through the hemisphere, the only complete primary set and already time-last. The design document of `escher-geometry` records the image of the disk centre and tests the round trip | Sections 4.1 and 4.3 of `docs/research/geometry-models.md`, Section 2.3 of `docs/research/rendering.md` |
+| Disk and half-plane | The connecting maps of [CFKP] through the hemisphere, which connect all five models in one primary source and are already time-last. [BEA] and [RAT] each give a primary map from the half-plane to the disk, and the sources do not agree on one map (Section 4.3 of `docs/research/geometry-models.md`). The design document of `escher-geometry` records the image of the disk centre and tests the round trip | Sections 4.1 and 4.3 of `docs/research/geometry-models.md`, Section 2.3 of `docs/research/rendering.md` |
 | Glyphs | `o` for a handle and `x` for a crosscap, never `o` for a crosscap | Sections 2.5 and 3.3 of `docs/research/orbifold-notation.md` |
 | Reversal of a single boundary | The conditional rule of [CH] | Sections 2.5 and 4.1 of `docs/research/orbifold-notation.md` |
 | Direction of commutator and conjugation | As [CH] gives them for the Conway presentation | Section 9.1 of `docs/research/orbifold-notation.md`, Section 2.5 of `docs/research/fundamental-domains.md` |
@@ -458,7 +458,7 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-17` | Euclidean intrinsic unit | The normalization length of the domain, stated per signature | An intrinsic width needs a unit. This unit is a project convention |
 | `DEC-18` | MIT notice | Decided by the owner: a notices file and a section in the crate-level documentation, from the first change that ports SymmHub code | Section 10.1 |
 | `DEC-19` | Completion and the general non-compact signatures | Decided by the owner: the general non-compact signatures move to the roadmap | Section 10.1 |
-| `DEC-20` | Other notations in `info` | Omitted until a primary source is read | No primary source has been read |
+| `DEC-20` | Other notations in `info` | Omitted until a primary source is read | Tables A.1 and A.2 of [CBG] give primary names for the 17 plane groups and the spherical groups. The frieze names, the order of the numbers in five Coxeter symbols, and the Thurston column have no primary source (item 11 of Section 12 of `docs/research/orbifold-notation.md`) |
 | `DEC-21` | Threads | `rayon` in the binary, with `--threads` | Section 3.5 |
 | `DEC-22` | Publication | `publish = false` on every crate through the proof of concept | TOOL-27, and nothing is published without the owner's go-ahead |
 | `DEC-23` | Information format | Text, covered by snapshots, and declared unstable. A machine-readable form is a roadmap item | A snapshot shows every change to the text for review |
@@ -518,9 +518,12 @@ The crates emit no log. The binary prints the statistics of a rendering only wit
 The tags of the mathematical sources resolve to the reference sections of the research documents. Each entry names the section that holds the full entry.
 
 - [B1] Section 16.1 of `docs/research/geometry-models.md`.
+- [BEA] Section 16.1 of `docs/research/geometry-models.md`.
+- [CBG] Section 13.1 of `docs/research/orbifold-notation.md`.
 - [CFKP] Section 16.1 of `docs/research/geometry-models.md`.
 - [CH] Section 13.1 of `docs/research/orbifold-notation.md`.
 - [DAVIS] Section 16.1 of `docs/research/geometry-models.md`.
+- [DUN86] Section 16.1 of `docs/research/geometry-models.md`.
 - [FRETTLOH2008] Section 15 of `docs/research/colourings.md`.
 - [FWW] Section 16.2 of `docs/research/geometry-models.md`.
 - [HR] Section 16.1 of `docs/research/geometry-models.md`.
@@ -528,5 +531,6 @@ The tags of the mathematical sources resolve to the reference sections of the re
 - [KC24] Section 16.1 of `docs/research/geometry-models.md`.
 - [NS] Section 14 of `docs/research/rendering.md`.
 - [OBL] Section 16.2 of `docs/research/geometry-models.md`.
+- [RAT] Section 16.1 of `docs/research/geometry-models.md`.
 - [VGRG] Section 14 of `docs/research/rendering.md`.
 - [W-HYPERBOLOID] Section 16.3 of `docs/research/geometry-models.md`.

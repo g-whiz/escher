@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The construction of a fundamental polygon, its side-pairing isometries, and point reduction from an orbifold signature in Escher |
 
 ## Abstract
@@ -16,7 +16,7 @@ This document covers the construction that starts from an orbifold signature wit
 
 It leaves these topics to other documents:
 
-- `docs/research/orbifold-notation.md`: the grammar of signatures, defects and the Euler characteristic, the classification by geometry, the bad orbifolds, the full dictionary between NEC signatures and Conway signatures, and the presentation read from a signature. This document repeats only what the construction uses.
+- `docs/research/orbifold-notation.md`: the grammar of signatures, defects and the Euler characteristic, the classification by geometry, the bad orbifolds, the dictionary between NEC signatures and Conway signatures, which it records as unverified, and the presentation read from a signature. This document repeats only what the construction uses.
 - `docs/research/geometry-models.md`: the models of the hyperbolic plane, the formulas of isometries in each model, conversions between models, and hyperbolic trigonometry.
 - `docs/research/rendering.md`: the per-pixel folding loop on the GPU.
 - `docs/research/symmhub.md`: the SymmHub source code at line level. This document describes the SymmHub pipeline only at the level an implementer needs to compare it with the literature.
@@ -69,6 +69,8 @@ Voight writes a semicolon between the two arguments of the distance function $\r
 | $I(g)$ | The isometric circle of $g$ |
 | $\mathrm{ext}(G)$ | The intersection of the exteriors of the isometric circles of the elements of $G$ |
 | $\infty_\ell$ | A boundary token of length $\ell$ produced by a geodesic cut, in the SymmHub tutorial |
+| $Q$, $Z$ | In [EPSTEIN-PETRONIO1994]: the quotient of the disjoint union of the cells by the face pairing, and the space that Section 4 of the paper builds from the cells, the face pairing, and the group of its Definition 4.2 |
+| $(R, A)$ | In [EPSTEIN-PETRONIO1994]: a face pairing, with $R$ the involution on the faces and $A$ the isometry of each face |
 
 ### 2.4. Terms
 
@@ -77,7 +79,10 @@ Voight writes a semicolon between the two arguments of the distance function $\r
 - corner: A point on a mirror boundary where two mirrors meet, written as a digit after a `*`.
 - cusp: A cone point of infinite order, whose cycle transformation is parabolic.
 - Fuchsian group: The term that [SOLOMYAK2020] and [SERIES2013] use for a discrete group of orientation-preserving isometries of the hyperbolic plane.
-- NEC group: A non-Euclidean crystallographic group, a discrete group of isometries of the hyperbolic plane that may contain orientation-reversing elements. [CONWAY-HUSON2002] p. 247 calls the orbifold symbol "an elegant form of Macbeath's 'signature'" {N}.
+- NEC group: A non-Euclidean crystallographic group, a discrete group of isometries of the hyperbolic plane that may contain orientation-reversing elements. [CONWAY-HUSON2002] p. 247 calls the orbifold symbol "an elegant form of Macbeath's 'signature'" {N}. [SINGERMAN1974] p. 233 and [MACBEATH1967] pp. 1192 to 1193 {P} require in addition that the quotient is compact, and Singerman calls an NEC group that contains orientation-reversing elements a "proper NEC group". This document uses the term without the compactness requirement, except where it cites those two papers.
+- subproper side pairing: In [RATCLIFFE] p. 695 {P}: a side pairing $\Phi$ such that "each cycle of $\Phi$ is finite, each dihedral ridge cycle of $\Phi$ has dihedral angle sum a submultiple of $\pi$, and each cyclic ridge cycle has dihedral angle sum a submultiple of $2\pi$." A submultiple of $\beta$ is $\beta/k$ for a positive integer $k$, or $\beta/\infty = 0$ (p. 265).
+- dihedral ridge cycle: In [RATCLIFFE] p. 695 {P}: a ridge cycle $\{x_1, \dots, x_m\}$ such that $x_1$ lies on a side whose pairing is the reflection in that side, and $x_m$ lies on such a side. In the plane a ridge is a vertex.
+- cyclic ridge cycle: In [RATCLIFFE] p. 695 {P}: a ridge cycle that is not dihedral.
 - fundamental domain: In [VOIGHT2009] Section 1 {P}: "a closed domain D such that: (i) $\Gamma D = \mathbb H$, and (ii) $gD^\circ \cap D^\circ = \emptyset$ for all $g \in \Gamma \setminus \{1\}$." In [DAVIS2008] Definition 5.1.3, printed p. 64 {P}: "A closed subset C in Y is a fundamental domain for G on Y if each G-orbit intersects C and if for each point x in the interior of C, $Gx \cap C = \{x\}$."
 - strict fundamental domain: In [DAVIS2008] Definition 5.1.3 {P}: a fundamental domain that "intersects each G-orbit in exactly one point."
 - side: In [SERIES2013] Definition 6.1, p. 85 {P}: "a segment $s \subset \partial R$ of positive length such that $s \subset \bar R \cap g(\bar R)$ for some $g \in \Gamma$." A side need not be a maximal geodesic segment, so "an edge may be a union of several sides."
@@ -112,6 +117,8 @@ Voight writes a semicolon between the two arguments of the distance function $\r
 | Twist | The twist is $2\tau$, a hyperbolic distance "independent of the length of the geodesic we are twisting about", after Wolpert, with coordinate $t = \sinh\tau$ | [MASKIT2001] Section 2.2 {P} |
 | Twist | A signed distance | Wikipedia, page not recorded {S} |
 | Twist | Three conventions in one code base: a raw distance for tubes, a fraction of the edge length for handles, and a wrapped fraction for cone pairs, with sliders in $[-0.5, 0.5]$ | [SYMMHUB], Section 8.13 {C} |
+| Twist | A real twist coefficient $t_i = a_i - b_i$ of a closed orientable surface, "congruent modulo $2\pi$ to the angle that $Q_i$ must rotate around $A_i$ so that the corresponding seams of $P_i$ and $Q_i$ match up" | [RATCLIFFE] Section 9.7, pp. 411 to 412, Theorem 9.7.4 {P} |
+| Side-pairing direction | Section 9.3 sets $s = P \cap g_s(P)$, so that $g_s(s') = s$. Section 9.8, condition (A2), sets $g_s(s) = s'$. | [BEARDON] pp. 219 to 220, p. 242 {P} |
 | Twist matrix | Maskit's Section 5.5 sets $\tilde f_\tau = \mathrm{diag}(e^{\tau}, e^{-\tau})$, which twists by $2\tau$. His Section 7.2 sets $\tilde f_\tau = \mathrm{diag}(e^{-\tau}, e^{\tau})$, which "twists by $-2\tau$". These are different maps with the same name. | [MASKIT2001] Sections 5.5, 7.2 {P} |
 | Commutator | $[\alpha, \beta] = \alpha\beta\alpha^{-1}\beta^{-1}$ | [VOIGHT2009] equation (5.2) {P} |
 | Commutator | $[X, Y] = X^{-1}Y^{-1}XY$ | [CONWAY-HUSON2002] p. 255 {N} |
@@ -134,17 +141,17 @@ The sources differ sharply by class of signature. This table shows, for each cla
 | --- | --- | --- | --- | --- | --- |
 | Reflection triangle groups `*pqr` | [MASKIT2001] Section 4.4 {P}, [DAVIS2008] Theorem 6.4.3, Section 6.5 {P}, placement formula [SYMMHUB] {C} | Reflection matrices [MASKIT2001] Section 4.3 {P} | [MASKIT2001] Section 4.4 {P} | Unique up to congruence, [DAVIS2008] Example 6.5.3 {P} | Yes |
 | Rotation triangle groups `pqr` | [MASKIT2001] Section 5.9 {P} | [MASKIT2001] Section 5.9 {P} | [SOLOMYAK2020] Theorem 12, [SERIES2013] Theorem 6.14 {P} | [THURSTON2002] Corollary 13.3.7 {N} | Yes |
-| Polygon reflection groups `*p1...pn`, one boundary, no cone points, handles, or cross-caps | Existence of a convex realization [DAVIS2008] Example 6.5.3 {P}, explicit construction only [SYMMHUB] sheets and slices {C} | Single reflections, [DAVIS2008] Theorem 6.4.3 {P}, matrices [MASKIT2001] Section 4.3 {P} | Coxeter presentation, [DAVIS2008] Theorem 6.4.3 {P} | $n - 3$ dimensions, [THURSTON2002] Theorem 13.8.1 {N}, [DAVIS2008] Example 6.5.3 {P} | Partly, with no sourced coordinates |
-| Orientable hyperbolic, with handles, cone points, and cusps, no mirrors | No canonical polygon (Section 5.5), a Dirichlet domain of the generators (Section 10.6) | Generators, not side pairings of a polygon, [MASKIT2001] Section 8 {P} | [VOIGHT2009] equations (5.1)-(5.2) {P}, [CONWAY-HUSON2002] {N} | [MASKIT2001] Section 2.2, Theorem 10.1 {P} | Partly, generators only |
+| Polygon reflection groups `*p1...pn`, one boundary, no cone points, handles, or cross-caps | Existence of a convex realization [DAVIS2008] Example 6.5.3, [BEARDON] Theorem 7.16.2 {P}, one polygon for each set of angles in the proof of [BEARDON] Theorem 7.16.2 {P}, the rest of the family only [SYMMHUB] sheets and slices {C} | Single reflections, [DAVIS2008] Theorem 6.4.3, [RATCLIFFE] Theorems 7.1.3 and 13.5.2 {P}, matrices [MASKIT2001] Section 4.3 {P} | Coxeter presentation, [DAVIS2008] Theorem 6.4.3, [RATCLIFFE] Theorem 7.1.4 {P} | $n - 3$ dimensions, [THURSTON2002] Theorem 13.8.1 {N}, [DAVIS2008] Example 6.5.3 {P} | Partly, one polygon for each set of angles |
+| Orientable hyperbolic, with handles, cone points, and cusps, no mirrors | One polygon from the signature in the proof of [BEARDON] Theorem 10.4.2, with maps given by figures only {P} (Section 5.5), a Dirichlet domain of the generators (Section 10.6) | Generators, not side pairings of a polygon, [MASKIT2001] Section 8 {P} | [VOIGHT2009] equations (5.1)-(5.2) {P}, [CONWAY-HUSON2002] {N} | [MASKIT2001] Section 2.2, Theorem 10.1 {P} | Partly, generators only |
 | Mixed signatures with cone points and mirrors, such as `4*3` | [SYMMHUB] hats {C} | [SYMMHUB] {C} | [CONWAY-HUSON2002] {N} | [THURSTON2002] Corollary 13.3.7 {N} | Code only |
 | Several mirror boundaries, such as `**` in hyperbolic signatures | [SYMMHUB] bands {C} | [SYMMHUB] {C} | [CONWAY-HUSON2002] {N} | [THURSTON2002] Corollary 13.3.7 {N} | Code only |
 | Mirrors together with handles | [SYMMHUB] {C} | [SYMMHUB] {C} | [CONWAY-HUSON2002] {N} | [THURSTON2002] Corollary 13.3.7 {N} | Code only |
 | Non-orientable, with cross-caps | [SYMMHUB] caps {C} | Glide reflections [SYMMHUB] {C}, antipodal gluing [NORBURY2006] {S} | [CONWAY-HUSON2002] {N} | [THURSTON2002] Corollary 13.3.7 {N}, [NORBURY2006] {S} | Code only |
-| The 17 Euclidean groups | [SYMMHUB] catalogue {C}, triangle and kite regions [VONGAGERN2009] p. 12 {P} | [SYMMHUB] {C} | [CONWAY-HUSON2002] {N} | Partial, [VONGAGERN2009] p. 7 {P} | Partly, catalogue code |
+| The 17 Euclidean groups | [SYMMHUB] catalogue {C}, triangle and kite regions [VONGAGERN2009] p. 12 {P} | [SYMMHUB] {C} | [CONWAY-HUSON2002] {N} | Partial, [VONGAGERN2009] p. 7, [SYMMETRIES-OF-THINGS2008] pp. 237 to 238 {P} | Partly, catalogue code |
 | The 14 spherical families | [SYMMHUB] catalogue {C}, triangles [DAVIS2008] Example 6.5.1 {P} | [SYMMHUB] {C} | [CONWAY-HUSON2002] {N} | Not sourced | Partly, catalogue code |
 | Bad orbifolds `m`, `mn`, `*m`, `*mn` with $m \ne n$ | No group exists, [CONWAY-HUSON2002] p. 254 {N} | None | None | None | Not applicable |
 
-Only the triangle groups have a complete construction in primary sources. The orientable class has sourced generators but no canonical polygon. Polygon reflection groups have sourced existence, discreteness, and parameter count, but no coordinates. The classes with mirrors together with cone points, handles, or other boundaries, and the non-orientable class, rest on the SymmHub code for their geometry and generators. No primary source states the polygon theorem that would certify the result. The Euclidean and spherical classes rest on catalogue code beyond their reflection triangles.
+Only the triangle groups have a complete construction in primary sources. The orientable class has sourced generators, and one sourced polygon whose maps are given by figures only. Polygon reflection groups have sourced existence, discreteness, and parameter count, and one sourced polygon for each set of angles, but no coordinates for the rest of the family. The classes with mirrors together with cone points, handles, or other boundaries, and the non-orientable class, rest on the SymmHub code for their geometry and generators. Primary sources state the polygon theorem that certifies a polygon built for these classes (Section 4.7). The Euclidean and spherical classes rest on catalogue code beyond their reflection triangles.
 
 ## 4. Poincare's Polygon Theorem
 
@@ -203,7 +210,7 @@ The text after the theorem reads: "Notice that there is no requirement on cycles
 
 Proposition 1.1 reads: "The Dirichlet domain D(p) has a side pairing P, and the set G(P) generates $\Gamma$. Conversely, let $D \subset \mathbb H$ be a hyperbolic polygon, and let P be a side pairing for D. Then D is a fundamental domain for the group generated by G(P)." The proof cites [BEARDON] Theorem 9.8.4 "and the accompanying exercises: the condition that $\mu(D) < \infty$ ensures that any vertex which lies on the circle at infinity is fixed by a hyperbolic element". Remark 1.2 says that the converse "extends to a larger class of polygons (see [2, Section 9.8])".
 
-The converse as quoted states no cycle condition. Voight leaves that condition to [BEARDON] Theorem 9.8.4, which was not read.
+The converse as quoted states no cycle condition. Voight leaves that condition to [BEARDON] Theorem 9.8.4, whose hypotheses are a local tessellation condition and not an angle-sum rule (Section 4.11). Beardon's Theorem 9.3.8 says that such a vertex is fixed by a parabolic element and not by a hyperbolic one, whereas Voight's proof says "hyperbolic" (Section 12).
 
 ### 4.4. Reflection Triangle Groups in Maskit
 
@@ -254,7 +261,7 @@ The preamble of Section 6.4, p. 82, explains why the angle condition is necessar
 
 [DAVIS2008] Section 6.5 applies the theorem to polygons. Section 9.1 of this document gives its triangle cases, and Section 9.4 its polygon cases.
 
-The book defines a Euclidean convex polytope as "a compact intersection of a finite number of half-spaces" (p. 74) and a hyperbolic one through a polyhedral cone inside the light cone (p. 76). The research found no discussion of ideal vertices in Chapter 6, so it is not established that Theorem 6.4.3 covers hyperbolic polygons with ideal vertices. This document applies it to compact polygons only.
+The book defines a Euclidean convex polytope as "a compact intersection of a finite number of half-spaces" (p. 74) and a hyperbolic one through a polyhedral cone inside the light cone (p. 76). The research found no discussion of ideal vertices in Chapter 6, so it is not established that Theorem 6.4.3 covers hyperbolic polygons with ideal vertices. This document applies it to compact polygons only. Section 4.7 gives the sources for reflection polygons with ideal vertices.
 
 ### 4.6. Variants in the Literature
 
@@ -266,28 +273,111 @@ These variants rest on secondary sources:
 
 SymmHub follows the theorem in `lib/grouplib/GroupPresentation.js` ([SYMMHUB] lines 14-60 and 353 {C}). Its side-pairing relators are $w_iw_j = 1$, with $w_i^2 = 1$ for a self-paired side. It finds corner-cycle relators by walking vertices, with angle sum $2\pi/m$ and the $m$-th power as the relator. For reflection groups it uses Coxeter relators from the mirror angles. It checks every relator numerically and throws when the domain does not tile, with the constants `EPS=1e-7`, `MAX_CYCLE_LENGTH=100`, and `IDEAL_ANGLE=1e-5`. A domain twisted until its cells overlap fails that check, and such a group is derived from an untwisted copy through `derivedPresentation` (line 639).
 
-### 4.7. What Is Not Sourced
+### 4.7. Orientation-Reversing and Mixed Side Pairings
 
-The orientation-preserving theorem is verified twice, in [SOLOMYAK2020] and [SERIES2013], including ideal vertices and sides on the boundary circle. The reflection group of a compact convex polygon is verified in [DAVIS2008], and the triangle case with ideal and ultra-ideal vertices in [MASKIT2001]. No primary source that was read states the theorem for these cases:
+The orientation-preserving theorem is verified twice, in [SOLOMYAK2020] and [SERIES2013], including ideal vertices and sides on the boundary circle. The reflection group of a compact convex polygon is verified in [DAVIS2008], and the triangle case with ideal and ultra-ideal vertices in [MASKIT2001]. Four more cases arise in Escher's signatures. This table gives the statements that cover each case and a worked example where a source has one. Sections 4.9 to 4.11 state the theorems with their hypotheses.
 
-- A polygon whose side pairings include both reflections and orientation-preserving maps, as in a signature with a cone point and a mirror.
-- Vertex cycles that pass through glide-reflection pairings, as in a signature with a cross-cap.
-- Corners with angle $\pi/m$ between mirror sides in a polygon that also has paired sides, as in a signature with a mirror and a handle.
-- Reflection polygons with ideal vertices and more than three sides.
+| Case | Covered by {P} | Worked example {P} |
+| --- | --- | --- |
+| A polygon whose side pairings include both reflections and orientation-preserving maps, as in a signature with a cone point and a mirror | [EPSTEIN-PETRONIO1994] Theorem 4.14, or Theorem 8.1 with Theorem 5.5 and a completeness test when the polygon has an ideal vertex. [RATCLIFFE] Theorem 13.5.3. | [RATCLIFFE] Example 1 of Section 13.4, pp. 700 to 701, with its presentation in Example 1 of Section 13.5, p. 711. Example 6 of Section 13.4, p. 706, has a cusp as well. |
+| Vertex cycles that pass through glide-reflection pairings, as in a signature with a cross-cap | [EPSTEIN-PETRONIO1994] Theorems 4.14 and 8.1, whose hypotheses put no condition on orientation. [RATCLIFFE] Theorem 13.5.3, and Theorem 11.2.2 for a group that acts freely. | [RATCLIFFE] Example 5 of Section 9.2, p. 383, which pairs consecutive sides of a regular $2n$-gon by "a rotation about the origin followed by the reflection in the corresponding side". The book does not call these maps glide reflections. |
+| Corners with angle $\pi/m$ between mirror sides in a polygon that also has paired sides, as in a signature with a mirror and a handle | [RATCLIFFE] Theorem 13.5.3, through the dihedral ridge cycle of Section 2.4. The cycle conditions of [EPSTEIN-PETRONIO1994] (Section 4.9). | [RATCLIFFE] Example 1 of Section 13.4, which has one mirror side and two sides paired by a rotation |
+| Reflection polygons with ideal vertices and more than three sides | [RATCLIFFE] Theorems 7.1.3 and 7.1.4 for a finite-sided polygon of finite area, and Theorem 13.5.2 for any convex polygon. In [EPSTEIN-PETRONIO1994], a chain of statements: the remarks on pp. 161 and 166, Lemma 5.4, and Theorem 5.5. | No polygon with more than three sides. [RATCLIFFE] Figure 7.3.1, p. 298, draws the Coxeter graphs of triangles with ideal vertices. |
 
-Section 13, gap G1, records this and the sources most likely to close it.
+Each statement has hypotheses that a construction must meet, which Sections 4.9 and 4.10 state. [EPSTEIN-PETRONIO1994] and [RATCLIFFE] both require a convex polygon. [EPSTEIN-PETRONIO1994] Theorem 4.14 (l) does not apply when two sides meet only at an ideal point (Lemma 3.26).
+
+For a polygon with an ideal vertex, [EPSTEIN-PETRONIO1994] Theorem 8.1 gives a hyperbolic orbifold and a discrete group but not a tessellation (Remark 8.2). The tessellation needs Theorem 5.5 with a complete $Z$. [RATCLIFFE] Theorem 13.5.3 requires a complete glued orbifold, which Theorems 13.4.4 and 13.4.6 decide at the cusp points.
+
+The case of reflection polygons with ideal vertices rests in [EPSTEIN-PETRONIO1994] on the chain of statements in the table, and not on one numbered theorem. The proof of [RATCLIFFE] Theorem 13.5.3 is a pointer (Section 4.10). Neither source works an example that combines a cross-cap with a cone point or a mirror. [BEARDON] Theorem 9.8.4 is stated for any isometries, but the book works only a polygon whose pairings are all reflections (Section 4.11), so this document does not cite it for these cases. Gap G1 in Section 13.2 records what stays open.
 
 ### 4.8. Implementer's Checklist
 
-This checklist is assembled by the research from the statements of Sections 4.1 to 4.6. Each item is sourced, but no single source states the list for the general orientation-reversing case.
+This checklist is assembled by the research from the statements of Sections 4.1 to 4.6 and 4.9 to 4.11, for a single convex polygon. Each item is sourced. [EPSTEIN-PETRONIO1994] Theorems 4.14 and 5.5 and [RATCLIFFE] Theorem 13.5.3 state the theorem for the general orientation-reversing case, and their hypotheses prevail over this list.
 
-1. Every side is paired with exactly one side, and the pairing of the partner side is the inverse map ([SOLOMYAK2020] Definition 5 and Lemma 6, [SERIES2013] Lemma 6.2, [VOIGHT2009] Section 1 {P}).
-2. A side fixed by an element of order 2 is split at its fixed point, and the new vertex has angle $\pi$ ([VOIGHT2009] Section 1, [SOLOMYAK2020] slide 22, [SERIES2013] Definition 6.1 {P}).
-3. Every finite vertex cycle has $m \cdot \sum\angle = 2\pi$ for an integer $m \ge 1$, and its cycle transformation has order $m$ ([SOLOMYAK2020] Theorem 12, [SERIES2013] condition (a) {P}).
-4. In a reflection polygon, every corner has angle $\pi/m$, and the relator is $(r_ir_j)^m$ ([DAVIS2008] Theorem 6.4.3 for compact polygons, [MASKIT2001] Section 4.4 for triangles {P}). The cycle rule for polygons that mix mirrors with other side pairings is not sourced (gap G1).
-5. Every ideal vertex cycle transformation is parabolic ([SERIES2013] condition (b) and Proposition 6.11, [MASKIT2001] Section 4.4 {P}, de Rham {S}).
-6. A side on the boundary circle needs no condition, because its cycle is hyperbolic or the group is elementary ([SERIES2013] Theorem 6.14 and Proposition 6.13 {P}).
-7. The presentation is the pairing relators together with the cycle relators ([SOLOMYAK2020] Theorem 12 (3), [SERIES2013] Theorem 6.14 (iii) {P}, [JESPERS2015] {S}).
+1. Every side is paired with exactly one side, possibly itself, and the pairing of the partner side is the inverse map ([SOLOMYAK2020] Definition 5 and Lemma 6, [SERIES2013] Lemma 6.2, [VOIGHT2009] Section 1, [EPSTEIN-PETRONIO1994] Condition 3.2 (a) and (d) {P}). Each pairing maps the interior of the polygon "to the other side of" the partner side, and "gives an isomorphism between the face structure" of the side and that of its partner ([EPSTEIN-PETRONIO1994] Condition 3.2 (b) and (c), p. 126 {P}). [BEARDON] p. 248 assumes implicitly, at an interior point $x$ of a side, that $g_1(N_1) \cup g_2(N_2)$ "is a neighbourhood of $x$", where $N_1$ and $N_2$ are the sets of its condition (A6) {P}.
+2. A side paired with itself has a pairing of order two, which need not be the reflection in that side ([EPSTEIN-PETRONIO1994] Remark 3.3, p. 126, [RATCLIFFE] condition (4) on p. 694 and the proof of Theorem 13.5.1, p. 710 {P}). The sources permit a split of a side fixed by a half-turn at its fixed point, with a new vertex of angle $\pi$ ([VOIGHT2009] Section 1, [SOLOMYAK2020] slide 22, [SERIES2013] Definition 6.1 {P}). None of them requires the split: Solomyak writes "we can introduce an extra vertex", and [EPSTEIN-PETRONIO1994] Definition 4.2 and [RATCLIFFE] p. 694 treat a side paired with itself without one {P}.
+3. Every vertex cycle at a point of the plane is finite, and the product of the pairings along it is a rotation through the angle sum of the cycle, which has the form $2\pi/m$ for an integer $m \ne 0$ ([EPSTEIN-PETRONIO1994] Conditions 3.7, 3.10, and 3.13 and Lemma 3.12, pp. 127 to 129 {P}). [RATCLIFFE] p. 695 {P} requires the angle sum to be a submultiple of $2\pi$ for a cyclic ridge cycle and of $\pi$ for a dihedral ridge cycle (Section 2.4). For orientation-preserving pairings, $m \cdot \sum\angle = 2\pi$ with $m \ge 1$, and the cycle transformation has order $m$ ([SOLOMYAK2020] Theorem 12, [SERIES2013] condition (a) {P}).
+4. In a reflection polygon, every corner has angle $\pi/m$, and the relator is $(r_ir_j)^m$ ([DAVIS2008] Theorem 6.4.3 for compact polygons, [MASKIT2001] Section 4.4 for triangles, [RATCLIFFE] Theorems 7.1.3 and 7.1.4 for finite-sided polygons of finite area {P}). Theorem 7.1.4 deletes the relator when $m = \infty$.
+5. A closed cycle of ideal vertices has a parabolic cycle transformation ([SERIES2013] condition (b) and Proposition 6.11, [MASKIT2001] Section 4.4 {P}, [RATCLIFFE] Theorems 9.8.3 and 9.8.5 for surfaces {P}, de Rham {S}). The condition concerns a closed cycle. The proof of [EPSTEIN-PETRONIO1994] Theorem 8.1, pp. 162 to 164, gets a cusp from parabolic holonomy for pieces at an ideal point that glue in a cyclic fashion, leaves $Q$ incomplete when the holonomy is hyperbolic, and states that pieces that do not glue in a cyclic fashion are complete (cases (a) to (c), Section 4.9) {P}. [RATCLIFFE] Theorems 13.4.4 and 13.4.6 decide completeness at a cusp point of an orbifold by a condition on links, not on a cycle transformation {P}. The test to run where a mirror ends at a cusp is open (Section 13.3, item 8).
+6. A side on the boundary circle needs no condition, because its cycle is hyperbolic or the group is elementary ([SERIES2013] Theorem 6.14 and Proposition 6.13 {P}). [EPSTEIN-PETRONIO1994] Theorem 8.1 puts no hypothesis on such sides, and case (c) of its proof covers a chain that ends at a ray whose ideal point is not a peak {P}.
+7. The presentation is the pairing relators together with the cycle relators ([SOLOMYAK2020] Theorem 12 (3), [SERIES2013] Theorem 6.14 (iii), [RATCLIFFE] Theorem 13.5.3 {P}, [JESPERS2015] {S}). In [EPSTEIN-PETRONIO1994], the relators are those of Definition 4.2, and they present the group generated by the pairings when the holonomy is injective, which Theorem 4.14 (g) states under the hypothesis Metric {P}.
+
+### 4.9. Polyhedron Theorem of Epstein and Petronio
+
+[EPSTEIN-PETRONIO1994] {P} states the theorem in $X^n$, which is $E^n$, $S^n$, or $H^n$, with $n \ge 2$ (p. 125). The input is a finite or countable set of thick convex cells. A convex polyhedron is an intersection of half-spaces in which each point has a neighbourhood that meets finitely many of their boundaries, and it is thick when its interior is non-empty (Definition 2.1, pp. 116 to 117). A convex cell is a convex polyhedron "whose proper faces may have been subdivided" (Definition 2.8, p. 121).
+
+Condition 3.2, Pairing, p. 126, asks for a map $R$ on the faces and a map $A$ to the isometries of $X^n$ with these properties, where $R(F, P) = (F', P')$:
+
+- (a) $R$ "is an involution, that is $R \circ R$ is the identity."
+- (b) $A(F, P)$ "maps $F$ onto $F'$ and maps the interior of $P$ to the other side of $F'$ from the interior of $P'$."
+- (c) $A(F, P)$ "gives an isomorphism between the face structure of $F$ and the face structure of $F'$."
+- (d) $A(R(F, P)) = A(F, P)^{-1}$.
+
+No condition restricts the orientation of $A(F, P)$. Remark 3.3 reads: "In case $R(F,P) = (F,P)$ Condition 3.2(d) implies that $A(F,P)$ is a mapping of order two. Note that in this special situation $A(F,P)$ is not necessarily the reflection in the face $F$, though that is a common application of this theory." Condition 3.5, Connected, asks that "any two elements of $\mathscr P$ are joined by a sequence of face-pairings."
+
+The cycle conditions start from a cell $P_1$, a face $F_1$, and a codimension-one face $C_1$ of $F_1$, which is a vertex in the plane. The cycle passes to the other face $F_1'$ of $P_1$ that contains $C_1$, applies $g_1 = A(F_1', P_1)$, and continues, so that $g_{i-1} \circ \dots \circ g_1(C_1) = C_i$ (p. 127). The conditions are these:
+
+- FirstCyclic, Condition 3.7, p. 127: the sequence returns to its start after some $r \ge 1$ steps.
+- SecondCyclic, Condition 3.10, p. 128: for some $r \ge 1$ the sequence returns to its start and $g_r \circ \dots \circ g_1$ is the identity on $C_1$. The least such $r$ is the second cycle length.
+- ThirdCyclic, Condition 3.13, p. 129: the map $g = g_r \circ \dots \circ g_1$ of Lemma 3.12 is "a rotation through an angle of the form $2\pi/m$ for some non-zero $m \in \mathbb Z$."
+- Cyclic, Condition 3.19, p. 132: the conjunction of the three.
+
+Lemma 3.12, p. 129, states that with $r$ the second cycle length and $\theta_i$ the dihedral angle of $P_i$ along $C_i$, the map $g$ "is a rotation through an angle $\sum\theta_i$ around the codimension-two subspace of $X^n$ containing $C_1$." Examples 3.15 to 3.18, pp. 131 to 132, work these conditions for a dihedral wedge in $E^3$, and Example 3.15 shows that reflections in both faces give the condition $\varphi = \pi/m$.
+
+Condition 3.9, Finite, p. 128, asks that the set of cells is finite and each cell has finitely many faces. FirstMetric, Condition 3.20, p. 132, asks for an $\varepsilon > 0$ such that disjoint faces of a cell are at distance at least $\varepsilon$, and Metric, Condition 3.23, adds SecondMetric. Remark 3.24, p. 134, states that Finite implies Metric "unless $X^n = H^n$". Lemma 3.26, p. 134, reads: "Let $P$ be a convex cell in $H^n$ with finitely many faces. Two disjoint faces of $P$ can have at most one common point at infinity, and they are a positive distance apart if and only if they have no common point at infinity." Condition 3.29, p. 135, states that in dimension two LocallyFinite is equivalent to FirstCyclic.
+
+Theorem 4.14, Poincare's Theorem Version 1, p. 142, assumes Pairing, Connected, Cyclic, and Metric. It concludes these, among others:
+
+- (f) $Z$ carries an $X^n$-structure for which the developing map $D_Z : Z \to X^n$ is a bijective isometry.
+- (g) The holonomy $h : G \to \mathrm{Isom}(X^n)$ is injective, and its image is a discrete subgroup.
+- (h) $D_Y$ is injective on the interior of $Y$, "so that $D_Y(Y)$ or its interior can be considered as a fundamental domain for the action of $h(G)$ on $X^n$, depending on the precise definition of that concept". Example 4.12 shows that $D_Y$ need not be injective on all of $Y$.
+
+The hypotheses hold when Pairing, Connected, and Cyclic hold together with either (k) $X^n = E^n$ or $S^n$ and Finite, or (l) $X^n = H^n$, Finite, and FirstMetric. The group $G$ of Definition 4.2, pp. 137 to 138, depends on a maximal tree $T$ in the graph $\Gamma(\mathscr P, R)$. It has one generator $\alpha_{(F,P)}$ for each face, with $\alpha_{(F,P)} = \mathrm{id}$ when the edge $e(F,P)$ lies in $T$. For each other face with $R(F,P) = (F',P')$ it has the relation $\alpha_{(F,P)}\alpha_{(F',P')} = \mathrm{id}$, so that a face paired with itself gives a generator of order two. For each cell $P_1$ and each codimension-two face $C_1$ of $P_1$ it has the relation $(\alpha_{(F_r',P_r)} \cdots \alpha_{(F_1',P_1)})^m = \mathrm{id}$, in the notation of Conditions 3.7 and 3.13. Lemma 4.4 sends each generator to $A(F, P)$. The introduction, p. 116, adds: "Our proof shows that the usual checks for Poincare's Theorem, in the case where there is only one convex piece, in any case imply the embeddability of the potential fundamental domain, so no special separate check is necessary."
+
+Theorem 5.5, Poincare's Theorem Version 2, p. 148, assumes Pairing, Connected, Cyclic, and LocallyFinite, and reads: "If $Z$ is complete, then it is isometric to $X^n$." Lemma 5.4, p. 147, states that under the same four hypotheses $Q$ is complete if and only if $Z$ is complete. Section 6 opens, p. 148, with the statement that completeness follows from Finite in the Euclidean and spherical cases. For hyperbolic cells that satisfy Pairing, Connected, Cyclic, and Finite, Theorem 6.3, pp. 152 to 153, gives four equivalent conditions, among them "(a) $Z$ is complete" and "(b) For each $P$ and each boundary point $p$ of $P$, $Z_p$ has a consistent horosphere". Its condition (c) can be checked by an algorithm, and uses the words "hyperbolic or loxodromic", which the paper does not define.
+
+Theorem 8.1, p. 161, which the paper calls "essentially due to de Rham", reads in part: "Suppose we have a finite set $\mathscr P$ of finite-sided polygons in $H^2$ and an edge-pairing $(R,A)$ of the boundary edges satisfying Pairing, Connected and Cyclic. Then the quotient $Q$ ... is a two-dimensional hyperbolic orbifold which is obtained from a complete orbifold with geodesic boundary by removing the compact boundary components. ... The group $G$ generated by the edge-pairings in the manner described in Definition 4.2 is discrete. If all the polygons are compact, then $Q$ is a compact orbifold without boundary. (But it may have mirrors.)" Remark 8.2 states that the theorem describes $Q$ even when $Q$ is not complete, and refers to Lemma 5.4 and Theorem 6.3 for completeness. Remark 8.3 states that a side paired with itself by a reflection gives a mirror.
+
+The proof of Theorem 8.1, pp. 162 to 164, removes a horodisc at each peak, an ideal point that "is the end of two distinct boundary components" of a polygon, and distinguishes three cases for the pieces at a peak:
+
+- (a) The pieces glue in a cyclic fashion with parabolic holonomy. The piece is complete, and gives a cusp.
+- (b) The pieces glue in a cyclic fashion with hyperbolic holonomy. The piece is incomplete, and the completion of $Q$ adds a compact geodesic boundary component.
+- (c) The pieces do not glue in a cyclic fashion, and in both directions reach a ray "which is glued either to itself (by a reflection) or to a geodesic ray whose point at infinity is not a peak". The piece is complete.
+
+The first paragraph of Section 8, p. 161, reads: "One case of Poincare's Theorem which is often used is the case where there is a single element of $\mathscr P$ and all face-pairings are reflections. In that case completeness is a consequence of Lemma 5.4, provided the other axioms are satisfied." Page 166 repeats this for a single polyhedron with each face-pairing equal to the reflection in that face, where "The only condition to check is that the angles at codimension 2 faces have the form $\pi/m$ for some integer $m$". It adds that this version "is readily deduced from Theorem 5.5 using 5.4", because "LocallyFinite is obvious in this case and the quotient space is complete as it is identified with the polyhedron itself". The two pages state this as remarks and not as a numbered theorem.
+
+Two examples serve as negative tests:
+
+- Remark 3.14, p. 130: a wedge in $E^2$ of angle $2\pi/3$ with reflections as face pairings has the angle sum $4\pi/3$, which is not of the required form, although the images of the wedge tile $E^2$.
+- Example 3.27, p. 135: the polygon $[1,2] \times (0,\infty)$ in the upper half-plane with the face pairing $z \mapsto 2z$ satisfies Pairing and Cyclic, "However the images of $P$ under the powers of the pairing cover only the right half of the half-plane." [BEARDON] Exercise 9.8, item 3, pp. 251 to 252, poses the same example.
+
+### 4.10. Orbifold Theorem of Ratcliffe
+
+[RATCLIFFE] {P}, in its first edition, states the theorems for $X = S^n$, $E^n$, or $H^n$ with $n > 1$ (p. 709 and p. 511). A polyhedron is a nonempty closed convex subset of $X$ whose collection of sides is locally finite (Section 6.3, p. 205). Theorem 13.4.1, p. 695, states that for a group $G$ of similarities of $X$, gluing a disjoint set of $n$-dimensional convex polyhedra by a subproper $G$-side-pairing gives an $(X, G)$-orbifold.
+
+Theorem 13.5.3, p. 711, reads: "Let $\Phi$ be a subproper $I(X)$-side-pairing for an $n$-dimensional, convex polyhedron $P$ in $X$ such that the $(X, I(X))$-orbifold $M$ obtained from $P$ by gluing together the sides of $P$ by $\Phi$ is complete. Then the group $\Gamma$ generated by $\Phi$ is discrete, $P$ is an exact, convex, fundamental polyhedron for $\Gamma$, and if $S$ is the set of sides of $P$ and $R$ is the set of words in $S$ corresponding to all the side-pairing and cycle relations of $\Gamma$, then $(S, R)$ is a group presentation for $\Gamma$ under the mapping $S \mapsto g_S$." The book writes a semicolon where this document writes the comma in $(S, R)$. The side-pairing relation is $g_Sg_{S'} = 1$, (6.7.4), and the cycle relation is $(g_{S_1} \cdots g_{S_\ell})^k = 1$ with $k$ the order of the cycle transformation, (6.7.3), p. 259. The proof is a short pointer and not a full argument. It reads that it is "essentially the same as the proof of Theorem 11.2.2", with one change in its step (10).
+
+Theorem 11.2.2, p. 513, has the same form for a proper side pairing and a complete manifold, and concludes that $\Gamma$ "is discrete and acts freely". A proper side pairing has finite cycles with angle sum $2\pi$ at each vertex cycle in the plane (p. 505 and p. 375). The theorem therefore excludes mirrors and cone points, and its cycle relation is $g_{S_1} \cdots g_{S_\ell} = 1$.
+
+Theorem 13.5.2, p. 710, reads: "Let $P$ be an $n$-dimensional convex polyhedron in $X$ all of whose dihedral angles are submultiples of $\pi$. Then the group $\Gamma$ generated by the reflections of $X$ in the sides of $P$ is a discrete reflection group with respect to the polyhedron $P$." It has no finiteness hypothesis and gives no presentation. Theorem 7.1.3, p. 265, states the same for a finite-sided polyhedron of finite volume, and its proof treats ideal vertices with horoballs (p. 269). Theorem 7.1.4, p. 274, gives the presentation `<S_i ; (S_i S_j)^(k_ij)>` with $k_{ij} = \pi/\theta(S_i, S_j)$ for a discrete reflection group with respect to a finite-sided polyhedron of finite volume. It is written in a code span because the book uses a semicolon. The relator is deleted when $k_{ij} = \infty$. Exercises 7.1.11 to 7.1.13, p. 276, state as exercises that the finite-volume hypothesis can be dropped.
+
+The dihedral angle of two sides is defined by (6.7.2), p. 255. Two sides are adjacent when their intersection is a side of both, and two distinct sides that are not adjacent have angle $0$.
+
+At ideal points, a cusp point of $P$ is "a point $c$ of $\bar P \cap S^{n-1}$ that is the intersection of the Euclidean closures of all the sides of $P$ incident with $c$" (p. 507 and p. 705). Theorem 13.4.4, p. 705, reads: "The link $L[c]$ of a cusp point $[c]$ of $M$ is complete if and only if the links $\{L(b)\}$ for the points in $[c]$ can be chosen so that $\Phi$ restricts to a side-pairing for $\{L(b)\}$." Theorem 13.4.6, p. 706, states that a hyperbolic orbifold glued from a finite family of disjoint, finite-sided convex polyhedra in $B^n$ by a subproper side pairing is complete if and only if $L[c]$ is complete for each cusp point. For surfaces, Theorem 9.8.3, p. 419, states that the gluing invariant $d(v)$ of an ideal vertex is zero if and only if the cycle transformation is parabolic. Theorem 9.8.5, p. 421, states that a hyperbolic 2-manifold glued from a finite family of disjoint, convex, finite-sided polygons of finite area by a proper $I(H^2)$-side-pairing is complete if and only if $d(v) = 0$ for each ideal vertex $v$. Theorem 9.8.7, p. 424, states that for one such polygon whose gluing invariants are all zero, the group is discrete and torsion-free and the polygon is an exact convex fundamental polygon. These proper $I(H^2)$-side-pairings may reverse orientation.
+
+### 4.11. Poincare's Theorem in Beardon
+
+[BEARDON] Theorem 9.8.4, p. 249 {P}, reads: "For a polygon $P$ with a side-pairing $\Phi$ satisfying (A6)' and (A7), $G$ is discrete and $P$ is a fundamental polygon for $G$." Its hypotheses are these:
+
+- (A1) to (A5), pp. 242 to 244: $P$ is an open, connected, abstract polygon in a metric space $X$, with an involution $s \mapsto s'$ on its sides and isometries $g_s$ of $X$ onto itself with $g_s(s) = s'$ and $g_{s'} = (g_s)^{-1}$. $G$ is the group that the $g_s$ generate.
+- The setting of p. 248: $X$ is the hyperbolic plane, and "the argument will work equally well in the Euclidean plane or in the sphere $S^2$". $P$ is a hyperbolic polygon, "possibly with vertices and free sides on the circle at infinity", and "there is no need to check (A6) at points on the circle at infinity."
+- The implicit assumption of p. 248, stated in item 1 of Section 4.8.
+- (A6)', p. 249: for each vertex $x$ of $P$ there are vertices $x_0 = x, x_1, \dots, x_n$ of $P$ and elements $f_0 = I, \dots, f_n$ of $G$ such that the images $f_j(N_j)$ of the sets $N_j$ of condition (A6) do not overlap and their union is the disc $B(x, \varepsilon)$, and each $f_{j+1}$ has the form $f_jg_s$ for some side $s$ ($j = 1, \dots, n$, with $f_{n+1} = I$).
+- (A7), p. 249: "the $\varepsilon$ in (A6) can be chosen independently of $x$ in $\bar P$".
+
+A remark after the theorem reads: "If $P$ has no vertices in $X$, then (A6)' is automatically satisfied. However, (A7) need not hold." The hypothesis is a local tessellation condition, not an angle-sum rule, and the theorem states no presentation. The book defines a fundamental domain and discreteness for groups of orientation-preserving maps (Definition 9.1.1, p. 204, and Chapter 5). Its only worked case with reflections is Example 9.8.5, p. 249: a polygon with angles $\pi/n_j$ at its vertices, whose pairings are the reflections in its sides. Exercise 9.8, items 1 to 3, pp. 251 to 252, asks the reader to extend Example 9.8.5 to vertices on the circle at infinity "fixed by a parabolic elements", to generalize to arbitrary polygons with such vertices, and to show that the parabolic condition is essential. The exercise has no printed solution.
+
+For a convex fundamental polygon of a Fuchsian group, Theorem 9.3.5, p. 221, states $\theta(C) = 2\pi/\mathrm{ord}(C)$ for a cycle $C$ of vertices. Theorem 9.3.8, p. 224, reads: "Let $v$ be any point of $E$ that is fixed by some non-trivial element of $G$. Then $v$ is fixed by a parabolic element of $G$ (and not by any hyperbolic element)." Here $E$ is the part of the boundary of the polygon on the circle at infinity (p. 223).
 
 ## 5. Canonical Polygons and Presentations
 
@@ -317,7 +407,7 @@ Voight states that the presentation his Dirichlet algorithm returns "is not nece
 
 ### 5.3. Groups Generated by Reflections
 
-[THURSTON2002] p. 320 {N} reads: "When O has the combinatorial type of a polygon ... $\pi_1 O$ is generated by reflections". That is the class of signatures with a single boundary `*n1...ns` and no other feature. [THURSTON2002] Proposition 13.3.1(iii), p. 308 {N}, gives the local group of a corner reflector as $\langle a, b : a^2 = b^2 = (ab)^n = 1\rangle$. Which signatures with several boundaries are generated by reflections is not stated by any source read (gap G15).
+[THURSTON2002] p. 320 {N} reads: "When O has the combinatorial type of a polygon ... $\pi_1 O$ is generated by reflections". That is the class of signatures with a single boundary `*n1...ns` and no other feature. [THURSTON2002] Proposition 13.3.1(iii), p. 308 {N}, gives the local group of a corner reflector as $\langle a, b : a^2 = b^2 = (ab)^n = 1\rangle$. [SYMMETRIES-OF-THINGS2008] p. 127 {P} lists `*632`, `*442`, `*333`, `*2222`, `*532`, `*432`, `*332`, `*22N`, and `*NN` as the groups with a presentation by reflections of this type. For `**`, p. 120 {P} reads: "Each * is caused by a reflection, but those two reflections do not suffice to generate the group!" Whether some other set of reflections generates `**`, or any other group with several boundaries, is not stated by any source read (gap G15).
 
 ### 5.4. Area and Euler Characteristic as a Check
 
@@ -325,7 +415,42 @@ A constructed polygon can be checked against the area that the signature predict
 
 ### 5.5. Canonical Polygon Geometry
 
-No source that was read gives the geometry of the canonical polygon of a signature with cone points and cusps, the polygon whose edge word realizes equations (5.1) and (5.2). Section 13 records this as gap G6.
+No source that was read gives coordinates or matrices for the canonical polygon of a signature with cone points and cusps, the polygon whose edge word realizes equations (5.1) and (5.2). Section 13 records this as gap G6.
+
+[BEARDON] {P} constructs one polygon from a signature for orientation-preserving groups. Definition 10.4.1, p. 268, writes the signature as $(g : m_1, \dots, m_r, s, t)$, with semicolons in place of the last two commas, where $s$ counts the classes of parabolic cyclic subgroups and $t$ the classes of boundary hyperbolic ones. Theorem 10.4.2, p. 268, reads: "There is a non-elementary finitely generated Fuchsian group with signature (10.4.1) and $m_j \ge 2$ if and only if $2g - 2 + s + t + \sum_{j=1}^r(1 - \frac{1}{m_j}) > 0$." Corollary 10.4.4, p. 269, gives the area $2\pi[2g - 2 + s + \sum_{j=1}^r(1 - 1/m_j)]$ of any convex fundamental polygon of a group of the first kind.
+
+The proof of sufficiency of Theorem 10.4.2, pp. 271 to 274, builds the polygon in these steps:
+
+1. Place $4g + r + s + t$ points $z_j$ equally spaced on the hyperbolic circle $\rho(z, 0) = d$, so that each arc subtends $2\theta$ at the origin with $\theta = 2\pi/(8g + 2r + 2s + 2t)$.
+2. Use the first four arcs for a handle with hyperbolic maps $h_1$ and $h_2$ (Figure 10.4.1), and repeat for each of the $g$ handles.
+3. Use the next $r$ arcs for the cone points, each with "an elliptic element $e_i$ of order $m_i$" and the angle $2\pi/m_j$ at its fixed point $w_j$ (Figure 10.4.2).
+4. Use the next $s$ arcs for the cusps, with $w_i$ on the unit circle, angle zero, and a parabolic map $p_i$.
+5. Use the last $t$ arcs for hyperbolic maps $b_j$ with free sides (Figure 10.4.3).
+6. Choose $d$ so that the angle sum $\phi(d) = 8g\alpha + 2(\beta_1 + \dots + \beta_{r+s+t})$ at the points $z_j$ equals $2\pi$, where $\cosh d = \cot\theta\cot\alpha$ and $\cosh d = (\cos\theta\cos\beta_j + \cos(\pi/m_j))/(\sin\theta\sin\beta_j)$, with $\cos(\pi/m_j)$ replaced by 1 for a cusp. The proof prints a third relation, with an angle $\theta_1 = \frac{1 + d}{1 + 2d}\theta$, for the free sides.
+
+The proof finds $d$ by the intermediate value theorem, since $\phi(d)$ exceeds $2\pi$ as $d \to 0$ and tends to 0 as $d \to +\infty$. It gives the maps by figures only, with no matrices, and it invokes Poincare's theorem through Exercise 9.8, item 2, which has no printed solution. It covers no mirror and no cross-cap. The research did not compare the edge word of this polygon with equations (5.1) and (5.2).
+
+### 5.6. NEC Signatures and Their Edge Words
+
+[SINGERMAN1974] and [MACBEATH1967] {P} give the presentation and the combinatorial edge word of a fundamental polygon of an NEC group with compact quotient. They give no side lengths, no coordinates, and no construction of a polygon, and they exclude parabolic elements by their definition of an NEC group (Section 2.4).
+
+Singerman writes the signature as `(g; +; [m_1, ..., m_r]; {(n_11, ..., n_1s_1), ..., (n_k1, ..., n_ks_k)})`, or with $-$ for a non-orientable quotient (p. 233). The generators are $x_i$ for the periods, $e_i$ and $c_{i0}, \dots, c_{is_i}$ for each period cycle, and $a_i, b_i$ for the genus, or only $a_i$, glide reflections, for the sign $-$ (p. 234). For the sign $+$ the relations of (5), p. 234, are:
+
+$$x_i^{m_i} = 1, \quad c_{is_i} = e_i^{-1}c_{i0}e_i, \quad c_{i,j-1}^2 = c_{ij}^2 = (c_{i,j-1}c_{ij})^{n_{ij}} = 1 \ (j = 1, \dots, s_i)$$
+
+$$x_1 \cdots x_r\, e_1 \cdots e_k\, a_1b_1a_1^{-1}b_1^{-1} \cdots a_gb_ga_g^{-1}b_g^{-1} = 1$$
+
+For the sign $-$, (6) replaces the last relation by $x_1 \cdots x_r\, e_1 \cdots e_k\, a_1^2 \cdots a_g^2 = 1$. Singerman prints a comma after $x_1x_2$ in (5), and Macbeath's table on p. 1197 prints the relation without it. Neither prints a relation $c_{i0}^2 = 1$ for a period cycle with no periods.
+
+The edge word (3), p. 234, for the sign $+$ is:
+
+$$\xi_1\xi_1' \cdots \xi_r\xi_r'\ \epsilon_1\gamma_{10} \cdots \gamma_{1s_1}\epsilon_1' \cdots \epsilon_k\gamma_{k0} \cdots \gamma_{ks_k}\epsilon_k'\ \alpha_1\beta_1\alpha_1'\beta_1' \cdots \alpha_g\beta_g\alpha_g'\beta_g'$$
+
+Here $x_i(\xi_i') = \xi_i$, $e_i(\epsilon_i') = \epsilon_i$, $a_i(\alpha_i') = \alpha_i$, and $b_i(\beta_i') = \beta_i$, and "The sides labelled $\gamma_{ij}$ are fixed pointwise by a reflexion $c_{ij}$." For the sign $-$, (4) ends with $\alpha_1\alpha_1^* \cdots \alpha_g\alpha_g^*$, with $a_i(\alpha_i^*) = \alpha_i$ "identified non-orientably". [MACBEATH1967] p. 1196 writes the genus part as $\alpha_1\beta_1'\alpha_1'\beta_1 \cdots$ instead. Singerman p. 235 gives the order of the stabilizer at each class of vertices: $m_i$ at $(\xi_i, \xi_i')$, $2n_{ij}$ at $(\gamma_{i,j-1}, \gamma_{ij})$, and 2 at $(\epsilon_i, \gamma_{i0})$ and at $(\gamma_{is_i}, \epsilon_i')$.
+
+Singerman's Theorem 1, p. 235, gives the area of a fundamental polygon for the sign $+$ as $2\pi(2g - 2 + \sum_{i=1}^r(1 - 1/m_i) + k + \sum_{i=1}^k\sum_{j=1}^{s_i}\frac12(1 - 1/n_{ij}))$, and for the sign $-$ with $g - 2$ in place of $2g - 2$.
+
+For a proper NEC group, Singerman p. 235 states that $\Gamma^+ = \Gamma \cap \mathcal G^+$ has index two. His Theorem 2, p. 236, gives the Fuchsian signature of $\Gamma^+$ as $(2g + k - 1, m_1, m_1, \dots, m_r, m_r, n_{11}, \dots, n_{ks_k})$ for the sign $+$, and with $g + k - 1$ for the sign $-$, writing a semicolon after the genus. The hypothesis that $\Gamma$ is proper stands in the opening of Section 4 and in the sentence before the theorem, not in its printed statement. Singerman has no Theorem 2.4.
 
 ## 6. Moduli
 
@@ -334,6 +459,8 @@ No source that was read gives the geometry of the canonical polygon of a signatu
 [THURSTON2002] Corollary 13.3.7, p. 318 {N}, reads: "The Teichmuller space $\mathcal T(O)$ of an orbifold O with $\chi(O) < 0$ is homeomorphic to Euclidean space of dimension $-3\chi(X_O) + 2k + l$, where k is the number of elliptic points and l is the number of corner reflectors." The proof cuts $O$ into primitive pieces, and the parameters are the lengths and twists of closed geodesics and the lengths of arcs. The hypothesis $\chi(O) < 0$ excludes the Euclidean and spherical groups.
 
 Two cases in [THURSTON2002] support the formula {N}. On p. 316, the disc `D^2( ; m1...ml)` is parametrized by $(\mathbb R_+)^{l-3}$. Theorem 13.8.1, p. 347, states that for an $n$-gonal orbifold $P$, $N(P) \cong D^{n-3}$ with interior $\mathcal T(P)$. [DAVIS2008] Example 6.5.3 {P} agrees that "If m > 3, there is a continuous family (moduli) of hyperbolic polygons with the same angles".
+
+[SYMMETRIES-OF-THINGS2008] Chapter 18, p. 237 {P}, gives a rule that it attributes to Thurston: "the space of solutions, counted up to scale, is homeomorphic to a Euclidean space R^n ... namely, $\chi_3 = -n/3$, where $\chi_3$ is the orbifold Euler characteristic of the orbifold obtained from the given one by replacing each of its numerals by 3." Its worked example `4*235*74xx` has $n = 13$. Page 238 reads: "The argument doesn't work for the last four spherical cases, *NN, N*, Nx, and NN (where it would make the number of parameters negative!), and the last four Euclidean ones, **, *x, xx, and o, which have respectively one, one, one, and two parameters rather than the zero given by the rule." The book does not say whether these counts include the scale, and it does not state that the rule holds for the other Euclidean groups. For `*2222`, p. 41 reads: "Here the set of symmetries is no longer unique up to scale".
 
 SymmHub computes $-6 + 6h + 3x + 2c + 3K + \sum \text{corners}$, with $h$ handles, $x$ cross-caps, $c$ cone points, and $K$ boundaries ([SYMMHUB] `lib/orbilib/OrbifoldGeometrization.js:270` {C}). It uses the number only in messages of the user interface. The research checked by substitution that with $\chi(X_O) = 2 - 2h - x - K$ this count equals Thurston's formula. The SymmHub tutorial cites Thurston Corollary 13.3.7 for it.
 
@@ -576,7 +703,7 @@ $$\ell\ell = \frac{c_pc_q + c_r}{s_ps_q}$$
 
 It returns $\operatorname{arccosh}(\ell\ell)$ when $p$ and $q$ are both real or both imaginary, and $\operatorname{arcsinh}(\ell\ell)$ otherwise.
 
-Maskit's equation (1) for three hyperbolic boundaries and equation (8) for three cone points have the same algebraic form, and [MASKIT2001] Remarks 5.1 and 5.5 identify them as the right-angled hexagon formula and a hyperbolic law of cosines {P}. No primary source that was read states the mixed cases or the choice between $\operatorname{arccosh}$ and $\operatorname{arcsinh}$ (gap G3).
+Maskit's equation (1) for three hyperbolic boundaries and equation (8) for three cone points have the same algebraic form, and [MASKIT2001] Remarks 5.1 and 5.5 identify them as the right-angled hexagon formula and a hyperbolic law of cosines {P}. [RATCLIFFE] and [BEARDON] state formulas for triangles, quadrilaterals, pentagons, and hexagons (Section 9.3). No primary source that was read states the cases that the code sends to $\operatorname{arcsinh}$, or that the other cases match those formulas (gap G3).
 
 ### 8.8. Pillow and Hat Formulas
 
@@ -682,18 +809,23 @@ A regular tiling $\{n, k\}$ is hyperbolic when "$2\pi n/k < (n - 2)\pi \iff 1/n 
 
 `docs/research/geometry-models.md` covers hyperbolic trigonometry. These formulas appear in the construction:
 
-- The angle form of the law of cosines: [MASKIT2001] equation (8) and Remark 5.5 {P}.
-- The right-angled hexagon formula: [MASKIT2001] equation (1) and Remark 5.1 {P}.
-- The side form $\cosh c = \cosh a\cosh b - \sinh a\sinh b\cos\gamma$: [ARXIV-1410.6735] {S}.
-- The Lambert quadrilateral, $\cos\angle F = \sinh OA\,\sinh OB$: Wikipedia, page not recorded {S}.
+- The angle form of the law of cosines, $\cosh c = \frac{\cos\alpha\cos\beta + \cos\gamma}{\sin\alpha\sin\beta}$: [MASKIT2001] equation (8) and Remark 5.5, [RATCLIFFE] Theorem 3.5.4, p. 86, [BEARDON] Section 7.12, p. 148 {P}.
+- The side form $\cosh c = \cosh a\cosh b - \sinh a\sinh b\cos\gamma$: [BEARDON] Section 7.12, p. 148 {P}, [ARXIV-1410.6735] {S}.
+- A triangle with angles $\alpha$, $\beta$, and 0, and finite side $c$: $\cosh c = \frac{1 + \cos\alpha\cos\beta}{\sin\alpha\sin\beta}$ ([RATCLIFFE] Theorem 3.5.6, p. 92, [BEARDON] Theorem 7.10.1, p. 146 {P}).
+- A quadrilateral with two right angles: $\cosh c = \frac{\cos\alpha\cos\beta + \cosh d}{\sin\alpha\sin\beta}$ ([RATCLIFFE] Theorem 3.5.7, p. 92 {P}). The book's figure defines the labels.
+- The Lambert quadrilateral: $\sinh a_1\sinh a_2 = \cos\phi$, where $a_1$ and $a_2$ meet at the right angle opposite the angle $\phi$ ([BEARDON] Theorem 7.17.1, p. 157 {P}). Wikipedia {S}, page not recorded, gives the same relation as $\cos\angle F = \sinh OA\,\sinh OB$.
+- A pentagon with four right angles and the angle $\gamma$: $\cosh c' = \frac{\cosh a\cosh b + \cos\gamma}{\sinh a\sinh b}$ ([RATCLIFFE] Theorem 3.5.11, p. 97 {P}). [BEARDON] Theorem 7.18.1, p. 159 {P}, gives $\cosh a\cosh c + \cos\phi = \sinh a\cosh b\sinh c$ for a pentagon with four right angles, where $a$ and $c$ are the sides adjacent to $b$ and $\phi$ is the vertex opposite $b$.
+- The right-angled hexagon formula: [MASKIT2001] equation (1) and Remark 5.1, [RATCLIFFE] Theorem 3.5.13, p. 100, $\cosh c' = \frac{\cosh a\cosh b + \cosh c}{\sinh a\sinh b}$, and [BEARDON] Theorem 7.19.2, p. 161 {P}.
 
 ### 9.4. Polygon Reflection Groups
 
 The signatures `*p1...pn` have $n - 3$ free parameters ([THURSTON2002] Theorem 13.8.1 {N}). [DAVIS2008] Example 6.5.3 {P} guarantees a convex realization in the hyperbolic plane whenever $\sum 1/m_i < m - 2$, and states that for $m > 3$ "there is a continuous family (moduli) of hyperbolic polygons with the same angles". Neither source gives coordinates for the family. SymmHub produces one by cutting the polygon with slices into sheets, with one length per slice (Section 8.5).
 
+[BEARDON] Theorem 7.16.2, p. 155 {P}, reads: "Let $\theta_1, \dots, \theta_n$ be any ordered $n$-tuple with $0 \le \theta_j < \pi$, $j = 1, \dots, n$. Then there exists a polygon $P$ with interior angles $\theta_1, \dots, \theta_n$, occurring in this order around $\partial P$, if and only if $\theta_1 + \dots + \theta_n < (n - 2)\pi$." The proof, pp. 155 to 156, builds one convex polygon with an inscribed disc from $n$ quadrilaterals $Q_j$. Each $Q_j$ has a vertex at the origin, two sides of length $d$ from the origin that end in right angles, and the angle $\theta_j$ at its far vertex. The angle of $Q_j$ at the origin is $2\alpha_j$, with $\sin\alpha_j = \cos(\theta_j/2)/\cosh d$, (7.16.3), and the quadrilaterals close up when $\sum_j\alpha_j = \pi$, (7.16.2). The proof finds $d$ by the intermediate value theorem. The theorem states existence only, and the proof gives one member of the family. For a convex polygon with angles $\pi/m_j$, [RATCLIFFE] Theorem 13.5.2 (Section 4.10) applies to the reflections in its sides.
+
 ### 9.5. The 17 Euclidean Groups
 
-The signatures are verified ([CONWAY-HUSON2002] Table II, [THURSTON2002] Theorem 13.3.6 {N}). The crystallographic (IUC) names rest on secondary sources that the research did not record {S}. The SymmHub catalogue builds each group from a function in `lib/orbilib/WallpaperGroups_NonNegative.js` ([SYMMHUB] {C}). The free parameters in the last column come from [VONGAGERN2009] p. 7 {P}.
+The signatures are verified ([CONWAY-HUSON2002] Table II, [THURSTON2002] Theorem 13.3.6 {N}). The crystallographic (IUC) names are those of [SYMMETRIES-OF-THINGS2008] Table A.1, p. 416 {P}, where a bracket aligns `p3m1` with `*333` and `p31m` with `3*3`. [MACBEATH1967] Table I disagrees on that pair (Section 12). The SymmHub catalogue builds each group from a function in `lib/orbilib/WallpaperGroups_NonNegative.js` ([SYMMHUB] {C}). The free parameters in the last column come from [VONGAGERN2009] p. 7 {P}.
 
 | IUC name | Signature | SymmHub function | Free parameters in [VONGAGERN2009] |
 | --- | --- | --- | --- |
@@ -715,7 +847,7 @@ The signatures are verified ([CONWAY-HUSON2002] Table II, [THURSTON2002] Theorem
 | p6 | `632` | `iGroup_632(a)` | Not stated |
 | p6m | `*632` | `iGroup_S632(a)` | Not stated |
 
-[VONGAGERN2009] Section 6.4, p. 28, excludes p1, pm, pg, and cm because "They do not have any rotation centers." The square and hexagonal groups are rigid in SymmHub, with hard-coded positions such as `d = a*sqrt(2.)/4.` (line 202). [CONWAY-HUSON2002] {N} states that each Euclidean signature names a single group "up to isotopy (i.e., continuous variation)". No primary source gives a deformation dimension for every Euclidean group (gap G7).
+[VONGAGERN2009] Section 6.4, p. 28, excludes p1, pm, pg, and cm because "They do not have any rotation centers." The square and hexagonal groups are rigid in SymmHub, with hard-coded positions such as `d = a*sqrt(2.)/4.` (line 202). [CONWAY-HUSON2002] {N} states that each Euclidean signature names a single group "up to isotopy (i.e., continuous variation)". [SYMMETRIES-OF-THINGS2008] pp. 237 to 238 {P} gives a rule for the number of parameters and the counts for `**`, `*x`, `xx`, and `o` (Section 6.1). No primary source states a deformation dimension for every Euclidean group (gap G7).
 
 [VONGAGERN2009] p. 7 {P} also relates the groups to reflection groups: "The groups p4m, p3m1 and p6m correspond to the three Euclidean triangular kaleidoscopic fundamental regions with corner angles (90, 45, 45), (60, 60, 60) and (90, 60, 30), respectively. The groups p4, p3 and p6 are the corresponding reflection free subgroups." The groups p31m and p4g are index-two subgroups of p6m and p4m. The rectangle group pmm "corresponds to a rectangular kaleidoscope with four 90 corners."
 
@@ -731,7 +863,7 @@ The same page states that "the fundamental cells of the groups p3, p4, p6, p31m,
 
 ### 9.6. The 14 Spherical Families
 
-The signatures and orders are verified ([CONWAY-HUSON2002] Table III, [THURSTON2002] Theorem 13.3.6 {N}), with order $2/\chi$. The Schoenflies names rest on secondary sources that the research did not record {S}.
+The signatures and orders are verified ([CONWAY-HUSON2002] Table III, [THURSTON2002] Theorem 13.3.6 {N}), with order $2/\chi$. The Schoenflies names are those of [SYMMETRIES-OF-THINGS2008] Table A.2, p. 416 {P}.
 
 | Signature | Order | Schoenflies name |
 | --- | --- | --- |
@@ -754,7 +886,19 @@ Generators exist only as SymmHub catalogue code, in the stereographic plane with
 
 ### 9.7. Mixed Signatures
 
-[CONWAY-HUSON2002] {N} gives the presentation of every mixed signature, such as `p*q` and `2*pq` (Section 5.2). SymmHub builds the geometry with the hat atom `A*b` ([SYMMHUB] {C}). No primary geometric construction was read (gap G8).
+[CONWAY-HUSON2002] {N} gives the presentation of every mixed signature, such as `p*q` and `2*pq` (Section 5.2). SymmHub builds the geometry with the hat atom `A*b` ([SYMMHUB] {C}). [SYMMETRIES-OF-THINGS2008] pp. 125 to 131 {P} gives the presentations of the Euclidean and spherical mixed groups, and p. 237 describes Thurston's decomposition into "triangles" with real and imaginary angles without a formula. [RATCLIFFE] Example 1 of Section 13.4, pp. 700 to 701 {P}, is a worked mixed case: a triangle with angles $\alpha$, $\alpha$, and $2\pi/3$ at $x$, $y$, and $z$, whose side $[x, z]$ is paired with $[y, z]$ by the rotation of $2\pi/3$ about $z$, and whose side $[x, y]$ is paired with itself by the reflection in it. The dihedral ridge cycle $\{x, y\}$ gives $2\alpha = \pi/k$, and Example 1 of Section 13.5, p. 711, gives the presentation `<L, R, S ; LR, S^2, R^3, (RS)^(2k)>`, written in a code span because the book uses a semicolon. No source read gives a construction from the signature for mixed signatures in general (gap G8).
+
+### 9.8. Signatures with Cusps
+
+[RATCLIFFE] and [BEARDON] {P} give theorems and worked examples for groups with cusps. The theorems are those of Sections 4.10 and 4.11, the existence condition and area of Section 5.5, and [RATCLIFFE] Theorems 7.1.3 and 13.5.2 for reflection polygons with ideal vertices. The worked examples in [RATCLIFFE] {P} are these:
+
+- The modular group, pp. 247 and 259: the Dirichlet polygon with centre $ti$, $t > 1$, is the triangle with vertices $\pm\frac12 + \frac{\sqrt3}{2}i$ and $\infty$, which Exercise 6.6.3 asks the reader to prove, with side pairings $g_R(z) = z + 1$ and $g_S(z) = -1/z$, and "The relations $(g_Sg_R)^3 = 1$ and $g_S^2 = 1$ form a complete set of relations."
+- The once-punctured torus, Example 1 of Section 9.8, p. 417: the ideal square with vertices $\pm e_1$ and $\pm e_2$ in the disc, whose opposite sides are paired "by first reflecting in the lines $y = \pm x$ and then reflecting in the corresponding side of $P$".
+- The thrice-punctured sphere, Example 2 of Section 9.8, p. 425, with the maps $f(z) = z + 2$ and $g(z) = \frac{z}{-2z + 1}$ in the proof of Theorem 9.8.8, pp. 426 to 427.
+- A cone point, a mirror, and a cusp on the mirror, Example 6 of Section 13.4, p. 706: a generalized triangle with angles 0, 0, and $2\pi/3$ at $x$, $y$, and $z$, with the side pairings of the example in Section 9.7. The cusp points $x$ and $y$ form one cusp point of the orbifold, whose link is complete by Theorem 13.4.4, so the orbifold is complete by Theorem 13.4.6.
+- The reflection group of the triangle $T(2, 4, \infty)$, p. 299, which contains the reflection with the Lorentz matrix $A = \begin{pmatrix} -1 & -2 & 2 \\ -2 & -1 & 2 \\ -2 & -2 & 3 \end{pmatrix}$ that takes $e_3$ to $(2, 2, 3)$, with $A = A^{-1} = (JAJ)^t$ and $J = \mathrm{diag}(1, 1, -1)$.
+
+[BEARDON] Theorem 10.4.2 builds one polygon from the signature of an orientation-preserving group with cusps (Section 5.5). No source read gives a general construction of a polygon with side pairings from a signature that mixes cusps with mirrors or cross-caps. [SINGERMAN1974] and [MACBEATH1967] give only the combinatorial edge word (Section 5.6) and exclude non-compact groups by definition.
 
 ## 10. Algorithms
 
@@ -764,7 +908,9 @@ Generators exist only as SymmHub catalogue code, in the stereographic plane with
 
 Proposition 1.3 states that $D(0)$ is the closure of $\bigcap_{g \ne 1}\mathrm{ext}(I(g))$, and that $d(z, 0)$ is less than, equal to, or greater than $d(gz, 0)$ as $z$ lies in $\mathrm{ext}(I(g))$, on $I(g)$, or in $\mathrm{int}(I(g))$. Corollary 1.4 states that $gI(g) = I(g^{-1})$.
 
-Remark 1.5 gives the bisector for the base point $p = i$ as the half-circle "of radius $(a^2 + b^2 + c^2 + d^2 - 2)/(a^2 + c^2 - 1)^2$ centered at $(ab + cd)/(a^2 + c^2 - 1)$". That expression is as printed and may contain a typo (gap G9).
+Remark 1.5 gives the bisector for the base point $p = i$ as the half-circle "of radius $(a^2 + b^2 + c^2 + d^2 - 2)/(a^2 + c^2 - 1)^2$ centered at $(ab + cd)/(a^2 + c^2 - 1)$". That expression is as printed, and Section 12 records a doubt about it (gap G9).
+
+[RATCLIFFE] p. 243 {P} defines the Dirichlet domain $D(u) = \bigcap_{g \ne 1} H_g(u)$, with $H_g(u) = \{x : d(x, u) < d(x, gu)\}$, for a centre $u$ whose stabilizer $\Gamma_u$ is trivial. Theorem 6.5.16, p. 245, states that $D(u)$ is the set of points $x$ that are a nearest point of their orbit $\Gamma x$ to $u$. Theorem 6.6.2, p. 248, states that each side $S$ of $D(u)$ lies on the bisector of $u$ and $gu$ for a unique $g \ne 1$, with $S = D(u) \cap gD(u)$, and that $g^{-1}S$ is a side of $D(u)$. Exercise 7.1.1, p. 276, asks the reader to prove that the polyhedron of a discrete reflection group is its Dirichlet polyhedron with centre any interior point.
 
 [DAVIS2008] Complement 6.6.10 {P} notes that "a Dirichlet domain is a fundamental domain ... however, there is no reason for it to be a strict fundamental domain."
 
@@ -809,7 +955,7 @@ Step 4 is quoted with its punctuation changed. A vertex $v$ is paired "if and on
 
 [VOIGHT2009] Theorem 5.1 {P} reads: "There exists an algorithm which, given a finitely generated Fuchsian group $\Gamma$ and a point $p \in \mathbb H$ with $\Gamma_p = \{1\}$, returns the Dirichlet domain D(p), a side pairing for D(p), and a finite presentation for $\Gamma$ with a minimal set of generators." Algorithm 5.2 walks the minimal vertex cycles.
 
-Proposition 5.4, citing [BEARDON] Theorem 9.4.5, states that for $p$ outside a set of area zero:
+Proposition 5.4, citing [BEARDON] Theorem 9.4.5, states that for $p$ outside a set of area zero, as items (i) to (iii) that are items (1), (2), and (5) of Beardon's theorem on p. 232 {P}:
 
 - "Every elliptic cycle has length 1".
 - "Every accidental cycle has length 3".
@@ -827,7 +973,7 @@ SymmHub reduces a point by a different rule, which no source proves to terminate
 
 The CPU test has no tolerance and assumes a convex domain. The GPU loop uses `EPS=1e-7` and defaults to 10 iterations ([SYMMHUB] `lib/shaders/inversiveSampler.glsl.mjs:182`, `SymRenderer.js:393` {C}). The legacy shader uses `MAX_ITERATIONS 100` and `EPSILON 1e-10`, and its walled variant skips a side when the point lies inside any of that side's wall splanes ([SYMMHUB] `apps/orbifold/js/shaders/inversive.glsl.mjs:15-16, 735-800` {C}). The header of `Group_ON.js` asserts that "the fold still converges since every transform is a group element", without proof. `docs/research/rendering.md` covers the GPU loop.
 
-Voight's termination argument covers the rule that applies the generator that most decreases the distance to the centre. It does not cover the rule that applies the first violated side. A termination argument for the greedy rule, for convex reflection domains and for general side-pairing polygons, is gap G5. [DAVIS2008] contains no algorithm that folds a point across walls and no bound on the number of steps {P}.
+Voight's termination argument covers the rule that applies the generator that most decreases the distance to the centre. It does not cover the rule that applies the first violated side. A termination argument for the greedy rule, for convex reflection domains and for general side-pairing polygons, is gap G5, which lists the sources searched without result. [DAVIS2008] contains no algorithm that folds a point across walls and no bound on the number of steps {P}. [EPSTEIN-PETRONIO1994] Theorem 4.14 (f) gives only that every point lies in some image of the polygon, which says that a group element exists {P}.
 
 ### 10.8. Kleinian Analogue
 
@@ -837,7 +983,7 @@ Voight's termination argument covers the rule that applies the generator that mo
 
 These checks are available:
 
-- The conditions of Poincare's theorem, Section 4.8, which certify discreteness for the classes that Section 4.7 does not exclude {P}.
+- The conditions of Poincare's theorem, Section 4.8, which certify discreteness with the hypotheses of Sections 4.7 and 4.9 to 4.11 {P}. [EPSTEIN-PETRONIO1994] p. 160 {P} checks Cyclic by multiplying the pairing matrices, checks that a product is the identity on a face by a linear independence calculation, and checks that a rotation angle has the form $2\pi/m$ by testing whether the $m$-th power of a group element is the identity, with floating point to find which $m$ to test. Page 161 adds that algebraic-number entries allow the check in exact integer arithmetic.
 - The negative trace theorem for each pair of pants, Section 7.7 ([MASKIT2001] Theorem 4.1 {P}).
 - Jorgensen's inequality, which is a necessary condition only {S}.
 - SymmHub's numerical check of every relator in `GroupPresentation.js`, which throws when the domain does not tile (Section 4.6, {C}).
@@ -848,14 +994,20 @@ This section is a survey for orientation. [TEGULA2020] {N} defines a Delaney-Dre
 
 The orbifold is read from the symbol through the relation $m_{ij} = v_{ij}r_{ij}$. "Reflections are mapped onto boundary segments, rotational centers are mapped onto cones", and "glide-reflections give rise to crosscaps". The curvature is $\mathcal K = \sum_D(1/m_{01} + 1/m_{12} - 1/2)$, and its sign gives the geometry ([TEGULA2020] p. 6 {N}).
 
+[BALKE-HUSON1996] p. 95 {P} defines $\Sigma = \langle\sigma_0, \sigma_1, \sigma_2 \mid \sigma_i^2 = 1\rangle$ as "the Coxeter group freely generated by three involutions" (Section 12 compares the two wordings). It defines the branching number $v_{ij} = m_{ij}/r_{ij}$, where $r_{ij}(D)$ is the least $r \ge 1$ with $D(\sigma_i\sigma_j)^r = D$. Page 96 defines the curvature as $\sum_D(1/m_{01}(D) + 1/m_{12}(D) + 1/m_{02}(D) - 1)$ with $m_{02} = 2$ by axiom (DS3), and Theorem 4.1, p. 97, states that the curvature equals twice the orbifold Euler characteristic. Algorithm 5.1, p. 99, finds the boundary components of the orbifold from the symbol.
+
 Tegula, a Java program under GPL-3.0, implements these symbols. Its canonicalization in `OrbifoldGroupName.java` is known only from a secondary code reading {S}.
 
 ## 12. Conflicts Between Sources
 
 Each conflict is stated with the recommendation of the research where it gives one.
 
-- Self-paired sides: [SOLOMYAK2020] Theorem 12 excludes them. [SOLOMYAK2020] slide 22, [VOIGHT2009] Section 1, and [SERIES2013] Definition 6.1 handle a side paired with itself by a half-turn by splitting it at the fixed point {P}. [JESPERS2015] {S} and SymmHub {C} allow a reflection to pair a side with itself, with relator $w^2 = 1$. The research concludes that these agree once half-turns and reflections are kept apart.
-- Completeness against parabolic cycles: [MASKIT2001] Section 4.4 and [SERIES2013] condition (b) {P} both require parabolic cycle transformations at ideal vertices, as does de Rham {S}. [MASKIT1971], which was not read, uses a completeness condition according to secondary citations. [VOIGHT2009] Proposition 1.1 relies on finite area instead. The parabolic form is verified in two primary sources.
+- Self-paired sides: [SOLOMYAK2020] Theorem 12 excludes them. [SOLOMYAK2020] slide 22, [VOIGHT2009] Section 1, and [SERIES2013] Definition 6.1 handle a side paired with itself by a half-turn by splitting it at the fixed point {P}. [JESPERS2015] {S} and SymmHub {C} allow a reflection to pair a side with itself, with relator $w^2 = 1$. [EPSTEIN-PETRONIO1994] Remark 3.3 and [RATCLIFFE] p. 694 {P} allow any pairing of order two for a side paired with itself, without a split. The research concludes that the sources agree once half-turns and reflections are kept apart, and that none of them requires the split (Section 4.8, item 2).
+- Completeness against parabolic cycles: [MASKIT2001] Section 4.4 and [SERIES2013] condition (b) {P} both require parabolic cycle transformations at ideal vertices, as does de Rham {S}. [MASKIT1971], which was not read, uses a completeness condition according to secondary citations. [VOIGHT2009] Proposition 1.1 relies on finite area instead. [EPSTEIN-PETRONIO1994] Theorem 6.3 and [RATCLIFFE] Theorems 13.4.4 and 13.4.6 {P} state completeness conditions through horospheres, the group $G_p$, and links, and the proof of [EPSTEIN-PETRONIO1994] Theorem 8.1 gets a cusp from parabolic holonomy only for pieces that glue in a cyclic fashion (Section 4.8, item 5).
+- Element that fixes an ideal vertex: the proof of [VOIGHT2009] Proposition 1.1 prints that "the condition that $\mu(D) < \infty$ ensures that any vertex which lies on the circle at infinity is fixed by a hyperbolic element", citing Beardon. [BEARDON] Theorem 9.3.8, p. 224, prints that such a point "is fixed by a parabolic element of $G$ (and not by any hyperbolic element)", for a convex fundamental polygon of a Fuchsian group, and Exercise 9.8, items 2 and 3, ask for parabolic elements {P}. The research does not decide between them (gap G1).
+- Bisector of Voight's Remark 1.5: [VOIGHT2009] p. 5 prints that $\{z : d(z, p) = d(gz, p)\}$ "corresponds in $\mathfrak H$ to the perpendicular bisector of the geodesic between $p$ and $g(p)$", and then gives for $p = i$ the radius $(a^2 + b^2 + c^2 + d^2 - 2)/(a^2 + c^2 - 1)^2$ and the centre $(ab + cd)/(a^2 + c^2 - 1)$ {P}. A reader's check against [BEARDON] Section 7.21 found that the radius cannot hold together with the first statement. That check is a computation, not a source statement (gap G9).
+- Names of two plane groups: [SYMMETRIES-OF-THINGS2008] Table A.1, p. 416, aligns `p3m1` with `*333` and `p31m` with `3*3` {P}. [MACBEATH1967] Table I, p. 1204, gives the name `p3m1` to the signature that the dictionary of `docs/research/orbifold-notation.md` reads as `3*3`, and `p31m` to the one it reads as `*333` {P}. [SYMMETRIES-OF-THINGS2008] p. 415 notes that "The notations p3m1 and p1m3 were inadvertently interchanged by Niggli", an error "repeated in editions of Coxeter and Moser before 1980" {P}. The research does not decide between the sources. The table of Section 9.5 gives the names of Table A.1 and does not resolve the disagreement.
+- The group of a Delaney-Dress symbol: [TEGULA2020] {N} calls $\Sigma$ "a certain free group". [BALKE-HUSON1996] p. 95 {P} calls it "the Coxeter group freely generated by three involutions".
 - Twist normalization: [MASKIT2001] {P} uses $2\tau$ as a distance independent of length, with coordinate $t = \sinh\tau$. Wikipedia {S} uses a signed distance. SymmHub {C} is inconsistent internally (Section 8.13). The research makes no recommendation (gap G11).
 - Twist matrix sign within Maskit: Sections 5.5 and 7.2 of [MASKIT2001] use $\tilde f_\tau$ for two different maps {P}. An implementation keeps them apart.
 - Internal typos in Maskit: Section 7.13 lists them and the recommendation.
@@ -877,12 +1029,12 @@ This table lists the classes of Section 3 in the same order, with the gaps of Se
 | --- | --- | --- |
 | Reflection triangle groups `*pqr` | None | Fully sourced |
 | Rotation triangle groups `pqr` | None | Fully sourced |
-| Polygon reflection groups `*p1...pn` | G3 and G4 for explicit coordinates, G1 for ideal corners with more than three sides | Existence, discreteness, and parameter count are sourced for compact polygons. Coordinates are not. |
-| Orientable hyperbolic, no mirrors | G6 for a canonical polygon, G11 for the twist convention | Generators are sourced, except for the choice of twist convention |
-| Mixed signatures with cone points and mirrors | G1, G2, G3, G4, G8 | Only SymmHub code |
-| Several mirror boundaries | G1, G2, G3, G4, G15 | Only SymmHub code |
-| Mirrors together with handles | G1, G2, G3, G4 | Only SymmHub code |
-| Non-orientable, with cross-caps | G1, G2, G3, G4 | Only SymmHub code |
+| Polygon reflection groups `*p1...pn` | G3 and G4 for coordinates of the whole family | Existence, discreteness, parameter count, and one polygon for each set of angles are sourced, including ideal corners. Coordinates of the other members are not. |
+| Orientable hyperbolic, no mirrors | G6 for a canonical polygon with coordinates or matrices, G11 for the twist convention | Generators are sourced, except for the choice of twist convention. One polygon is sourced, with its maps given by figures only. |
+| Mixed signatures with cone points and mirrors | G2, G3, G4, G8, and G1 where a cusp lies on a mirror | Only SymmHub code for the geometry. The polygon theorem that certifies it is sourced. |
+| Several mirror boundaries | G2, G3, G4, G15, and G1 where a cusp lies on a mirror | Only SymmHub code for the geometry. The polygon theorem that certifies it is sourced. |
+| Mirrors together with handles | G2, G3, G4, and G1 where a cusp lies on a mirror | Only SymmHub code for the geometry. The polygon theorem that certifies it is sourced. |
+| Non-orientable, with cross-caps | G2, G3, G4 | Only SymmHub code for the geometry. The polygon theorem that certifies it is sourced. |
 | The 17 Euclidean groups | G7 | Catalogue code, with partial moduli counts |
 | The 14 spherical families | G8 | Reflection triangles are sourced. The other generators are catalogue code. |
 | Bad orbifolds | None | No group exists |
@@ -890,76 +1042,86 @@ This table lists the classes of Section 3 in the same order, with the gaps of Se
 
 ### 13.2. Gaps
 
-- G1, Poincare's theorem for orientation-reversing groups: The four open cases are those of Section 4.7. The cycle condition that [VOIGHT2009] Proposition 1.1 leaves to [BEARDON] Theorem 9.8.4 is also unread. Candidate sources: [EPSTEIN-PETRONIO1994], [RATCLIFFE] Theorem 11.2.2, and [BEARDON] Section 9.8.
-- G2, matrices for pieces with mirrors and cross-caps: [MASKIT2001] covers orientable pieces only. Needed: an extension that uses the reflection matrices of [MASKIT2001] Section 4.3, and a gluing of one-sided geodesics by glide reflections. [NORBURY2006] {S} states that the gluing is antipodal with no twist. SymmHub's cap construction (Section 8.11) is the only explicit one, and it is unproven. Candidate sources: [CHOI2012], [BUSER].
-- G3, the generalized law of cosines with imaginary angles: SymmHub's `edgeLength` mixes real angles with truncation lengths. Maskit's continuation $\lambda = i\pi/\alpha$ covers cone points inside pants matrices. The truncated-vertex case and the rule that chooses between $\operatorname{arccosh}$ and $\operatorname{arcsinh}$ are not verified against a primary source. Candidate sources: [BUSER] Formula Glossary 2.2 to 2.4, [RATCLIFFE] Section 3.5.
+- G1, Poincare's theorem for orientation-reversing groups: Sourced for the four cases of Section 4.7 by [EPSTEIN-PETRONIO1994] and [RATCLIFFE], with the hypotheses that Sections 4.7, 4.9, and 4.10 state. Two points stay open. The first is the test to run at an ideal point where a mirror ends at a cusp (Section 13.3, item 8). The second is the disagreement between [VOIGHT2009] and [BEARDON] on the element that fixes an ideal vertex (Section 12). Needed: a source or a machine-checked proof for each.
+- G2, matrices for pieces with mirrors and cross-caps: [MASKIT2001] covers orientable pieces only. Needed: an extension that uses the reflection matrices of [MASKIT2001] Section 4.3, and a gluing of one-sided geodesics by glide reflections. [NORBURY2006] {S} states that the gluing is antipodal with no twist. SymmHub's cap construction (Section 8.11) is the only explicit one, and it is unproven. [RATCLIFFE], [BEARDON], and [EPSTEIN-PETRONIO1994] give no such matrices. [RATCLIFFE] Example 5 of Section 9.2 is their only explicit pairing of a polygon for a non-orientable surface (Section 4.7). Candidate sources: [CHOI2012], [BUSER].
+- G3, the generalized law of cosines with imaginary angles: SymmHub's `edgeLength` mixes real angles with truncation lengths. Maskit's continuation $\lambda = i\pi/\alpha$ covers cone points inside pants matrices. [RATCLIFFE] and [BEARDON] state the triangle, quadrilateral, pentagon, and hexagon formulas of Section 9.3. No source read states a formula for the cases that `edgeLength` sends to $\operatorname{arcsinh}$, and that each $\operatorname{arccosh}$ case of `edgeLength` coincides with one of the formulas of Section 9.3 is a reader's reading, not a source statement. Needed: a source for the $\operatorname{arcsinh}$ cases and for the correspondence, or a machine-checked proof. Candidate source: [BUSER] Formula Glossary 2.2 to 2.4.
 - G4, Deaton's rules: Five of the nine cut types, the rules for cross-caps, cone pairs, and corners, and the claim that the twist appears in exactly three situations rest only on SymmHub. Candidate source: [DEATON1993].
-- G5, termination of the greedy reduction: Section 10.7 states the gap. Needed: a termination argument for convex reflection domains and for general side-pairing polygons.
-- G6, geometry of the canonical Fricke polygon: The polygon with the edge word of equations (5.1) and (5.2), with elliptic and parabolic vertices. [VOIGHT2009] gives only the presentation and defers to [IMBERT2001].
-- G7, Euclidean moduli: [VONGAGERN2009] p. 7 gives the counts for p2, pmm, pmg, pgg, and cmm. The paper does not state whether a parameter of a "family of conjugacy classes" includes the overall scale, and it gives no counts for p1, pm, pg, and cm or for the rigid groups. Whether Thurston's formula extends to $\chi = 0$ is unverified. Candidate sources: [SYMMETRIES-OF-THINGS2008], [KULKARNI-LEE-RAYMOND1985], [SCOTT1983].
-- G8, geometric constructions for mixed signatures and spherical generators: `p*q`, `2*pq`, spheres with cone points, and the generators of the spherical groups have only presentations {N} and catalogue code {C}. Candidate source: [SYMMETRIES-OF-THINGS2008].
-- G9, the bisector radius of Voight Remark 1.5: The printed expression needs a check by direct computation, or another source, before use.
-- G10, the signature of the orientation-preserving subgroup in Conway terms: It rests on secondary sources only. Candidate source: [SINGERMAN1974].
-- G11, the twist convention for Escher: The three conventions of Section 2.5 are all in use. No source chooses one for an implementation that also has mirrors and cross-caps.
+- G5, termination of the greedy reduction: Section 10.7 states the gap. No source read states that repeated application of side pairings moves a point into the polygon, or in how many steps. [RATCLIFFE], [BEARDON], [EPSTEIN-PETRONIO1994], and [SYMMETRIES-OF-THINGS2008] were searched without result. Section 13.3, item 6, records a candidate argument for reflection groups. Needed: a termination argument for convex reflection domains and for general side-pairing polygons.
+- G6, geometry of the canonical Fricke polygon: The polygon with the edge word of equations (5.1) and (5.2), with elliptic and parabolic vertices. [VOIGHT2009] gives only the presentation and defers to [IMBERT2001]. [BEARDON] builds one polygon from the signature, with its maps given by figures only (Section 5.5), and [SINGERMAN1974] gives the combinatorial edge word for compact quotients (Section 5.6). Open: coordinates or matrices for the polygon with that edge word, and whether Beardon's polygon has it.
+- G7, Euclidean moduli: [VONGAGERN2009] p. 7 gives the counts for p2, pmm, pmg, pgg, and cmm. [SYMMETRIES-OF-THINGS2008] pp. 237 to 238 gives a rule and the counts one, one, one, and two for `**`, `*x`, `xx`, and `o` (Section 6.1). Neither source states whether a count includes the overall scale, and neither states the counts of the other Euclidean groups. Whether Thurston's formula extends to $\chi = 0$ is unverified. Candidate sources: [KULKARNI-LEE-RAYMOND1985], [SCOTT1983].
+- G8, geometric constructions for mixed signatures and spherical generators: `p*q`, `2*pq`, spheres with cone points, and the generators of the spherical groups have only presentations and catalogue code {C}. [CONWAY-HUSON2002] {N} and [SYMMETRIES-OF-THINGS2008] {P} give the presentations, the latter with a description of the geometry without formulas, and [RATCLIFFE] works one mixed triangle (Section 9.7). No source read gives a construction from the signature.
+- G9, the bisector radius of Voight Remark 1.5: The printed radius and the printed definition of the set disagree according to a reader's computation (Section 12). Needed: a corrected source, or a machine-checked proof of the radius and centre, before use.
+- G10, the signature of the orientation-preserving subgroup in Conway terms: [SINGERMAN1974] Theorem 2 states it in NEC signatures for a proper NEC group with compact quotient (Section 5.6). [SYMMETRIES-OF-THINGS2008] Table 3.2, p. 40, lists the rotation subgroup of each plane group at the bottom of its column. Open: a statement in orbifold notation for hyperbolic signatures, which `docs/research/orbifold-notation.md` handles, and any statement for signatures with cusps.
+- G11, the twist convention for Escher: The three conventions of Section 2.5 are all in use, and [RATCLIFFE] Section 9.7 has a fourth for closed orientable surfaces. No source chooses one for an implementation that also has mirrors and cross-caps.
 - G12, the Maskit worked example: The Section 11 matrix for $\tilde e_{3,3}$ does not match equation (19), and needs a check by computation before it serves as a test case.
 - G13, the dimensions of the A-type pieces of [CHOI-GOLDMAN2001]: Not verified.
 - G14, the chapter number in [CHOI-GOLDMAN2001]: Its citation of chapter 5 of Thurston's notes is unverified.
-- G15, reflection-generated groups with several boundaries: Which signatures with several boundaries, such as `**`, give groups generated by reflections. [CONWAY-HUSON2002] suggests that they need generators other than reflections, but no source states it.
+- G15, reflection-generated groups with several boundaries: Which signatures with several boundaries, such as `**`, give groups generated by reflections. [CONWAY-HUSON2002] suggests that they need generators other than reflections. [SYMMETRIES-OF-THINGS2008] p. 120 states only that the two reflections of `**` do not generate it (Section 5.3). Whether any set of reflections generates such a group is not stated by any source read.
 
 ### 13.3. Candidate Statements That Need a Source
 
 These statements appear in the research or in code, and no cited source states them. Each needs a source or a machine-checked proof before the body can use it as a fact.
 
 1. SymmHub's `edgeLength` formula of Section 8.7 gives the correct edge length in every mixed case of real and imaginary vertices.
-2. SymmHub's cap generator of Section 8.11 is a glide reflection that, together with the other side pairings, satisfies the hypotheses of a polygon theorem for NEC groups.
+2. SymmHub's cap generator of Section 8.11 is a glide reflection that, together with the other side pairings, satisfies the hypotheses of [EPSTEIN-PETRONIO1994] Theorem 4.14 or [RATCLIFFE] Theorem 13.5.3 (Sections 4.9 and 4.10).
 3. The greedy reduction of Section 10.7 terminates for every point and every domain that SymmHub builds.
 4. The twelve atoms of SymmHub correspond one to one to the twelve elementary orbifolds of [CHOI-GOLDMAN2001].
 5. The twist appears in exactly three situations, as the SymmHub tutorial states.
+6. For a discrete reflection group with fundamental polygon $P$, the fold that applies the reflection in any violated side terminates. A reader argued this from [RATCLIFFE] Theorem 6.6.2, the definition of $D(u)$ on p. 243, which requires a centre with trivial stabilizer, and Exercise 7.1.1, an exercise without a printed proof (Section 10.1). The argument is a derivation, not a source statement, and it gives no bound on the number of steps.
+7. Two sides of a polygon that meet only at an ideal vertex have the dihedral angle 0 in the definition of [RATCLIFFE] (6.7.2), so that Theorem 7.1.4 deletes their relator. This is a reader's reading of the definition of adjacent sides on p. 255.
+8. Item 5 of Section 4.8 fails, or is not the right test, at an ideal point where a mirror ends at a cusp. A reader claimed this from [RATCLIFFE] Example 6 of Section 13.4, which decides completeness through Theorem 13.4.4 and does not mention parabolic elements. The book does not decide the claim, and it does not discuss whether a cycle through the mirrors at such a point gives a parabolic element.
 
 ### 13.4. Sources Not Read in Full
 
-These sources could not be read in full. `docs/research/source-requests.md` records each one with what the project needs from it.
+These sources were not read, or were read only in part. `docs/research/source-requests.md` records each one with what the project needs from it. [SINGERMAN1974], [MACBEATH1967], and [BALKE-HUSON1996] were read in full. [EPSTEIN-PETRONIO1994] was read in full, with the exceptions that the table lists. Section 14.1 says how much of each other source was read.
 
 | Priority | Source | Needed for |
 | --- | --- | --- |
-| High | [EPSTEIN-PETRONIO1994], the chapter "Conditions for Poincare's Theorem" from p. 125 and Theorem 8.1. The PDF is blocked by a bot check. | G1 |
-| High | [RATCLIFFE] Theorem 11.2.2, Section 3.5, Sections 7.1 to 7.3, and chapter 13. Paywall. | G1, G3 |
 | High | [DEATON1993], unpublished, held as a scan in the Mudd Manuscript Library | G4 |
-| Medium | [BEARDON] Theorem 9.8.4, Theorem 9.4.5, and Sections 9.3 to 9.4. Paywall. | G1 |
 | Medium | [BUSER] Formula Glossary 2.2 to 2.4, Sections 3.1 and 3.3. Paywall. | G2, G3 |
 | Medium | [CHOI2012], elementary pieces with mirrors and their deformation spaces | G2, G13 |
-| Medium | [SINGERMAN1974] | G10 |
-| Medium | [SYMMETRIES-OF-THINGS2008] | G7, G8 |
+| Low | [RATCLIFFE], read in the first edition only, in the sections that Section 14.1 lists. Later editions not read. | The numbering of the cited theorems in the later editions |
+| Low | [BEARDON], read in the softcover reprint of the 1983 edition at the cited pages. [VOIGHT2009] cites the 1995 printing, which was not compared. | The numbering of Theorems 9.4.5 and 9.8.4 in the printing that Voight cites |
+| Low | [EPSTEIN-PETRONIO1994], printed pp. 118 to 120, 122 to 124, 157 to 159, and 167 to 170, which were checked in the text layer only, and the proofs of Theorems 4.13 and 4.14 on pp. 143 to 147, which were not checked step by step | Lemma 2.7, Propositions 2.5 and 2.11, and Lemma 2.13, which this document uses only through Remark 3.24, and the text of Section 7 on pp. 157 to 159 |
 | Low | [SERIES2013], read only in Section 6.1 and Sections 6.1.5 to 6.1.6. The proof in Section 7.6 is unread. | Proof of Theorem 6.14 |
 | Low | [IMBERT2001] | G6 |
 | Low | [MASKIT1971], which returned HTTP 403 | The original completeness condition |
-| Low | [MACBEATH1967] and [WILKIE1966] | The primary NEC text, largely superseded by [CONWAY-HUSON2002] |
+| Low | [WILKIE1966] | The proofs of Lemmas 1 to 4 that [MACBEATH1967] relays, and the existence of a polygon for an NEC signature |
 | Low | [CFKP], available locally but not read | Formulas of models and isometries, needed for no claim here |
 | Low | [GILMAN-MASKIT1991] | The two-generator discreteness algorithm |
 | Low | [BULATOV2011], the talk and paper PDFs | Bulatov's own account beyond the SymmHub code |
-| Low | Dress 1987, Delgado-Friedrichs 2003, Huson 1993, and Balke-Huson 1996, whose full entries the research did not record | Detail on Delaney-Dress symbols |
+| Low | Dress 1987, Delgado-Friedrichs 2003, and Huson 1993, whose full entries the research did not record | Detail on Delaney-Dress symbols |
 
 ### 13.5. Assumptions and Bibliographic Gaps
 
 These assumptions were made in writing this document:
 
 - The reading of Maskit's typography, that $\tilde a$ is a matrix and $a$ its map, follows the usage in the research report and was not checked against the paper.
-- The definitions of "Fuchsian group" and "NEC group" in Section 2.4 summarize how the sources use the terms. No source that was read was quoted for them.
+- The definition of "Fuchsian group" in Section 2.4 summarizes how the sources use the term, without the compact quotient that [SINGERMAN1974] p. 233 requires. The definition of "NEC group" drops the same requirement, as Section 2.4 states.
 - The years of the secondary arXiv sources in Section 14.2 are read from their arXiv identifiers.
 - [VONGAGERN2009] was read at the cited pages, so its claims carry {P}. The research did not state whether the whole paper was read.
+- The statements from [EPSTEIN-PETRONIO1994], [RATCLIFFE], [BEARDON], [SINGERMAN1974], [MACBEATH1967], [SYMMETRIES-OF-THINGS2008], and [BALKE-HUSON1996] carry {P} because each was read by one reader and checked against the PDF by a second reader, in part on the page images and in part on the text layer. Where the two disagreed, this document follows the second reading.
+- The locators of [RATCLIFFE] are those of the first edition, which the other research documents also cite. The numbering of the later editions was not compared.
 
-The research did not record the titles of several secondary sources, so their entries in Section 14.2 give the identifier only. The Wikipedia pages for the twist convention, the Lambert quadrilateral, and the IUC, Schoenflies, and Coxeter names are not identified.
+The research did not record the titles of several secondary sources, so their entries in Section 14.2 give the identifier only. The Wikipedia pages for the twist convention and the Lambert quadrilateral are not identified.
 
 ## 14. References
 
 ### 14.1. Sources Read
 
+- [BALKE-HUSON1996] Balke, L. and D. H. Huson, "Two-dimensional groups, orbifolds and tilings", Geometriae Dedicata 60, 89-106, 1996. Read in full.
+- [BEARDON] Beardon, A. F., "The Geometry of Discrete Groups", Graduate Texts in Mathematics 91, Springer, 1983, softcover reprint, ISBN 978-0-387-90788-8. Read at the cited pages of Chapters 7, 9, and 10. Locators give printed pages.
 - [CONWAY-HUSON2002] Conway, J. H. and D. H. Huson, "The Orbifold Notation for Two-Dimensional Groups", Structural Chemistry 13(3/4), 247-257, 2002, DOI 10.1023/A:1015851621002, <https://doi.org/10.1023/A:1015851621002>.
 - [DAVIS2008] Davis, M. W., "The Geometry and Topology of Coxeter Groups", 2008. Locators give printed pages. The PDF page is the printed page plus 16.
+- [EPSTEIN-PETRONIO1994] Epstein, D. B. A. and C. Petronio, "An exposition of Poincare's polyhedron theorem", L'Enseignement Mathematique 40, 113-170, 1994, zbMATH 0808.52011. Read in full, with printed pp. 118 to 120, 122 to 124, 157 to 159, and 167 to 170 checked in the text layer only. Locators give printed pages.
 - [FIELD-GUIDE2018] Conway, J. H., Doyle, P., Gilman, J., and W. Thurston, "Geometry and the Imagination in Minneapolis", 1991 handouts, arXiv:1804.03055v1, 2018, <https://arxiv.org/abs/1804.03055>.
+- [MACBEATH1967] Macbeath, A. M., Canadian Journal of Mathematics 19, 1192-1205, 1967, DOI 10.4153/CJM-1967-108-5, <https://doi.org/10.4153/CJM-1967-108-5>. Read in full.
 - [MASKIT2001] Maskit, B., "Matrices for Fenchel-Nielsen coordinates", Annales Academiae Scientiarum Fennicae Mathematica 26, 267-304, 2001, <http://www.acadsci.fi/mathematica/Vol26/maskit.pdf>.
+- [RATCLIFFE] Ratcliffe, J. G., "Foundations of Hyperbolic Manifolds", first edition, Graduate Texts in Mathematics 149, Springer, 1994, ISBN 978-1-4757-4013-4. Read in Sections 3.5, 6.3, 6.5 to 6.7, 7.1 to 7.3, 9.2, 9.7, 9.8, 11.2, 13.4, and 13.5, and at pp. 505 and 507. Locators give the numbering and the printed pages of the first edition.
 - [SERIES2013] Series, C., with assistance from S. Maloni, "Hyperbolic Geometry MA 448", lecture notes, University of Warwick, 2008, revised 2010, last edited 2013-03-01. The printed page is the PDF page minus 17.
+- [SINGERMAN1974] Singerman, D., "On the structure of non-Euclidean crystallographic groups", Proceedings of the Cambridge Philosophical Society 76, 233-240, 1974, DOI 10.1017/S0305004100048891, <https://doi.org/10.1017/S0305004100048891>. Read in full.
 - [SOLOMYAK2020] Solomyak, B., "Lecture 9: Examples of lattices, Poincare's Theorem", lecture slides, Bar-Ilan University, 2020-12-20.
+- [SYMMETRIES-OF-THINGS2008] Conway, J. H., Burgiel, H., and C. Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5. Read in Chapters 1 to 18 and Appendix A. Locators give printed pages.
 - [SYMMHUB] Bulatov, V., Goodman-Strauss, C., and S. Vorthmann, "SymmHub", source code, commit f2d19cb, MIT licence, 2025, <https://github.com/SymmHub/SymmHub>. Paths are relative to the root of the repository.
 - [TEGULA2020] Zeller, R., Delgado Friedrichs, O., and D. H. Huson, "Tegula - exploring a galaxy of two-dimensional periodic tilings", arXiv:2007.10625v1, 2020, <https://arxiv.org/abs/2007.10625>.
 - [THURSTON2002] Thurston, W. P., "The Geometry and Topology of Three-Manifolds", chapter 13, electronic version 1.1 of the 1980 notes, March 2002, <http://www.msri.org/publications/books/gt3m/>, chapter PDF <https://library.slmath.org/nonmsri/gt3m/PDF/13.pdf>.
@@ -987,20 +1149,14 @@ The research did not record the titles of several secondary sources, so their en
 
 ### 14.3. Sources Not Read
 
-- [BEARDON] Beardon, A. F., "The Geometry of Discrete Groups", Graduate Texts in Mathematics 91, ISBN 978-0-387-90788-8.
 - [BULATOV2011] Bulatov, V., talk of 2011 and "Bending Hyperbolic Kaleidoscopes", Bridges 2011, <http://bulatov.org/math/1101/>, <http://bulatov.org/math/1107/>.
 - [BUSER] Buser, P., "Geometry and Spectra of Compact Riemann Surfaces", ISBN 978-0-8176-4992-0.
 - [CFKP] Cannon, J. W., Floyd, W. J., Kenyon, R., and W. R. Parry, "Hyperbolic Geometry".
 - [CHOI2012] Choi, S., "Geometric Structures on 2-Orbifolds", MSJ Memoirs 27, 2012.
 - [DEATON1993] Deaton, A. A., "Hyperbolic Orbifolds and Patterns", senior thesis, Princeton University, 1993, unpublished.
-- [EPSTEIN-PETRONIO1994] Epstein, D. B. A. and C. Petronio, "An exposition of Poincare's polyhedron theorem", L'Enseignement Mathematique 40, 113-170, 1994, zbMATH 0808.52011.
 - [GILMAN-MASKIT1991] Gilman, J. and B. Maskit, Michigan Mathematical Journal 38, 13-32, 1991.
 - [IMBERT2001] Imbert, M., "Calculs de presentations de groupes fuchsiens via les graphes rubanes", Expositiones Mathematicae 19, 213-227, 2001.
 - [KULKARNI-LEE-RAYMOND1985] Kulkarni, R. S., Lee, K. B., and F. Raymond, "Deformation spaces for Seifert manifolds", Lecture Notes in Mathematics 1167, Springer, 1985.
-- [MACBEATH1967] Macbeath, A. M., Canadian Journal of Mathematics 19, 1192-1205, 1967, DOI 10.4153/CJM-1967-108-5, <https://doi.org/10.4153/CJM-1967-108-5>.
 - [MASKIT1971] Maskit, B., "On Poincare's theorem for fundamental polygons", Advances in Mathematics 7, 219-230, 1971, DOI 10.1016/S0001-8708(71)80003-8, <https://doi.org/10.1016/S0001-8708(71)80003-8>.
-- [RATCLIFFE] Ratcliffe, J. G., "Foundations of Hyperbolic Manifolds", 3rd edition, ISBN 978-3-030-31596-2, DOI 10.1007/978-3-030-31597-9_11, <https://doi.org/10.1007/978-3-030-31597-9_11>.
 - [SCOTT1983] Scott, P., "The geometries of 3-manifolds", Bulletin of the London Mathematical Society 15, 401-487, 1983, DOI 10.1112/blms/15.5.401, <https://doi.org/10.1112/blms/15.5.401>.
-- [SINGERMAN1974] Singerman, D., "On the structure of non-Euclidean crystallographic groups", Proceedings of the Cambridge Philosophical Society 76, 233-240, 1974, DOI 10.1017/S0305004100048891, <https://doi.org/10.1017/S0305004100048891>.
-- [SYMMETRIES-OF-THINGS2008] Conway, J. H., Burgiel, H., and C. Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5.
 - [WILKIE1966] Wilkie, H. C., Mathematische Zeitschrift 91, 87-102, 1966, DOI 10.1007/BF01110157, <https://doi.org/10.1007/BF01110157>.

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Snapshot |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | Roadmap planning for the simulation of planar partial differential equations on orbifolds, with GPU compute through Slang |
 
 ## Abstract
@@ -16,7 +16,7 @@ This document covers the Laplace-Beltrami operator on orbifolds in conformal cha
 
 It does not repeat what `docs/research/symmhub.md` records about the SymmHub simulations. Section 13.1 of that document describes the SymmHub `Gray-Scott` and Ginzburg-Landau steps, the hyperbolic metric option, and the symmetrization pass, and this document adds only the facts that it lacks. The construction of fundamental domains belongs to `docs/research/fundamental-domains.md`, and orbifold notation belongs to `docs/research/orbifold-notation.md`.
 
-All facts come from one research pass, run by eight web-searcher agents, with every source accessed on 2026-11-15. The research rated its overall confidence as medium. The setting, the software facts, and the method landscape rest on primary sources, but no error or stability analysis specific to orbifolds was found. Many arXiv and journal PDFs could not be decoded, so several key texts were read only as abstracts, summaries, ar5iv HTML, or citing papers. Section 10 lists the open questions, the gaps, and the sources not read.
+All facts come from one research pass, run by eight web-searcher agents, with every source accessed on 2026-11-15. The exception is [CBG2008], which was read in part on 2026-11-16 from a copy that the owner supplied, and which Section 3.3 cites with printed page numbers. The research rated its overall confidence as medium. The setting, the software facts, and the method landscape rest on primary sources, but no error or stability analysis specific to orbifolds was found. Many arXiv and journal PDFs could not be decoded, so several key texts were read only as abstracts, summaries, ar5iv HTML, or citing papers. Section 10 lists the open questions, the gaps, and the sources not read.
 
 ## 2. Notation and Conventions
 
@@ -32,6 +32,7 @@ All facts come from one research pass, run by eight web-searcher agents, with ev
 - $h$: The grid spacing, or the mesh size of a triangulation.
 - $\Delta t$: The time step.
 - $\mathbf{M}$, $\mathbf{K}$: The mass matrix and the stiffness matrix of a finite element method.
+- $Z$, $\delta$: The generator of a crosscap and its factor in the global relation of a presentation, as [CBG2008] writes them.
 
 ### 2.2. Terminology
 
@@ -92,8 +93,10 @@ Each feature of a signature becomes a condition on the boundary of a fundamental
 | --- | --- | --- |
 | Mirror, `*` | Neumann condition: "a $\Gamma$-invariant smooth function on R restricts to a function on $\lvert \mathcal{O} \rvert$ with zero normal derivative on the mirror edge" | [BERARD-WEBB2020], [FARSI2016] |
 | Paired sides, from translations or a handle `o` | Periodic identification. "The sides are matched in distinct pairs, so that there is a unique element of $\Gamma$ carrying a side to the paired side." On the hyperbolic plane the identification is made "by gluing paired edges of the fundamental polygon", and the generators "do not commute". | [WP-FUNDAMENTAL-POLYGON] (secondary), [SAUSSET-TARJUS2007] |
-| Glide reflection or crosscap `x` | "an $\times$ indicates a glide reflection". In a fundamental polygon it is a side pairing with the same exponent, as in $ABAB$ for the projective plane and $ABAB^{-1}$ for the Klein bottle, which identifies the sides with reversed orientation. | [WP-ORBIFOLD-NOTATION] (secondary), [CBG2008] (not read) |
+| Glide reflection or crosscap `x` | "an $\times$ indicates a glide reflection". In a fundamental polygon it is a side pairing with the same exponent, as in $ABAB$ for the projective plane and $ABAB^{-1}$ for the Klein bottle, which identifies the sides with reversed orientation. | [WP-ORBIFOLD-NOTATION] (secondary), [CBG2008] |
 | Cone point of order $n$ | The local model is "the origin of R2 quotiented out by a cyclic group of order n of rotations". On surfaces with conical points "we denote by $\Delta$ the Friedrichs extension", and "the functions from the domain of the Friedrichs extension are bounded near the vertex". Kokotov treats general cone angles, not only $2\pi/n$. | [WP-ORBIFOLD] (secondary), [KOKOTOV2009] |
+
+[CBG2008] describes a crosscap by zips and not by a side-pairing word. Zips in "opposite senses" give a handle (p. 95), and a crosscap arises when "the two zips are in the same sense" (p. 94). In the presentation of a group, the generator $Z$ of a crosscap satisfies $Z^2 = \delta$, where $\delta$ is the factor of that crosscap in the global relation of the group (Chapter 10, pp. 125-126). A search of the book found no side-pairing word such as $ABAB$, so the words in the table rest on [WP-ORBIFOLD-NOTATION] alone.
 
 ## 4. Method Families
 
@@ -254,7 +257,7 @@ The research could not read these sources. Each belongs in `docs/research/source
 
 | Source | Needed | Priority |
 | --- | --- | --- |
-| [CBG2008] | Orbifold notation, the side pairings of each symbol, and fundamental domains | High |
+| [CBG2008] | Read in part (Section 3.3). Still needed: the side pairings of each symbol as words, and fundamental domains | High |
 | [DZIUK-ELLIOTT2013] | Error orders, mass lumping, and time stepping for surface reaction-diffusion | High |
 | [CRANE-DDG] | The cotangent formula, the DEC Laplacian, and boundary handling | High |
 | [BULATOV-G4G15-PAPER] | Method details, and why simple symmetrization fails for 13 wallpaper groups | High |
@@ -283,7 +286,7 @@ The research could not read these sources. Each belongs in `docs/research/source
 - [BULATOV-G4G15-PAPER] Bulatov, V., G4G15 exchange paper, 2024. Not read (PDF over 10 MB).
 - [BULATOV-JMM2025] Bulatov, V., Bridges 2025 JMM art exhibition gallery, <https://gallery.bridgesmathart.org/exhibitions/2025-jmm-art-exhibition/vladimir-bulatov>.
 - [BULATOV-MAA2025] Bulatov, V., SymSim talk at the MAA, 2025-01-08, <https://www.bulatov.org/symsim/250108_MAA/talk/index.html>.
-- [CBG2008] Conway, Burgiel, and Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1568812205. Not read (book).
+- [CBG2008] Conway, Burgiel, and Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1568812205. Read in part, from a copy that the owner supplied, cited by printed page.
 - [CFL2025] arXiv 2510.06653, 2025, on the Courant-Friedrichs-Lewy limit of forward Euler with FEM. Title not recorded.
 - [CHAPLAIN2001] Chaplain, Ganesh, and Graham, "Spatio-temporal pattern formation on spherical surfaces", Journal of Mathematical Biology 42, 2001, <https://researchportal.bath.ac.uk/en/publications/spatio-temporal-pattern-formation-on-spherical-surfaces-numerical/>.
 - [CHOSSAT-FAYE2013] Chossat and Faye, the Swift-Hohenberg equation on the hyperbolic plane, arXiv 1304.6005, 2013, <https://arxiv.org/abs/1304.6005>.

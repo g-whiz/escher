@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The parsing, validation, canonicalization, and classification of orbifold signatures, and the group data derived from a signature |
 
 ## Abstract
@@ -48,13 +48,15 @@ This document leaves these topics to other documents or to its sources:
 - bad orbifold: An orbifold that has no covering orbifold which is a manifold, so that no group corresponds to it ([TH], Definition 13.2.3, p. 304). An orbifold that is not bad is good.
 - spherical, Euclidean, hyperbolic: The geometry of a good orbifold. [TH] uses elliptic, parabolic, and hyperbolic for the same three cases.
 - frieze group: A group whose signature contains $\infty$ and has $\chi = 0$ ([CH], p. 255).
-- NEC group: A non-Euclidean crystallographic group, which is a discrete group of isometries of the hyperbolic plane that may reverse orientation.
+- NEC group: A non-Euclidean crystallographic group, which is a discrete group of isometries of the hyperbolic plane, possibly with orientation-reversing elements, whose quotient of the hyperbolic plane is compact ([SINGERMAN], p. 233, [MACBEATH], pp. 1192-1193). [MACBEATH] notes that "infinite periods cannot occur" in such a group (p. 1193).
+- Fuchsian group: An NEC group that contains only orientation-preserving isometries ([SINGERMAN], p. 233).
+- proper NEC group: An NEC group that contains an orientation-reversing isometry ([SINGERMAN], p. 233).
 - NEC signature: The signature of an NEC group in the form of Macbeath, as Section 9.2 gives it.
 - Teichmuller space: The space of deformations of the geometric structure of an orbifold, written $T(O)$ as in [TH].
 
 ### 2.3. Status of Each Claim
 
-A claim is primary when it was checked against the text of a primary source, which is one of [CH], [TH], [FG], and [TG]. A claim is secondary when it rests only on a secondary source, and the text then says "secondary source only". A source reached only through a summary of its code, rather than quotations, is marked the same way.
+A claim is primary when it was checked against the text of a primary source, which is one of [CH], [TH], [FG], [TG], [CBG], [SINGERMAN], [MACBEATH], [BH], and [BEARDON]. A claim is secondary when it rests only on a secondary source, and the text then says "secondary source only". A source reached only through a summary of its code, rather than quotations, is marked the same way.
 
 A statement about what a program does is primary when it was read directly from the source code at a fixed commit, with file and line references. Such a statement describes the code only. The code is not a publication, and its comments carry no more weight than any other unchecked claim.
 
@@ -62,7 +64,7 @@ A statement about what a program does is primary when it was read directly from 
 
 This document writes signatures as code spans in ASCII, with `o` for a handle, `*` for a mirror boundary, and `x` for a crosscap, following [TG] (Section 2, Eq. (1), p. 3). Printed glyphs of the sources appear only in code spans and only where a parser needs to recognize them.
 
-No source defines an ASCII spelling of $\infty$ inside a signature. This document therefore writes the signatures that contain $\infty$ in LaTeX, such as $\ast 22\infty$, and defines no text form for them (Section 12, item 2).
+No source defines an ASCII spelling of $\infty$ inside a signature. [CBG] prints only the glyph, for example in Table 3.1 (p. 29) and Table 18.1 (pp. 239-240). This document therefore writes the signatures that contain $\infty$ in LaTeX, such as $\ast 22\infty$, and defines no text form for them (Section 12, item 2).
 
 [TH] writes surfaces with a superscript, such as the disk $D^2$. Inside code spans this document writes the superscript as `^2`, such as `D^2( ;2,3,6)`, and keeps Thurston's semicolons, which separate elliptic orders from corner orders.
 
@@ -73,10 +75,10 @@ These conventions differ between sources. The text of each section uses the conv
 | Topic | Variants | Convention in this document |
 | --- | --- | --- |
 | Glyphs for handle and crosscap | [CH] and [TG] use `○` or `o` for a handle and `×` or `x` for a crosscap. [FG] (Section 30, p. 62) uses `•` for a handle and `◦` for a crosscap. | [CH] and [TG]. Section 3.3 gives the mapping. |
-| Reversal of a single boundary | [CH] (p. 247) and [TG] (p. 3) allow it only under conditions. [EPINET] states it without conditions (secondary source only). | [CH], as the research recommends. Section 4.1 gives the rule. |
-| Direction of the boundary conjugation | [CH] writes $\lambda^{-1} P \lambda = S$. [AX-1702.02342] and [AX-1408.0127] write $c_s = e\,c_0\,e^{-1}$. [AX-1612.06810] writes $c_s = e^{-1} c_0\, e$, which matches [CH]. | Each formula keeps the convention of its source. The difference is a convention only. |
+| Reversal of a single boundary | [CH] (p. 247), [TG] (p. 3), [CBG] (Chapter 18, pp. 231-232), [BH] (p. 94), and [MACBEATH] (Lemma 5, pp. 1202-1203) allow it only under conditions. [EPINET] states it without conditions (secondary source only). | [CH]. Section 4.1 gives the rule. |
+| Direction of the boundary conjugation | [CH] writes $\lambda^{-1} P \lambda = S$. [SINGERMAN] (p. 234) and [MACBEATH] (p. 1197) write $c_{is_i} = e_i^{-1} c_{i0} e_i$, which matches [CH]. [AX-1612.06810] also matches [CH]. [AX-1702.02342] and [AX-1408.0127] write $c_s = e\,c_0\,e^{-1}$. | Each formula keeps the convention of its source. The difference is a convention only. |
 | Letters in [TH] | Formula 13.3.4 uses $n_i$ for corner orders and $m_i$ for elliptic orders. The table of Theorem 13.3.6 lists elliptic orders first. Corollary 13.3.7 uses $k$ for elliptic points and $l$ for corner reflectors. | Each formula keeps the definitions of its own statement. |
-| Trivial group | [CH] and [TG] write `1`. [CH] (Appendix, p. 257) relates `*11`, `1*`, and `*` (Section 3.5). [GAVROG] writes `1*` and `1x`. | [CH]. |
+| Trivial group | [CH] and [TG] write `1`. [CBG] writes `11` in Table 4.1 (p. 58). [CH] (Appendix, p. 257) and [CBG] (p. 53) relate `*11`, `1*`, and `*` (Section 3.5). [BH] admits no order 1 (pp. 91 and 101). [GAVROG] writes `1*` and `1x`. | [CH]. |
 | Frieze names in the International Union of Crystallography (IUC) notation | The axis convention for `p1m1` and `p11m` varies in the literature (secondary source only). | Unresolved (Section 12, item 9). |
 
 ## 3. Signature Grammar
@@ -100,7 +102,7 @@ A cone or corner order is an integer $v_i \geq 2$ ([TG], p. 2). A boundary may h
 
 ### 3.2. Layout
 
-A signature juxtaposes "the symbols for the handles, cone points, boundaries (with corners), and crosscaps", in that order ([CH], p. 252, also p. 247). [TG] gives the same order (Section 2, Eq. (1), p. 3):
+A signature juxtaposes "the symbols for the handles, cone points, boundaries (with corners), and crosscaps", in that order ([CH], p. 252, also p. 247). [BH] states the same order as the writing rules of Conway (p. 94). [TG] also gives it (Section 2, Eq. (1), p. 3):
 
 $$\mathtt{o}^{h} \quad A\,B\,C \cdots \quad \ast a_{1} a_{2} \cdots \quad \ast r\,p\,q \cdots \quad \cdots \quad \mathtt{x}^{c}$$
 
@@ -134,7 +136,12 @@ A parser never reads `o` as a crosscap, because [CH] and [TG], the later sources
 
 No primary source defines a delimiter for an order of 10 or more. [CH] separates cone points from corners only by typography (p. 248), and its Table AI (p. 256) juxtaposes multi-digit orders with visual spacing only, as in `1212` for `nn` with $n = 12$, and in `∗1212`, `2212`, `2∗12`, `∗2212`, and `120120`. Plain text of this form is ambiguous, because "1212" also reads as four cone points.
 
-Two programs wrap such an order in parentheses, as in `(12)`. Tegula does this according to a summary of its code (secondary source only), and the SymmHub parser requires it (Section 11.1). Section 12, item 1 records the question.
+Two primary sources print multi-digit orders in tables and state no rule for them:
+
+- [CBG] separates orders with a printed space, as in `22 12` and `*12 12` in Table 4.1 (p. 58), and `*2 3 12` and `2 3 10` in Table 18.1 (pp. 239-240). In Table 18.1 the single-digit orders are also separated once one order of the signature has two digits, while Table 4.1 prints `2*12` and `*225` without a space. [CBG] uses no parentheses.
+- [BH] wraps each order of 10 or more in parentheses in Table I (p. 91), as in `*(12)32`, `(12)*2`, `5*(10)`, and `*(12)(12)3`. The caption of that table inverts the factor between the curvature and $\chi$ that Theorem 4.1 of the same paper states (p. 97), so this document cites the entries of the table and not its caption.
+
+Two programs also wrap such an order in parentheses. Tegula does this according to a summary of its code (secondary source only), and the SymmHub parser requires it (Section 11.1). Section 12, item 1 records the question.
 
 ### 3.5. Order 1 and the Trivial Group
 
@@ -145,22 +152,28 @@ An order of 1 is omitted from a signature. [CH] states this for the seven infini
 - `2*1` is `2*`.
 - `*11` is `1*`, which is `*`.
 
-[CH] and [TG] write the trivial group as `1` ([TG], p. 2, [CH], Table AI). [GAVROG] writes `1*` and `1x` (secondary source only). How to treat a `1` token, and an order of 1 in a corner list other than the examples of [CH], is open (Section 12, item 4).
+[CBG] states the rule for every order: "We allow these integers to be 1, with the convention that digits 1 can be omitted", and it adds "we let 1* = *11 = *" (Chapter 4, p. 53). It also states that `*M` equals `*M1` (p. 57). [BH] instead admits no order 1: every order is greater than 1 (p. 91), and a symbol is a word over the alphabet $\{o, \times, \ast\} \cup (\mathbb{N} \setminus \{0, 1\})$ (p. 101). [MACBEATH] requires every period to be at least 2 (p. 1195). Omitting every order of 1 gives the same signature under all of these conventions.
+
+[CH] and [TG] write the trivial group as `1` ([TG], p. 2, [CH], Table AI). [CBG] writes it as `11` in Table 4.1 (p. 58). [GAVROG] writes `1*` and `1x` (secondary source only). How to treat a `1` token on its own is open (Section 12, item 4).
 
 ## 4. Equivalences Between Signatures
 
 ### 4.1. Equivalence Rules
 
-Two signatures name the same group when one rule, or a sequence of these rules, turns one into the other. Rules 1 to 4 and rule 6 are primary from [CH], and rule 5 is primary from [TG].
+Two signatures name the same group when one rule, or a sequence of these rules, turns one into the other. Rules 1 to 4 and rule 6 are primary from [CH], and rule 5 is primary from [TG] and [CBG]. [CBG] lists rules 1 to 5 as six operations and states that the list is complete: "This is all - if two signatures represent isotopic groups, then you can get from one to the other using only these operations" (Chapter 18, "Which Signatures Are Really the Same?", pp. 231-232).
 
 1. Permute the cone points freely. [CH], p. 247: "We can freely permute the numbers A, B, C that represent gyrations". [TG], p. 3: "the cone degrees A, B, C, [...] are unordered".
 2. Permute the boundary blocks freely ([CH], p. 247).
 3. Rotate the corners of any one boundary cyclically, so that `*abc` is the same as `*bca` ([CH], pp. 247-248: "only the cyclic order matters").
 4. Reverse the cyclic order of the corners of every boundary at once. When a crosscap is present, also reverse the cyclic order of any single boundary ([CH], p. 247: "we can always reverse the cyclic orders for all boundaries simultaneously and individually if an [crosscap] character is present"). [CH] explains that the corners of an orientable orbifold are listed in the cyclic orders induced from one fixed orientation, and that changing this orientation reverses all of them (footnote 5, p. 248).
-5. When a crosscap is present, replace any handle by two crosscaps, so that `ox` is the same as `xxx`. [TG] states the rule and attributes it to Dyck, 1888 (p. 2). [CH] does not state it.
+5. When a crosscap is present, replace any handle by two crosscaps, so that `ox` is the same as `xxx`. [TG] states the rule and attributes it to Dyck, 1888 (p. 2). [CBG] states it as $\mathtt{o}^a \mathtt{x}^b = \mathtt{x}^{2a+b}$ if $b > 0$ (Chapter 8, p. 102) and as "exchange an o and an x for three x's" (pp. 231-232). [CH] does not state it.
 6. Omit an order of 1 (Section 3.5).
 
+[CBG] states rule 4 as two operations: "simultaneously reverse the cyclic orders in all n kaleidoscopic portions", and "independently reverse the cyclic orders in individual kaleidoscopic portions, provided that the signature contains an x" (pp. 231-232). [BH] gives the same condition: a single boundary may be reversed when the orbifold is not orientable (p. 94).
+
 [TG] states rule 4 as: "One can flip the direction in which corners of an individual boundary component are listed if there are no other boundary components with corners, or if the surface is non-oriented" (p. 3). The research reads this as agreeing with [CH], because reversing every boundary at once changes only the one boundary that has corners. [EPINET] states reversal without any condition (secondary source only). This document follows [CH] (Section 2.5).
+
+[MACBEATH] proves the same rules for NEC signatures, in the form of Section 9.2. Permuting the proper periods, permuting the period cycles, rotating one period cycle cyclically, and reversing all period cycles at once each give an isomorphic group (Lemmas 1 to 4, p. 1202). For sign $-$, reversing one period cycle alone also gives an isomorphic group (Lemma 5, pp. 1202-1203). [MACBEATH] states that Lemmas 1 to 4 are proved in [WILKIE] and that Lemma 5 is its own (p. 1202). Theorems 1 and 2 of [MACBEATH] (pp. 1201-1202) state that two NEC signatures give isomorphic groups exactly when they are related as Theorems 1a and 2a describe (pp. 1199-1200). For sign $+$, all period cycles are matched directly, or all inversely. For sign $-$, each period cycle is matched directly or inversely on its own. [MACBEATH] also states that the genus and the orientability are invariants of the group (p. 1203). An NEC signature has handles or crosscaps but not both, so rule 5 does not arise in it.
 
 ### 4.2. Relations That Are Not Equivalences
 
@@ -171,7 +184,11 @@ These relations appear in the sources but relate different groups:
 
 ## 5. Canonical Form
 
-No primary source defines a canonical string for a signature. [CH] and [TG] state only the equivalences of Section 4.1. The canonical forms in the paper [TG] are canonical forms of Delaney-Dress graphs, defined by the lexicographically smallest traversal (Section 7, p. 10), not of orbifold names.
+No primary source defines a canonical string for a signature. [CH], [TG], [CBG], [BH], and [MACBEATH] state only the equivalences of Section 4.1. The canonical forms in the paper [TG] are canonical forms of Delaney-Dress graphs, defined by the lexicographically smallest traversal (Section 7, p. 10), not of orbifold names.
+
+[CBG] gives one piece of advice on the order of numbers, for plane patterns: "If we list larger numbers before smaller ones (using *632 rather than *236), we can tell at a glance which patterns have the same type" (pp. 30-31). It is advice, not a rule, and [CBG] lists `*632`, `*623`, `*362`, `*326`, `*263`, and `*236` as names that "all mean the same thing" (p. 231).
+
+[BH] gives an algorithm that computes an orbifold symbol from a Delaney-Dress symbol (Section 5, pp. 98-100). It counts the handles or crosscaps from the Euler characteristic of the underlying surface and the number of boundary components (p. 98). It reads the cone points from the orbits that it calls cycles, and the corners from the orbits that it calls chains (p. 99). Algorithm 5.1 (p. 99) finds the boundary components and prints a `*` for each, followed by the corner orders in the order in which it traverses that boundary. [BH] states no order for the cone points or the boundaries and no normal form for a cycle of corners.
 
 The only canonicalization of names found is in the code of Tegula, which Section 11.2 describes (secondary source only). It does not apply rule 4 to a single boundary when a crosscap is present. Section 12, item 3 lists the choices that remain open.
 
@@ -199,7 +216,7 @@ The defects are these ([CH], Table I, p. 252). In the table note of [CH], "The l
 | Cone point of order $\infty$ | $1$ |
 | Corner point of order $\infty$ | $\frac{1}{2}$ |
 
-[CH] derives each defect, for example that making an interior point an $A$-fold cone point "decreases ch(Q) by 1 - 1/A" (p. 253). [FG] gives the same values as prices in the "Orbifold Shop": a handle costs 2.00, a mirror 1.00, a crosscap 1.00, a cone point $1.00 \times (n-1)/n$, and a corner reflector $0.50 \times (n-1)/n$, with the prerequisite of at least one mirror (Section 32, pp. 66-67). Spending 1.00 lowers the Euler characteristic by 1 ([FG], Section 33, p. 71). All of this section is primary.
+[CH] derives each defect, for example that making an interior point an $A$-fold cone point "decreases ch(Q) by 1 - 1/A" (p. 253). [FG] gives the same values as prices in the "Orbifold Shop": a handle costs 2.00, a mirror 1.00, a crosscap 1.00, a cone point $1.00 \times (n-1)/n$, and a corner reflector $0.50 \times (n-1)/n$, with the prerequisite of at least one mirror (Section 32, pp. 66-67). Spending 1.00 lowers the Euler characteristic by 1 ([FG], Section 33, p. 71). [CBG] gives the same values as costs in Table 3.1 (p. 29). All of this section is primary.
 
 ### 6.2. Form in Terms of the Underlying Surface
 
@@ -213,14 +230,14 @@ $$\chi(O) = \chi(X_O) - \frac{1}{2} \sum_{i} \left(1 - \frac{1}{n_i}\right) - \s
 
 ### 6.3. Covers and Subgroups
 
-A $k$-sheeted cover $\tilde{O}$ of $O$ has $\chi(\tilde{O}) = k\,\chi(O)$ ([TH], Proposition 13.3.4). [CH] states the same for groups: "passing to a subgroup of index i multiplies the characteristic by i" (p. 255).
+A $k$-sheeted cover $\tilde{O}$ of $O$ has $\chi(\tilde{O}) = k\,\chi(O)$ ([TH], Proposition 13.3.4). [CH] states the same for groups: "passing to a subgroup of index i multiplies the characteristic by i" (p. 255). [CBG] states it as "if a group H has index n in a larger group G ... H's characteristic is n times as big as G's" (p. 226).
 
 ### 6.4. Examples
 
 These examples apply the defect rule of Section 6.1. Each result is the value that its source states:
 
-- `4*3`: $\chi = 2 - \left(\frac{3}{4} + 1 + \frac{2}{6}\right) = -\frac{1}{12}$, as [CH] states (p. 255).
-- `*3333`: $\chi = 2 - \left(1 + 4 \cdot \frac{2}{6}\right) = -\frac{1}{3}$, as [CH] states (p. 255).
+- `4*3`: $\chi = 2 - \left(\frac{3}{4} + 1 + \frac{2}{6}\right) = -\frac{1}{12}$, as [CH] (p. 255) and [CBG] (pp. 225-226) state.
+- `*3333`: $\chi = 2 - \left(1 + 4 \cdot \frac{2}{6}\right) = -\frac{1}{3}$, as [CH] (p. 255) and [CBG] (pp. 225-226) state.
 - Group order: [TH] states that the group $\Delta_{2,3,5}$ has Euler number $1/60$ and order $120 = 2/(1/60)$ (p. 311). [CH] lists `*532` with order 120 (Table AI, p. 256).
 - $\ast 22\infty$: $\chi = 2 - \left(1 + \frac{1}{4} + \frac{1}{4} + \frac{1}{2}\right) = 0$, which places it among the frieze groups of [CH] (Table IV, p. 255).
 
@@ -242,15 +259,24 @@ The sign of $\chi$ determines the geometry ([CH], p. 253, [TH], Theorem 13.3.6, 
 
 [TH] states, for closed orbifolds: "A closed two-dimensional orbifold has an elliptic, parabolic or hyperbolic structure if and only if it is good. An orbifold O has a hyperbolic structure if and only if [$\chi(O) < 0$], and a parabolic structure if and only if [$\chi(O) = 0$]. An orbifold is elliptic or bad if and only if [$\chi(O) > 0$]" (Theorem 13.3.6, p. 312). [CH] states that "Those of characteristic 0 are precisely the Euclidean groups" and that those of negative characteristic "correspond to groups acting in the hyperbolic plane" (p. 253). The orbifold is compact exactly when $\infty$ does not appear ([CH], p. 255).
 
-The Magic Theorem of [FG] states that the signatures with exactly zero cost left give the Euclidean patterns with a bounded fundamental domain, and that there are exactly 17 of them (Section 32, p. 67).
+The Magic Theorem of [FG] states that the signatures with exactly zero cost left give the Euclidean patterns with a bounded fundamental domain, and that there are exactly 17 of them (Section 32, p. 67). [CBG] states the classification with the costs of Table 3.1, counted in dollars. The plane signatures are those with a total cost of 2 dollars (Theorem 3.1, p. 30). A spherical signature costs exactly $2 - 2/g$ dollars, where $g$ is the number of symmetries (Theorem 4.1, p. 53). The frieze signatures are those that contain $\infty$ and cost exactly 2 dollars (Theorem 5.1, p. 67). For hyperbolic signatures, [CBG] states that "Thurston has shown that every signature with negative characteristic really does correspond to a group" (Chapter 18, p. 237).
+
+Two sources address signatures that contain $\infty$ outside the friezes:
+
+- [CBG] states that the signatures of hyperbolic groups that are "almost compact but not compact are precisely those for which at least one digit is infinity", with $\infty 32$ and $\ast\infty 32$ as examples (Chapter 18, p. 233). It defines an almost compact group as one whose orbifold can be compactified by adding the images of finitely many ideal points (p. 233).
+- [BEARDON] states, for a group of orientation-preserving isometries with the signature `(g : m_1, ..., m_r ; s ; t)` of its Definition 10.4.1 (p. 268), that a non-elementary finitely generated Fuchsian group with this signature exists if and only if $2g - 2 + s + t + \sum_{j=1}^{r} (1 - 1/m_j) > 0$ (Theorem 10.4.2, p. 268). Here $s$ counts the classes of maximal parabolic cyclic subgroups and $t$ the classes of maximal boundary hyperbolic cyclic subgroups. [BEARDON] treats Fuchsian groups as groups of conformal, so orientation-preserving, maps (Definition 9.1.1, p. 204, and Chapter 5), and its Theorem 10.4.2 admits parabolic classes, so unlike the term of Section 2.2 it does not require a compact quotient.
+
+Section 12, item 15 records what these statements leave open.
 
 ### 7.2. Bad Orbifolds
 
 The bad signatures are `m` with $m > 1$, `mn` with $m \neq n$, `*m` with $m > 1$, and `*mn` with $m \neq n$. They are the only signatures that do not correspond to groups. [CH], p. 254: "The symbols [`*mn`] and mn ([$m \neq n$]), together with the particular cases [`*m`] and m ([$m > 1$]) that arise by putting n = 1, are the only ones that do not correspond to groups."
 
-Three primary sources agree:
+Five primary sources agree:
 
 - [CH], p. 254, as quoted.
+- [CBG], Chapter 4, p. 57, which names `*MN` and `MN` with $M \neq N$, and `*M` and `M` with $M > 1$.
+- [BH], p. 93, which describes the four cases in words as the sphere with one cone point, the sphere with two cone points of different orders, and the same two cases with a reflection added. It writes no signature for them.
 - [TH], table of Theorem 13.3.6, p. 312: on the underlying surface $S^2$ the elliptic orders `(n)` and `(n_1, n_2)` with $n_1 < n_2$, and on $D^2$ the corner orders `( ;n)` and `( ;n_1, n_2)` with $n_1 < n_2$. [TH] names the first case "the teardrop" (p. 304).
 - [FG], Section 34, p. 72, lists the same four configurations.
 
@@ -262,7 +288,7 @@ For a spherical signature, the order of the group is
 
 $$|G| = \frac{2}{\chi}$$
 
-([CH], pp. 252-253, [TH], p. 311). [FG] states the same in the other direction: "if the order of symmetry is k, then the Euler characteristic of the quotient orbifold is 2/k" (Section 34, p. 72).
+([CH], pp. 252-253, [TH], p. 311, [CBG], Theorem 4.1, p. 53). [FG] states the same in the other direction: "if the order of symmetry is k, then the Euler characteristic of the quotient orbifold is 2/k" (Section 34, p. 72).
 
 The Gauss-Bonnet theorem for orbifolds gives the area of the quotient ([TH], 13.3.5, p. 312):
 
@@ -270,21 +296,21 @@ $$\int_O K \, dA = 2\pi \chi(O)$$
 
 "If O is elliptic or hyperbolic, then area(O) = 2 pi |chi(O)|" ([TH], p. 312, transcribed in ASCII). The statement makes no orientability assumption, so it covers mirrors and crosscaps. With curvature $-1$, a hyperbolic signature has area $-2\pi\chi$. For example, `*3333` has area $2\pi/3$ by Section 6.4.
 
-[AX-2502.03594] (Section 2) gives the area of an NEC group as $2\pi\mu$ (secondary source only), with
+[SINGERMAN] (Theorem 1, p. 235) gives the area $\mu(F_\Gamma)$ of a fundamental region $F_\Gamma$ of an NEC group $\Gamma$ with the NEC signature of Section 9.2, for the metric $ds = |dz|/y$ on the upper half-plane:
 
-$$\mu = \alpha g + k - 2 + \sum_{i} \left(1 - \frac{1}{m_i}\right) + \frac{1}{2} \sum_{i} \sum_{j} \left(1 - \frac{1}{n_{ij}}\right)$$
+$$\mu(F_\Gamma) = 2\pi \left( \alpha g - 2 + \sum_{i=1}^{r} \left(1 - \frac{1}{m_i}\right) + k + \frac{1}{2} \sum_{i=1}^{k} \sum_{j=1}^{s_i} \left(1 - \frac{1}{n_{ij}}\right) \right)$$
 
-where $g$ is the genus, $k$ the number of period cycles, $\alpha = 2$ for sign $+$, and $\alpha = 1$ for sign $-$. The research matched this term by term with the defects of Section 6.1 and found $\mu = -\chi$. No source states that identity (Section 12, item 10).
+Here $g$ is the genus, $k$ the number of period cycles, $\alpha = 2$ for sign $+$ (part (a)), and $\alpha = 1$ for sign $-$ (part (b)). [SINGERMAN] prints the two signs as two formulas, with $2g - 2$ and $g - 2$, and this document writes them as one with $\alpha$. [AX-2502.03594] (Section 2) gives the same formula (secondary source). The research matched it term by term with the defects of Section 6.1 and found $\mu(F_\Gamma) = -2\pi\chi$. No source states that identity (Section 12, item 10).
 
 ## 8. Signature Tables
 
 ### 8.1. The 17 Euclidean Signatures
 
-The 17 signatures are primary ([CH], Table II, p. 254, [TH], parabolic list of Theorem 13.3.6, p. 312). [TH] states: "The 17 parabolic orbifolds correspond to the 17 'wallpaper groups'" (p. 314).
+The 17 signatures are primary ([CH], Table II, p. 254, [TH], parabolic list of Theorem 13.3.6, p. 312, [CBG], Table 3.2, p. 40). [TH] states: "The 17 parabolic orbifolds correspond to the 17 'wallpaper groups'" (p. 314).
 
-The Thurston column was compiled for this document from the parabolic list of [TH] (p. 312). The list is primary, but the row-by-row matching has no source of its own. The IUC column is secondary only, from [WP-ORB] and [WP-WALL]. None of the primary sources contains IUC names.
+The Thurston column was compiled for this document from the parabolic list of [TH] (p. 312). The list is primary, but the row-by-row matching has no source of its own. The IUC column is primary from Table A.1 of [CBG] (p. 416), whose International column gives the same name as this table in every row. [WP-ORB] and [WP-WALL] agree.
 
-| Signature | Thurston ([TH], p. 312) | IUC (secondary) |
+| Signature | Thurston ([TH], p. 312) | IUC ([CBG], Table A.1) |
 | --- | --- | --- |
 | `*632` | `D^2( ;2,3,6)` | `p6m` |
 | `632` | `S^2(2,3,6)` | `p6` |
@@ -306,13 +332,22 @@ The Thurston column was compiled for this document from the parabolic list of [T
 
 [TH] prints the entry for `22*` as `(2; 2; )`. The research reads it as `(2,2; )`, because the list totals 17 only with that reading.
 
+The sources attach the names `p3m1` and `p31m` to `*333` and `3*3` in two opposite ways:
+
+- Table A.1 of [CBG] (p. 416) aligns `*333` with `p3m1` and `3*3` with `p31m`, row by row inside one bracket that encloses both rows. This table follows [CBG]. The note on p. 415 of [CBG] states that the notations "p3m1 and p1m3 were inadvertently interchanged by Niggli" and that "This error is repeated in editions of Coxeter and Moser before 1980". The note prints the second name as `p1m3`.
+- Table I of [MACBEATH] (p. 1204), in its column of Coxeter-Moser symbols, prints the name `p3m1` with the NEC signature `(0,+,[3]{(3)})` and the name `p31m` with the NEC signature `(0,+,[ ]{(3,3,3)})`. In the scan, the mark after the 0 in the first signature is not clearly a comma. [MACBEATH] cites the 1957 edition of Coxeter and Moser.
+
+[MACBEATH] prints no orbifold signatures. By the dictionary of Section 9.2, which no source states (Section 12, item 12), the two signatures read `3*3` and `*333`, so the names are the opposite way to [CBG]. The research applied that dictionary to the other 15 rows of Table I of [MACBEATH] and found the same signature and name as in this table. No read source states why the two sources differ.
+
 [FG] gives Conway's nickname for each wallpaper group, such as hexascopic and tetragyro (Section 37.1.2, manuscript pp. 84-85). The research did not record the nickname of each group, so this table omits them.
 
 ### 8.2. The 14 Spherical Types
 
-The 14 types are primary: seven particular groups and seven infinite series with a parameter $n \geq 1$ ([CH], Table III, p. 254). The orders are primary from $|G| = 2/\chi$ (Section 7.3) and are tabulated in [CH] (Table AI, p. 256). The Schoenflies and Coxeter columns are secondary only, from [WP-SPH].
+The 14 types are primary: seven particular groups and seven infinite series with a parameter $n \geq 1$ ([CH], Table III, p. 254, [CBG], p. 53). The orders are primary from $|G| = 2/\chi$ (Section 7.3) and are tabulated in [CH] (Table AI, p. 256) and in Table 4.1 of [CBG] (p. 58).
 
-| Signature | Order | Schoenflies (secondary) | Coxeter (secondary) |
+The Schoenflies column is primary from Table A.2 of [CBG] (p. 416), which gives the same symbol in every row, with $N$ for $n$. The Coxeter column follows [WP-SPH]. Table A.2 of [CBG] gives the same Coxeter symbol in the rows of the seven series and of `332` and `*332`. For `532`, `*532`, `432`, `*432`, and `3*2` it writes the two numbers in the other order, as `[3,5]+`, `[3,5]`, `[3,4]+`, `[3,4]`, and `[3+,4]`. No read source states that the two orders name the same group (Section 12, item 11).
+
+| Signature | Order | Schoenflies ([CBG], Table A.2) | Coxeter ([WP-SPH]) |
 | --- | --- | --- | --- |
 | `nn` | $n$ | $C_n$ | $[n]^+$ |
 | `*nn` | $2n$ | $C_{nv}$ | $[n]$ |
@@ -339,7 +374,7 @@ The elliptic list of [TH] (Theorem 13.3.6, p. 312) agrees with this table. It li
 
 ### 8.3. The 7 Frieze Signatures
 
-The frieze groups are the signatures that contain $\infty$ and have $\chi = 0$. They "are obtained by putting n = [$\infty$] in Table III" ([CH], p. 255, Table IV). The signatures are primary. The nicknames are primary from Conway's manuscript in [FG] (p. 86, handwritten). The IUC column is secondary only, from [WP-FRIEZE], and its axis convention is unresolved (Section 2.5).
+The frieze groups are the signatures that contain $\infty$ and have $\chi = 0$. They "are obtained by putting n = [$\infty$] in Table III" ([CH], p. 255, Table IV). The signatures are primary, also from Theorem 5.1 and Figure 5.1 of [CBG] (pp. 67-68). The nicknames are primary from Conway's manuscript in [FG] (p. 86, handwritten). [CBG] (Figure 5.1, p. 68) gives the same first four nicknames and writes "dizzy" where this table writes "spinning", as in "dizzyhop" for $22\infty$. The IUC column is secondary only, from [WP-FRIEZE], and its axis convention is unresolved (Section 2.5). [CBG] gives no IUC names for the frieze groups.
 
 | Signature | Nickname | IUC (secondary) |
 | --- | --- | --- |
@@ -374,13 +409,25 @@ The frieze groups are the signatures that contain $\infty$ and have $\chi = 0$. 
 
 $$\circ^{XY} \cdots A^{\gamma} \cdots \ast^{\lambda} P\,a\,Q\,b\,R\,c\,S \cdots \times^{Z}$$
 
+[CBG] gives the same presentation with other letters (Chapter 10, pp. 125-126). It names the Greek generators $\alpha$ for a handle, $\beta$ for a cone point, $\gamma$ for a boundary, and $\delta$ for a crosscap, and it names the last Latin generator of a boundary $T$ where [CH] names it $S$. Its global relation takes the product in the order handles, cone points, boundaries, crosscaps, and [CBG] says that it usually puts this relation first. [CBG] justifies the presentation in general in Chapter 14 (pp. 175-178), and it reads a product $\alpha\beta$ as "$\alpha$ followed by $\beta$" (p. 171).
+
+[CBG] does not single out step 3 with $n = 0$, and the research does not record what [CH] states for it. [CBG] gives three presentations with a boundary without corners, in its own letters:
+
+- `22*`: $\alpha\beta\gamma = 1 = \alpha^2 = \beta^2 = P^2$ and $P = \gamma^{-1} P \gamma$ (p. 129).
+- `**`: $\alpha\beta = 1 = P^2 = Q^2$, $\alpha^{-1} P \alpha = P$, and $\beta^{-1} Q \beta = Q$ (p. 130).
+- `*x`: $P^2 = 1$, $\alpha^{-1} P \alpha = P$, and $\alpha^{-1} = Z^2$ (p. 131).
+
+In each, a boundary has one Latin generator ($P$ or $Q$), which is both its first and its last. Section 9.2 gives the relations that the NEC presentation prints for an empty period cycle.
+
 ### 9.2. NEC Signatures
 
-[CH] states that "our 'orbifold symbol' is just an elegant form of Macbeath's 'signature'" (p. 247), which is primary. The NEC signature has this form (secondary source only, [AX-1702.02342], Section 3.2, and [AX-2502.03594], Section 2):
+[CH] states that "our 'orbifold symbol' is just an elegant form of Macbeath's 'signature'" (p. 247). [CBG] states that "Our signature is a shortened form of McBeath's, which conveys exactly the same information" (p. 119). [MACBEATH] defines the NEC signature (Definition, p. 1195), and [SINGERMAN] writes it in this form (signatures (1) and (2), p. 233):
 
 `(g; +-; [m_1, ..., m_r]; {(n_11, ..., n_1s_1), ..., (n_k1, ..., n_ks_k)})`
 
-Here $g$ is the genus, the sign is $+$ or $-$, the $m_i$ are the proper periods, and each parenthesized group of $n_{ij}$ is one period cycle. The research assembled this dictionary from the two secondary definitions. No source states the dictionary itself.
+Here $g \geq 0$ is the genus, and the sign is $+$ for an orientable quotient and $-$ for a non-orientable one. The $m_i \geq 2$ are the proper periods, and each parenthesized group of $n_{ij} \geq 2$ is one period cycle ([MACBEATH], p. 1195). The periods, any one period cycle, and the set of period cycles may each be empty (p. 1195). [MACBEATH] writes commas where [SINGERMAN] writes semicolons, and no separator before the braces, as `(g,+,[m_1, ..., m_r]{...})`.
+
+[SINGERMAN] states that the quotient of a group with this signature is an orientable surface for sign $+$, or a non-orientable one for sign $-$, "of genus g with k discs removed" (p. 234). At the vertex of its fundamental polygon that belongs to $m_i$, the stabilizer has order $m_i$, and at the vertex between the sides of the $i$-th period cycle that belongs to $n_{ij}$, it has order $2n_{ij}$ (p. 235). No source states the dictionary below. The research assembled it for this document, and it is unverified (Section 12, item 12).
 
 | NEC signature | Orbifold signature |
 | --- | --- |
@@ -390,23 +437,58 @@ Here $g$ is the genus, the sign is $+$ or $-$, the $m_i$ are the proper periods,
 | Each period cycle $(n_{i1}, \ldots, n_{is_i})$ | One `*` followed by $n_{i1} \ldots n_{is_i}$ |
 | Empty period cycle | A `*` with no orders |
 
-The NEC presentation has the generators $x_i$, $c_{ij}$, $e_i$, $a_i$, $b_i$ for sign $+$ or $d_i$ for sign $-$, and the long relation $x_1 \cdots x_r\, e_1 \cdots e_k \prod_i [a_i, b_i] = 1$, with $\prod_i d_i^2$ in place of the commutators for sign $-$ (secondary source only). It matches the presentation of [CH] term by term as $\gamma \leftrightarrow x_i$, $\lambda \leftrightarrow e_i$, $P, \ldots, S \leftrightarrow c_{i0}, \ldots, c_{is}$, $X, Y \leftrightarrow a, b$, and $Z \leftrightarrow d$. The direction of the boundary conjugation differs between sources (Section 2.5).
+[SINGERMAN] gives the presentation of an NEC group with this signature (formulas (5) and (6), p. 234), and [MACBEATH] gives the same presentation as a table (p. 1197). The generators are $x_i$ for $i = 1, \ldots, r$, $e_i$ for $i = 1, \ldots, k$, $c_{ij}$ for $i = 1, \ldots, k$ and $j = 0, \ldots, s_i$, and, for $i = 1, \ldots, g$, both $a_i$ and $b_i$ for sign $+$ or $a_i$ alone for sign $-$. For sign $-$ each $a_i$ is a glide reflection (p. 234). The relations are these:
+
+$$x_i^{m_i} = 1 \quad (i = 1, \ldots, r)$$
+
+$$c_{is_i} = e_i^{-1} c_{i0} e_i \quad (i = 1, \ldots, k)$$
+
+$$c_{i,j-1}^2 = c_{ij}^2 = (c_{i,j-1} c_{ij})^{n_{ij}} = 1 \quad (i = 1, \ldots, k \text{ and } j = 1, \ldots, s_i)$$
+
+For sign $+$ the long relation is
+
+$$x_1 \cdots x_r \, e_1 \cdots e_k \, a_1 b_1 a_1^{-1} b_1^{-1} \cdots a_g b_g a_g^{-1} b_g^{-1} = 1$$
+
+and for sign $-$ it is
+
+$$x_1 \cdots x_r \, e_1 \cdots e_k \, a_1^2 \cdots a_g^2 = 1$$
+
+[SINGERMAN] prints a comma after $x_1 x_2$ in the long relation for sign $+$, and [MACBEATH] prints the same product without it. The direction of the boundary conjugation is that of [CH] (Section 2.5). [MACBEATH] describes the cycle generators in words: "with a cycle of length s is associated a 'connecting generator' and a number of generators of order two of which successive pairs define dihedral groups" (p. 1197).
+
+For an empty period cycle, $s_i = 0$, so the range $j = 1, \ldots, s_i$ is empty. [SINGERMAN] then prints only $c_{i0} = e_i^{-1} c_{i0} e_i$ for that cycle, and no relation $c_{i0}^2 = 1$. The table of [MACBEATH] prints no range of $j$ and no separate relation for $s_i = 0$ either, although its prose calls the cycle generators "generators of order two" (p. 1197).
+
+The research matched this presentation term by term with that of [CH] in Section 9.1, as $\gamma \leftrightarrow x_i$, $\lambda \leftrightarrow e_i$, $P, \ldots, S \leftrightarrow c_{i0}, \ldots, c_{is_i}$, $X, Y \leftrightarrow a_i, b_i$ for sign $+$, and $Z \leftrightarrow a_i$ for sign $-$. No source states this matching, and it is unverified (Section 12, item 12). The two presentations also differ in form. [CH] writes the commutator as $X^{-1} Y^{-1} X Y$ and puts the handles first in the global relation, while [SINGERMAN] writes $a_i b_i a_i^{-1} b_i^{-1}$ and puts the surface generators last.
 
 ### 9.3. Orientation-Preserving Subgroup
 
-According to [AX-1702.02342] (Section 3.2, secondary source only, read through a paraphrase), the orientation-preserving subgroup $\Lambda^+$ of an NEC group with the signature of Section 9.2 has this signature, with $\epsilon = 2$ for sign $+$ and $\epsilon = 1$ for sign $-$:
+A proper NEC group $\Gamma$ has a Fuchsian subgroup $\Gamma^+$ of index two, the subgroup of its orientation-preserving elements ([SINGERMAN], Section 4, p. 235). Theorem 2 of [SINGERMAN] (p. 236) gives its signature, for $\Gamma$ with the NEC signature of Section 9.2:
 
-`(eps*g + k - 1; m_1, m_1, ..., m_r, m_r, n_11, ..., n_ks_k)`
+- (a) For sign $+$, $\Gamma^+$ has the Fuchsian signature `(2g + k - 1; m_1, m_1, ..., m_r, m_r, n_11, ..., n_ks_k)`.
+- (b) For sign $-$, $\Gamma^+$ has the Fuchsian signature `(g + k - 1; m_1, m_1, ..., m_r, m_r, n_11, ..., n_ks_k)`.
 
-In words, each cone order appears twice, each corner order becomes one cone order, and the genus is $2g + k - 1$ for sign $+$ or $g + k - 1$ for sign $-$. [AX-1612.06810] restates Singerman's Theorem 2.4 [SINGERMAN] for the case with no reflections and sign $-$: the subgroup has genus $g - 1$ "and every m_i appears two times" (secondary source only).
+A Fuchsian signature gives the genus of the quotient and the periods of the group (p. 236). [SINGERMAN] obtains the periods from Lemma 4.1 (p. 235). The subgroups conjugate to $\langle x_i \rangle$ in $\Gamma$ fall into exactly two conjugacy classes in $\Gamma^+$, and each subgroup conjugate to $\langle c_{i,j-1} c_{ij} \rangle$ in $\Gamma$ is conjugate to it in $\Gamma^+$. It then obtains the genus from the area, which doubles from $\Gamma$ to $\Gamma^+$ (p. 236).
 
-The primary support is partial. [TH] gives the orientation-preserving subgroup of index 2 of the reflection group of a rectangle, `*2222`, whose quotient is "a sphere, with four distinguished points", which is `2222` (Example 13.1.4, p. 298). The index rule of Section 6.3 is consistent with a subgroup of index 2. Section 12, item 5 records that the general rule needs a primary source.
+The hypothesis that $\Gamma$ is proper stands in the opening of Section 4 and in the sentence before Theorem 2, not in the printed statement of the theorem (pp. 235-236). A group with "no reflections (i.e. a Fuchsian group)" (p. 238) is therefore outside Theorem 2. Read through the unverified dictionary of Section 9.2, Theorem 2 says that each cone order appears twice in the subgroup, each corner order becomes one cone order, and the genus is $2g + k - 1$ for sign $+$ or $g + k - 1$ for sign $-$. [AX-1702.02342] (Section 3.2) gives the same formula as a secondary source. [AX-1612.06810] cites the case without reflections as a "Theorem 2.4" of Singerman, and [SINGERMAN] has no theorem with that number. Its theorems are numbered 1 to 7.
+
+[SINGERMAN] also treats the triangle case. The reflections in the sides of a hyperbolic triangle with angles $\pi/m_1$, $\pi/m_2$, and $\pi/m_3$ generate a group $\Delta$ whose subgroup $\Delta^+$ is the Fuchsian triangle group with signature `(0; m_1, m_2, m_3)` (Theorem 3 and its proof, pp. 236-237).
+
+For the Euclidean groups, Table 3.2 of [CBG] (p. 40) places each of the 17 signatures in a column with its rotation subgroup at the bottom: "The nonreflecting elements of any of these groups form its rotation subgroup, at the bottom of the column" (footnote 1). The columns give these rotation subgroups:
+
+- `*632` has `632`.
+- `*442` and `4*2` have `442`.
+- `*333` and `3*3` have `333`.
+- `*2222`, `2*22`, `22*`, and `22x` have `2222`.
+- `**`, `*x`, and `xx` have `o`.
+
+[TH] also gives the orientation-preserving subgroup of index 2 of the reflection group of a rectangle, `*2222`, whose quotient is "a sphere, with four distinguished points", which is `2222` (Example 13.1.4, p. 298). Section 12, item 5 records what remains open.
 
 ### 9.4. Reflection Groups
 
 When an orbifold "has the combinatorial type of a polygon", its fundamental group "is generated by reflections" ([TH], p. 320, primary). The research identifies this class with the single-boundary signatures `*n_1...n_s`. [AX-2502.03594] (Section 5.1, secondary source only) states the same for the NEC signature `(0; +; [-]; {(n_1, ..., n_s)})`.
 
 [TH] (Example 13.1.3, p. 298) and [CH] (p. 252) give the case `*2222`: "the group [`*2222`] is generated by the reflections in the sides of the rectangle". The local group of a corner reflector of order $n$ is $\langle a, b : a^2 = b^2 = (ab)^n = 1 \rangle$ ([TH], Proposition 13.3.1(iii), p. 308).
+
+[CBG] lists `*632`, `*442`, `*333`, `*2222`, `*532`, `*432`, `*332`, `*22N`, and `*NN` as groups that "all have this type of presentation" (p. 127). For `**` it states: "the two *'s in ** don't really correspond to a generating set. Each * is caused by a reflection, but those two reflections do not suffice to generate the group!" (p. 120). That statement concerns the two reflections of the two boundaries only, not every set of reflections of the group.
 
 Whether a signature with several boundaries, such as `**`, or any other signature that is not a polygon gives a group generated by reflections is open (Section 12, item 6).
 
@@ -425,11 +507,17 @@ The proof cuts $O$ into primitive pieces, and the lengths and twists of closed g
 - $D^2$ with corners of orders $m_1, \ldots, m_l$ is parametrized by $(\mathbb{R}_+)^{l-3}$ (p. 316).
 - For an $n$-gonal orbifold $P$, $N(P) \cong D^{n-3}$ with interior $T(P)$ (Theorem 13.8.1, p. 347).
 
+[CBG] states the dimension as a rule attributed to Thurston (Chapter 18, "Existence and Construction", p. 237): "the space of solutions, counted up to scale, is homeomorphic to a Euclidean space R^n", and "chi_3 = -n/3, where chi_3 is the orbifold Euler characteristic of the orbifold obtained from the given one by replacing each of its numerals by 3". Its example is `4*235*74xx`, which has 13 parameters because `3*333*33xx` has characteristic $-13/3$ (p. 237). No read source states that this rule and Corollary 13.3.7 of [TH] give the same number.
+
 [CG] (Proposition 5.1, secondary source only) adds $2n$ to the dimension for "boundary full 1-orbifolds". The research does not define that term further.
 
 ### 10.2. Euclidean Signatures
 
-Neither [TH] nor [CH] gives the dimension of the space of deformations of a Euclidean signature. [CH] says only that each Euclidean signature gives one group "up to isotopy (i.e., continuous variation)", for example that "any two groups of type [`*2222`] are isotopic" (pp. 252 and 254). Whether Corollary 13.3.7 of [TH] extends to $\chi = 0$ is unverified. Section 12, item 7 records the question.
+Neither [TH] nor [CH] gives the dimension of the space of deformations of a Euclidean signature. [CH] says only that each Euclidean signature gives one group "up to isotopy (i.e., continuous variation)", for example that "any two groups of type [`*2222`] are isotopic" (pp. 252 and 254).
+
+[CBG] states the exceptions to the rule of Section 10.1: "The argument doesn't work for the last four spherical cases, *NN, N*, Nx, and NN (where it would make the number of parameters negative!), and the last four Euclidean ones, **, *x, xx, and o, which have respectively one, one, one, and two parameters rather than the zero given by the rule" (Chapter 18, p. 238). For these cases "the decomposition involves digons rather than triangles" (p. 237). For `*2222` it states that "the set of symmetries is no longer unique up to scale" and that one version can be reshaped into any other by varying the rectangle (Chapter 3, p. 41).
+
+[CBG] does not state that the rule holds for the other 13 Euclidean signatures, and it does not say whether the counts for `**`, `*x`, `xx`, and `o` include the scale. Section 12, item 7 records these questions.
 
 ## 11. Software Practice
 
@@ -488,7 +576,7 @@ The file `OrbifoldGroupName.java` of Tegula (husonlab/tegula, main branch) build
 5. Keep the larger of the two lists.
 6. Write the handles as `o`, then the cone orders, then `1` if nothing else has been written, then the boundary blocks, then the crosscaps as `x`.
 
-After it generates a name, the code rejects `*p`, `pq`, and `*pq`. The paper [TG] defines the curvature of a tiling as $K = \sum_D \left(1/m_{01} + 1/m_{12} - 1/2\right)$, with the sum and the symbols $m_{01}$ and $m_{12}$ as [TG] defines them, and states that its sign gives the geometry (p. 6, primary).
+After it generates a name, the code rejects `*p`, `pq`, and `*pq`. The paper [TG] defines the curvature of a tiling as $K = \sum_D \left(1/m_{01} + 1/m_{12} - 1/2\right)$, with the sum and the symbols $m_{01}$ and $m_{12}$ as [TG] defines them, and states that its sign gives the geometry (p. 6, primary). [BH] defines the curvature of a Delaney-Dress symbol as $\sum_D (1/m_{01} + 1/m_{12} + 1/m_{02} - 1)$ with $m_{02} = 2$ (pp. 95-96), and states in Theorem 4.1 that it is twice the orbifold Euler characteristic $\chi$ (p. 97). This curvature differs from the value $-1$, 0, or 1 that SymmHub computes (Section 11.1).
 
 ### 11.3. Gavrog
 
@@ -498,13 +586,16 @@ The file `delaney2d.clj` of Gavrog sorts cone orders and corner orders in descen
 
 Each item states what no read source establishes. Items 1 to 9 come from the gaps that the research found, and items 10 to 15 list the claims of this document that rest on secondary sources or on matching done for this document.
 
-1. Multi-digit orders. No primary source defines how to write an order of 10 or more in plain text (Section 3.4). Tegula and SymmHub use parentheses. [CBG] may state a convention.
-2. Infinite orders in text. No source defines an ASCII spelling of $\infty$ in a signature (Section 2.4).
-3. Canonical form. No primary source defines a canonical string (Section 5). An implementation has to choose an order for cone points, a normal form for each cycle of corners, an order for boundaries, the treatment of a single reversed boundary when a crosscap is present, and the delimiter for multi-digit orders. Tegula is the only precedent, and it compares only the reversal of all boundaries at once. [BH] may give rules for names.
-4. Degenerate inputs. How to treat a `1` token, and an order of 1 in a corner list other than the examples of [CH] (Section 3.5), is not stated.
-5. Orientation-preserving subgroup. The rule of Section 9.3 rests on secondary sources. It needs to be checked against Theorem 2.4 of [SINGERMAN].
-6. Reflection groups. Which signatures with several boundaries, such as `**`, or other signatures that are not polygons give groups generated by reflections is not stated (Section 9.4). The presentation of [CH] suggests that such groups need generators that are not reflections, but no source states it.
-7. Euclidean deformations. No source gives the dimension of the space of deformations of each wallpaper group, and whether [TH] Corollary 13.3.7 extends to $\chi = 0$ is unverified (Section 10.2). An unverified first-pass count from metrics invariant under the point group gave the values below, before scale is removed. These values have no source. An implementation that uses them before a source confirms them risks giving a Euclidean group the wrong number of deformation parameters. [KLR] and [SCOTT] may cover this.
+1. Multi-digit orders. No primary source states a rule for writing an order of 10 or more in plain text. [CBG] separates orders with spaces in its tables, and [BH] wraps them in parentheses in its Table I, each without a rule (Section 3.4). Tegula and SymmHub use parentheses.
+2. Infinite orders in text. No source defines an ASCII spelling of $\infty$ in a signature. [CBG] prints only the glyph (Section 2.4).
+3. Canonical form. No primary source defines a canonical string (Section 5). The equivalences that a canonical form has to respect are complete in Chapter 18 of [CBG] (pp. 231-232) and, for NEC signatures, in Theorems 1 and 2 of [MACBEATH] (Section 4.1). [BH] computes a name with no normal form (Section 5). An implementation has to choose an order for cone points, a normal form for each cycle of corners, an order for boundaries, the treatment of a single reversed boundary when a crosscap is present, and the delimiter for multi-digit orders. Tegula is the only precedent, and it compares only the reversal of all boundaries at once.
+4. Degenerate inputs. [CBG] states that digits 1 can be omitted (Section 3.5). How to treat a `1` token on its own is open, because [CH] and [TG] write the trivial group as `1`, [CBG] writes it as `11`, and [BH] admits no order 1.
+5. Orientation-preserving subgroup. Theorem 2 of [SINGERMAN] settles the signature of the orientation-preserving subgroup of a proper NEC group, and Table 3.2 of [CBG] settles it for the 17 Euclidean signatures (Section 9.3). Three parts are open:
+   - The orbifold form of Theorem 2 rests on the dictionary of item 12.
+   - No read source states the rotation subgroup of each spherical group in words. Table 11.2 of [CBG] (p. 145) lists two-colour types such as `*532/532` but does not say that their kernel is the rotation subgroup.
+   - Theorem 2 covers only compact quotients, so it says nothing about signatures with $\infty$ (item 15).
+6. Reflection groups. Which signatures with several boundaries, such as `**`, or other signatures that are not polygons give groups generated by reflections is not stated (Section 9.4). [CBG] states only that the two boundary reflections of `**` do not generate its group, not that no set of reflections does. The presentation of [CH] suggests that such groups need generators that are not reflections, but no source states it.
+7. Euclidean deformations. [CBG] states a rule for the number of parameters, says that its argument fails for `**`, `*x`, `xx`, and `o`, and gives their counts (Sections 10.1 and 10.2). Two questions are open. [CBG] does not state that the rule holds for the other 13 Euclidean signatures, and it does not say whether its counts include the scale. An unverified first-pass count from metrics invariant under the point group gave the values below, before scale is removed. These values have no source. The counts of [CBG] for `pm`, `cm`, `pg`, and `p1` are 1, 1, 1, and 2, one less than this table, so the two agree only if the counts of [CBG] exclude the scale. An implementation that uses the table before a source confirms it risks giving a Euclidean group the wrong number of deformation parameters. [KLR] and [SCOTT] may cover this.
 
    | Groups | Count before removing scale (unverified) |
    | --- | --- |
@@ -512,25 +603,27 @@ Each item states what no read source establishes. Items 1 to 9 come from the gap
    | `pm`, `pg`, `cm`, `pmm`, `pmg`, `pgg`, `cmm` | 2 |
    | Groups with rotations of order 3, 4, or 6 | 1 |
 
-8. Spherical coincidences for small $n$. Coincidences such as `2*2` against `*22n` at $n = 1$, beyond those in the Appendix of [CH], are not tabulated. This wording, including the example, is as the research recorded it. It has not been checked against the Appendix of [CH].
-9. Frieze IUC names. The axis convention for `p1m1` and `p11m` was not resolved against a primary source (Section 8.3).
-10. Area identity. The identity $\mu = -\chi$ between the NEC area formula and the defect rule (Section 7.3) was found by matching terms, and no source states it.
-11. Cross-references to other notations. The IUC names of Sections 8.1 and 8.3 and the Schoenflies and Coxeter names of Section 8.2 rest only on Wikipedia. [CBG] would give primary correspondences. The Thurston column of Section 8.1 was matched for this document.
-12. NEC signatures. The form of the NEC signature and its presentation (Section 9.2) rest on secondary sources, and the dictionary was assembled for this document. [MACBEATH] and [WILKIE] are the primary sources.
+8. Spherical coincidences for small $n$. The signatures of the seven series of Section 8.2 can name the same group for small $n$, as the identities of the Appendix of [CH] show (Section 3.5). No read source tabulates every such coincidence. Table 4.1 of [CBG] (p. 58) lists the spherical types by group order, with the number of distinct groups of each order (p. 59), but it does not state which signatures coincide. `2*2` and `*22` are not such a coincidence, because Table 4.1 lists `2*2` with order 8 and `*22` with order 4.
+9. Frieze IUC names. The axis convention for `p1m1` and `p11m` was not resolved against a primary source (Section 8.3). [CBG] gives no IUC names for the frieze groups.
+10. Area identity. The identity $\mu(F_\Gamma) = -2\pi\chi$ between the area formula of [SINGERMAN] and the defect rule (Section 7.3) was found by matching terms through the dictionary of item 12, and no source states it.
+11. Cross-references to other notations. Table A.1 of [CBG] makes the IUC names of Section 8.1 primary, and its Table A.2 makes the Schoenflies names of Section 8.2 primary. Four parts are open:
+    - The IUC names of the friezes in Section 8.3 rest only on Wikipedia (item 9).
+    - In five rows of Section 8.2, the Coxeter symbol of [WP-SPH] writes its two numbers in the opposite order from Table A.2 of [CBG]. No read source states that the two forms name the same group.
+    - The Thurston column of Section 8.1 was matched for this document.
+    - [CBG] and [MACBEATH] attach `p3m1` and `p31m` to `*333` and `3*3` in opposite ways. This document follows [CBG] (Section 8.1).
+12. NEC signatures. [MACBEATH] and [SINGERMAN] settle the form of the NEC signature and its presentation (Section 9.2). The dictionary between NEC signatures and orbifold signatures, and the term-by-term matching of the two presentations, were assembled for this document, and no read source states them. [CH] (p. 247) and [CBG] (p. 119) state only that the two notations carry the same information. [MACBEATH] takes without proof from [WILKIE] Lemmas 1 to 4 and the existence of the fundamental polygon (pp. 1197 and 1202).
 13. Software. The descriptions of Tegula and Gavrog in Sections 11.2 and 11.3 rest on a summary of their code, not on quotations. The description of SymmHub in Section 11.1 is primary for what the code does (Section 2.3). Two parts of it were not re-checked in the direct reading: the message for the empty string and the full Euler characteristic expression. The claims in its code comments about `*237` and `*235` have no primary source.
-14. Boundaries without corners. Step 3 of Section 9.1 states the relations for a boundary with $n$ corners. The research does not record what [CH] states for $n = 0$, which is the boundary of `**` or `22*`.
-15. Signatures with $\infty$ outside the friezes. Theorem 13.3.6 of [TH] covers closed orbifolds. The research records no statement of the geometry of a non-compact signature with $\chi \neq 0$.
+14. Boundaries without corners. [CBG] gives the presentations of `22*`, `**`, and `*x`, whose boundaries have no corners (Section 9.1). No read source states step 3 of Section 9.1 for $n = 0$ in general. Neither [SINGERMAN] nor [MACBEATH] prints the relation $c_{i0}^2 = 1$ for an empty period cycle (Section 9.2). The research does not record what [CH] states for $n = 0$.
+15. Signatures with $\infty$ outside the friezes. [CBG] states that the non-compact, almost compact hyperbolic groups are those whose signatures have an order $\infty$, and [BEARDON] gives the existence condition for groups of orientation-preserving isometries with parabolic elements (Section 7.1). These parts remain open: whether every signature with $\infty$ and $\chi < 0$ gives a group when it has a mirror boundary or a crosscap, the geometry of a signature with $\infty$ and $\chi > 0$, and the dimension of the space of deformations of a non-compact signature. Theorem 13.3.6 of [TH] covers closed orbifolds only. The research reads the condition of Theorem 10.4.2 of [BEARDON] with $t = 0$ as $\chi < 0$, with each parabolic class as a cone point of order $\infty$ and defect 1 (Section 6.1). No source states this reading in orbifold notation. The first reading of [BEARDON] also records that Section 10.5 (pp. 274-275) treats a parabolic element as an elliptic element of order $+\infty$ when $t = 0$. That statement was not re-checked against the page.
 
-These sources could not be read in full. Each is recorded in `docs/research/source-requests.md` with what the project needs from it, and every claim that depends on it is unverified:
+These sources were not read in full. Each is recorded in `docs/research/source-requests.md` with what the project needs from it, and every claim that depends on it is unverified:
 
 | Priority | Source | Needed for |
 | --- | --- | --- |
-| High | [SINGERMAN] | The signature of the orientation-preserving subgroup (item 5). |
-| High | [CBG] | Primary IUC and Schoenflies correspondences, multi-digit orders, and canonical writing (items 1, 3, and 11). |
-| Medium | [KLR] | Teichmuller dimensions, possibly of Euclidean orbifolds (item 7). |
-| Medium | [BH] | The algorithm that computes the orbifold name from a Delaney symbol, which [TG] cites on p. 6 (item 3). |
-| Medium | [MACBEATH], [WILKIE] | The primary NEC signature and presentation (item 12). |
+| Medium | [KLR] | Teichmuller dimensions, possibly of Euclidean orbifolds, including whether a count includes the scale (item 7). |
 | Medium | [SCOTT] | Section 2 on two-dimensional orbifolds, possibly with Euclidean moduli (item 7). |
+| Low | [CBG] | Chapters 7, 16, and 19 to 26 and the appendix to Chapter 18 (pp. 241-249), which were not read. The read chapters give no rule for item 1 and no canonical string for item 3, and nothing is known to be in the unread part. |
+| Low | [WILKIE] | The proofs of Lemmas 1 to 4 of [MACBEATH] and of the existence of the fundamental polygon (item 12). |
 | Low | [CONWAY92] | The original grammar, largely superseded by [CH]. |
 | Low | [ZVC] | Presentations and Teichmuller spaces. |
 | Low | [BEGG] | Chapter 0 on NEC groups. |
@@ -540,10 +633,15 @@ These sources could not be read in full. Each is recorded in `docs/research/sour
 
 ### 13.1. Primary Sources
 
-These sources were read in full. Every citation of them was accessed on 2026-11-15.
+These sources were read in full, except where an entry names the part that was read. [CH], [FG], [TG], and [TH] were read on 2026-11-15. [BEARDON], [BH], [CBG], [MACBEATH], and [SINGERMAN] were read on 2026-11-16 from copies that the owner supplied, and each citation of them gives the printed page.
 
+- [BEARDON] Beardon, A. F., "The Geometry of Discrete Groups", Graduate Texts in Mathematics 91, Springer, softcover reprint of the first edition of 1983, ISBN 978-0-387-90788-8 for the hardcover. Read in part: Chapters 3, 7, 9, and 10, with Sections 4.2, 4.3, and 5.3 and parts of Chapters 8 and 11. This document cites Sections 10.4 and 10.5 only.
+- [BH] Balke, L. and D. H. Huson, "Two-dimensional groups, orbifolds and tilings", Geometriae Dedicata 60, 89-106, 1996. Read in full, except the digits of Tables II(a) and II(b).
+- [CBG] Conway, J. H., Burgiel, H., and C. Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5. Read in part: Chapters 1 to 18, except Chapters 7 and 16 and the appendix to Chapter 18 (pp. 241-249), with Chapters 1 and 15 only skimmed, and Appendix A with Tables A.1 and A.2 (pp. 415-417). Chapters 19 to 26 were not read, apart from a skim of Chapter 19.
 - [CH] Conway, J. H. and D. H. Huson, "The Orbifold Notation for Two-Dimensional Groups", Structural Chemistry 13(3/4), 247-257, 2002, DOI 10.1023/A:1015851621002, <https://doi.org/10.1023/A:1015851621002>.
 - [FG] Conway, Doyle, Gilman, and Thurston, "Geometry and the Imagination in Minneapolis", handouts of 1991, arXiv:1804.03055v1, 2018, <https://arxiv.org/abs/1804.03055>.
+- [MACBEATH] Macbeath, A. M., Canadian Journal of Mathematics 19, 1192-1205, 1967, DOI 10.4153/CJM-1967-108-5, <https://doi.org/10.4153/CJM-1967-108-5>. The research recorded no title. Read in full.
+- [SINGERMAN] Singerman, D., "On the structure of non-Euclidean crystallographic groups", Proceedings of the Cambridge Philosophical Society 76, 233-240, 1974, DOI 10.1017/S0305004100048891, <https://doi.org/10.1017/S0305004100048891>. Read in full.
 - [TG] Zeller, Delgado Friedrichs, and Huson, "Tegula - exploring a galaxy of two-dimensional periodic tilings", arXiv:2007.10625v1, July 2020, <https://arxiv.org/abs/2007.10625>.
 - [TH] Thurston, W. P., "The Geometry and Topology of Three-Manifolds", Chapter 13, lecture notes of 1980, electronic version 1.1, March 2002, <http://www.msri.org/publications/books/gt3m/>.
 
@@ -569,13 +667,9 @@ These sources were read in full. Every citation of them was accessed on 2026-11-
 ### 13.4. Sources Not Read
 
 - [BEGG] Bujalance, Etayo, Gamboa, and Gromadzki, "Automorphism Groups of Compact Bordered Klein Surfaces", Lecture Notes in Mathematics 1439, Springer, 1990, ISBN 3-540-52941-1.
-- [BH] Balke, L. and D. H. Huson, "Two-dimensional groups, orbifolds and tilings", Geometriae Dedicata 60, 89-106, 1996.
-- [CBG] Conway, J. H., Burgiel, H., and C. Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5.
 - [CONWAY92] Conway, J. H., "The orbifold notation for surface groups", London Mathematical Society Lecture Note Series 165, 438-447, 1992, ISBN 0-521-40685-4.
 - [HUSON93] Huson, D. H., "The generation and classification of tile-k-transitive tilings ...", title truncated in the research, Geometriae Dedicata 47, 269-296, 1993.
 - [KLR] Kulkarni, R. S., Lee, K. B., and F. Raymond, "Deformation spaces for Seifert manifolds", Lecture Notes in Mathematics 1167, Springer, 1985.
-- [MACBEATH] Macbeath, A. M., Canadian Journal of Mathematics 19, 1192-1205, 1967, DOI 10.4153/CJM-1967-108-5, <https://doi.org/10.4153/CJM-1967-108-5>.
 - [SCOTT] Scott, P., "The geometries of 3-manifolds", Bulletin of the London Mathematical Society 15, 401-487, 1983, DOI 10.1112/blms/15.5.401, <https://doi.org/10.1112/blms/15.5.401>.
-- [SINGERMAN] Singerman, D., "On the structure of non-Euclidean crystallographic groups", Proceedings of the Cambridge Philosophical Society 76, 233-240, 1974, DOI 10.1017/S0305004100048891, <https://doi.org/10.1017/S0305004100048891>.
 - [WILKIE] Wilkie, H. C., Mathematische Zeitschrift 91, 87-102, 1966, DOI 10.1007/BF01110157, <https://doi.org/10.1007/BF01110157>.
 - [ZVC] Zieschang, Vogt, and Coldewey, "Surfaces and Planar Discontinuous Groups", Lecture Notes in Mathematics 835, Springer, 1980, ISBN 3-540-10024-5.

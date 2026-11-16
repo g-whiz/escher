@@ -107,7 +107,7 @@ These items are not tied to one phase. Each is a proposal of the planning unless
 | Shader export | The shader export reference (Section 5) | Phase 1 | Owner for the research item, proposal for the workstream |
 | Wythoff tilings as a second tiling mode, and colourings of regular and Laves tilings by Frettloh's lemmas | Sections 10 and 12 and items 10 to 12 of Section 14.1 of `colourings.md`, and its Sections 5.2 to 5.5 | `M8` | Proposal |
 | Further colourings: conjugate subgroups, larger colour counts, and classification of two-colourings | Items 1, 8, 9, and 6 of Section 14.1 of `colourings.md` | `M8` | Proposal |
-| Names of each group in other notations | Item 11 of Section 12 of `orbifold-notation.md` | Reading "The Symmetries of Things" by Conway, Burgiel, and Goodman-Strauss (Section 6.1). `DEC-20` omits these names from `info` until a primary source is read | Proposal |
+| Names of each group in other notations | Item 11 of Section 12 of `orbifold-notation.md`, which records the names that "The Symmetries of Things" by Conway, Burgiel, and Goodman-Strauss makes primary and the parts that stay open | A primary source for the open parts of item 11, such as the names of the friezes. `DEC-20` governs which names `info` shows | Proposal |
 | Pattern fills and motifs | Section 10 of `rendering.md`, and gaps 1 and 4 of Section 14 of `prior-art.md` | None | Proposal |
 | A machine-readable form of the info output | `DEC-23` | None | Proposal |
 | Rendering of the general non-compact signatures, which Section 2.1 of `docs/design/architecture.md` defines | The deep-research item of Section 5. Section 5.18 of `docs/design/poc-plan.md` records why the research knows no construction | `M18` | Owner for the item, which moved out of the proof of concept (`DEC-19`) |
@@ -127,13 +127,15 @@ The planning proposes this rule, and the columns of the table are proposals too.
 | Vector export | Section 3 of `export-and-animation.md` | The stopping rule, the numerics of nearly straight SVG arcs, the shapes of geodesics under each projection, and how other tools stop (items 1 to 4 of Section 8.1) |
 | Animation | Section 4 of `export-and-animation.md` | Seamless loops, interpolation between isometries, band scrolling, deformation of a group, morphing between geometries, and frame timing (items 5 to 10 of Section 8.1) |
 | Shader export | Section 5 of `export-and-animation.md` | Fold bounds and single precision near the limit circle, Slang's loop and precision behaviour on its targets, and the published hyperbolic shaders (items 11 to 13 of Section 8.1) |
-| General non-compact signatures | Section 7 of `fundamental-domains.md` for Maskit's cusps, its Section 4.7 with gaps G1 and G6, item 15 of Section 12 of `orbifold-notation.md`, and item 3 of Section 13.1 of `rendering.md` | A construction of the fundamental domain and its side pairings for each such signature, the polygon theorem for ideal reflection polygons with more than three sides (`UNV-5`), the geometry and parameters of these signatures (`UNV-21`), and the fold at ideal vertices (`UNV-23`) |
+| General non-compact signatures | Section 7 of `fundamental-domains.md` for Maskit's cusps, its Section 4.7 with gaps G1 and G6, item 15 of Section 12 of `orbifold-notation.md`, and item 3 of Section 13.1 of `rendering.md` | A construction of the fundamental domain and its side pairings for each such signature, the open points of the polygon theorem at ideal points (`UNV-5`), the geometry and parameters of these signatures (`UNV-21`), and the fold at ideal vertices (`UNV-23`) |
 
 ## 6. Closing Unverified Statements
 
 ### 6.1. Reading Requested Sources
 
-The planning proposes that an agent reads each source of `docs/research/source-requests.md` as the owner supplies it in `references/`, high priority first. In the order of Section 2 of that file, these are "The Symmetries of Things" by Conway, Burgiel, and Goodman-Strauss, then Ratcliffe, Deaton, Beardon, Singerman, and Epstein and Petronio.
+The planning proposes that an agent reads each source of `docs/research/source-requests.md` as the owner supplies it in `references/`, high priority first, as Section 2 of that file lists it. Deaton's thesis is the candidate source for gap G4 of `fundamental-domains.md`, on which the geometry of the general hyperbolic signatures with mirrors or crosscaps rests.
+
+No cited source states that the fold terminates or how many steps it takes (Section 4.7 of `rendering.md` and gap G5 of `fundamental-domains.md`). `UNV-1` and `UNV-2` therefore stay for the Lean workstream of Section 6.2.
 
 The change that reads a source updates every document that waits on it, and the affected `UNV-n` rows of `docs/design/poc-plan.md`. The plan names the closing source of each statement. The rows of Section 7 of `source-requests.md`, sources already obtained, are cleared by `RP-5`.
 

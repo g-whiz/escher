@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The representation of points and isometries in Escher, the model maps, the geometric constructions, and the distance computations |
 
 ## Abstract
@@ -24,11 +24,15 @@ The rendering algorithms are out of scope. The folding of each pixel into a fund
 
 Every claim in the body carries a citation tag, a locator inside the source, and one of these status markers:
 
-- (P): Verified against a primary source read in full, such as a local copy of a paper, an author's page, or a source file.
+- (P): Verified against a primary source, such as a local copy of a paper or book, an author's page, or a source file. For a source that Section 16 marks as read in part, the claim was checked at the cited locator.
 - (P-code): Verified against source code read in full. The citation gives the file and the lines or function.
 - (A): Taken from a research paper read only through a summarizing web fetch. The formula is as the summary gave it.
 - (S): Taken from a secondary source, such as Wikipedia, MathWorld, or a tutorial. Such a claim rests only on that secondary source.
 - r: Added to a marker, as in (S, r), when a fetch tool reconstructed the formula and nobody has checked it against the page since.
+
+A primary source sometimes states a result only as an exercise, which it does not prove. The citation then names the exercise, and the text says that it is an exercise.
+
+Locators in [BEA], [RAT], and [DUN86] are printed page numbers. [RAT] is cited in its first edition, and its numbering may differ in later editions.
 
 Names with accented letters are written in ASCII transliteration, such as Poincare, Mobius, Celinska-Kopczynska, and Kopczynski. Quotations from sources are also transliterated to ASCII, with Greek letters written as LaTeX commands and an elided passage written as "...". All web sources were accessed on 2026-11-15. Wikipedia and MathWorld URLs are formed from the page titles that the research reports name, and Wikipedia pages carry no revision identifier.
 
@@ -42,6 +46,10 @@ Names with accented letters are written in ASCII transliteration, such as Poinca
 - $J$: The matrix of that form, $J = \operatorname{diag}(1, \dots, 1, -1)$.
 - $g^-$, $g^+$: The Minkowski form and the Euclidean dot product as [KC24], p. 3, writes them, also with the time coordinate last.
 - $B(x, y)$: The Minkowski form in the convention of [W-HYPERBOLOID], which puts the time coordinate first: $B(x, y) = -x_0 y_0 + x_1 y_1 + x_2 y_2$.
+- $x \circ y$: The Lorentzian inner product of [RAT]. In its Chapter 3 it puts the time coordinate first, $x \circ y = -x_1 y_1 + x_2 y_2 + \dots + x_n y_n$ ([RAT], equation (3.1.1), p. 56). From its Section 4.5 on it puts the time coordinate last, $x \circ y = x_1 y_1 + \dots + x_n y_n - x_{n+1} y_{n+1}$ ([RAT], equation (4.5.1), p. 127).
+- $\lVert x \rVert$, $\lvert\lvert\lvert x \rvert\rvert\rvert$: The Lorentzian norm $(x \circ x)^{1/2}$ of [RAT], which is positive, zero, or positive imaginary, and the modulus of an imaginary norm.
+- $q(x, y)$: The form of [BEA], Definition 3.7.4, p. 48, which puts the time coordinate first with the opposite sign: $q(x, y) = x_0 y_0 - (x_1 y_1 + \dots + x_n y_n)$, with the hyperboloid $q(x, x) = 1$, $x_0 > 0$.
+- $\rho$: The hyperbolic distance as [BEA] writes it.
 - $C_0$: The origin of a linear model, $(0, \dots, 0, 1)$ in [KC24].
 - $\lambda(z)$: The scale factor of a conformal model, so that $ds = \lambda(z) \lvert dz \rvert$.
 - $\ell_g$: The translation length of an isometry $g$, as [MAR] writes it.
@@ -78,6 +86,9 @@ The main sources differ in four conventions. This table lists them:
 | [CFKP] | Last | $x \ast x = -1$ on the hyperboloid | Lorentz matrix with positive last entry of last column | No band model |
 | [KC24] | Last | $g^-(x, x) = -1$ on the hyperboloid | $SL(2, \mathbb{R})$ with $ad - bc = 1$ on the half-plane | Band named, no formula |
 | [HR] | Last | Signature table with $-1$ last | Matrices renormalized by Minkowski Gram-Schmidt | Not read |
+| [RAT] | First in Chapter 3, last from Section 4.5 on | $\lVert x \rVert^2 = -1$ on the hyperboloid, p. 63 | Lorentzian matrix: $A^t J A = J$ ([RAT], Theorem 3.1.3, p. 59) | No band model |
+| [DUN86] | Last | $x^2 + y^2 - z^2 = -1$, $z > 0$, p. 147 | Lorentz matrices | No band model |
+| [BEA] | First | Opposite sign, $q(x, x) = 1$ on the hyperboloid | Disk maps $\dfrac{az + \bar c}{cz + \bar a}$, $\lvert a \rvert^2 - \lvert c \rvert^2 = 1$ ([BEA], Theorem 7.4.1, p. 137) | No band model |
 | [HT] | First (equation 1) | Not restated here | $SU(1,1)$, $\begin{pmatrix} a & b \\ \bar b & \bar a \end{pmatrix}$, $\lvert a \rvert^2 - \lvert b \rvert^2 = 1$ | No band model |
 | [W-HYPERBOLOID] | First | $(-, +, +)$ | $O^+(1, 2)$ preserves the sign of the first coordinate | Not applicable |
 | [OBL] | First | $\eta = \operatorname{diag}(-1, 1, 1)$ | $SL(2, \mathbb{R})$ | Not applicable |
@@ -86,6 +97,8 @@ The main sources differ in four conventions. This table lists them:
 | [B2], [B3], [STRIP], [SYMMHUB] | Not applicable | Not applicable | Not applicable | $\lvert \operatorname{Im} w \rvert < 1$ |
 | [KC19] | Not applicable | Not applicable | Not applicable | $0 < \operatorname{Im} z < 1$ |
 | [W-BAND] | Not applicable | Not applicable | Not applicable | $\lvert \operatorname{Im} z \rvert < \pi/2$ |
+
+[RAT] states one rule for moving between its two conventions, at the start of its Section 4.5, p. 127: "All the results of Chapter 3 remain true after one reverses the order of the coordinates of $\mathbb{R}^{n+1}$." The book restates no single theorem of Chapter 3 in the time-last form. This document cites a result of that chapter in the time-first form in which the book prints it. [RAT] also orients the normal of a side inward, so that the half-space of the side is $\lbrace x : x \circ v \ge 0 \rbrace$ ([RAT], proof of Theorem 7.2.2, p. 291). Section 5.2 of `docs/design/architecture.md` orients it outward.
 
 The isometries also differ in how a translation distance enters a matrix. The $SL(2, \mathbb{R})$ and $SU(1,1)$ matrices use half the distance, as in $\cosh(\theta/2)$, while the Lorentz matrices use the full distance ([HT], equations 15-16, [CF] Section 2.1, [OBL] Section 2.2.2, and [W-HYPERBOLOID]). An $SL(2, \mathbb{R})$ rotation by $\theta$ becomes a Lorentz rotation by $2\theta$ [OBL], Section 2.2.2 (A).
 
@@ -101,7 +114,7 @@ Section 14 lists every conflict between sources, including the band constant and
 | --- | --- | --- | --- | --- |
 | Hyperboloid | $\lbrace x \ast x = -1, x_{n+1} > 0 \rbrace$ | $dx_1^2 + \dots + dx_n^2 - dx_{n+1}^2$ | $a \ast b = -\cosh d(a, b)$ [CFKP], Lemma, p. 83 (P) | Intersections with two-dimensional linear subspaces [CFKP], p. 80 (P) |
 | Poincare disk | $\lbrace (x, 0) : \lvert x \rvert < 1 \rbrace$ | $\dfrac{4 \lvert dx \rvert^2}{(1 - \lvert x \rvert^2)^2}$ | $d(w, z) = 2 \operatorname{artanh} \dfrac{\lvert z - w \rvert}{\lvert 1 - z \bar w \rvert}$ [HT], equation 23 (P) | Diameters and arcs of circles orthogonal to the boundary [CFKP], p. 80 (P) |
-| Half-space (half-plane) | $\lbrace (1, x_2, \dots, x_{n+1}) : x_{n+1} > 0 \rbrace$ | $\dfrac{dx_2^2 + \dots + dx_{n+1}^2}{x_{n+1}^2}$ | $2 \operatorname{arsinh} \dfrac{\lvert p_2 - p_1 \rvert}{2 \sqrt{y_1 y_2}}$ [W-HALFPLANE] (S) | Vertical lines and semicircles orthogonal to the boundary [CFKP], Theorem 9.3 (P) |
+| Half-space (half-plane) | $\lbrace (1, x_2, \dots, x_{n+1}) : x_{n+1} > 0 \rbrace$ | $\dfrac{dx_2^2 + \dots + dx_{n+1}^2}{x_{n+1}^2}$ | $2 \operatorname{arsinh} \dfrac{\lvert p_2 - p_1 \rvert}{2 \sqrt{y_1 y_2}}$ [W-HALFPLANE] (S). [BEA], Theorem 7.2.1, p. 130, prints $\sinh \frac{1}{2}\rho(z, w) = \dfrac{\lvert z - w \rvert}{2 (\operatorname{Im} z \operatorname{Im} w)^{1/2}}$ (P) | Vertical lines and semicircles orthogonal to the boundary [CFKP], Theorem 9.3 (P) |
 | Hemisphere | $\lbrace \lvert x \rvert = 1, x_{n+1} > 0 \rbrace$ | $\dfrac{dx_1^2 + \dots + dx_{n+1}^2}{x_{n+1}^2}$ | Not given | Not given separately |
 | Klein | $\lbrace (x, 1) : \lvert x \rvert < 1 \rbrace$ | $\dfrac{\lvert dx \rvert^2}{1 - \lvert x \rvert^2} + \dfrac{(x \cdot dx)^2}{(1 - \lvert x \rvert^2)^2}$ | $\frac{1}{2} \ln \dfrac{\lvert aq \rvert \lvert pb \rvert}{\lvert ap \rvert \lvert qb \rvert}$ [W-KLEIN] (S) | Straight chords [CFKP], Section 9 (P) |
 
@@ -120,7 +133,11 @@ These formulas give the distance in special positions, or in another form:
 | Model | Formula | Source |
 | --- | --- | --- |
 | Disk, from the origin | $\rho = \ln \dfrac{1 + R}{1 - R}$, $R = \dfrac{e^\rho - 1}{e^\rho + 1} = \dfrac{\cosh \rho - 1}{\sinh \rho}$ | [CFKP], Fact 5, p. 93 (P). [HT], equation 22 gives the same (P) |
-| Disk, general | $\operatorname{arcosh}\left(1 + \dfrac{2 \lvert u - v \rvert^2}{(1 - \lvert u \rvert^2)(1 - \lvert v \rvert^2)}\right)$ | [W-DISK] (S) |
+| Disk, general | $\operatorname{arcosh}\left(1 + \dfrac{2 \lvert u - v \rvert^2}{(1 - \lvert u \rvert^2)(1 - \lvert v \rvert^2)}\right)$ | [RAT], Theorem 4.5.1, p. 128, as $\cosh d$ (P). [W-DISK] (S) |
+| Disk, half the distance | $\sinh^2 \frac{1}{2}\rho(z, w) = \dfrac{\lvert z - w \rvert^2}{(1 - \lvert z \rvert^2)(1 - \lvert w \rvert^2)}$ | [BEA], equation (7.2.4), p. 131 (P) |
+| Disk, logarithm | $\rho(z, w) = \log \dfrac{\lvert 1 - z \bar w \rvert + \lvert z - w \rvert}{\lvert 1 - z \bar w \rvert - \lvert z - w \rvert}$ | [BEA], equation (7.2.5), p. 132 (P) |
+| Half-space, general | $\cosh d(x, y) = 1 + \dfrac{\lvert x - y \rvert^2}{2 x_n y_n}$ | [RAT], Theorem 4.6.1, p. 136 (P). [BEA], Theorem 7.2.1, p. 130, gives the same in the half-plane (P) |
+| Klein, general | $\cosh d(x, y) = \dfrac{1 - x \cdot y}{\sqrt{1 - \lvert x \rvert^2} \sqrt{1 - \lvert y \rvert^2}}$ | [RAT], Theorem 6.1.1, p. 193 (P) |
 | Half-space, along a semicircle from angle $\varphi$ to $\theta$ | $d = \displaystyle\int_\varphi^\theta \frac{d\psi}{\sin \psi} = \ln \frac{\sin \psi}{1 + \cos \psi} \Big\vert_\varphi^\theta$ | [CFKP], Fact 4, p. 90 (P) |
 | Half-plane, on a vertical line from height $u$ to $v$ | $\log(v / u)$ | [CAM], Section 4.3 (A) |
 | Klein, from the origin | $\operatorname{artanh} r$ | [W-KLEIN] (S) |
@@ -164,27 +181,33 @@ $$\text{centre} = \sec(d\theta) \, e^{i(\theta_1 + \theta_2)/2}, \qquad \text{ra
 
 ### 4.2. Direct Formulas in the Plane
 
-This table gives the direct conversions, each with its direction and source. The hyperboloid point is $(x_1, x_2, x_3)$ with the time coordinate last, except in the row from [W-DISK]:
+This table gives the direct conversions, each with its direction and source. The hyperboloid point is $(x_1, x_2, x_3)$ with the time coordinate last, except in the rows marked time first. [RAT] states its maps for the ball $B^n$ in $\mathbb{R}^n$, and the plane is the case $n = 2$:
 
 | Direction | Formula | Source |
 | --- | --- | --- |
-| Hyperboloid to disk | $\left(\dfrac{x_1}{x_3 + 1}, \dfrac{x_2}{x_3 + 1}\right)$ | [KC24], p. 3 (P), and the composition $\beta \circ \delta$ of [CFKP] (P) |
-| Disk to hyperboloid, time first | $(t, x) = \dfrac{(1 + \lvert y \rvert^2, 2y)}{1 - \lvert y \rvert^2}$ | [W-DISK] (S) |
-| Hyperboloid to Klein | $\left(\dfrac{x_1}{x_3}, \dfrac{x_2}{x_3}\right)$ | [KC24], p. 3 (P) |
+| Hyperboloid to disk | $\left(\dfrac{x_1}{x_3 + 1}, \dfrac{x_2}{x_3 + 1}\right)$ | [KC24], p. 3 (P), the composition $\beta \circ \delta$ of [CFKP] (P), [RAT], equation (4.5.3), p. 127 (P), and [DUN86], p. 147 (P) |
+| Disk to hyperboloid | $\left(\dfrac{2 x_1}{1 - \lvert x \rvert^2}, \dfrac{2 x_2}{1 - \lvert x \rvert^2}, \dfrac{1 + \lvert x \rvert^2}{1 - \lvert x \rvert^2}\right)$, "projecting $x$ in $B^n$ away from $-e_{n+1}$" | [RAT], equation (4.5.2), p. 127 (P), and [DUN86], p. 147 (P) |
+| Disk to hyperboloid, time first | $(t, x) = \dfrac{(1 + \lvert y \rvert^2, 2y)}{1 - \lvert y \rvert^2}$ | [W-DISK] (S), and [BEA], equation (3.7.4), p. 50, onto the hyperboloid $q(x, x) = 1$ (P) |
+| Hyperboloid to Klein | $\left(\dfrac{x_1}{x_3}, \dfrac{x_2}{x_3}\right)$ | [KC24], p. 3 (P), and [RAT], equation (6.1.2), p. 192 (P) |
+| Klein to hyperboloid | $\mu(x) = \dfrac{x + e_{n+1}}{\lvert\lvert\lvert x + e_{n+1} \rvert\rvert\rvert}$ | [RAT], equation (6.1.1), p. 192 (P) |
 | Klein to disk | $u = \dfrac{s}{1 + \sqrt{1 - \lvert s \rvert^2}}$ | The composition $\beta \circ \gamma$ of [CFKP] (P) |
-| Disk to Klein | $s = \dfrac{2u}{1 + \lvert u \rvert^2}$ | [W-DISK] (S) |
+| Disk to Klein | $s = \dfrac{2u}{1 + \lvert u \rvert^2}$ | [BEA], p. 128, which states that the map takes each geodesic of the disk onto the chord with the same endpoints (P). [W-DISK] (S) |
+
+[BEA], Theorem 3.7.5, p. 49, proves that its map from the hyperboloid onto the ball is an isometry (P). [DUN86], p. 147, relates its hyperboloid and the disk "by stereographic projection toward the point $(0,0,-1)^t$", and prints both maps without proof (P).
 
 [KC24], Section 3, adds that its "flattened" variant of the linear representation "is effectively the Beltrami-Klein model" (P).
 
 ### 4.3. Disk to Half-Plane: An Unsettled Convention
 
-No source fixes one map between the disk and the half-plane. Escher has to choose one and record the choice. [CFKP] gives only the composition $\alpha \circ \beta^{-1}$ through the hemisphere, with no complex formula (P). [KC24], p. 4, says that the half-plane is "obtained from the Poincare disk model by applying a circle inversion ... The center point of $U^2$ is $i$" (P).
+The sources give several maps between the disk and the half-plane and do not agree on one. Escher has to choose one and record the choice. [CFKP] gives only the composition $\alpha \circ \beta^{-1}$ through the hemisphere, with no complex formula (P). [KC24], p. 4, says that the half-plane is "obtained from the Poincare disk model by applying a circle inversion ... The center point of $U^2$ is $i$" (P).
 
 The candidate conventions are these:
 
 | Source | Disk to half-plane | Half-plane to disk | Image of the disk centre | Status |
 | --- | --- | --- | --- | --- |
 | [CAM], Section 4.3 | $z = i \dfrac{1 + \zeta}{1 - \zeta}$ | $\zeta = \dfrac{z - i}{z + i}$ | $i$ | (A) |
+| [BEA], Section 7.2, p. 131 | Not given | $f(z) = \dfrac{z - i}{z + i}$, "a 1-1 map of $H^2$ onto $\Delta$", with $\dfrac{2 \lvert f'(z) \rvert}{1 - \lvert f(z) \rvert^2} = \dfrac{1}{\operatorname{Im} z}$, so that $f$ is an isometry | Not recorded | (P) |
+| [RAT], Exercise 4.4.4, p. 126 | Not given | The "standard transformation" $\eta(z) = \dfrac{iz + 1}{z + i}$ from $U^2$ to $B^2$ | Not recorded | (P), stated as an exercise |
 | [W-METRIC] | Not given | $w = \dfrac{iz + 1}{z + i}$ | $i$ maps to 0 | (S) |
 | [W-MOBIUS] | $f(z) = \dfrac{z + i}{iz + 1}$, "a concrete isomorphism", with the direction not recorded | Not given | Not recorded | (S) |
 | [SYMMHUB] `lib/shaders/complex.glsl.mjs:140-147`, `uhp2disc` | Not given | With $m = x^2 + y^2$ and $D = m + 2y + 1$: $(x, y) \mapsto \left(\dfrac{1 - m}{D}, \dfrac{2x}{D}\right)$, and the scale factor is multiplied by $2/D$ | Not recorded | (P-code) |
@@ -195,6 +218,8 @@ The candidate conventions are these:
 $$(x, y) \mapsto \left(\frac{2x}{x^2 + (1 - y)^2}, \frac{1 - x^2 - y^2}{x^2 + (1 - y)^2}\right) \quad \text{(disk to half-plane)}$$
 
 $$(x, y) \mapsto \left(\frac{2x}{x^2 + (1 + y)^2}, \frac{x^2 + y^2 - 1}{x^2 + (1 + y)^2}\right) \quad \text{(half-plane to disk)}$$
+
+The map of [BEA] has the same formula as the map from the half-plane to the disk of [CAM], and the map of [RAT] has the same formula as that of [W-METRIC]. [RAT], p. 124, defines $\eta$ as the reflection in the boundary followed by the reflection in the sphere $S(e_n, \sqrt{2})$.
 
 The research reports describe `uhp2disc` as the Cayley map rotated by $\pi$, which is the researchers' own algebra (Section 15.1, item 20). According to the first research report, the conventions of [CAM] and [W-METRIC] both send the disk centre to $i$ and differ by a rotation. No source confirms that statement.
 
@@ -296,7 +321,7 @@ A matrix $M$ induces an isometry of the hyperboloid if and only if two condition
 1. $m_i \ast m_j = e_i \ast e_j$ for the columns $m_i$ of $M$ and the standard basis vectors $e_i$. This holds exactly when $M^{-1} = J M^t J$.
 2. The last entry of the last column is positive.
 
-Linear, Riemannian, and topological isometries of the hyperboloid coincide, and every isometry is the restriction of a linear map [CFKP], Theorem 10.2, and Section 11, p. 84 (P). The inverse is therefore $J M^t J$, and composition is the matrix product. [CFKP], p. 83, builds isometries by a Minkowski Gram-Schmidt process (P).
+Linear, Riemannian, and topological isometries of the hyperboloid coincide, and every isometry is the restriction of a linear map [CFKP], Theorem 10.2, and Section 11, p. 84 (P). The inverse is therefore $J M^t J$, and composition is the matrix product. [CFKP], p. 83, builds isometries by a Minkowski Gram-Schmidt process (P). [RAT], Theorem 3.1.3, p. 59, states the condition as $A^t J A = J$, or equivalently $A J A^t = J$, with the time coordinate first and $J = \operatorname{diag}(-1, 1, \dots, 1)$. Its Theorem 3.2.3 and Corollary 3, pp. 67-68, identify the isometries of the hyperboloid with the positive Lorentz group, written $PO(1, n)$ in Chapter 3 and $PO(n, 1)$ from Section 4.5 on (P).
 
 [KC24], p. 3, gives these basic isometries with the time coordinate last (P):
 
@@ -320,6 +345,12 @@ $$z \mapsto \frac{az + b}{\bar b z + \bar a}, \qquad \begin{pmatrix} a & b \\ \b
 
 All Mobius maps $(az + b)/(cz + d)$ form a group isomorphic to $PGL(2, \mathbb{C})$. The disk isometries need $\lvert a \rvert^2 - \lvert b \rvert^2 = 1$, $d = \bar a$, and $c = \bar b$, so the group is $PSU(1,1) = SU(1,1)/\lbrace \pm 1 \rbrace$, which is "isomorphic to PSL(2,R)" [HT] (P).
 
+[BEA], Theorem 7.4.1, p. 137, gives all the isometries of the disk, in two families (P):
+
+$$z \mapsto \frac{az + \bar c}{cz + \bar a}, \qquad z \mapsto \frac{a \bar z + \bar c}{c \bar z + \bar a}, \qquad \lvert a \rvert^2 - \lvert c \rvert^2 = 1$$
+
+This is the form of [HT] with $b = \bar c$. The coefficients determine how far the map moves the origin: $\lvert c \rvert = \sinh \frac{1}{2}\rho(0, g0)$ and $\lvert a \rvert = \cosh \frac{1}{2}\rho(0, g0)$ ([BEA], equations (7.4.1) and (7.4.2), p. 138) (P). [RAT], Exercise 4.5.10, p. 135, states the two families in the form of [HT], $z \mapsto (az + b)/(\bar b z + \bar a)$ and $z \mapsto (a \bar z + b)/(\bar b \bar z + \bar a)$ with $\lvert a \rvert^2 - \lvert b \rvert^2 = 1$, as an exercise (P).
+
 [CF], Section 2.1, equations 2.3-2.4, gives the same form (A). The full isometry group of the disk is $U(1,1) = SU(1,1) \cup \kappa \cdot SU(1,1)$, where $\kappa$ is $z \mapsto \bar z$ [CF] (A). [BOE], equation 4, gives the equivalent form $e^{i\eta}(a - z)/(1 - z \bar a)$ (A).
 
 The normalization differs between sources. [W-HMOTION] writes the matrix as $\begin{pmatrix} a & b^* \\ b & a^* \end{pmatrix}$, which swaps $b$ and $\bar b$ relative to [HT] (S). [W-MOBIUS] writes $(e^{i\varphi} z + b)/(\bar b z + 1)$ (S). These forms differ by renaming and by scalar multiples, according to the first research report.
@@ -327,6 +358,8 @@ The normalization differs between sources. [W-HMOTION] writes the matrix as $\be
 ### 6.3. Mobius and Anti-Mobius Transformations on the Half-Plane
 
 The orientation-preserving isometries of the half-plane are $z \mapsto (az + b)/(cz + d)$ with real entries and $ad - bc = 1$, which form $SL(2, \mathbb{R})$ [KC24], p. 6 (P), and [ARX2105], Section 1.1 (A).
+
+[BEA], Theorem 7.4.1, p. 137, gives all the isometries of the half-plane as $z \mapsto (az + b)/(cz + d)$ and $z \mapsto (a(-\bar z) + b)/(c(-\bar z) + d)$ with real coefficients and $ad - bc > 0$, and states that the group of isometries is generated by reflections in geodesics (P). [RAT], Exercise 4.6.9, p. 140, states the same two families with $ad - bc = 1$, as an exercise (P).
 
 The full group is $PGL(2, \mathbb{R})$, which acts by [SPR], Section 4 (A):
 
@@ -383,6 +416,15 @@ The isomorphism from $SU(1,1)$ to $SO^+(2,1)$ in the basis of the disk, and the 
 | Loxodromic | As hyperbolic | Hyperbolic with $O$ nontrivial |
 | Parabolic | One fixed point at infinity | $f(x) = k O(x) + v$ with $k = 1$ |
 
+[BEA] classifies a Mobius map $g$ by its trace. For any matrix $A$ that represents $g$, it defines $\operatorname{trace}^2(g) = \operatorname{tr}^2(A) / \det(A)$ ([BEA], equation (4.2.1), p. 61), which is $(\operatorname{tr} A)^2$ when $\det A = 1$. For $g \ne I$, [BEA], Theorem 4.3.4, p. 67, states (P):
+
+- $g$ is parabolic if and only if $\operatorname{tr}^2(g) = 4$.
+- $g$ is elliptic if and only if $\operatorname{tr}^2(g) \in [0, 4)$.
+- $g$ is hyperbolic if and only if $\operatorname{tr}^2(g) \in (4, +\infty)$.
+- $g$ is strictly loxodromic if and only if $\operatorname{tr}^2(g) \notin [0, +\infty)$.
+
+[BEA], Section 7.31, p. 171, states that every orientation-preserving isometry of the hyperbolic plane is parabolic, elliptic, or hyperbolic (P). [BEA] treats no orientation-reversing class by its trace. [RAT], Exercises 4.7.4 and 4.7.5, p. 145, state a trace criterion for Mobius maps of the Riemann sphere through their Poincare extensions to $U^3$, as exercises (P).
+
 In the plane, a matrix in $SL(2, \mathbb{R})$ with determinant 1 is classified by its trace: "parabolic iff trace^2 = 4, elliptic iff 0 <= trace^2 < 4, hyperbolic iff trace^2 > 4" [ARX2105], Section 1.1 (A). [W-HYPGEOM] names the orientation-preserving classes in words: the identity, a half turn, "rotation around a normal point", a horolation, which is a rotation about an ideal point, and "translation along a straight line" (S). The orientation-reversing classes are "reflection through a line" and a reflection combined with a translation along the same line [W-HYPGEOM] (S).
 
 A matrix with determinant $-1$ is a reflection when its trace is 0, which is "an involution with a geodesic of fixed points". Otherwise it is a glide reflection with "two fixed points on the real axis" [WAK], Section 2, equation 1 (A).
@@ -398,11 +440,21 @@ These formulas apply to a matrix $\begin{pmatrix} a & b \\ c & d \end{pmatrix}$:
 | Parabolic fixed point | A double root | [W-MOBIUS] (S) |
 | Hyperbolic fixed points | "exactly two fixed points on the real axis" | [WAK], Section 2 (A) |
 | Translation length, determinant 1 | $2 \cosh(\ell_g / 2) = \max\lbrace \lvert \operatorname{tr} g \rvert, 2 \rbrace$, with $\ell_g = \inf_z d(gz, z)$ | [MAR], equations 39-41 (A), and [W-FUCHSIAN] (S) |
+| Translation length of a hyperbolic $g$ | $\frac{1}{2} \lvert \operatorname{trace}(g) \rvert = \cosh(\frac{1}{2} T)$, with $T = \inf_z \rho(z, gz)$ | [BEA], Section 7.34, p. 173 (P) |
+| Elliptic rotation angle $\theta$, in the form of [BEA] | $\operatorname{tr}^2(g) = 2 + 2\cos\theta$, and $\operatorname{trace}^2(g) = 4\cos^2(\theta/2)$ | [BEA], equation (4.3.4), p. 67, and Section 7.33, p. 173 (P) |
 | Glide translation length, determinant $-1$ | $\lvert \operatorname{tr} g \rvert = 2 \sinh(t_g / 2)$ | [WAK], equation 1 (A) |
 | Elliptic rotation angle $\theta$ | $\operatorname{tr}^2 = 2 + 2 \cos \theta$ | [W-MOBIUS] (S) |
 | Hyperbolic, in the same form | $\operatorname{tr}^2 = 2 + 2 \cosh \theta$ | [W-MOBIUS] (S) |
 
+The [BEA] rows apply to orientation-preserving isometries, with $\operatorname{trace}^2$ normalized as in equation (4.2.1) of Section 6.6.
+
 The rotation $R(\varphi) = \operatorname{diag}(e^{i\varphi/2}, e^{-i\varphi/2})$ of [HT], equation 14, acts as $z \mapsto e^{i\varphi} z$ (P).
+
+[BEA], Section 7.34, p. 173, defines the axis of a hyperbolic $g$ as the unique geodesic that $g$ leaves invariant. It also gives how far $g$ moves a point $z$ in terms of the distance from $z$ to the axis $A$ or to the fixed point $v$ ([BEA], Theorem 7.35.1, p. 174) (P):
+
+$$\sinh \tfrac{1}{2}\rho(z, gz) = \cosh \rho(z, A) \sinh(\tfrac{1}{2} T) \quad \text{(hyperbolic)}, \qquad \sinh \tfrac{1}{2}\rho(z, gz) = \sinh \rho(z, v) \lvert \sin(\theta/2) \rvert \quad \text{(elliptic)}$$
+
+In the elliptic case $\theta \in [-\pi, \pi]$.
 
 ## 7. Constructions
 
@@ -444,6 +496,10 @@ $$f_T(z) = \frac{z - z_0}{1 - z \bar z_0}, \qquad f_T^{-1}(z) = \frac{z + z_0}{1
 
 [UIUC] gives the same pair as $T_{-\alpha}(z) = (z - \alpha)/(1 - \bar\alpha z)$ and $T_\alpha(z) = (z + \alpha)/(\bar\alpha z + 1)$ (S).
 
+In vector form, [RAT], equation (4.5.5), p. 129, gives the hyperbolic translation of the ball that moves the origin to $b$, with $\tau_b(0) = b$ (P):
+
+$$\tau_b(x) = \frac{1 - \lvert b \rvert^2}{\lvert b \rvert^2 \lvert x \rvert^2 + 2 x \cdot b + 1} \, x + \frac{\lvert x \rvert^2 + 2 x \cdot b + 1}{\lvert b \rvert^2 \lvert x \rvert^2 + 2 x \cdot b + 1} \, b$$
+
 ### 7.4. Reflection in a Geodesic
 
 [HT], Section 5.5.2, p. 32, reflects a point in the edge between two vertices of the disk with the helper REFLECT (P):
@@ -458,7 +514,18 @@ $$f_T(z) = \frac{z - z_0}{1 - z \bar z_0}, \qquad f_T^{-1}(z) = \frac{z + z_0}{1
 - A circle with centre $c$ and radius $r$: $v \mapsto c + (v - c) \, r^2 / \lvert v - c \rvert^2$. The running scale factor is multiplied by $r^2 / \lvert v - c \rvert^2$.
 - A line through the point $p$ with unit normal $n$: $v \mapsto v - 2((v - p) \cdot n) n$.
 
-Section 7.6 gives the sides of the fundamental triangles that [SYMMHUB] reflects in. No source gives the reflection in a disk geodesic as one closed formula, and Section 15.1 records the candidate.
+Section 7.6 gives the sides of the fundamental triangles that [SYMMHUB] reflects in.
+
+[BEA] prints the two parts of the reflection in a disk geodesic as separate statements (P):
+
+- The reflection in the sphere $S(a, r)$ with centre $a$ and radius $r$ is $\phi(x) = a + r^2 (x - a)^*$, with $x^* = x / \lvert x \rvert^2$ ([BEA], equation (3.1.1), p. 20). In the plane, $z^* = 1/\bar z$ ([BEA], p. 39).
+- The circle $S(a, r)$ is orthogonal to the unit circle if and only if $\phi$ maps the unit disk onto itself ([BEA], Theorem 3.4.2, p. 38), and orthogonality gives $\lvert a \rvert^2 = 1 + r^2$ ([BEA], p. 128). The reflection in a geodesic is an isometry ([BEA], Section 7.3, item (3), p. 134).
+
+[RAT] gives the same two parts: the inversion $\sigma(x) = a + \left(\frac{r}{\lvert x - a \rvert}\right)^2 (x - a)$ ([RAT], equation (4.1.2), p. 107), and $r^2 = \lvert a \rvert^2 - 1$ for a sphere orthogonal to the unit sphere ([RAT], p. 129). [RAT], Theorem 4.4.6, p. 125, states that the inversion in a sphere leaves the open unit ball invariant if and only if the sphere is orthogonal to the unit sphere (P).
+
+[RAT] relates the unit normals of two sides of a compact hyperbolic simplex to the angle between the sides (P). With $v_i$ the unit Lorentz normal of the side $V_i$ directed into the half-space $H_i = \lbrace x : x \circ v_i \ge 0 \rbrace$, it states $v_i \circ v_j = \cos(\pi - \theta_{ij}) = -\cos\theta_{ij}$, where $\theta_{ij} \in (0, \pi/2]$ is the dihedral angle ([RAT], proof of Theorem 7.2.2, part (3), p. 291). The theorem works in $\mathbb R^{n,1}$, so the form is the time-last form of equation (4.5.1). Its Theorem 7.3.1, pp. 301-302, states the same for generalized simplices with $\theta_{ij} \in [0, \pi/2]$. These normals point inward, as Section 2.4 records. [RAT], equation (6.7.2), p. 255, defines the dihedral angle of two sides as $\pi - \alpha$, with the normal geodesics directed away from the half-spaces that contain the polyhedron, and gives it the value 0 for two distinct sides that are not adjacent (P).
+
+[RAT], equation (3.2.4), p. 64, defines the Lorentzian cross product $x \otimes y = J(x \times y)$, with $J = \operatorname{diag}(-1, 1, 1)$ and the time coordinate first, which is Lorentz orthogonal to both $x$ and $y$ (P). For $x$ and $y$ on the hyperboloid, the proof of its Theorem 3.2.2, p. 66, gives $\lVert x \otimes y \rVert = \sinh \eta(x, y)$, where $\eta$ is the hyperbolic distance (P). This document records the cross product in the time-first convention in which [RAT] prints it, and states no time-last form of it.
 
 [DAVIS], Section 6.2, printed pp. 73-77, is the primary source for reflections in all three geometries (P). A hyperplane is "totally geodesic codimension one", and each hyperplane "separates the ambient space into two geodesically convex 'half-spaces'". The reflection $r_H$ in the hyperplane $H$ with unit normal $u$ takes the same form in each geometry:
 
@@ -632,18 +699,20 @@ The mature implementations use these countermeasures:
 
 ### 9.1. Circles
 
-Hyperbolic circles are Euclidean circles in all three conformal models, but "Euclidean and hyperbolic sphere centers need not coincide" [CFKP], Fact 1 (P). [CFKP], Figure 19, constructs the hyperbolic centre in the half-space geometrically (P). The circumference of a circle of radius $\rho$ is $C = 2\pi \sinh \rho$ and its area is $A = 2\pi(\cosh \rho - 1)$ [CFKP], Fact 5 (P). Its geodesic curvature is $\coth r$ [W-HYPGEOM] (S).
+Hyperbolic circles are Euclidean circles in all three conformal models, but "Euclidean and hyperbolic sphere centers need not coincide" [CFKP], Fact 1 (P). [CFKP], Figure 19, constructs the hyperbolic centre in the half-space geometrically (P). The circumference of a circle of radius $\rho$ is $C = 2\pi \sinh \rho$ and its area is $A = 2\pi(\cosh \rho - 1)$ [CFKP], Fact 5 (P). [BEA], Theorem 7.2.2, p. 132, gives the length $2\pi \sinh r$ and the area $4\pi \sinh^2 \frac{1}{2} r$ of a circle of radius $r$ (P). Its geodesic curvature is $\coth r$ [W-HYPGEOM] (S).
+
+A subset of the ball is a hyperbolic sphere if and only if it is a Euclidean sphere contained in the ball ([RAT], Theorem 4.5.4, p. 132) (P). [RAT], Exercise 4.5.5, p. 135, states that the hyperbolic and Euclidean centres of a sphere in the ball coincide if and only if the sphere is centred at the origin, as an exercise (P).
 
 This table gives the Euclidean form of a hyperbolic circle in each model:
 
 | Model | Hyperbolic centre and radius to Euclidean | Euclidean to hyperbolic | Source |
 | --- | --- | --- | --- |
-| Half-plane | Centre $(x, y)$ and radius $r$ give the Euclidean centre $(x, y \cosh r)$ and radius $y \sinh r$ | Euclidean centre $(x_e, y_e)$ and radius $r_e$ give the centre $(x_e, \sqrt{y_e^2 - r_e^2})$ and radius $\frac{1}{2} \ln \frac{y_e + r_e}{y_e - r_e}$ | [W-HALFPLANE] (S), inverse (S, r) |
+| Half-plane | Centre $(x, y)$ and radius $r$ give the Euclidean centre $(x, y \cosh r)$ and radius $y \sinh r$ | Euclidean centre $(x_e, y_e)$ and radius $r_e$ give the centre $(x_e, \sqrt{y_e^2 - r_e^2})$ and radius $\frac{1}{2} \ln \frac{y_e + r_e}{y_e - r_e}$ | [BEA], equation (3.3.5), p. 35, in the case $n = 1$ (P), and [W-HALFPLANE] (S). Inverse (S, r) |
 | Half-plane | Not given | The Euclidean circle with centre $a + ib$ and radius $\rho$ has the hyperbolic centre $a + i\sqrt{b^2 - \rho^2}$, with $\rho = b \tanh R$ | [COR], Exercise 2 (A) |
 | Disk, real centre $c$ | Euclidean centre $c' = c \big/ \left(1 + \frac{1}{2}(\cosh r - 1)(1 - c^2)\right)$, and radius $r' = (x_r - x_l)/2$ from the endpoints on the real axis, which [CHEN] solves for | Not given | [CHEN], Appendix A.1.4, equations 55-57 (A) |
-| Disk, centre at the origin | The Euclidean radius is $R$ of the formula from the origin in Section 3.2 | Same formula | [CFKP], Fact 5 (P) |
+| Disk, centre at the origin | The Euclidean radius is $R$ of the formula from the origin in Section 3.2 | Same formula | [CFKP], Fact 5 (P). [BEA], proof of Theorem 7.2.2, p. 132, gives $\tanh \frac{1}{2} r = R$ (P). [RAT], Exercise 4.5.4, p. 135, states $S_B(0, r) = S(0, \tanh(r/2))$, as an exercise (P) |
 
-In the disk, the hyperbolic and Euclidean centres lie on the same radius, and the Euclidean centre is closer to the centre of the disk [W-DISK] (S). A closed form for a general centre has no source. Section 15.1 records the candidate.
+In the disk, the hyperbolic and Euclidean centres lie on the same radius, and the Euclidean centre is closer to the centre of the disk [W-DISK] (S). A closed form for a general centre has no source. Section 15.1, item 2, records the candidate.
 
 ### 9.2. Hypercycles and Horocycles
 
@@ -661,14 +730,31 @@ Every horocycle has geodesic curvature 1 [W-HOROCYCLE] (S).
 
 ### 9.3. Distance From a Point to a Geodesic
 
-The sources give the distance from a point to a geodesic in two models (A):
+[BEA], Section 7.20, pp. 162-163, gives the distance from a point $z = x + iy$ to a geodesic $L$ in these positions (P):
+
+| Geodesic $L$ | Distance | Equation of [BEA] |
+| --- | --- | --- |
+| The positive imaginary axis, distance to the point $it$ | $\cosh \rho(z, it) = \dfrac{x^2 + y^2 + t^2}{2yt} \ge \dfrac{\lvert z \rvert}{y}$ | (7.20.2) |
+| The positive imaginary axis | $\cosh \rho(z, L) = 1/\cos\theta$, $\sinh \rho(z, L) = \tan\theta$, $\tanh \rho(z, L) = \sin\theta$, where $\theta$ is the angle at 0 between $L$ and the ray to $z$ | (7.20.3) |
+| The semicircle $\lbrace \lvert w \rvert = r \rbrace$ in the half-plane | $\sinh \rho(z, L) = \left\lvert \dfrac{\lvert z \rvert^2 - r^2}{2yr} \right\rvert$ | (7.20.4) |
+| The real diameter $(-1, 1)$ of the disk | $\sinh \rho(w, L) = \dfrac{2 \lvert \operatorname{Im} w \rvert}{1 - \lvert w \rvert^2}$ | (7.20.5) |
+
+[BEA], p. 175, also prints $\cosh \rho(z, A) = \lvert z \rvert / y$ for the distance to the imaginary axis $A$ (P). [RAT], Exercise 4.6.3, p. 140, states the same, $\cosh d_U(x, \lvert x \rvert e_n) = \lvert x \rvert / x_n$, with $\lvert x \rvert e_n$ the nearest point of the axis, as an exercise (P). [BEA], Exercise 7.20.1, p. 164, asks for the distance to a general diameter of the disk, and the book prints no answer.
+
+On the hyperboloid, [RAT], equation (3.2.8) and Theorem 3.2.12, p. 75, state this for a spacelike vector $x$ and a positive timelike vector $y$, with the time coordinate first (P):
+
+$$\lvert x \circ y \rvert = \lVert x \rVert \, \lvert\lvert\lvert y \rvert\rvert\rvert \sinh \eta(x, y)$$
+
+Here $\eta(x, y)$ is the hyperbolic distance from $y / \lvert\lvert\lvert y \rvert\rvert\rvert$ to the hyperplane $P$ Lorentz orthogonal to $x$, measured along the geodesic through that point that is Lorentz orthogonal to $P$. Moreover, $x \circ y < 0$ if and only if $x$ and $y$ are on opposite sides of the hyperplane of $\mathbb{R}^{n+1}$ that $P$ spans. This sign clause does not fix a test for the side of a hyperplane on which a point lies. The rule of [RAT] in Section 2.4 says that the results of Chapter 3 remain true when the order of the coordinates is reversed.
+
+Two further sources give the distance from a point to a geodesic (A):
 
 - Hyperboloid: $d = \operatorname{arsinh}\left((w \ast x)/\sqrt{-w \ast w}\right)$ [CHO], Theorem 1, equation 15. [CHO] uses the opposite sign of the Minkowski form, so a spacelike $w$ has $w \ast w < 0$, and its proof calls the result "unsigned".
 - Disk: $d = \operatorname{arsinh} \dfrac{2 \lvert \langle -p \oplus x, a \rangle \rvert}{(1 - \lvert -p \oplus x \rvert^2) \lvert a \rvert}$ [GBH], Theorem 5, equation 23, at $c = 1$, where $\oplus$ is Mobius addition and the geodesic passes through $p$ with normal $a$.
 
-No source states the simpler forms in the half-plane, the disk, or the hyperboloid with the time coordinate first. Section 15.1 records them.
+The forms that no source states are in Section 15.1, item 3.
 
-The angle of parallelism $\Pi(a)$ at distance $a$ satisfies $\sin \Pi(a) = \operatorname{sech} a$ and $\tan(\Pi/2) = e^{-a}$ [W-PARALLEL] (S).
+The angle of parallelism $\Pi(a)$ at distance $a$ satisfies $\sin \Pi(a) = \operatorname{sech} a$ and $\tan(\Pi/2) = e^{-a}$ [W-PARALLEL] (S). [BEA], Theorem 7.9.1, p. 145, states for a triangle with the angles $\alpha$, 0, and $\pi/2$ and the finite side $b$ that $\sinh b \tan\alpha = 1$, $\cosh b \sin\alpha = 1$, and $\tanh b \sec\alpha = 1$ (P).
 
 ### 9.4. Scale Factor of Each Model
 
@@ -691,7 +777,9 @@ The scale factor $\lambda$ converts a Euclidean length in a model to a hyperboli
 
 These conditions decide whether a triangle or tiling exists:
 
-- The area of a triangle with angles $\alpha$, $\beta$, $\gamma$ is $\pi - \alpha - \beta - \gamma$. For any angles with sum less than $\pi$, "there is one and only one triangle up to congruence" [CFKP], Fact 3 (P).
+- The area of a triangle with angles $\alpha$, $\beta$, $\gamma$ is $\pi - \alpha - \beta - \gamma$. For any angles with sum less than $\pi$, "there is one and only one triangle up to congruence" [CFKP], Fact 3 (P). [BEA], Theorem 7.13.1, p. 150, gives the same area (P).
+- The area of a polygon with interior angles $\theta_1, \dots, \theta_n$ is $(n - 2)\pi - (\theta_1 + \dots + \theta_n)$ [BEA], Theorem 7.15.1, p. 153 (P).
+- For any ordered angles $\theta_1, \dots, \theta_n$ with $0 \le \theta_j < \pi$, a polygon with these interior angles in this order exists if and only if $\theta_1 + \dots + \theta_n < (n - 2)\pi$ [BEA], Theorem 7.16.2, p. 155 (P). The theorem states existence only. Its proof builds one convex polygon with an inscribed circle that touches every side, and gives no coordinates and no uniqueness.
 - The angles of a kaleidoscope are $\pi/n$ with $n > 1$, or 0, with sum less than $\pi$, and triangles are rigid. A kaleidoscope with $n$ sides "has n-3 degrees of freedom", and $*22222$ has two free sides [BUL11], p. 1 (P).
 - A $\{p, q\}$ tiling is hyperbolic when $(p - 2)(q - 2) > 4$ [DUN07], p. 3, and [HT], p. 4 (P). [KC24], Section 4, uses the equivalent condition $1/p + 1/q < 1/2$ (P).
 - [HT], Section 7.1, classifies the triangle group $(p, q, r)$ as spherical, Euclidean, or hyperbolic by comparing $1/p + 1/q + 1/r$ with 1 (P). [W-HYPGEOM] states that hyperbolic tilings need $1/p + 1/q + 1/r < 1$ (S).
@@ -708,13 +796,17 @@ $$\cos C = -\cos A \cos B + \sin A \sin B \cosh c$$
 
 $$\frac{\sin A}{\sinh a} = \frac{\sin B}{\sinh b} = \frac{\sin C}{\sinh c}$$
 
-[HT], equation 26, gives the same law of sines (P).
+[HT], equation 26, gives the same law of sines (P). [BEA], Section 7.12, p. 148, states the law of sines and the first law of cosines in the same form, with the angles $\alpha$, $\beta$, $\gamma$ opposite the sides $a$, $b$, $c$ (P). [RAT], Theorems 3.5.2 and 3.5.3, p. 86, also state the law of sines and the first law of cosines (P).
 
 The side of a triangle with given angles is [W-LAWCOS] (S):
 
 $$\cosh a = \frac{\cos A + \cos B \cos C}{\sin B \sin C}$$
 
-With $A = \pi/p$, $B = \pi/q$, and $C = \pi/r$, this gives the sides of the $(p, q, r)$ triangle. [HR], `edge_of_triangle_with_angles`, implements the same formula as `acos_auto((cos(alpha)+cos(beta)*cos(gamma))/(sin(beta)*sin(gamma)))` (P-code).
+[BEA], Section 7.12, p. 148, states it as $\cosh c = \dfrac{\cos\alpha \cos\beta + \cos\gamma}{\sin\alpha \sin\beta}$ (P), and [RAT], Theorem 3.5.4, p. 86, states the same second law of cosines (P). With $A = \pi/p$, $B = \pi/q$, and $C = \pi/r$, the formula gives the sides of the $(p, q, r)$ triangle. [HR], `edge_of_triangle_with_angles`, implements the formula of [W-LAWCOS] as `acos_auto((cos(alpha)+cos(beta)*cos(gamma))/(sin(beta)*sin(gamma)))` (P-code).
+
+For a triangle with the angles $\alpha$, $\beta$, and 0, [BEA], Theorem 7.10.1, p. 146, gives the finite side $c$ (P):
+
+$$\cosh c = \frac{1 + \cos\alpha \cos\beta}{\sin\alpha \sin\beta}, \qquad \sinh c = \frac{\cos\alpha + \cos\beta}{\sin\alpha \sin\beta}$$
 
 ### 10.3. Right Triangles
 
@@ -726,7 +818,15 @@ For a right triangle with $C = \pi/2$, [W-HTRI] gives these relations (S):
 | $\cos A = \tanh b / \tanh c$ | $\tan A = \tanh a / \sinh b$ |
 | $\cos A = \cosh a \sin B$ | $\cosh c = \cot A \cot B$ |
 
-Section 14 records an earlier transcription of the relation $\cos A = \cosh a \sin B$.
+[BEA] states these relations for a triangle with the angles $\alpha$, $\beta$, $\pi/2$ and the sides $a$, $b$ opposite $\alpha$, $\beta$, and the hypotenuse $c$ (P):
+
+| Relation | Locator in [BEA] |
+| --- | --- |
+| $\cosh c = \cosh a \cosh b$ | Theorem 7.11.1, p. 146 |
+| $\tanh b = \sinh a \tan\beta$, $\sinh b = \sinh c \sin\beta$, $\tanh a = \tanh c \cos\beta$ | Theorem 7.11.2, p. 147 |
+| $\cosh a \sin\beta = \cos\alpha$, $\cosh c = \cot\alpha \cot\beta$ | Theorem 7.11.3, p. 147 |
+
+Each row of the table of [W-HTRI] above is one of these relations, for one leg or the other. [RAT], Exercise 3.5.3, p. 102, states the same relations as its equations (3.5.7) to (3.5.16), as an exercise, and its equation (3.5.15) is $\cos\alpha = \cosh a \sin\beta$ (P). Section 14 records the conflict between two transcriptions of the relation $\cos A = \cosh a \sin B$, which Theorem 7.11.3 settles.
 
 ### 10.4. Regular Polygons
 
@@ -740,7 +840,13 @@ Section 14 records an earlier transcription of the relation $\cos A = \cosh a \s
 | Edge length | $h = 2 \ell \operatorname{arcosh} \dfrac{\cos(\pi/p)}{\sin(\pi/q)}$ | 29 |
 | Area of a triangle | $(\pi - \alpha - \beta - \gamma) \ell^2$ | 30 |
 
-[HT], Table 2, gives these values for $\{7, 3\}$ (P): $h = 1.090550$, $h_r = 0.620673$, and $r_0 = 0.300743$. Section 15.1 records the hyperbolic circumradius and inradius, which no source states.
+[HT], Table 2, p. 20, prints four values for each tiling. Its caption names them the "lattice spacing $h^{(p,q)}$ (i. e. the edge length), the lattice spacing of the dual lattice $h^{(q,p)}$ and the cell radius $h_r$ (i. e. the geodesic distance between the cell midpoint and its vertices)", and the table also prints $r_0$. In the row $\{7, 3\}$ it prints $h^{(p,q)} = 1.090550$, $h^{(q,p)} = 0.566256$, $h_r = 0.620673$, and $r_0 = 0.300743$ (P). Equation 29 of [HT], evaluated at $(p, q) = (7, 3)$, gives 0.566256 for the edge length, which the table prints as $h^{(q,p)}$. The evaluation is a computation and no source prints it. Table 2 and equation 29 of [HT] therefore disagree on the edge length of $\{7, 3\}$. Section 14 records the conflict, and Section 15.1, item 23, records that the table value is not a test value. Section 15.1, item 4, records the hyperbolic circumradius and inradius, which no source states for $\{p, q\}$.
+
+[DUN86], Figure 10 and its text, p. 148, uses a quantity $b$ defined by $\cosh b = \cos(\pi/q) / \sin(\pi/p)$, and the paper does not name $b$ (P). With it, the paper builds three reflections of the hyperboloid, with the time coordinate last (P):
+
+$$\mathrm{ReflectP} = \begin{pmatrix} -\cosh 2b & 0 & \sinh 2b \\ 0 & 1 & 0 \\ -\sinh 2b & 0 & \cosh 2b \end{pmatrix}, \quad \mathrm{ReflectQ} = \begin{pmatrix} 1 & 0 & 0 \\ 0 & -1 & 0 \\ 0 & 0 & 1 \end{pmatrix}, \quad \mathrm{Reflect2} = \begin{pmatrix} \cos\frac{2\pi}{p} & \sin\frac{2\pi}{p} & 0 \\ \sin\frac{2\pi}{p} & -\cos\frac{2\pi}{p} & 0 \\ 0 & 0 & 1 \end{pmatrix}$$
+
+The paper sets $\cosh 2b = 2\cosh^2 b - 1$ and $\sinh 2b = \sqrt{\cosh^2 2b - 1}$. It states that "the counterclockwise rotations, RotateP by $2\pi/p$ about $P$ and RotateQ by $2\pi/q$ about $Q$ are represented by the matrix products Reflect2 ReflectQ and ReflectP Reflect2, respectively" (P). The paper calls the segment $PQ$ the circumradius, and gives no formula for its length.
 
 ### 10.5. Right-Angled Pentagons and Hexagons
 
@@ -750,11 +856,28 @@ $$\sinh \ell_4 = \sqrt{\sinh^2 \ell_1 \sinh^2 \ell_2 - 1}, \qquad \sinh \ell_3 =
 
 The sources are [RAH], Section 4, [MG], Section 3.1, equation 24, which cites Fenchel [FEN], p. 82, equation 2, and [OC], equation A.2.
 
+[BEA], Theorem 7.18.1, p. 159, states the pentagon with four right angles and one angle $\phi$, with $a$ and $c$ the two sides next to the side $b$ and $\phi$ the vertex opposite $b$ in its Figure 7.18.1 (P):
+
+$$\cosh a \cosh c + \cos\phi = \sinh a \cosh b \sinh c$$
+
+When $\phi = \pi/2$, the same theorem states $\tanh a \cosh b \tanh c = 1$, its equation (7.18.1), and $\sinh a \sinh b = \cosh d$, its equation (7.18.2), which has the form of the first relation of this section (P). [RAT], Theorem 3.5.11, p. 97, states the same pentagon in other labels, with $c'$ the side opposite the angle $\gamma$ and $a$, $b$ the sides adjacent to $c'$ (P):
+
+$$\cosh c' = \frac{\cosh a \cosh b + \cos\gamma}{\sinh a \sinh b}$$
+
+[RAT] adds that the formula also holds when the vertex of angle $\gamma$ is at infinity.
+
 In a right-angled hexagon, $\cosh c = \sinh a \sinh b \cosh \gamma - \cosh a \cosh b$ [OC], Section 3.1, equation 3.1 (A). [CONE], equation 9, gives the same and cites Buser [BUS], Theorem 2.4.1(i) (A). [RAH], Section 2.1, equation 1, parametrizes the hexagon by alternate sides (A, r).
+
+Two primary sources state the right-angled hexagon in their own labels (P):
+
+- [BEA], Theorem 7.19.1, p. 160, states the law of sines $\dfrac{\sinh a_1}{\sinh b_1} = \dfrac{\sinh a_2}{\sinh b_2} = \dfrac{\sinh a_3}{\sinh b_3}$, and Theorem 7.19.2, p. 161, states $\cosh b_1 \sinh a_2 \sinh a_3 = \cosh a_1 + \cosh a_2 \cosh a_3$.
+- [RAT], Theorem 3.5.12, p. 99, states the law of sines for alternate sides $a$, $b$, $c$ and the opposite sides $a'$, $b'$, $c'$, and Theorem 3.5.13, p. 100, states $\cosh c' = \dfrac{\cosh a \cosh b + \cosh c}{\sinh a \sinh b}$. Its Theorem 3.5.14, p. 100, states that a right-angled convex hexagon with given positive alternate sides exists and is unique up to congruence, and the book proves the existence only.
 
 A pentagon with one angle $\alpha_i$ that is not right satisfies the following, from [CONE], Lemma 2.7, equation 13, which cites [BUS], Exercise 2.2.7 (A, r):
 
 $$\sinh \delta = \frac{\cosh c_i + \cos \alpha_i \cosh L_i'}{\sin \alpha_i \sinh L_i'}$$
+
+Whether this form agrees with Theorem 7.18.1 of [BEA] and Theorem 3.5.11 of [RAT] is open (Section 15.1, item 12).
 
 ### 10.6. Lambert and Saccheri Quadrilaterals
 
@@ -765,6 +888,8 @@ A Lambert quadrilateral $AOBF$ has right angles at $A$, $O$, and $B$, and an acu
 | $\sinh AF = \sinh OB \cosh BF$ | $\tanh AF = \cosh OA \tanh OB$ |
 | $\cosh OF = \cosh OA \cosh AF$ | $\sin \angle F = \cosh OB / \cosh AF$ |
 | $\cos \angle F = \sinh OA \sinh OB$ | $\cot \angle F = \tanh OA / \sinh AF$ |
+
+[BEA], Theorem 7.17.1, p. 157, states two of these relations (P). In its Figure 7.17.1, the sides $a_1$ and $a_2$ meet at the right angle opposite the angle $\phi$, and $b_1$ is the side opposite $a_1$. The theorem states $\sinh a_1 \sinh a_2 = \cos\phi$ and $\cosh a_1 = \cosh b_1 \sin\phi$. In the labels above, with $a_1 = OB$, $a_2 = OA$, and $b_1 = AF$, these are the relations $\cos \angle F = \sinh OA \sinh OB$ and $\sin \angle F = \cosh OB / \cosh AF$. [RAT], Theorem 3.5.10, p. 96, states the first of them as $\cos\gamma = \sinh a \sinh b$, with $a$ and $b$ the sides opposite the angle $\gamma$ (P). No primary source read states the other four relations.
 
 A Saccheri quadrilateral has a base $b$, two legs of length $l$, and a summit $s$, and "the summit is longer than the base". [W-SACCHERI] gives these relations and cites Buser and Karcher, and Greenberg (S, r):
 
@@ -793,6 +918,10 @@ The stereographic projection from the north pole onto the plane through the cent
 
 $$X = \frac{x}{1 - z}, \quad Y = \frac{y}{1 - z}, \qquad (x, y, z) = \frac{(2X, 2Y, X^2 + Y^2 - 1)}{1 + X^2 + Y^2}$$
 
+[BEA], p. 21, prints the map from $\mathbb{R}^n$ to the unit sphere, which is the inverse above in the case $n = 2$ (P):
+
+$$\pi(\tilde x) = \left(\frac{2 x_1}{\lvert x \rvert^2 + 1}, \dots, \frac{2 x_n}{\lvert x \rvert^2 + 1}, \frac{\lvert x \rvert^2 - 1}{\lvert x \rvert^2 + 1}\right)$$
+
 [SYMMHUB] shows the sphere through stereographic projection in `makeSphericalProjection` at `lib/shaders/projection_v2.glsl.mjs:252-266` (P-code). It reads each pixel $p$ as an orthographic view of the front hemisphere. With `pp` $= \lvert p \rvert^2$ and $z = \sqrt{1 - \lvert p \rvert^2}$, it applies two factors:
 
 - The position: `p *= factor` with `factor = 1./(1. + sqrt(1.-pp))`, which is $1/(1 + z)$.
@@ -804,7 +933,7 @@ Section 5.4 gives the equivalent inversion of [BUL11].
 
 ### 11.3. Spherical Trigonometry for Triangle Groups
 
-The spherical second law of cosines is $\cos C = -\cos A \cos B + \sin A \sin B \cos c$ [W-SPHLAW] (S). Solved for a side, it has the form of the hyperbolic formula of Section 10.2 with $\cos$ in place of $\cosh$, according to the first research report.
+The spherical second law of cosines is $\cos C = -\cos A \cos B + \sin A \sin B \cos c$ [W-SPHLAW] (S). [RAT], Exercise 2.5.1, part (2), p. 53, states it as $\cos\alpha = -\cos\beta \cos\gamma + \sin\beta \sin\gamma \cos a$, as an exercise (P). Solved for a side, it has the form of the hyperbolic formula of Section 10.2 with $\cos$ in place of $\cosh$, according to the first research report.
 
 A spherical triangle group needs an angle sum above $\pi$, so $1/l + 1/m + 1/n > 1$ [W-TRIGROUP] (S). The spherical Mobius triangles are $(p\,2\,2)$, $(3\,3\,2)$, $(4\,3\,2)$, and $(5\,3\,2)$ [W-SCHWARZ] (S).
 
@@ -855,7 +984,7 @@ The Blinn-Phong model replaces the reflection vector with the half vector $H = (
 
 ## 12. The Euclidean Plane
 
-Section 7.4 gives the reflection in a line [DAVIS], equation 6.3 (P). The other isometries of the Euclidean plane take these forms (S):
+Section 7.4 gives the reflection in a line [DAVIS], equation 6.3 (P). [RAT], equation (4.1.1), p. 105, writes the reflection in the plane $P(a, t) = \lbrace x : a \cdot x = t \rbrace$, with $a$ a unit vector, as $\rho(x) = x + 2(t - a \cdot x) a$ (P). The other isometries of the Euclidean plane take these forms (S):
 
 - In complex form, $z \mapsto a + \omega z$ or $z \mapsto a + \omega \bar z$ with $\lvert \omega \rvert = 1$. The rotation about $p$ is $z \mapsto \omega(z - p) + p$ [W-EUCLISO].
 - There are "four types": translation, rotation, reflection, and glide reflection [W-EUCLISO].
@@ -939,15 +1068,16 @@ This table lists each conflict between sources, and what this document does abou
 | --- | --- | --- |
 | Band constant | [B1] prints "(2/$\pi$) tanh^-1(z)" with $\lvert \operatorname{Im} w \rvert < 1$ and the metric "(2/$\pi$)\|dz\|/cos(Im(z))". [B2], [B3], [STRIP] equation 1, and [SYMMHUB] (`tanh(pi w/4)`) all use $4/\pi$ with $\lvert \operatorname{Im} w \rvert < 1$, and the metric of [STRIP] fits that strip | The final research report resolves it as $4/\pi$, on the basis in Section 5.1. A research agent once claimed that $4/\pi$ gives $\lvert \operatorname{Im} w \rvert < 2$, and the report rejects that claim for the same reason |
 | Band strip width | $\lvert \operatorname{Im} \rvert < 1$ in [B2], [B3], [STRIP], and [SYMMHUB]. $0 < \operatorname{Im} < 1$ in [KC19]. $\lvert \operatorname{Im} \rvert < \pi/2$ in [W-BAND] | Each formula keeps its own convention (Section 5.1) |
-| Disk to half-plane | [CAM] $i(1 + \zeta)/(1 - \zeta)$. [W-METRIC] $(iz + 1)/(z + i)$. [SYMMHUB] `uhp2disc`, which research agents describe as the Cayley map rotated by $\pi$. [CFKP] fixes none | Unsettled. Section 4.3 lists every candidate |
+| Disk to half-plane | [CAM] $i(1 + \zeta)/(1 - \zeta)$. [BEA] $(z - i)/(z + i)$ from the half-plane to the disk. [W-METRIC] and [RAT], Exercise 4.4.4, $(iz + 1)/(z + i)$. [SYMMHUB] `uhp2disc`, which research agents describe as the Cayley map rotated by $\pi$. [CFKP] fixes none | Unsettled. Section 4.3 lists every candidate |
 | KC19 half-plane map | [KC19], p. 92, prints $f(z) = 1/(z - i) + 1/2$ | The final research report concludes from its own check that this maps the disk onto $\operatorname{Im} > 1/2$, not onto the half-plane, so that it is likely a typo for a shift by $-i/2$. The check is unverified (Section 15.1) |
-| Order of the time coordinate | Last in [CFKP], [KC24], and [HR]. First in [W-HYPERBOLOID], [HT] equation 1, and [OBL]. [CHO] uses the opposite sign of the form | Each formula keeps its own convention (Section 2.4) |
+| Order of the time coordinate | Last in [CFKP], [KC24], [HR], and [DUN86]. First in [W-HYPERBOLOID], [HT] equation 1, [OBL], and [BEA]. First in Chapter 3 of [RAT] and last from its Section 4.5 on. [CHO] and [BEA] use the opposite sign of the form | Each formula keeps its own convention (Section 2.4) |
 | KC24 hyperboloid distance | [KC24], p. 3, prints the distance as "acosh g^-(x, y)", without a minus sign | [CFKP] gives $a \ast b = -\cosh d$. This document gives the [CFKP] form (Section 3.1) |
 | KC24 cosine rule | [KC24], p. 4, equation 1, prints the term "cos(phi_2) sinh(r_2) cosh(r_2)" | The report calls the term garbled. This document gives equation 2 only (Section 3.2) |
 | KC24 precision | [KC24], p. 9, prints "1 - $\Theta$(exp(2d))" | The report concludes that the decay is $e^{-2d}$, because $\tanh d$ approaches 1. Section 8.3 gives $e^{-2d}$ |
 | KC19 disk radius | [KC19], p. 94, prints "sinh(d)/(1 + cosh(z))" for the disk radius of a point at distance $d$ | The report concludes that the intended value is $\tanh(d/2)$. [CFKP], Fact 5, gives this radius as $(e^d - 1)/(e^d + 1)$ (Section 3.2) |
+| HT edge length of $\{7, 3\}$ | [HT], Table 2, p. 20, prints $h^{(p,q)} = 1.090550$ in the row $\{7, 3\}$ and its caption calls $h^{(p,q)}$ the edge length. Equation 29 of [HT], evaluated at $(p, q) = (7, 3)$, gives 0.566256, which the table prints as $h^{(q,p)}$ | Unsettled. Section 10.4 gives both values. Section 15.1, item 23, records that 1.090550 is not a test value for $\{7, 3\}$ |
 | HT equation numbers | The HTML rendering that the first report cited numbers the equations differently from the PDF of version 3 | This document uses the numbers of the PDF of version 3: disk distances equations 22-23, isometries equations 8-18, $r_0$ equation 24, $r_m$ equation 25, the law of sines equation 26, the edge length equation 29 |
-| Right-triangle relation | One fetch of [W-HTRI] read "cosh a = cos B / sin A". Another read $\cos A = \cosh a \sin B$ | The final research report follows the second, which agrees with [HT] equation 29, where the half edge is opposite the angle $\pi/p$ at the centre (Section 10.3) |
+| Right-triangle relation | One fetch of [W-HTRI] read "cosh a = cos B / sin A". Another read $\cos A = \cosh a \sin B$ | Settled for the second. [BEA], Theorem 7.11.3, part (i), p. 147, states $\cosh a \sin\beta = \cos\alpha$ with $a$ opposite $\alpha$, and [RAT], equation (3.5.15), p. 102, states $\cos\alpha = \cosh a \sin\beta$ as an exercise (Section 10.3) |
 | Disk Mobius normalization | [HT] $\begin{pmatrix} a & b \\ \bar b & \bar a \end{pmatrix}$. [W-HMOTION] swaps $b$ and $\bar b$. [W-MOBIUS] uses $(e^{i\varphi} z + b)/(\bar b z + 1)$ | This document uses the form of [HT] (Section 6.2) |
 | Half-distance in matrices | $SL(2, \mathbb{R})$ and $SU(1,1)$ use $\theta/2$. Lorentz matrices use $\theta$ | Each formula keeps its own convention (Section 2.4) |
 | Camera rays | The prose formula of [SCRATCH-CAM] applies the remap to the screen twice and disagrees with its code | This document follows the code (Section 11.5) |
@@ -956,12 +1086,15 @@ This table lists each conflict between sources, and what this document does abou
 
 ### 15.1. Candidate Statements That Need a Source or a Machine-Checked Proof
 
-No cited source states these results. Each is a candidate statement that needs a primary source or a machine-checked Lean proof before the body can state it as a fact:
+Each open item is a candidate statement that no cited source states. It needs a primary source or a machine-checked Lean proof before the body can state it as a fact. An item that a source settles keeps its number and names the source and the section of the body that states the result:
 
-1. Reflection in a disk geodesic in closed form: $z \mapsto c + r^2/\overline{(z - c)}$ with $r^2 = \lvert c \rvert^2 - 1$. [SYMMHUB] implements the inversion, and [MW-DISK] gives the centre as a secant and the radius as a tangent, but no source states this form.
-2. A disk circle with hyperbolic centre $c$ and radius $r$, with $t = \tanh(r/2)$: the Euclidean centre $c(1 - t^2)/(1 - \lvert c \rvert^2 t^2)$ and radius $t(1 - \lvert c \rvert^2)/(1 - \lvert c \rvert^2 t^2)$. [CHEN] gives only the centre for a real $c$ and an implicit radius.
-3. The distance to a geodesic in simple forms: in the half-plane, $\cosh d = \lvert z \rvert / \operatorname{Im} z$, or equivalently $\sinh d = \lvert \operatorname{Re} z \rvert / \operatorname{Im} z$, for the imaginary axis. The form for a diameter of the disk. On the hyperboloid with the time coordinate first, $\sinh d = \lvert B(x, n) \rvert$ for a unit spacelike normal $n$.
-4. The $\{p, q\}$ circumradius $\cosh R = \cot\frac{\pi}{p} \cot\frac{\pi}{q}$ and inradius $\cosh r = \cos\frac{\pi}{q} / \sin\frac{\pi}{p}$. The research agent computed that $\operatorname{arcosh}(\cot\frac{\pi}{7} \cot\frac{\pi}{3}) = 0.6207$, against $h_r = 0.620673$ in [HT], Table 2, and $\tanh(0.6207/2) = 0.3008$, against $r_0 = 0.300743$. That check is arithmetic by the research agent, and it assumes that $h_r$ is the hyperbolic circumradius.
+1. The closed form $z \mapsto c + r^2/\overline{(z - c)}$ with $r^2 = \lvert c \rvert^2 - 1$ for the reflection in a disk geodesic. Section 7.4 states the two parts that [BEA] and [RAT] print separately, and no source read prints their combination.
+2. A disk circle with hyperbolic centre $c$ and radius $r$, with $t = \tanh(r/2)$: the Euclidean centre $c(1 - t^2)/(1 - \lvert c \rvert^2 t^2)$ and radius $t(1 - \lvert c \rvert^2)/(1 - \lvert c \rvert^2 t^2)$. [CHEN] gives only the centre for a real $c$ and an implicit radius. The circle centred at the origin, and the half-plane circle from its hyperbolic centre and radius, are settled in Section 9.1. For a general disk centre, no source read prints the candidate. A research agent derived it by algebra from equation (7.2.4) of [BEA], p. 131, and checked it numerically at one centre.
+3. The distance to a geodesic in the forms that no source read states. Section 9.3 gives the forms that [BEA] and [RAT] state. These remain open:
+   - In the half-plane, $\sinh d = \lvert \operatorname{Re} z \rvert / \operatorname{Im} z$ for the imaginary axis, which a research agent derived from $\cosh d = \lvert z \rvert / \operatorname{Im} z$.
+   - The distance to a diameter of the disk other than the real one, which is Exercise 7.20.1 of [BEA] with no printed answer.
+   - On the hyperboloid, $\sinh d = \lvert x \circ y \rvert$ for a unit spacelike normal $x$ and a point $y$ of the hyperboloid. It substitutes norms of 1 into equation (3.2.8) of [RAT], and no source read prints it in this form.
+4. The $\{p, q\}$ circumradius $\cosh R = \cot\frac{\pi}{p} \cot\frac{\pi}{q}$ and inradius $\cosh r = \cos\frac{\pi}{q} / \sin\frac{\pi}{p}$. Section 10.3 gives the right-triangle relations of Theorem 7.11.3 of [BEA]. A reader applied them to the triangle with the angles $\pi/p$, $\pi/q$, and $\pi/2$, and no source read does so or mentions $\{p, q\}$ in that context. [DUN86] prints $\cosh b = \cos(\pi/q) / \sin(\pi/p)$ without naming $b$ (Section 10.4), and that $b$ is the inradius is a reader's inference. A research agent computed that $\operatorname{arcosh}(\cot\frac{\pi}{7} \cot\frac{\pi}{3}) = 0.6207$, against $h_r = 0.620673$ in [HT], Table 2, and $\tanh(0.6207/2) = 0.3008$, against $r_0 = 0.300743$. Those are computations, not source statements. The caption of Table 2 calls $h_r$ the distance between the cell midpoint and its vertices, which supports reading $h_r$ as the circumradius.
 5. The corners of the fundamental triangle of [SYMMHUB] (Section 7.6), and the properties of its sides that the code does not state. A research agent derived these statements by algebra:
    - Euclidean case: the corner L is $(e/\sin a_1, 0)$, and the corner M is $(e/\sin a_2)(\cos a_0, \sin a_0)$ with $a_2 = \pi - a_0 - a_1$.
    - Spherical case: the circle $s_2$ passes through $(e_2, 0)$ for all angles, so the corner L is $(e_2, 0)$. The researcher checked this numerically for $(K, L, M) = (2, 3, 3)$, with the centre about $(-0.341, -0.341)$ and the radius 0.683. The denominator $\cos a_2 + \cos(a_1 + a_0)$ is negative when the angle sum exceeds $\pi$, so $r < 0$ and the domain is inside $s_2$.
@@ -969,14 +1102,14 @@ No cited source states these results. Each is a candidate statement that needs a
    - Ideal case: the inversion in the circle with centre $(-1, 0)$ and radius 2 maps the line $x = 1$ to the unit circle, so the boundary at infinity is again the unit circle. The ideal corner K is $(-1, 0)$, where $s_1$ touches the $x$ axis.
    - No closed form of the corners L and M in the hyperbolic case, which `getHandles` finds numerically.
 6. A formula for the Gans model. The description in [HRM] implies the spatial part of the hyperboloid point.
-7. The conversions from the disk to the hyperboloid and from the disk to the Klein model, which only secondary sources give (Section 4.2).
+7. Settled by [RAT], equation (4.5.2), and [DUN86], p. 147, for the disk to the hyperboloid, and by [BEA], p. 128, for the disk to the Klein model, in Section 4.2.
 8. Line widths in intrinsic units. [SYMMHUB] draws widths that are constant in screen pixels, and no source draws widths in hyperbolic units.
 9. The exact metric factors of the stereographic view in [SYMMHUB]. The code applies $1/(1 + z)$ to the position and the single scalar $1/z$ to the scale factor, with $z = \sqrt{1 - \lvert p \rvert^2}$ (Section 11.2). An earlier research report derived a radial factor $1/(z(1 + z))$ and a tangential factor $1/(1 + z)$. The code states neither, and its scalar $1/z$ matches neither.
 10. Precision limits. [KC19] gives one figure in double precision. The first research report gives these maximum distances from its own arithmetic, with no source: the Poincare disk about 17.3 in single and 37.4 in double precision, the Klein model about 8.7 and 18.7, and the hyperboloid about 8.3 and 18.4 for cancellation in the constraint and about 89 and 710 for overflow. Guidance for single precision on a GPU beyond the tolerance of [SYMMHUB] has no source.
 11. The cost and storage of each representation. Only [KC24] counts storage: $2^d$ reals for the Clifford representation against $(d + 1)^2$ for a matrix.
-12. The Lambert and Saccheri formulas and the pentagon with a cone point (Sections 10.5 and 10.6), which need a check against a primary source.
+12. The Saccheri formulas and four of the six Lambert relations, which no primary source read states (Section 10.6). Whether the form of [CONE] for the pentagon with one angle that is not right agrees with Theorem 7.18.1 of [BEA] and Theorem 3.5.11 of [RAT] (Section 10.5).
 13. The composition rule for anti-Mobius maps, in which the inner matrix is conjugated.
-14. The pentagon laws in their coth and cot forms, the law of sines for hexagons, and the existence of polygons with prescribed angles with angle sum less than $(n - 2)\pi$, as a theorem with a construction.
+14. The pentagon laws in their cot forms, and a default shape or family of polygons with prescribed angles. Theorem 7.16.2 of [BEA] settles existence in Section 10.1, but it proves existence only, by building one polygon. The coth form of the pentagon law and the law of sines for hexagons are settled in Section 10.5 by equation (7.18.1) and Theorem 7.19.1 of [BEA] and by Theorem 3.5.12 of [RAT].
 15. The normal form $\operatorname{diag}(e^{t/2}, -e^{-t/2})$ of a glide reflection, which a research agent checked against [WAK].
 16. The band geodesics in closed form.
 17. The representation of a hypercycle on the hyperboloid, and the distance to a hypercycle.
@@ -985,20 +1118,32 @@ No cited source states these results. Each is a candidate statement that needs a
 20. The identity of `uhp2disc` in [SYMMHUB] with $w = (i - z)/(i + z)$, which is the Cayley map $(z - i)/(z + i)$ multiplied by $-1$, and the identity of its scale factor $2/D$ with $\lvert dw/dz \rvert = 2/\lvert z + i \rvert^2$. A research agent derived both by algebra, and the code states neither.
 21. The map of [KC19], p. 92, from the disk to the half-plane, and the conclusion of the research report that it is a typo (Section 14).
 22. The inverse of each of Bulatov's models other than the band (Section 5.4).
+23. The value $h = 1.090550$ that Table 2 of [HT] prints as the edge length of $\{7, 3\}$, against equation 29 of [HT] (Section 14). The value 1.090550 must not serve as a test value for $\{7, 3\}$, the tiling for which the table prints it, until a source settles which quantity it is. A research agent computed that the column $h^{(p,q)}$ of Table 2 equals equation 29 evaluated at $(q, p)$ for $\{7, 3\}$, $\{3, 7\}$, $\{6, 4\}$, $\{5, 4\}$, and $\{4, 5\}$, and that $1.090550 = 2 \operatorname{arcosh}(\cos\frac{\pi}{3} / \sin\frac{\pi}{7})$, which is equation 29 for $\{3, 7\}$. The same agent computed $h_r = 0.6206717$ for $\{7, 3\}$, against the printed 0.620673. These are computations, not source statements.
 
 ### 15.2. Claims That Rest on Summaries or Secondary Sources
 
-Every claim marked (A) rests on a summary of a paper, and every claim marked (S) rests only on a secondary source. The most important for Escher are the trace classification and the translation length (Sections 6.6 and 6.7), the pentagon and hexagon laws (Section 10.5), the disk and half-plane circle formulas (Section 9.1), the right-triangle relations (Section 10.3), and the band metric of [STRIP] (Section 5.1).
+Every claim marked (A) rests on a summary of a paper, and every claim marked (S) rests only on a secondary source. Several such claims also have a primary source, which the body cites beside them. These have a primary source:
+
+- The trace classification of orientation-preserving isometries, the elliptic rotation angle, and the translation length of a hyperbolic isometry, from [BEA] (Sections 6.6 and 6.7).
+- The right-triangle relations, from [BEA] and [RAT] (Section 10.3).
+- The right-angled pentagon in the form of equation (7.18.2) of [BEA], the pentagon with one angle that is not right in the labels of [BEA] and [RAT], and the laws of the right-angled hexagon in the labels of [BEA] and [RAT] (Section 10.5).
+- The half-plane circle from its hyperbolic centre and radius, and the disk circle centred at the origin, from [BEA] (Section 9.1).
+
+The most important claims for Escher that still rest only on a summary or a secondary source are these:
+
+- The translation length of a glide reflection, $\lvert \operatorname{tr} g \rvert = 2 \sinh(t_g/2)$ for determinant $-1$, from [WAK] (Section 6.7). No primary source read treats glide reflections by their trace.
+- The form $\max\lbrace \lvert \operatorname{tr} g \rvert, 2 \rbrace$ of the translation length, which [BEA] states only for a hyperbolic isometry (Section 6.7).
+- The other sides of the right-angled pentagon from two given sides, and the hexagon in the labels of [OC] (Section 10.5).
+- The half-plane circle from its Euclidean centre and radius (Section 9.1).
+- The band metric of [STRIP] (Section 5.1).
 
 ### 15.3. Sources Not Read in Full
 
 These sources were not read in full, and `docs/research/source-requests.md` records what the project needs from each:
 
 - [FWW]: the body, with its data on the growth of errors and its remedies. Only the abstract was read.
-- [BEA]: Section 4 on the trace classification, and Sections 7.18 to 7.20 on pentagons, hexagons, the distance to a line, and circles. It would settle items 1 to 4 and 12 of Section 15.1.
-- [BUS]: Chapter 2, with Theorem 2.3.4, Theorem 2.4.1, Exercise 2.2.7, and the trirectangles. It is the primary source for the pentagon, hexagon, Lambert, and Saccheri formulas.
-- [RAT]: Sections 3.2 to 3.5, for the hyperboloid formulas and the hexagon theorems.
-- [KAT]: Chapters 1 and 2, for the trace formulas and the distance to a geodesic in the half-plane.
+- [BUS]: Chapter 2, with Theorem 2.3.4, Theorem 2.4.1, Exercise 2.2.7, and the trirectangles. It is the primary source that remains for the Saccheri formulas, the four Lambert relations of item 12 of Section 15.1, and the form of [CONE] for the pentagon with one angle that is not right.
+- [KAT]: Chapters 1 and 2. This document does not wait on it, because [BEA] states the trace formulas and the half-plane distance to a geodesic (Sections 6.6, 6.7, and 9.3).
 - [WEEKS02] and [WEEKS06]: the unified projective pipeline.
 - [KT]: its treatment of all three geometries in two dimensions and the functions `MetricHorizontal` and `MetricVertical`.
 - [DUN-ISAMA07]: the disk coordinates of the fundamental polygon and its side circles.
@@ -1008,6 +1153,8 @@ These sources were not read in full, and `docs/research/source-requests.md` reco
 - [MDPI-APOL]: possible closed forms of disk circles, item 2 of Section 15.1.
 - Every source marked (A) in this document, which was read only through a summary.
 
+[BEA] and [RAT] were read in part, as their entries in Section 16.1 state, and this document does not wait on either. A search of the text layer of each book found none of the candidate statements that remain open in Section 15.1. The text layer comes from optical character recognition, so the search can miss a statement.
+
 ## 16. References
 
 ### 16.1. Primary Sources
@@ -1015,16 +1162,19 @@ These sources were not read in full, and `docs/research/source-requests.md` reco
 - [B1] Bulatov, V., "Conformal Models of the Hyperbolic Geometry", Joint Mathematics Meetings, San Francisco, 2010-01-17, <https://www.bulatov.org/math/1001/index.html>.
 - [B2] Bulatov, V., "Artistic Models of the Hyperbolic Geometry", Gathering for Gardner 9, Atlanta, 2010-03-25, <https://www.bulatov.org/math/1003/index.html>, with the ring page <https://www.bulatov.org/math/1003/index_ring.html>.
 - [B3] Bulatov, V., "Bending Hyperbolic Kaleidoscopes", Bridges 2011 talk, <https://www.bulatov.org/math/1107/index_talk_web.html>.
+- [BEA] Beardon, A. F., The Geometry of Discrete Groups, Springer Graduate Texts in Mathematics 91, 1983, softcover reprint of the first edition. Locators are printed page numbers. The PDF page is the printed page plus 12. Read in part: Chapters 3 and 7, Sections 4.2, 4.3, and 5.3, Chapters 9 and 10, and parts of Chapters 8 and 11, with a search of the text of the whole book.
 - [BUL11] Bulatov, V., "Bending Hyperbolic Kaleidoscopes", Bridges 2011 paper, <https://www.bulatov.org/math/1107/Bulatov(2011)Bending_Hyperbolic_Kaleidoscopes_paper.pdf>.
 - [CFKP] Cannon, J. W., Floyd, W. J., Kenyon, R., and W. R. Parry, "Hyperbolic Geometry", in Flavors of Geometry, MSRI Publications 31, pp. 59-115, 1997, <https://library.slmath.org/books/Book31/files/cannon.pdf>.
 - [CS] Weeks, J., Curved Spaces source code, 2021, GitHub mirror, <https://github.com/swedneck/Curved-Spaces>.
 - [DAVIS] Davis, M. W., The Geometry and Topology of Coxeter Groups, 2008. Locators are printed page numbers. The PDF page is the printed page plus 16.
 - [DUN07] Dunham, D., "Creating Regular Repeating Hyperbolic Patterns", Math and Design, Blumenau, 2007.
+- [DUN86] Dunham, D., "Hyperbolic Symmetry", Computers and Mathematics with Applications 12B(1/2), pp. 139-153, 1986. Read in full. Locators are printed page numbers.
 - [GL21] The Khronos Group, OpenGL 2.1 reference pages for glOrtho, glFrustum, and gluPerspective, <https://registry.khronos.org/OpenGL-Refpages/gl2.1/>.
 - [HR] Kopczynski, E., et al., HyperRogue source code, master branch, files `hyperpoint.cpp`, `classes.cpp`, and `hyper.h`, <https://github.com/zenorogue/hyperrogue>.
 - [HT] Schrauth, M., Thurn, Y., Goth, F., Portela, J. S. E., Herdt, D., and F. Dusel, "HYPERTILING - a high performance Python library for the generation and visualization of hyperbolic lattices", arXiv:2309.10844v3, 2024-06-26, <https://arxiv.org/abs/2309.10844>. Equation numbers are those of the PDF of version 3.
 - [KC19] Kopczynski, E. and D. Celinska-Kopczynska, "Conformal Mappings of the Hyperbolic Plane to Arbitrary Shapes", Bridges 2019, pp. 91-98, <https://archive.bridgesmathart.org/2019/bridges2019-91.pdf>.
 - [KC24] Celinska-Kopczynska, D. and E. Kopczynski, "Numerical Aspects of Hyperbolic Geometry", arXiv:2404.09039v1, 2024-04-13, <https://arxiv.org/abs/2404.09039>.
+- [RAT] Ratcliffe, J. G., Foundations of Hyperbolic Manifolds, Springer Graduate Texts in Mathematics 149, first edition, 1994. Locators are the numbering and printed page numbers of the first edition. The PDF page is the printed page plus 11. Read in part: the passages that this document and `docs/research/fundamental-domains.md` cite, in Chapters 2, 3, 4, 6, 7, 9, 11, and 13, with a search of the text of the whole book.
 - [SYMMHUB] SymmHub source code, commit f2d19cb. File paths are relative to the root of the repository.
 - [VGRG] von Gagern, M. and J. Richter-Gebert, "Hyperbolization of Euclidean Ornaments", Electronic Journal of Combinatorics 16(2), #R12, 2009.
 
@@ -1098,7 +1248,6 @@ These sources were not read in full, and `docs/research/source-requests.md` reco
 
 ### 16.4. Sources Not Read in Full
 
-- [BEA] Beardon, A. F., The Geometry of Discrete Groups, Springer Graduate Texts in Mathematics 91, 1983.
 - [BLINN77] Blinn, J., "Models of light reflection for computer synthesized pictures", SIGGRAPH 1977, pp. 192-198, DOI 10.1145/563858.563893, <https://doi.org/10.1145/563858.563893>.
 - [BUS] Buser, P., Geometry and Spectra of Compact Riemann Surfaces, Birkhauser, 1992.
 - [DUN-ISAMA07] Dunham, D., ISAMA 2007 paper on hyperbolic patterns.
@@ -1109,6 +1258,5 @@ These sources were not read in full, and `docs/research/source-requests.md` reco
 - [MAR-GEO] Martin, G. E., The Foundations of Geometry and the Non-Euclidean Plane.
 - [MDPI-APOL] "Apollonius and the hyperbolic circle", Geometry 3(3):15, MDPI.
 - [PHONG75] Phong, B. T., "Illumination for computer generated pictures", Communications of the ACM 18(6):311-317, 1975-06, DOI 10.1145/360825.360839, <https://doi.org/10.1145/360825.360839>.
-- [RAT] Ratcliffe, J. G., Foundations of Hyperbolic Manifolds, Springer Graduate Texts in Mathematics 149.
 - [WEEKS02] Weeks, J., "Real-time rendering in curved spaces", IEEE Computer Graphics and Applications 22(6), 2002, DOI 10.1109/MCG.2002.1046633, <https://doi.org/10.1109/MCG.2002.1046633>.
 - [WEEKS06] Weeks, J., "Real-time animation in hyperbolic, spherical, and product geometries", in Non-Euclidean Geometries, Springer, 2006. The DOI is unverified.

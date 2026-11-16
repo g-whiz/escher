@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The design and implementation of Escher's group construction, point folding, colouring, and rendering |
 
 ## Abstract
@@ -1050,7 +1050,7 @@ These questions and claims are open:
 4. Fenchel-Nielsen coordinates: Only the tutorial claims that the length and twist sliders are Fenchel-Nielsen coordinates (`tutorials/orbifold-notation.html:285`, 293, 325, and 382). No JavaScript file mentions Fenchel-Nielsen, and nothing proves the claim.
 5. Termination of the fold: No cited source proves that the fold of Section 9 terminates for a given domain, or bounds its number of iterations. The comment in `lib/grouplib/Group_ON.js` asserts convergence, and the code bounds the loop only by the iteration cap (Section 9.3).
 6. Deaton's thesis: The three files that cite it disagree on the first name and the year (Section 3.5). [DEATON1993] follows the tutorial's reference entry, which no one has checked against the thesis.
-7. Unread sources: The papers in Section 3.5 are not in the repository and were not read. Every statement about them is what SymmHub's tutorial says.
+7. Unread sources: The papers in Section 3.5 are not in the repository and were not read for this document. Every statement about them is what SymmHub's tutorial says.
 8. Unread code: No code reading read `GroupGeometry.js`, `LimitSet.js`, or the `Subgroup*.js` files line by line. Section 16 states the absence of a lit sphere and of vector export as the result of a keyword search, not of a full read.
 9. Candidate statements about the triangles and the half-plane map: The source review derived these statements by algebra, and neither the code nor its comments state them:
    - In the hyperbolic triangle, $\lvert c \rvert^2 = 1 + r^2$ for the centre $c$ of $s_2$, so $s_2$ is orthogonal to the unit circle.
@@ -1065,9 +1065,9 @@ These questions and claims are open:
 - [SYMMHUB] Bulatov, V., Goodman-Strauss, C., and S. Vorthmann, "SymmHub", source code at commit `f2d19cb`, MIT licence, 2025, <https://github.com/SymmHub/SymmHub>.
 - [CONWAY1992] Conway, J. H., "The orbifold notation for surface groups", Groups, Combinatorics and Geometry, London Mathematical Society Lecture Note Series 165, pp. 438-447, 1992. Cited by SymmHub, not read.
 - [CONWAY-HUSON2002] Conway, J. H. and D. H. Huson, "The orbifold notation for two-dimensional groups", Structural Chemistry 13, p. 247, 2002, DOI 10.1023/A:1015851621002. Cited by SymmHub, not read.
-- [SOT2008] Conway, J. H., Burgiel, H., and C. Goodman-Strauss, "The Symmetries of Things", 2008. Cited by SymmHub, not read.
+- [SOT2008] Conway, J. H., Burgiel, H., and C. Goodman-Strauss, "The Symmetries of Things", 2008. Cited by SymmHub, not read for this document.
 - [THURSTON-GT3M] Thurston, W. P., "The Geometry and Topology of Three-Manifolds", chapter 13, <https://library.slmath.org/nonmsri/gt3m/PDF/13.pdf>. Cited by SymmHub, not read.
-- [MACBEATH1967] Macbeath, A. M., Canadian Journal of Mathematics 19, p. 1192, 1967. Cited by SymmHub, not read.
+- [MACBEATH1967] Macbeath, A. M., Canadian Journal of Mathematics 19, p. 1192, 1967. Cited by SymmHub, not read for this document.
 - [CDGT2018] Conway, J. H., Doyle, P., Gilman, J., and W. Thurston, "A field guide to the orbifolds", arXiv:1804.03055, <https://arxiv.org/abs/1804.03055>. Cited by SymmHub, not read.
 - [DEATON1993] Deaton, A. A., "Hyperbolic Orbifolds and Patterns", senior thesis, Princeton University, 1993, unpublished. Cited by SymmHub, not read.
 

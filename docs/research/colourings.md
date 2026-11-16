@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The choice of the polygons that the Escher renderer colours, and the computation of their colours and of the available numbers of colours |
 
 ## Abstract
@@ -43,8 +43,8 @@ This section is non-normative. The document uses no requirement key words, so it
 - $S$: a subgroup of $G$, usually of index $k$. Frettloh uses $S$ for the subgroup that induces a colouring [FRETTLOH2008].
 - $[G : S]$: the index of $S$ in $G$.
 - $C(X)$: Frettloh's colour symmetry group, a set of pairs $(h, \pi)$ [FRETTLOH2008].
-- $H$: the set of $h \in G$ that appear in a pair of $C(X)$ in Frettloh's notation [FRETTLOH2008], and the stabilizer of a partition in Felix and Loquias's notation [FELIX2008].
-- $K$: the symmetry group of the coloured pattern in Frettloh's introduction, the set of group elements whose triangles carry colour 1 in Frettloh's proof of Lemma 3.2 (written $K_1$, with colour classes $K_i$), and the kernel of the map to colour permutations in Felix and Loquias [FRETTLOH2008] [FELIX2008]. Section 2.3 lists this clash.
+- $H$: the set of $h \in G$ that appear in a pair of $C(X)$ in Frettloh's notation [FRETTLOH2008], the stabilizer of a partition in Felix and Loquias's notation [FELIX2008], and the stabilizer of one colour in the notation of Conway, Burgiel, and Goodman-Strauss [CBGS2008, p. 155].
+- $K$: the symmetry group of the coloured pattern in Frettloh's introduction, the set of group elements whose triangles carry colour 1 in Frettloh's proof of Lemma 3.2 (written $K_1$, with colour classes $K_i$), the kernel of the map to colour permutations in Felix and Loquias, and the group of the symmetries that fix every colour in Conway, Burgiel, and Goodman-Strauss [FRETTLOH2008] [FELIX2008] [CBGS2008, p. 155]. Section 2.3 lists this clash.
 - $G_{p,q}$: the Coxeter group of the regular tiling `(p^q)`, with generators $a$, $b$, $c$ (Section 5.1).
 - $\bar{G}_{p,q}$: the rotation subgroup of $G_{p,q}$ (Section 5.4).
 - $G^2$: the subgroup that the source of the index-2 count writes as $G^2$ (Section 6). The research for this document did not record its definition.
@@ -52,6 +52,10 @@ This section is non-normative. The document uses no requirement key words, so it
 - $h_k(G)$: the number of homomorphisms from $G$ to $S_k$, that is, $|\mathrm{Hom}(G, S_k)|$ (Section 7.5).
 - $\rho$: a homomorphism from $G$ to $S_k$, with one permutation $\rho(s_i)$ for each side pairing $s_i$ of $F$ (Section 8.7).
 - $\sigma$: the colour permutation that the fold loop carries for one pixel (Section 8.7). The letter $\sigma$ keeps the state apart from a colour permutation $\pi_h$.
+- $\mathcal{G}$, $\mathcal{G}^+$: Singerman's group of all isometries of the upper half-plane and its subgroup of index two of orientation-preserving isometries (Section 6) [SINGERMAN1974, p. 233].
+- $\Gamma$, $\Gamma^+$: an NEC group and its subgroup $\Gamma \cap \mathcal{G}^+$ (Section 6) [SINGERMAN1974, p. 235].
+- $\mathcal{D}$, $m_{ij}$, $\mathcal{K}$: a Delaney-Dress symbol, its labelling maps, and its curvature (Section 9.2).
+- $\chi_{\mathrm{orb}}$: the orbifold Euler characteristic of the orbifold of a Delaney-Dress symbol (Section 9.2) [BALKE1996, p. 97].
 
 ### 2.2. Terminology
 
@@ -73,14 +77,19 @@ This section is non-normative. The document uses no requirement key words, so it
 - face orbit: The set of the images of one face of a tiling under its symmetry group.
 - Wythoff construction: The construction of a uniform tiling from a reflection triangle and a generator point inside the triangle or on its boundary (Section 10) [WP-WYTHOFF-SYMBOL].
 - isohedral tiling type: One of the 93 classes of tilings whose symmetry group acts transitively on the tiles, in the classification of Grunbaum and Shephard (Section 9.1) [KAPLAN2025].
-- Delaney-Dress symbol: The combinatorial description of a periodic tiling that Section 9.2 defines [TEGULA2020, Section 4].
+- Delaney-Dress symbol: The combinatorial description of a periodic tiling that Section 9.2 defines [TEGULA2020, Section 4] [BALKE1996, Section 3, p. 95].
+- colour type: The class of a colouring in the classification of Conway, Burgiel, and Goodman-Strauss, determined by a homomorphism from the symmetry group to a group of permutations of the colours (Section 3.3) [CBGS2008, pp. 136 and 154].
+- NEC group: A non-Euclidean crystallographic group, a discrete subgroup $\Gamma$ of $\mathcal{G}$ for which the quotient of the upper half-plane by $\Gamma$ is compact [SINGERMAN1974, p. 233].
+- Fuchsian group: An NEC group contained in $\mathcal{G}^+$ [SINGERMAN1974, p. 233].
+- proper NEC group: An NEC group that contains an element of $\mathcal{G} - \mathcal{G}^+$, that is, an orientation-reversing isometry [SINGERMAN1974, p. 233].
 
 ### 2.3. Conventions on Which Sources Differ
 
 - Left or right cosets: Frettloh colours the tile $gF$ by the left coset $gS$ [FRETTLOH2008, p. 3]. Felix and Loquias use a complete set of right coset representatives of $H$ in $G$, with the left action $gP$ on partitions [FELIX2008, Sections 2 and 3]. De Las Penas, Felix, and Laigo use right coset colourings [DLP2006] (abstract summary only). SymmHub offers both orders of composition through `uUseOrbit` (Section 8.4). The order changes the formula that composes permutations along a fold.
 - Definition of perfect: Section 3 gives three definitions. They agree that every symmetry of the tiling is a colour symmetry and differ in their framework. Frettloh's definition does not require equally frequent colours (Section 3.1).
 - What is counted: Frettloh counts colour symmetry groups up to conjugacy, and Felix and Loquias count colourings up to the action of $G$ (Section 3.4). A table from one source is not comparable with a count from the other without conversion.
-- The letter $K$: Frettloh uses $K$ for the symmetry group of the coloured pattern and $K_1$ for the colour class of colour 1, while Felix and Loquias use $K$ for a kernel (Section 2.1).
+- The letter $K$: Frettloh uses $K$ for the symmetry group of the coloured pattern and $K_1$ for the colour class of colour 1, while Felix and Loquias, and Conway, Burgiel, and Goodman-Strauss, use $K$ for a kernel (Section 2.1).
+- The word curvature: Balke and Huson prove that the curvature of a Delaney-Dress symbol is twice the orbifold Euler characteristic [BALKE1996, Theorem 4.1, p. 97]. The quantity that [EPINET-ORB] calls curvature is stated for a signature, and its relation to that curvature is open (Section 9.2).
 - Tiling symbols: Frettloh writes `(p^q)` for the regular tiling by $p$-gons with $q$ at each vertex, following Grunbaum and Shephard [FRETTLOH2008, p. 2]. So `(7^3)` is the heptagonal tiling.
 
 ### 2.4. Spelling of Names and Symbols
@@ -125,6 +134,10 @@ For a semiperfect colouring, "there are only two partitions of G that are equiva
 Bulatov gives an informal definition: a colouring is perfect when each symmetry transformation maps the tiles of one colour onto tiles of one colour, which may equal or differ from the original colour [BULATOV2010, opening slide].
 
 The Waerden-Burckhardt framework determines a $k$-colour group by "a subgroup H of index k in the symmetry group G" [WP-POLYCHROMATIC]. This claim rests on a secondary source only.
+
+Conway, Burgiel, and Goodman-Strauss define colourings through homomorphisms. For two colours, the colour type "amounts to specifying a homomorphism from G into the group permuting {a, b} whose kernel is K", and two colourings $G/K$ and $G'/K'$ have the same colour type when $G$ can be isotopically reshaped into $G'$ in a way that takes $K$ to $K'$ [CBGS2008, p. 136]. In an $n$-fold colouring the symmetries take any one of the $n$ colours to any other, which the book calls being "transitive" on the colours [CBGS2008, pp. 153-154]. For three colours, the type "is determined by a homomorphism from G onto some subgroup of the group S[3]" [CBGS2008, p. 154].
+
+The book names three groups: the full group $G$, the kernel $K$ of the symmetries that fix each colour, and the stabilizer $H$ of one chosen colour. The stabilizers of the different colours are "conjugate in the group-theoretical sense", and a type is written $G^n/H/K$, shortened to $G^n/K$ when $H = K$ and to $G^n//K$ otherwise [CBGS2008, p. 155]. For a prime number $p$ of colours, "We need only seek the stabilizer subgroup H of index p in G that fixes a given" colour, because it determines the type [CBGS2008, p. 161]. For hyperbolic groups, "By replacing the names of generators by permutations that satisfy the relations, we obtain an annotated symbol that always characterizes the" type [CBGS2008, p. 228].
 
 Felix and Loquias quote Senechal that classifying colour groups and classifying coloured patterns are not the same [FELIX2008, Section 1, citing SENECHAL1988]. Bulatov dates the publications on perfect colourings of hyperbolic tilings from 2006, naming De Las Penas, Felix, and Laigo (2006) and Frettloh (2008) [BULATOV2010, slide "Notes on a previous publications"].
 
@@ -296,12 +309,15 @@ A group "must contain 0,1,3,7,15,... index 2 subgroups", the group $\mathbb{Z} \
 
 For the extended triangle group with all three periods even, Singerman and Watson find seven epimorphisms onto $C_2$: "Altogether this gives us our seven subgroups of index two in the extended triangle group" [SINGERMAN2014, Section 2, Example 1 and Theorem 1]. The epimorphism that sends every reflection $c_i$ to the generator $t$ gives the orientation-preserving triangle group, and the parity condition reads "as $\theta(c_1 c_3) = \theta(c_2 c_3) = t$, $n_2$ and $n_3$ must be even" [SINGERMAN2014]. The signatures of the subgroups follow from Hoare's theorem and the Riemann-Hurwitz formula, for example `(0,+,[n1],{(n2/2,n3/2)})` [SINGERMAN2014].
 
-These further statements rest on secondary sources only:
+Singerman states the subgroup of orientation-preserving elements for every proper NEC group: "Let $\Gamma$ be a proper NEC group. Then $\Gamma$ has a Fuchsian subgroup $\Gamma^+$ of index two, namely $\Gamma^+ = \Gamma \cap \mathcal{G}^+$" [SINGERMAN1974, Section 4, p. 235]. An NEC group in Singerman's sense has a compact quotient (Section 2.2), so the statement covers only such groups.
 
-- "any non-Fuchsian NEC group has an index 2 Fuchsian subgroup of orientation-preserving elements" [WP-NEC].
-- There are exactly 46 types of two-colour symmetries of the plane, after H. J. Woods [ARTLANDIA] (search summary only).
+Singerman's Theorem 2 gives the signature of $\Gamma^+$. For the signature with sign $+$, genus $g$, proper periods $m_1, \dots, m_r$, and period cycles $(n_{11}, \dots, n_{1s_1}), \dots, (n_{k1}, \dots, n_{ks_k})$, the Fuchsian signature of $\Gamma^+$ has genus $2g + k - 1$ and the periods $m_1, m_1, \dots, m_r, m_r, n_{11}, \dots, n_{ks_k}$. For the sign $-$ the genus is $g + k - 1$ with the same periods [SINGERMAN1974, Theorem 2, p. 236]. The hypothesis that $\Gamma$ is proper stands in the opening of Section 4 and in the sentence before the theorem, not in the printed statement of the theorem [SINGERMAN1974, pp. 235-236]. Singerman's paper does not mention colourings.
 
-Conway, Burgiel, and Goodman-Strauss classify twofold colourings in chapter 11, "Twofold Colorations", with the sections "Classifying Twofold Plane Colorings" and `Complete List of Twofold Color Types` [CBGS2008], and Grunbaum and Shephard treat coloured patterns in chapter 8 [GS1987]. Neither text was read.
+Conway, Burgiel, and Goodman-Strauss classify the twofold colourings of the 17 plane groups in Table 11.1 [CBGS2008, pp. 140-141]. The table lists the types group by group, with `**/**(1)` and `**/**(2)` as two rows, because the case `**/**` "denotes two types that may be distinguished by their numbers of colorings" [CBGS2008, p. 139]. The book states no total number of types, and the readers of this research counted 46 rows. Table 11.2 gives the twofold types of the spherical groups, for example `*532/532`, `*432/432`, `*332/332`, and `3*2/332` [CBGS2008, p. 145]. Its cases with $N = M = \infty$ are the seven twofold frieze types, shown on p. 148 [CBGS2008, p. 145]. Table 3.2 lists the 17 plane signatures with "The nonreflecting elements of any of these groups" as the rotation subgroup "at the bottom of the column" [CBGS2008, Table 3.2, footnote 1, p. 40].
+
+Grunbaum and Shephard treat coloured patterns in chapter 8 [GS1987], which was not read.
+
+There are exactly 46 types of two-colour symmetries of the plane, after H. J. Woods [ARTLANDIA] (search summary only). This claim rests on a secondary source only.
 
 No source read gives a rule that reads the number of index-2 subgroups, and so the number of two-colourings, from an orbifold signature (Section 14.1). Semiperfect colourings (Section 3.2) are a different concept: they concern colourings whose colour symmetry group has index 2, not colourings with two colours.
 
@@ -352,6 +368,21 @@ The formula is typeset as ar5iv renders the source, and the primary text by Hall
 Edmonds, Ewing, and Kulkarni "determine the possible finite indices of torsion-free subgroups of a Fuchsian group, with respect to its torsion" [BCCC2025, introduction, citing EEK1982]. This rests on a secondary source, and the theorem statement itself was not obtained. They set aside normal subgroups, a question that "appears to involve deeper number theoretic considerations" [EEK1982-BULL] (search summary only).
 
 Burns and Solitar prove some of these results algebraically [BURNS1983], and Izquierdo solved the analogue for NEC groups [IZQUIERDO1993] (both known only by citation, without the statements). A torsion-free subgroup is a special case. No source read gives the set of all achievable indices for an arbitrary orbifold group (Section 14.1).
+
+For a prime number $p$ of colours, Conway, Burgiel, and Goodman-Strauss tabulate the colour types of the plane groups for $p \ne 2$ in Table 13.1 [CBGS2008, p. 164]:
+
+| Group | Types and the primes for which they occur |
+| --- | --- |
+| `*632` | `*632^3/*333` and `*632^3/2222`, for $p = 3$ |
+| `632` | `632^3/333` and `632^3/2222`, for $p = 3$, and `632^p/o` for $p \equiv 1 \pmod 6$ |
+| `*442`, `4*2` | No cases |
+| `442` | `442^p/o` for $p \equiv 1 \pmod 4$ |
+| `*333` | `*333^3/o` and `*333^3/333`, for $p = 3$ |
+| `3*3` | `3*3^3/o` and `3*3^3/*333`, for $p = 3$ |
+| `333` | `333^3/333` and `333^3/o`, for $p = 3$, and `333^p//o` for $p \equiv 1 \pmod 3$ |
+| The other nine plane groups | Rows with $p \equiv 1 \pmod 2$ |
+
+The threefold types are in Table 12.1 [CBGS2008, p. 156], and the book states that the threefold cases missing from Table 13.1 "are precisely those that were done in the previous chapter" [CBGS2008, p. 161]. The twofold types are in Table 11.1 (Section 6). For the spherical groups, a $p$-fold colouring exists "only if p divides its order", and `*532` and `532` have one fivefold colouring and no threefold one [CBGS2008, pp. 166-169, Table 13.2, p. 169]. The book ends its discussion of colourings after the prime numbers of colours [CBGS2008, p. 169], and the research found no table for a composite number of colours in it. It gives no table for hyperbolic groups, which have "infinitely many starting groups" [CBGS2008, p. 227].
 
 ### 7.7. Practical Limits
 
@@ -465,17 +496,33 @@ Its colouring function `getColour(t1, t2, aspect)` returns "0, 1, or 2" so that 
 
 ### 9.2. Delaney-Dress Symbols
 
-A Delaney-Dress symbol is "a connected (multi-) graph" in which each node is incident to exactly one edge of each of the colours 0, 1, and 2, "together with a labelling of its nodes by two maps m01 and m12", which record the tile degree and the vertex degree [TEGULA2020, Section 4]. The full conditions are deferred to Dress (1984) and Dress and Huson (1987) [DRESS].
+A Delaney-Dress symbol is "a connected (multi-) graph" in which each node is incident to exactly one edge of each of the colours 0, 1, and 2, "together with a labelling of its nodes by two maps m01 and m12", which record the tile degree and the vertex degree [TEGULA2020, Section 4]. Tegula defers the full conditions to Dress (1984) and Dress and Huson (1987) [DRESS].
+
+Balke and Huson state the conditions for the two-dimensional case [BALKE1996, Section 3, p. 95]. Let $\Sigma = \langle \sigma_0, \sigma_1, \sigma_2 \mid \sigma_i^2 = 1 \rangle$, "the Coxeter group freely generated by three involutions". A finite transitive $\Sigma$-set $\mathcal{D}$ with three maps $m_{01}, m_{12}, m_{02} : \mathcal{D} \to \mathbb{N}$ is a Delaney-Dress symbol if and only if, for all $D \in \mathcal{D}$ and all $0 \le i < j \le 2$:
+
+- (DS1) $m_{ij}(D\sigma_i) = m_{ij}(D\sigma_j) = m_{ij}(D)$.
+- (DS2) $D(\sigma_i\sigma_j)^{m_{ij}(D)} = D$.
+- (DS3) $m_{01}(D) \ge 2$, $m_{12}(D) \ge 3$, and $m_{02}(D) = 2$.
+
+Condition (DS3) "avoids degeneracies like mono-gons, vertices of degree less than 3, or edges which fold back onto themselves" [BALKE1996, p. 95].
 
 The curvature of a symbol $\mathcal{D}$ with labelling $m$ is [TEGULA2020, Section 4, unnumbered display]:
 
 $$\mathcal{K}(\mathcal{D}, m) = \sum_{D \in \mathcal{D}} \left( \frac{1}{m_{01}(D)} + \frac{1}{m_{12}(D)} - \frac{1}{2} \right)$$
 
-The geometry is "spherical, euclidean or hyperbolic, depending on whether the curvature is positive, 0 or negative" [TEGULA2020, Section 4]. In the passage to the orbifold, "reflections are mapped onto boundary segments, rotational centers are mapped onto cones, dihedral centers are mapped onto corners, and glide-reflections give rise to crosscaps", with the full derivation deferred to Balke and Huson [TEGULA2020, Section 4] [BALKE1996].
+Balke and Huson define the curvature with a third term [BALKE1996, p. 96]:
 
-EPINET describes the system of chambers of a Delaney-Dress symbol as "really just a triangulation of this orbifold", with the example `*246`, a triangle with angles $\pi/2$, $\pi/4$, and $\pi/6$ [EPINET-DD]. Its page on orbifold notation gives the curvature in terms of $o$ handles, $\ast$ mirror boundaries, $x$ cross-caps, cone orders $c_i$, and corner orders $m_j$, "derived from Macbeath's non-euclidean crystallographic group signature" [EPINET-ORB]:
+$$\mathcal{K}_{(\mathcal{D}, m)} = \sum_{D \in \mathcal{D}} \left( \frac{1}{m_{01}(D)} + \frac{1}{m_{12}(D)} + \frac{1}{m_{02}(D)} - 1 \right)$$
+
+With $m_{02}(D) = 2$ from (DS3), each summand is the summand of [TEGULA2020]. Theorem 4.1 states that the curvature is twice the orbifold Euler characteristic of the associated orbifold, $\mathcal{K}_{(\mathcal{D}, m)} = 2\chi_{\mathrm{orb}}$ [BALKE1996, Theorem 4.1, p. 97]. Balke and Huson write $\chi_{\mathrm{orb}}$ as the Euler characteristic of the underlying surface minus $(v - 1)/v$ for each cone point of order $v$ and minus $(v - 1)/(2v)$ for each corner point of order $v$, citing Conway [BALKE1996, p. 97]. The caption of their Table I states the relation the other way round, "the Euler characteristic of an orbifold is precisely twice the curvature", while Theorem 4.1 and the introduction state that the curvature is twice the Euler characteristic [BALKE1996, pp. 90, 91, and 97] (Section 13).
+
+The geometry is "spherical, euclidean or hyperbolic, depending on whether the curvature is positive, 0 or negative" [TEGULA2020, Section 4]. In the passage to the orbifold, "reflections are mapped onto boundary segments, rotational centers are mapped onto cones, dihedral centers are mapped onto corners, and glide-reflections give rise to crosscaps" [TEGULA2020, Section 4]. Balke and Huson give the derivation: the topological realization of a symbol and its signature [BALKE1996, p. 96], formulas for the number of handles and cross-caps [BALKE1996, Section 5, p. 98], and Algorithm 5.1, which prints the boundary components of the orbifold with their corner orders, with its proof [BALKE1996, Section 5, pp. 99-100]. Cone points come from the non-trivial branching numbers of cycles, and corner points from chains [BALKE1996, p. 99].
+
+EPINET describes the system of chambers of a Delaney-Dress symbol as "really just a triangulation of this orbifold", with the example `*246`, a triangle with angles $\pi/2$, $\pi/4$, and $\pi/6$ [EPINET-DD]. Its page on orbifold notation gives a quantity that it calls curvature, in terms of $o$ handles, $\ast$ mirror boundaries, $x$ cross-caps, cone orders $c_i$, and corner orders $m_j$, "derived from Macbeath's non-euclidean crystallographic group signature" [EPINET-ORB]:
 
 $$K = 2 - 2o - \ast - x - \sum_i \frac{c_i - 1}{c_i} - \sum_j \frac{m_j - 1}{2 m_j}$$
+
+This $K$ is stated for a signature, not for a symbol. Its relation to the curvature $\mathcal{K}$ of [TEGULA2020] and [BALKE1996] is open (Section 14.1, item 18).
 
 `docs/research/orbifold-notation.md` covers signatures and their curvature in depth.
 
@@ -599,6 +646,7 @@ This table compares the three designs, limited to what the sources establish. It
 - The date of Felix and Loquias's paper: the arXiv posting is dated 2010-02-02, and the paper appeared in 2008 in Z. Kristallogr. 223. This document uses 2008.
 - The number of isohedral types: 93 types, of which 81 are the isohedral tiling types [KAPLAN2025]. The Tactile README calls the other 12 "boring" without a reason [TACTILE], and Kaplan's 2025 page gives the reason, mirror edges.
 - Coverage of the Wythoff construction: the Wikipedia page "Wythoff construction" covers only triangles, and the page "Uniform tiling" mentions quadrilateral domains without a rule.
+- The factor between curvature and Euler characteristic in [BALKE1996]: the caption of Table I (p. 91) says that the Euler characteristic is twice the curvature, while Theorem 4.1 (p. 97) and the introduction (p. 90) say that the curvature is twice the Euler characteristic. This document reports both (Section 9.2).
 - The locator of the spherical counts: a condensed extraction of Frettloh's paper placed the cube and the icosahedron in Sections 1 and 2, and the full PDF places the cube on p. 4. The icosahedron was not re-checked in the PDF.
 
 ## 14. Open Questions and Unverified Claims
@@ -607,28 +655,30 @@ This table compares the three designs, limited to what the sources establish. It
 
 Each item below is a candidate statement that needs a source or a machine-checked proof before the body can state it.
 
-1. Colourings and permutation representations: whether the perfect colourings of a fundamental-domain tiling with $k$ colours correspond to transitive permutation representations of $G$ of degree $k$, and whether they correspond up to symmetry to conjugacy classes of subgroups of index $k$. Frettloh's paper states neither.
-2. The converse of Lemma 2.1: whether every perfect colouring of the fundamental-domain tiling of an arbitrary orbifold group arises from a subgroup, and whether Lemma 2.1 holds for groups with rotations, glide reflections, handles, or cross-caps.
+1. Colourings and permutation representations: whether the perfect colourings of a fundamental-domain tiling with $k$ colours correspond to transitive permutation representations of $G$ of degree $k$, and whether they correspond up to symmetry to conjugacy classes of subgroups of index $k$. Frettloh's paper states neither. [CBGS2008] defines a colour type by a homomorphism to a group of permutations of the colours and requires the symmetries to be transitive on the colours (Section 3.3). It counts types up to isotopic reshaping and states no correspondence with conjugacy classes of subgroups.
+2. The converse of Lemma 2.1: whether every perfect colouring of the fundamental-domain tiling of an arbitrary orbifold group arises from a subgroup, and whether Lemma 2.1 holds for groups with rotations, glide reflections, handles, or cross-caps. [CBGS2008] classifies the twofold and prime-fold colour types of all 17 plane groups and of the spherical groups by homomorphisms (Sections 6 and 7.6), and gives annotated symbols for hyperbolic groups (Section 3.3), but states no lemma on the coset colourings of a fundamental-domain tiling.
 3. The tension in Frettloh's paper between the statement that colourings may share a colour symmetry group and the stated bijection (Section 3.4). Schwarzenberger's Section 8, which Frettloh cites on this point, was not read.
 4. The tile centres: a reading of eq. (1) suggests that the `(q^p)` tile is centred at the $\pi/q$ corner of $F$, the `(p^q)` tile at the $\pi/p$ corner, and the `[p.q.p.q]` tile at the right-angle corner. The paper does not state this except for the `(q^p)` tile $F \cup aF \cup abF \cup \dots$.
 5. The tile-stabilizer condition beyond regular and Laves tilings: whether a subgroup induces a perfect colouring of a Wythoff tiling exactly when it contains the stabilizer of each face, such as the standard parabolic subgroup $\langle i, j \rangle$ of Zhao Liang's page, and whether it extends to groups other than $G_{p,q}$.
-6. The number of two-colourings from a signature: a formula for the dimension over $\mathbb{F}_2$ of $G/G^2[G,G]$ in terms of handles, cross-caps, mirrors, corner orders, and cone orders, and whether $[G : G^2] - 1$ holds for infinite $G$. A table of the index-2 subgroups of the 17 wallpaper groups and the 46 two-colour types would also be needed [CBGS2008].
+6. The number of two-colourings from a signature: a formula for the dimension over $\mathbb{F}_2$ of $G/G^2[G,G]$ in terms of handles, cross-caps, mirrors, corner orders, and cone orders, and whether $[G : G^2] - 1$ holds for infinite $G$. The table of twofold types of the 17 plane groups is Table 11.1 of [CBGS2008] (Section 6), and no source read states a formula. The readers of this research found that the sum of the column "Number" of Table 11.1 equals $\lvert \mathrm{Hom}(G, \mathbb{Z}/2) \rvert - 1$, computed from the presentations, for the groups that they checked, for example 15 for `*2222`, 7 for `2222` and `**`, and 3 for `o`. That check is their own and is not a statement of the book. The total of 46 types is also their count of the rows.
 7. Hall's formula at $k = 2$: substituting into Section 7.5 gives $a_2 = |\mathrm{Hom}(G, S_2)| - 1$. A searcher made this substitution, and no source states it.
 8. The theorem of Edmonds, Ewing, and Kulkarni: the exact statement of the achievable indices of torsion-free subgroups, and Izquierdo's version for NEC groups.
-9. Achievable indices in general: whether every index occurs for the wallpaper groups, and which indices occur for hyperbolic groups. The only sourced data are Frettloh's tables and Bulatov's examples.
+9. Achievable indices in general: which composite indices occur for the wallpaper groups, and which indices occur for hyperbolic groups. For prime indices of the plane and spherical groups, Section 7.6 gives the tables of [CBGS2008]. The other sourced data are Frettloh's tables and Bulatov's examples.
 10. The face-orbit rule for Wythoff tilings: a rule such as "a face of size p or 2p around corner p exists if and only if a mirror there is active", and the face list of snubs, with rotation-centre faces and snub triangles and a generator equidistant under the rotations. No source read states either.
 11. Per-pixel classification for Wythoff tilings: no method found. Zucker's shader [ZUCKER] and the KaleidoTile source [KALEIDOTILE] are the leads.
 12. The Wythoff construction beyond triangles: polygonal kaleidoscopes such as `*2222` and `*abcd`, and mixed orbifolds such as `3*3` and `2*22`.
 13. Normal subgroups: whether a subgroup is normal exactly when $G/H$ acts regularly on the colours, and how the kernel $K$ relates to the core of the colour group.
 14. Design (b): no source read addresses the colouring of a fundamental domain cut into several polygons, or the numbers of colours it offers.
-15. Euclidean perfect colourings: the counts for Euclidean regular and Laves tilings, deferred by Frettloh to [SCHWARZENBERGER1984].
+15. Euclidean perfect colourings: the counts for Euclidean regular and Laves tilings, deferred by Frettloh to [SCHWARZENBERGER1984]. [CBGS2008] tabulates the twofold and prime-fold colour types of the 17 plane groups (Sections 6 and 7.6), but not counts for regular and Laves tilings in Frettloh's sense.
 16. The index-$n$ colouring theorem of De Las Penas, Decena, and Laigo [DDL2009]: a correspondence between subgroups of index $n$ and transitive colourings with $n$ colours is known from a search summary only, and the theorem number was not retrieved.
 17. Tool details: the face colouring of KaleidoTile, the behaviour of Tess, and the colour features of iOrnament, Morenaments, and Escher Web Sketch.
+18. The curvature of EPINET: whether the quantity that [EPINET-ORB] calls curvature equals the orbifold Euler characteristic of the signature, so that it is half the curvature $\mathcal{K}$ of a symbol in [BALKE1996] (Section 9.2). A comparison of its terms with the defect rule of Section 6.1 of `docs/research/orbifold-notation.md` suggests so. That comparison is not a statement of any source.
 
 ### 14.2. Claims Resting on Secondary Sources or Inference
 
 - Section 3.3: the Waerden-Burckhardt framework [WP-POLYCHROMATIC].
-- Section 6: the possible counts of index-2 subgroups [WP-INDEX], the index-2 Fuchsian subgroup of an NEC group [WP-NEC], and the 46 two-colour types [ARTLANDIA].
+- Section 6: the possible counts of index-2 subgroups [WP-INDEX], and the 46 two-colour types [ARTLANDIA]. The number 46 is also the count of the rows of Table 11.1 of [CBGS2008] by the readers of this research, and the book states no total (Section 14.1, item 6).
+- Sections 6 and 8.3: the reading of a parity colouring, such as the checkerboard preset of SymmHub, as the colouring by the two cosets of $\Gamma^+$ is an inference. [SINGERMAN1974] states the subgroup $\Gamma^+$ and its signature but says nothing about colourings, and [CBGS2008] does not use the term parity colouring.
 - Section 7.1 and Section 7.4: the history of the algorithm, Magma, and SymPy, from search summaries.
 - Section 7.3: the meaning of each result of `permutation_reps`, inferred from examples.
 - Section 7.6: the scope of the theorem of Edmonds, Ewing, and Kulkarni, through [BCCC2025] and a search summary.
@@ -644,7 +694,7 @@ Each item below is a candidate statement that needs a source or a machine-checke
 
 These sources were not read in full and are recorded in `docs/research/source-requests.md`, with what the project needs from each:
 
-- [CBGS2008]: chapter 11 on twofold colourings, chapters 12 and 13 on colourings with more colours and their notation, and the chapter on hyperbolic groups. Needed for items 6 and 9.
+- [CBGS2008]: read in part, for the chapters on colourings and the passages cited here. Chapters 19 to 26 were not read. A passage on Wythoff triangles in chapter 21, pp. 289-290, may bear on Section 10 and items 4, 5, 10, 11, and 12.
 - [GS1987]: chapter 8 on coloured patterns and chapter 6 on isohedral types.
 - [EEK1982], [BURNS1983], and [IZQUIERDO1993]: the theorems on achievable indices. Needed for item 8.
 - [SCHWARZENBERGER1984]: Euclidean perfect colourings and its Section 8 on colourings that share a colour group. Needed for items 3 and 15.
@@ -656,7 +706,7 @@ These sources were not read in full and are recorded in `docs/research/source-re
 - [BALOGLOU]: two-colour wallpaper patterns. Needed for item 6.
 - [SENECHAL1988] and [COXETER1986]: conventions and the historical method.
 - [LUBOTZKY2003]: the primary text for Hall's formula.
-- [DRESS] and [BALKE1996]: the full axioms of Delaney-Dress symbols and the derivation of the orbifold from a symbol.
+- [DRESS]: the axioms of Delaney-Dress symbols in general dimension. [BALKE1996] was read in full and gives the two-dimensional case (Section 9.2).
 - [KAPLAN2009]: the colouring of isohedral tilings.
 - [VONGAGERN2009]: the per-pixel method.
 - The paper by Conway and Huson on orbifold notation (2002), held locally by the project and not read.
@@ -669,13 +719,13 @@ Every web address was accessed on 2026-11-15. Page numbers of [FRETTLOH2008] ref
 - [ARTLANDIA] Artlandia, glossary entry titled `Two-Color Symmetries`, <https://artlandia.com/wonderland/glossary/TwoColorSymmetries.html>.
 - [ARXIV-MATH9406203] arXiv:math/9406203, read through a search summary only. Author, title, and address not recorded.
 - [ARXIV1806.06911] arXiv:1806.06911, 2018, Section 2, Theorem 2.1. Author and title not recorded, <https://ar5iv.labs.arxiv.org/html/1806.06911>.
-- [BALKE1996] Balke and Huson, 1996, on the orbifold of a Delaney-Dress symbol, as cited in [TEGULA2020]. Title not recorded.
+- [BALKE1996] Balke, L. and D. H. Huson, "Two-dimensional groups, orbifolds and tilings", Geometriae Dedicata 60, pp. 89-106, 1996. Read in full. Page numbers are the printed pages.
 - [BALOGLOU] Baloglou, G., "Isometrica", chapter 6, EMIS. Year and address not recorded.
 - [BCCC2025] Bujalance, Cirre, Conder, and Costa, arXiv:2502.03594v1, 2025, introduction. Title and address not recorded.
 - [BULATOV2010] Bulatov, V., "Coloring a hyperbolic tiling", part of the talk "Artistic Models of the Hyperbolic Geometry", G4G9, 2010-03-25, `https://www.bulatov.org/math/1003/index_color.html`, and the gallery `https://www.bulatov.org/math/1003/color_s542/index.html`.
 - [BULATOV2014] Bulatov, V., "Inversive Kaleidoscopes and their Visualization", Proceedings of Bridges 2014, pp. 329-332, 2014.
 - [BURNS1983] Burns and Solitar, Proc. Amer. Math. Soc. 89 (1983) 414-418. Title not recorded.
-- [CBGS2008] Conway, Burgiel, and Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5, <https://www.routledge.com/The-Symmetries-of-Things/Conway-Burgiel-Goodman-Strauss/p/book/9781568812205>.
+- [CBGS2008] Conway, Burgiel, and Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5, <https://www.routledge.com/The-Symmetries-of-Things/Conway-Burgiel-Goodman-Strauss/p/book/9781568812205>. Read in part. Page numbers are the printed pages.
 - [CLM1954] Coxeter, Longuet-Higgins, and Miller, "Uniform polyhedra", Phil. Trans. R. Soc. A 246 (1954) 401-450.
 - [CONDER2005] Conder and Dobcsanyi, Math. Comp. 74 (2005). Title not recorded.
 - [COXETER1986] Coxeter, "Coloured symmetry", in "M. C. Escher: Art and Science", North-Holland, 1986, pp. 15-33, ISBN 978-0-444-70011-7.
@@ -715,6 +765,7 @@ Every web address was accessed on 2026-11-15. Page numbers of [FRETTLOH2008] ref
 - [SCHWARZENBERGER1984] Schwarzenberger, R. L. E., "Colour symmetry", Bull. London Math. Soc. 16 (1984) 209-240.
 - [SENECHAL1988] Senechal, Comput. Math. Applic. 16 (1988) 545-553, DOI 10.1016/0898-1221(88)90244-1, titled `Color symmetry`.
 - [SIMS1994] Sims, "Computation with Finitely Presented Groups", Cambridge University Press, 1994, ISBN 978-0-521-43213-7, chapters 4 and 5.
+- [SINGERMAN1974] Singerman, D., "On the structure of non-Euclidean crystallographic groups", Proceedings of the Cambridge Philosophical Society 76, pp. 233-240, 1974, DOI 10.1017/S0305004100048891, <https://doi.org/10.1017/S0305004100048891>. Read in full. Page numbers are the printed pages.
 - [SINGERMAN2014] Singerman and Watson, arXiv:1408.0127, 2014, Section 2, Example 1 and Theorem 1, <https://ar5iv.arxiv.org/html/1408.0127>. Title not recorded.
 - [SYMMHUB] Bulatov, V., SymmHub, MIT licence, 2025, read at commit `f2d19cb` (committed 2026-11-13) on 2026-11-15, <https://github.com/SymmHub/SymmHub>. File paths and lines are relative to the root of the repository.
 - [SYMPY] SymPy documentation, `low_index_subgroups`. Address not recorded.
@@ -724,7 +775,6 @@ Every web address was accessed on 2026-11-15. Page numbers of [FRETTLOH2008] ref
 - [VONGAGERN2009] von Gagern and Richter-Gebert, "Hyperbolization of euclidean ornaments", Electron. J. Combin. 16 R2, 2009.
 - [WP-COXETER-DYNKIN] Wikipedia, "Coxeter-Dynkin diagram", section "Application to uniform polytopes", <https://en.wikipedia.org/wiki/Coxeter%E2%80%93Dynkin_diagram>.
 - [WP-INDEX] Wikipedia, "Index of a subgroup", <https://en.wikipedia.org/wiki/Index_of_a_subgroup>.
-- [WP-NEC] Wikipedia, "Non-Euclidean crystallographic group". Address not recorded.
 - [WP-POLYCHROMATIC] Wikipedia, "Polychromatic symmetry", <https://en.wikipedia.org/wiki/Polychromatic_symmetry>.
 - [WP-SNUB] Wikipedia, "Snub (geometry)". Address not recorded.
 - [WP-UNIFORM-HYP] Wikipedia, "Uniform tilings in hyperbolic plane", <https://en.wikipedia.org/wiki/Uniform_tilings_in_hyperbolic_plane>.

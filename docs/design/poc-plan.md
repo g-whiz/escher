@@ -184,11 +184,11 @@ escher --version
 
 **Design documents.** `docs/design/signature.md`, and `docs/design/cli.md` with the commands, options, output format, exit status, and diagnostics. The first tests also carry the Miri policy of `DEC-5`, and Section 6 of `docs/design/architecture.md` lists the documents that change with it.
 
-**Sources.** Every item of the scope is primary in `orbifold-notation.md`, from [CH], [TH], [FG], and [TG].
+**Sources.** Every item of the scope is primary in `orbifold-notation.md`, from [CH], [TH], [FG], [TG], [CBG], and [BH], except the parts that `UNV-20` and `UNV-21` name.
 
 **Unverified statements relied on.**
 
-- `UNV-20`: the canonical form, parentheses, the spelling of infinity, order 1, and the order of features. No primary source defines them (`orbifold-notation.md` 3.4, 3.5, 5, and 12 items 1 to 4). SymmHub and Tegula are the only precedents.
+- `UNV-20`: the canonical string, the delimiter for orders of 10 or more, the spelling of infinity, and the treatment of a `1` on its own. No primary source defines them (`orbifold-notation.md` 3.4, 3.5, 5, and 12 items 1 to 4). The omission of an order of 1, the order of features, and the complete list of equivalences are primary (`orbifold-notation.md` 3.2, 3.5, and 4.1). The code of Tegula is the only precedent for a canonical string (`orbifold-notation.md` 5).
 - `UNV-21`: the geometry of non-compact signatures with $\chi \ne 0$ (`orbifold-notation.md` 12 item 15). The deformation dimension is printed only for compact hyperbolic signatures.
 
 **Tests and acceptance.**
@@ -208,7 +208,7 @@ escher --version
 
 **Risks.**
 
-- Rule 4 with a crosscap, and rule 5 (`ox` equals `xxx`, stated only by [TG]), make the canonical form subtle.
+- Rule 4 with a crosscap, and rule 5 (`ox` equals `xxx`, stated by [TG] and [CBG] and not by [CH]), make the canonical form subtle.
 - Degenerate inputs: `1`, `*`, `x`, and the empty string.
 - The dependency tree may need more exceptions than predicted, because every statement of `rust-ecosystem.md` 19 is unverified.
 
@@ -239,21 +239,21 @@ escher info --check '*732'
 
 - Reflection: equation (6.6) of [DAVIS] (`geometry-models.md` 7.4).
 - Isometries and distance: Theorem 10.1 and the lemma on p. 83 of [CFKP] (`geometry-models.md` 3.1 and 6.1). Boost and rotation: p. 3 of [KC24] (`geometry-models.md` 6.1).
+- Side lengths from the angles: the law of cosines solved for a side, which `geometry-models.md` 10.2 cites to primary sources.
+- The disk map in both directions: `geometry-models.md` 4.2.
 - Existence and uniqueness of the triangle: Fact 3 of [CFKP] (`geometry-models.md` 10.1) and Example 6.5.3 of [DAVIS] (`fundamental-domains.md` 9.1).
 - Group and strict fundamental domain: Theorem 6.4.3 of [DAVIS] and Section 4.4 of [MASKIT2001] (`fundamental-domains.md` 4.4 and 4.5).
 - The class is fully sourced (`fundamental-domains.md` 3 and 13.1).
 
 **Unverified statements relied on.**
 
-- `UNV-12`: the angle form of the law of cosines rests on a secondary source and on HyperRogue's code (`geometry-models.md` 10.2). Remark 5.5 of [MASKIT2001] identifies the same form (`fundamental-domains.md` 9.3).
-- `UNV-13`: the direction from the disk to the hyperboloid is secondary (`geometry-models.md` 4.2 and 15.1 item 7).
-- `UNV-26`: the normal through two points, and the absence from every research document of a relation between the inner product of two unit normals and the corner angle. The design does not rely on such a relation, and the relator and area checks cover the result.
+- `UNV-26`: the normal through two points, and the relation between the inner product of two unit normals and the corner angle, which `geometry-models.md` 7.4 states only in the conventions of [RATCLIFFE], with inward normals. The design does not rely on such a relation, and the relator and area checks cover the result.
 - `UNV-28` applies if SymmHub's disk triangle (`geometry-models.md` 7.6) serves as a test oracle, because its properties are candidate statements (`geometry-models.md` 15.1 item 5).
 
 **Tests and acceptance.**
 
 - Reference arithmetic: an independent high-precision implementation in the test suite recomputes lengths, vertices, and normals for triples that include (7,3,2), (5,4,2), (4,4,4), (3,3,4), (12,3,2), and (1000,3,2).
-- Primary numeric checks for $\{7, 3\}$ from Table 2 and equations 24 and 29 of [HT]: $h = 1.090550$ and $r_0 = 0.300743$ (`geometry-models.md` 10.4), through the split of the polygon into $2p$ right triangles (`geometry-models.md` 10.1).
+- Numeric checks for $\{7, 3\}$, through the split of the polygon into $2p$ right triangles (`geometry-models.md` 10.1): the expected edge length and circumradius in the disk are equations 29 and 24 of [HT] (`geometry-models.md` 10.4), evaluated with the reference arithmetic of `DEC-3`. No value that Table 2 of [HT] prints serves as an expected value, because the table and equation 29 disagree on the edge length of $\{7, 3\}$ (`geometry-models.md` 15.1 item 23).
 - Properties: for random admissible triples, the relators hold, the inverse equals $J M^{t} J$, and the disk map round-trips.
 
 **Dependencies and `deny.toml` work.** `glam` (`DEC-4`) for `escher-geometry` and `escher-domain`, and the reference-arithmetic dev-dependency `astro-float` (`DEC-3`). Each is declared once in `[workspace.dependencies]` (DEP-2).
@@ -388,7 +388,7 @@ escher render '*532' --rotation 20,35,0 -o ico-rotated.png
 - Triangles: Example 6.5.1 of [DAVIS]. The sector of two mirrors: p. 82 of [DAVIS] (`fundamental-domains.md` 4.5).
 - Orders: `orbifold-notation.md` 8.2. Finite folds: `rendering.md` 9.3. Phong shading: `geometry-models.md` 11.6.
 
-**Unverified statements relied on.** `UNV-12` (the spherical law of cosines is secondary), `UNV-16` (the lift, the view scale, and the Phong formulas, whose primary paper is unread), and `UNV-14` for the distance to a great circle if it is used.
+**Unverified statements relied on.** `UNV-12` (the spherical law of cosines solved for a side, `geometry-models.md` 11.3), `UNV-16` (the lift, the view scale, and the Phong formulas, whose primary paper is unread), and `UNV-14` for the distance to a great circle if it is used.
 
 **Tests and acceptance.**
 
@@ -416,22 +416,21 @@ escher render 532 -o i.png
 
 **Scope.** The domain is the double of the reflection domain across one wall, with products of two reflections as pairings. The fold runs with general pairings.
 
-**Design documents.** Extensions of `domain.md` and `render.md`. `domain.md` states which wall is doubled, and that a side fixed by a half-turn is split at the fixed point, as item 2 of `fundamental-domains.md` 4.8 requires.
+**Design documents.** Extensions of `domain.md` and `render.md`. `domain.md` states which wall is doubled, and that a side fixed by a half-turn is split at the fixed point. Item 2 of `fundamental-domains.md` 4.8 permits this split and does not require it, so the split is a choice of this plan.
 
 **Sources.**
 
 - Sections 4.4 and 5.9 of [MASKIT2001] (`fundamental-domains.md` 9.1 and 7.6).
-- The polygon theorem for orientation-preserving groups: Theorem 12 of [SOLOMYAK2020] and Theorem 6.14 of [SERIES2013] (`fundamental-domains.md` 4.1 and 4.2).
+- The polygon theorem for orientation-preserving groups: Theorem 12 of [SOLOMYAK2020] and Theorem 6.14 of [SERIES2013] (`fundamental-domains.md` 4.1 and 4.2). For the Euclidean plane and the sphere, the polygon theorem of `fundamental-domains.md` 4.9 and 4.10.
 - The kite, and "two copies of the triangle": p. 12 of [VONGAGERN2009] (`fundamental-domains.md` 9.5).
 - SymmHub's double triangle (`symmhub.md` 7.2.7).
 
 **Unverified statements relied on.**
 
 - `UNV-2`: the greedy fold with general pairings.
-- `UNV-5`: the spherical and Euclidean orientation-preserving cases rest on [JESPERS2015], a secondary source (`fundamental-domains.md` 4.6). The exhaustive certificate closes the spherical cases.
-- `UNV-22`: the signature of the rotation subgroup for the general rule (gap G10).
+- `UNV-22`: the signature of the rotation subgroup in orbifold notation (gap G10).
 
-**Tests and acceptance.** The checklist of `fundamental-domains.md` 4.8 as `verify()`. Cycle relators. Spherical orders. Fold properties. Every border pixel of the `pqr` image is a border pixel of the `*pqr` image in the same view. Golden images.
+**Tests and acceptance.** The items of the checklist of `fundamental-domains.md` 4.8 that apply to a compact polygon, as `verify()`. Cycle relators. Spherical orders. Fold properties. Every border pixel of the `pqr` image is a border pixel of the `*pqr` image in the same view. Golden images.
 
 **Dependencies and `deny.toml` work.** None new.
 
@@ -453,9 +452,9 @@ For a spherical signature it also prints "order by coset enumeration: 120, equal
 
 **Design documents.** `docs/design/group.md`, and an extension of `domain.md`. Prerequisite RP-1.
 
-**Sources.** [CH] pp. 255 to 257. Theorem 6.4.3 of [DAVIS] and the theorems of M6 for side presentations. `colourings.md` 7.2 for coset tables in GAP. `rust-ecosystem.md` 14, which records that no usable crate exists and that `algebraeon-groups` is under GPL-3.0-only and is not copied.
+**Sources.** [CH] pp. 255 to 257. Theorem 6.4.3 of [DAVIS] and the theorems of M6 for side presentations. The polygon theorems of `fundamental-domains.md` 4.9 and 4.10 for the cycle relators of mixed side pairings, from M10 on. `colourings.md` 7.2 for coset tables in GAP. `rust-ecosystem.md` 14, which records that no usable crate exists and that `algebraeon-groups` is under GPL-3.0-only and is not copied.
 
-**Unverified statements relied on.** `UNV-19` (the algorithms without their primary texts), `UNV-22` (a boundary without corners), and `UNV-5` (cycle relators in mixed cases, from M10 on).
+**Unverified statements relied on.** `UNV-19` (the algorithms without their primary texts) and `UNV-22` (a boundary without corners).
 
 **Tests and acceptance.**
 
@@ -531,9 +530,9 @@ escher render '*3333' --set slice1.length=1.2 -o slice.png
 
 - Existence, discreteness, and strict fundamental domain for compact polygons: Example 6.5.3 and Theorem 6.4.3 of [DAVIS].
 - The parameter count $n - 3$: Theorem 13.8.1 and p. 316 of [TH] (`fundamental-domains.md` 6.1 and 9.4).
-- Coordinates: only SymmHub (`fundamental-domains.md` 3: "Partly, with no sourced coordinates").
+- Coordinates: one polygon for each set of angles, from the proof of Theorem 7.16.2 of [BEARDON], and the rest of the family only from SymmHub (`fundamental-domains.md` 3 and 9.4).
 
-**Unverified statements relied on.** `UNV-6` and `UNV-7` for producing the polygon, `UNV-27` (ranges and default), and `UNV-12` for the pentagon and hexagon relations if they are used (`geometry-models.md` 10.5, read only through summaries). The reliance is limited, because `verify()` checks the hypotheses of Theorem 6.4.3 of [DAVIS] on each built polygon: closure, convexity, and corner angles $\pi/p_i$.
+**Unverified statements relied on.** `UNV-6` and `UNV-7` for producing the polygon, `UNV-27` (ranges and default), and `UNV-12` for the pentagon relations that `geometry-models.md` 10.5 and 15.1 items 12 and 14 leave open, if they are used. The reliance is limited, because `verify()` checks the hypotheses of Theorem 6.4.3 of [DAVIS] on each built polygon: closure, convexity, and corner angles $\pi/p_i$.
 
 **Tests and acceptance.** Regular right-angled polygons against equations 24 and 29 of [HT]. Area equal to $-2\pi\chi$. Random parameters within range pass `verify()`. Relators. Parameters out of range fail with the documented kind. Golden images.
 
@@ -560,9 +559,9 @@ escher render o --set skew=0.25 -o p1.png
 
 **Design documents.** An extension of `domain.md`.
 
-**Sources.** The signatures: Table II of [CH] and Theorem 13.3.6 of [TH]. The kites of `3*3` and `4*2`, and the relations of index 2: pp. 7 and 12 of [VONGAGERN2009]. The catalogue and its recorded defects: `fundamental-domains.md` 9.5 and 8.14, `symmhub.md` 7.1 and 15.3. Presentations: [CH].
+**Sources.** The signatures: Table II of [CH] and Theorem 13.3.6 of [TH]. The kites of `3*3` and `4*2`, and the relations of index 2: pp. 7 and 12 of [VONGAGERN2009]. The catalogue and its recorded defects: `fundamental-domains.md` 9.5 and 8.14, `symmhub.md` 7.1 and 15.3. Presentations: [CH]. The polygon theorems for the Euclidean plane, whose hypotheses `verify()` checks: `fundamental-domains.md` 4.7, 4.9, and 4.10. Neither [RATCLIFFE] nor Epstein and Petronio works an example that combines a cross-cap with a cone point or a mirror, as `22x` and `*x` do (`fundamental-domains.md` 4.7).
 
-**Unverified statements relied on.** `UNV-10` (parameter counts, from the partial counts of [VONGAGERN2009], the unsourced table of `orbifold-notation.md` 12 item 7, and SymmHub's catalogue), `UNV-11`, `UNV-5`, `UNV-2` for translations and glides in the fold, `UNV-8` for glide pairings, and `UNV-9` for skew and twist.
+**Unverified statements relied on.** `UNV-10` (parameter counts, from the partial counts of [VONGAGERN2009] and [CBG], the unsourced table of `orbifold-notation.md` 12 item 7, and SymmHub's catalogue), `UNV-11`, `UNV-2` for translations and glides in the fold, `UNV-8` for glide pairings, and `UNV-9` for skew and twist.
 
 **Tests and acceptance.** A table-driven test over the 17 signatures of `orbifold-notation.md` 8.1. `verify()`. Relators. Equal counts of subgroup classes up to a small index between the side presentation and the Conway presentation. Periodicity of the image. The borders of `3*3` lie inside the borders of `*632`, and those of `4*2` inside those of `*442`. Golden images.
 
@@ -589,9 +588,9 @@ escher render '5x' -o s10.png
 
 **Design documents.** An extension of `domain.md`.
 
-**Sources.** The signatures and orders: Table III of [CH] and Theorem 13.3.6 of [TH]. The reflection triangles are sourced, and the other generators exist only as catalogue code (`fundamental-domains.md` 9.6 and 13.1).
+**Sources.** The signatures and orders: Table III of [CH] and Theorem 13.3.6 of [TH]. The reflection triangles are sourced, and the other generators exist only as catalogue code (`fundamental-domains.md` 9.6 and 13.1). The polygon theorems for the sphere: `fundamental-domains.md` 4.9 and 4.10. Neither [RATCLIFFE] nor Epstein and Petronio works an example that combines a cross-cap with a cone point or a mirror, as `nx` does (`fundamental-domains.md` 4.7).
 
-**Unverified statements relied on.** `UNV-11`, `UNV-5` (the exhaustive certificate closes the spherical cases), the coincidences at small $n$ (`orbifold-notation.md` 12 item 8), and `UNV-20` for order 1.
+**Unverified statements relied on.** `UNV-11`, the coincidences at small $n$ (`orbifold-notation.md` 12 item 8), and `UNV-20` for the trivial group written as `1`.
 
 **Tests and acceptance.** For every type and $n$ from 1 to 12, the exhaustive certificate of M5 and the order from Todd-Coxeter enumeration. A table-driven render of all 31 Euclidean and spherical entries. Golden images.
 
@@ -617,7 +616,7 @@ The milestone can move to any place after M3.
 
 **Sources.** The connecting maps and metrics of [CFKP] (`geometry-models.md` 4.1 and 3.1, `rendering.md` 8.1). [KC24] for the Klein model (`geometry-models.md` 4.2). The band map and its constant (`geometry-models.md` 5.1). The evaluation of the complex inverse hyperbolic tangent by logarithms ([B1], `geometry-models.md` 5.1).
 
-**Unverified statements relied on.** `UNV-13`. The inverse of the band map is stated only in SymmHub's code (`rendering.md` 13.1 item 14), the band metric was read only through a summary, and the correspondence of the half-plane is a project choice (`geometry-models.md` 4.3).
+**Unverified statements relied on.** `UNV-13`. The inverse of the band map is stated only in SymmHub's code (`rendering.md` 13.1 item 14), the band metric rests only on a summary, and the correspondence of the half-plane is a project choice (`geometry-models.md` 4.3).
 
 **Tests and acceptance.** Round trips against reference arithmetic. The same hyperbolic point has the same tile colour in all four models. Borders in the Klein model are straight (Section 9 of [CFKP]). Golden images.
 
@@ -641,7 +640,7 @@ escher render '*732' --border-unit intrinsic --border-width 0.05 -o intrinsic.pn
 
 **Sources.** Precedents with intrinsic widths (`rendering.md` 6.1). Formulas (`rendering.md` 6.2 and 9.4, `geometry-models.md` 9.3).
 
-**Unverified statements relied on.** `UNV-14`. The form on the hyperboloid rests on a secondary citation and on code, and the form on the sphere is a candidate statement.
+**Unverified statements relied on.** `UNV-14`. The primary form on the hyperboloid is time-first and is not stated for unit normals (`geometry-models.md` 9.3 and 15.1 item 3). The form in the disk for a geodesic that is not a diameter, and the form on the sphere, are candidate statements (`rendering.md` 13.1 items 8 and 10).
 
 **Tests and acceptance.** The formula against an independent high-precision minimization of the distance between points. The band around a vertical geodesic of the half-plane is a wedge (Fact 2 of [CFKP], which needs M12). Golden images.
 
@@ -691,9 +690,9 @@ escher render 2223 --set tube1.twist=0.2 -o twist.png
 
 **Design documents.** An extension of `domain.md`. The first code branch that ports SymmHub code adds the MIT notice in the places that `DEC-18` names.
 
-**Sources.** The classes are code only (`fundamental-domains.md` 3 and 13.1). The sourced parts are the deformation dimension (Corollary 13.3.7 of [TH]), the orientable generators of [MASKIT2001] (`fundamental-domains.md` 7) as a cross-check for signatures without mirrors, and the presentations of [CH].
+**Sources.** The classes are code only (`fundamental-domains.md` 3 and 13.1). The sourced parts are the deformation dimension (Corollary 13.3.7 of [TH]), the orientable generators of [MASKIT2001] (`fundamental-domains.md` 7) as a cross-check for signatures without mirrors, and the presentations of [CH]. The polygon theorems for mixed side pairings, whose hypotheses `verify()` checks: `fundamental-domains.md` 4.7, 4.9, and 4.10.
 
-**Unverified statements relied on.** `UNV-5`, `UNV-6`, `UNV-7`, `UNV-9`, `UNV-2`, `UNV-11` for the mixed signatures, `UNV-26` for the conversion of circles into normals, `UNV-24` for the MIT code, and the defects of `fundamental-domains.md` 8.14 and `symmhub.md` 15.3.
+**Unverified statements relied on.** `UNV-6`, `UNV-7`, `UNV-9`, `UNV-2`, `UNV-11` for the mixed signatures, `UNV-26` for the conversion of circles into normals, `UNV-24` for the MIT code, and the defects of `fundamental-domains.md` 8.14 and `symmhub.md` 15.3.
 
 **Tests and acceptance.**
 
@@ -724,9 +723,9 @@ escher render 23x --set cap1.length=1.5 -o cap.png
 
 **Design documents.** An extension of `domain.md`.
 
-**Sources.** Code only. [NORBURY2006], a secondary source, on one-sided geodesics (`fundamental-domains.md` 6.3 and 6.5). Maskit's closers of handles for the orientable cases (`fundamental-domains.md` 7.8 and 7.10).
+**Sources.** Code only. [NORBURY2006], a secondary source, on one-sided geodesics (`fundamental-domains.md` 6.3 and 6.5). Maskit's closers of handles for the orientable cases (`fundamental-domains.md` 7.8 and 7.10). The polygon theorems for orientation-reversing side pairings, whose hypotheses `verify()` checks: `fundamental-domains.md` 4.7, 4.9, and 4.10. Neither [RATCLIFFE] nor Epstein and Petronio works an example that combines a cross-cap with a cone point or a mirror, as `23x` and `2*x` do (`fundamental-domains.md` 4.7).
 
-**Unverified statements relied on.** `UNV-2`, `UNV-5`, `UNV-6`, `UNV-7`, `UNV-8`, `UNV-9`, and gap G15 (several boundaries).
+**Unverified statements relied on.** `UNV-2`, `UNV-6`, `UNV-7`, `UNV-8`, `UNV-9`, and gap G15 (several boundaries).
 
 **Tests and acceptance.** As M15, with orientation-reversing cycles in `verify()`, and colourings of these groups under the budget.
 
@@ -772,15 +771,15 @@ escher render '*23(inf)' -o ideal.png
 1. The 7 friezes (`orbifold-notation.md` 8.3).
 2. Triangle groups with ideal corners and their rotation subgroups (Sections 4.4 and 5.9 of [MASKIT2001], `fundamental-domains.md` 4.4 and 7.6, and SymmHub's ideal triangle, `geometry-models.md` 7.6.5).
 
-The general non-compact signatures are outside the proof of concept and are a workstream of `docs/design/roadmap.md` (`DEC-19` of `docs/design/architecture.md`). The research records no implementation for them, because SymmHub's orbifold parser has no infinite order (`symmhub.md` 4.2), and the only sourced material is Maskit's cusps for orientable signatures (`fundamental-domains.md` 7).
+The general non-compact signatures are outside the proof of concept and are a workstream of `docs/design/roadmap.md` (`DEC-19` of `docs/design/architecture.md`). The research records no implementation for them, because SymmHub's orbifold parser has no infinite order (`symmhub.md` 4.2). The sourced material is Maskit's cusps for orientable signatures (`fundamental-domains.md` 7), and the worked examples and the polygon for orientation-preserving groups of `fundamental-domains.md` 9.8, which records that no source read constructs a polygon for a signature that mixes cusps with mirrors or crosscaps.
 
 **Design documents.** Extensions of `domain.md` and `render.md`. Prerequisite RP-4.
 
-**Sources.** The sources named in part 2, the frieze list of `orbifold-notation.md` 8.3, and SymmHub's `Group_Frieze` as RP-4 records it.
+**Sources.** The sources named in part 2, the polygon theorems for polygons with ideal vertices (`fundamental-domains.md` 4.7), the frieze list of `orbifold-notation.md` 8.3, and SymmHub's `Group_Frieze` as RP-4 records it.
 
-**Unverified statements relied on.** `UNV-23` for the fold near an ideal vertex (Section 9.5 of `docs/design/architecture.md`), `UNV-21` for the geometry of the triangle signatures with an infinite order, and `UNV-26` for the conversions into the linear model.
+**Unverified statements relied on.** `UNV-23` for the fold near an ideal vertex (Section 9.5 of `docs/design/architecture.md`), `UNV-21` for the geometry of the triangle signatures with an infinite order, and `UNV-26` for the conversions into the linear model. `UNV-5` for the ideal corner of a reflection triangle such as `*23(inf)`, where two mirrors end at a cusp: which test `verify()` runs there is open, and so is the reading that the two sides have the dihedral angle 0 and give no relator, and so is the element that fixes an ideal vertex (`fundamental-domains.md` 13.3 items 7 and 8, gap G1).
 
-**Tests and acceptance.** The parabolic cycle condition in `verify()` (item 5 of `fundamental-domains.md` 4.8). Samples near an ideal point reach the cap and take the colour that `DEC-7` of `docs/design/architecture.md` gives to samples at the cap. Golden images. A test that `escher render` rejects a general non-compact signature as Section 5.8 of `docs/design/architecture.md` states, with an `insta` snapshot of the diagnostic.
+**Tests and acceptance.** The parabolic cycle condition in `verify()` for closed cycles at an ideal point, as in the rotation subgroups (item 5 of `fundamental-domains.md` 4.8). At an ideal corner between two mirrors, `verify()` runs the test that the design document of `escher-domain` chooses and marks as `UNV-5`. Samples near an ideal point reach the cap and take the colour that `DEC-7` of `docs/design/architecture.md` gives to samples at the cap. Golden images. A test that `escher render` rejects a general non-compact signature as Section 5.8 of `docs/design/architecture.md` states, with an `insta` snapshot of the diagnostic.
 
 **Dependencies and `deny.toml` work.** None new.
 
@@ -824,33 +823,33 @@ The owner decided how the proof of concept treats a statement that no source est
 
 | Id | Statement relied on | Research location | Milestones that use it | What closes it |
 | --- | --- | --- | --- | --- |
-| UNV-1 | The first-violated-wall fold terminates for compact reflection polygons, in a number of steps equal to the word length | `rendering.md` 13.1 item 1, gap G5 | M3 on | Sections 1.6, 1.7, and 5.4 of [HUMPHREYS], or Lean |
-| UNV-2 | The same fold terminates for general side pairings and domains that are not convex | `rendering.md` 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M15 to M17 | A source, a change to Voight's rule, or Lean |
+| UNV-1 | The first-violated-wall fold terminates for compact reflection polygons, in a number of steps equal to the word length | `rendering.md` 4.7 and 13.1 item 1, gap G5, `fundamental-domains.md` 13.3 item 6 | M3 on | Sections 1.6, 1.7, and 5.4 of [HUMPHREYS], or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
+| UNV-2 | The same fold terminates for general side pairings and domains that are not convex | `rendering.md` 4.7 and 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M15 to M17 | A source, a change to Voight's rule, or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
 | UNV-3 | Behaviour on or near a wall | `rendering.md` 13.1 item 2 | M3 on | Tests. No source is known |
 | UNV-4 | Growth of the fold count, the reading of the exponents, and the limits of precision | `rendering.md` 13.1 items 5 and 6, `geometry-models.md` 15.1 item 10 | M3 defaults | The body of [FWW], and measurement |
-| UNV-5 | The polygon theorem with reflections mixed with other pairings, glide cycles, mirror corners beside paired sides, and ideal reflection polygons with more than three sides | `fundamental-domains.md` 4.7, gap G1 | M6, M7, M10, M11, M15, M16 | [EPSTEIN-PETRONIO1994], Theorem 11.2.2 of [RATCLIFFE], Theorem 9.8.4 of [BEARDON] |
-| UNV-6 | The generalized law of cosines with truncated vertices, and the pillow and hat formulas | `fundamental-domains.md` 8.7, 8.8, and 13.3 item 1, gap G3 | M9, M15, M16 | [BUSER], Section 3.5 of [RATCLIFFE] |
+| UNV-5 | The open points of the polygon theorem at ideal points: the test where a mirror ends at a cusp, the reading that two sides that meet only at an ideal vertex have the dihedral angle 0 and give no relator, and the element that fixes an ideal vertex. The four cases with reflections, glide cycles, mirror corners beside paired sides, and ideal reflection polygons are sourced in `fundamental-domains.md` 4.7, and the Euclidean plane and the sphere in its Sections 4.9 and 4.10, all under the hypotheses of those sections | `fundamental-domains.md` 4.7, 4.9, 4.10, 12, and 13.3 items 7 and 8, gap G1 | M18 | A source or Lean for each open point of gap G1 |
+| UNV-6 | The cases that SymmHub's `edgeLength` sends to the inverse hyperbolic sine, the correspondence of its other cases with the formulas of `fundamental-domains.md` 9.3, and the pillow and hat formulas. The triangle, quadrilateral, pentagon, and hexagon formulas are sourced in `fundamental-domains.md` 9.3 | `fundamental-domains.md` 8.7, 8.8, 9.3, and 13.3 item 1, gap G3 | M9, M15, M16 | Formula Glossary 2.2 to 2.4 of [BUSER], or Lean |
 | UNV-7 | Deaton's cut rules, the twelve atoms, and the twist in three situations | Gap G4, `fundamental-domains.md` 13.3 items 4 and 5 | M9, M15, M16 | [DEATON1993] |
-| UNV-8 | The cap generator is a glide reflection consistent with a polygon theorem | Gap G2, `fundamental-domains.md` 13.3 item 2 | M10, M16 | [CHOI2012], [BUSER] |
+| UNV-8 | The cap generator is a glide reflection that, with the other side pairings, meets the hypotheses of the polygon theorems of `fundamental-domains.md` 4.9 and 4.10 | Gap G2, `fundamental-domains.md` 13.3 item 2 | M10, M16 | [CHOI2012], [BUSER] |
 | UNV-9 | The twist convention | Gap G11 | M10, M15, M16 | A project convention |
-| UNV-10 | Euclidean parameter counts | Gap G7, `orbifold-notation.md` 12 item 7 | M4, M10 | [CBG], [KLR], [SCOTT] |
-| UNV-11 | Constructions of mixed signatures, and spherical generators | Gap G8 | M10, M11, M15 | [CBG] |
-| UNV-12 | Angle forms of the laws of cosines, and other trigonometry from secondary or summarized sources | `geometry-models.md` 10.2, 10.5, 11.3, and 15.2 | M2, M5, M9 | Sections 7.18 to 7.20 of [BEARDON], chapter 2 of [BUSER], Section 3.5 of [RATCLIFFE] |
-| UNV-13 | Inverse model maps, the inverse and metric of the band, and the choice for the half-plane | `geometry-models.md` 4.3, 5.1, and 15.1 item 7, `rendering.md` 13.1 item 14 | M2, M12 | [HUB], and round-trip tests |
-| UNV-14 | Distance to a geodesic and to a great circle in linear form | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M5, M13 | Chapter 2 and Section 3.2 of [RATCLIFFE] |
+| UNV-10 | Euclidean parameter counts: whether a count includes the scale, and the counts of the groups for which no source states one. The counts and the rule that are sourced are in `orbifold-notation.md` 10.2 and `fundamental-domains.md` 6.1 | Gap G7, `orbifold-notation.md` 12 item 7 | M4, M10 | [KLR], [SCOTT], or Lean |
+| UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7) | Gap G8, `fundamental-domains.md` 9.7 | M10, M11, M15 | A source that constructs them, or Lean |
+| UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, the spherical law of cosines solved for a side, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5 | `geometry-models.md` 10.5, 10.6, 11.3, 15.1 items 12 and 14, and 15.2 | M5, M9 | Chapter 2 of [BUSER], or Lean |
+| UNV-13 | The inverse and metric of the band, and the choice of map between the disk and the half-plane. The maps between the disk, the hyperboloid, and the Klein model are sourced in `geometry-models.md` 4.2 | `geometry-models.md` 4.3 and 5.1, `rendering.md` 13.1 item 14 | M12 | [HUB], and round-trip tests |
+| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M5, M13 | A source, or Lean |
 | UNV-15 | The screen-distance estimate through the fold, analytic antialiasing, and the fade of tiles smaller than a pixel | `rendering.md` 7.1 and 13.1 items 19 and 20 | M3, M14 | Measurement against supersampling |
 | UNV-16 | The lift onto the ball, the view scale of the sphere, and the Phong formulas | `rendering.md` 13.1 items 11 and 12, `geometry-models.md` 11.6 | M5 | [PHONG75], [BLINN77] |
-| UNV-17 | Coset colourings are perfect for every orbifold group, the composition order, completeness, and conjugacy | `colourings.md` 4.2, 8.4, 8.7, and 14.1 items 1 to 3 | M8 | [DDL2009], [SCHWARZENBERGER1984], [CBGS2008], or Lean |
-| UNV-18 | The parity colouring | `colourings.md` 6, `rendering.md` 4.6 | M3 | A primary text on non-Euclidean crystallographic (NEC) groups |
+| UNV-17 | Coset colourings are perfect for every orbifold group, the composition order, completeness, and conjugacy | `colourings.md` 4.2, 8.4, 8.7, and 14.1 items 1 to 3 | M8 | [DDL2009], [SCHWARZENBERGER1984], or Lean. [CBGS2008] defines colour types and states none of these (`colourings.md` 3.3 and 14.1 items 1 and 2) |
+| UNV-18 | The parity colouring as the colouring by the two cosets of the orientation-preserving subgroup. That subgroup and its signature are sourced for non-Euclidean crystallographic (NEC) groups with a compact quotient (`colourings.md` 6) | `colourings.md` 6 and 14.2, `rendering.md` 4.6 | M3 | A source that links the colouring to the subgroup, or Lean |
 | UNV-19 | Todd-Coxeter enumeration and the low-index search without their primary texts | `colourings.md` 7 and 14.3 | M7, M8 | [SIMS1994], [HOLT2005] |
-| UNV-20 | Text conventions and the canonical form | `orbifold-notation.md` 12 items 1 to 4 | M1, M11 | [CBG], [BH], or else a project convention |
-| UNV-21 | Geometry and parameters of non-compact signatures with $\chi \ne 0$ | `orbifold-notation.md` 12 item 15 | M1, M18 | A source |
-| UNV-22 | The Conway presentation for a boundary without corners, the NEC dictionary, and the signature of the rotation subgroup | `orbifold-notation.md` 12 items 5, 12, and 14, gap G10 | M6, M7 | A re-reading of [CH], [SINGERMAN1974] |
-| UNV-23 | Whether the results of [DAVIS] for polytopes and the fold apply to a domain with an ideal vertex | `rendering.md` 13.1 item 3, `geometry-models.md` 7.6.5 | M18 | The sources of UNV-5 |
+| UNV-20 | Text conventions and the canonical form: the canonical string, the delimiter for orders of 10 or more, the spelling of infinity, and a `1` on its own. The equivalences and the omission of an order of 1 are sourced (`orbifold-notation.md` 3.5 and 4.1) | `orbifold-notation.md` 12 items 1 to 4 | M1, M11 | A project convention. [CBG] and [BH] define none of them |
+| UNV-21 | Geometry and parameters of non-compact signatures with $\chi \ne 0$: whether a signature with $\infty$, $\chi < 0$, and a mirror boundary or a crosscap gives a group, the geometry when $\chi > 0$, the deformation dimension, and the reading of the existence condition for orientation-preserving groups as $\chi < 0$. That condition is sourced in the terms of [BEARDON] (`orbifold-notation.md` 7.1, `fundamental-domains.md` 5.5) | `orbifold-notation.md` 12 item 15, `fundamental-domains.md` 9.8 | M1, M18 | A source, or Lean |
+| UNV-22 | The Conway presentation for a boundary without corners in general, the dictionary between NEC signatures and orbifold signatures, and the signature of the rotation subgroup in orbifold notation for hyperbolic signatures and the spherical groups. The NEC signature, its presentation, and the rotation subgroup of a proper NEC group in NEC terms are sourced (`orbifold-notation.md` 9.2 and 9.3) | `orbifold-notation.md` 12 items 5, 12, and 14, gap G10 | M6, M7 | A re-reading of [CH] (RP-5), a source that states the dictionary, or Lean |
+| UNV-23 | Whether the fold applies to a domain with an ideal vertex. The polygon theorem for such a domain is sourced (`fundamental-domains.md` 4.7) | `rendering.md` 13.1 item 3, `geometry-models.md` 7.6.5 | M18 | A source on the fold, or Lean |
 | UNV-24 | MIT code inside a work under GPL-3.0-or-later | `symmhub.md` 17 item 1 | M15 | The licence texts, and the owner's judgement |
 | UNV-25 | Correct rounding of the reference-arithmetic crate | `rust-ecosystem.md` 21 item 5 | M2 on | One comparison with MPFR |
-| UNV-26 | Statements on the linear model that the research lacks: the normal through two points, normals and the corner angle, a disk circle to a normal, and the Euclidean reflection as a matrix | None | M2, M4, M15, M18 | Chapter 3 of [RATCLIFFE], or Lean |
-| UNV-27 | Construction, ranges, and default shape of polygons with prescribed angles | `geometry-models.md` 15.1 item 14, `fundamental-domains.md` 9.4 | M9 | A detailed reading of the proof in [TH], [BUSER] |
+| UNV-26 | Statements on the linear model in the conventions of Sections 5.1 and 5.2 of `docs/design/architecture.md`, with the time coordinate last and outward normals: the normal through two points, normals and the corner angle, a disk circle to a normal, and the Euclidean reflection as a matrix. [RATCLIFFE] states the cross product with the time coordinate first, the relation between normals and the angle with inward normals, and the Euclidean reflection as a map (`geometry-models.md` 2.4, 7.4, and 12) | `geometry-models.md` 2.4, 7.4, and 12 | M2, M4, M15, M18 | A source in these conventions, or Lean |
+| UNV-27 | Coordinates for the family, ranges, and default shape of polygons with prescribed angles. Existence, the admissible angles, and one polygon for each set of angles are sourced (`geometry-models.md` 10.1, `fundamental-domains.md` 9.4) | `geometry-models.md` 15.1 item 14, `fundamental-domains.md` 9.4 | M9 | A detailed reading of the proof in [TH], [BUSER] |
 | UNV-28 | Properties of SymmHub's disk triangle, if it is used as an oracle | `geometry-models.md` 15.1 item 5 | M2 tests | Tests only |
 
 ## 8. Security Considerations
@@ -887,11 +886,11 @@ The tool emits no logs. `--stats` prints its statistics on request.
 ### 10.2. Informative References
 
 - [B1] The entry in Section 16.1 of `docs/research/geometry-models.md`.
-- [BEARDON] The entry in Section 14.3 of `docs/research/fundamental-domains.md`. `geometry-models.md` cites the same book as [BEA].
-- [BH] The entry in Section 13.4 of `docs/research/orbifold-notation.md`.
+- [BEARDON] The entry in Section 14.1 of `docs/research/fundamental-domains.md`. `geometry-models.md` cites the same book as [BEA].
+- [BH] The entry in Section 13.1 of `docs/research/orbifold-notation.md`.
 - [BLINN77] The entry in Section 16.4 of `docs/research/geometry-models.md`.
 - [BUSER] The entry in Section 14.3 of `docs/research/fundamental-domains.md`. `geometry-models.md` cites the same book as [BUS].
-- [CBG] The entry in Section 13.4 of `docs/research/orbifold-notation.md`. `fundamental-domains.md` cites the same book as [SYMMETRIES-OF-THINGS2008].
+- [CBG] The entry in Section 13.1 of `docs/research/orbifold-notation.md`. `fundamental-domains.md` cites the same book as [SYMMETRIES-OF-THINGS2008].
 - [CBGS2008] The entry in Section 15 of `docs/research/colourings.md`. It is the same book as [CBG].
 - [CFKP] The entry in Section 16.1 of `docs/research/geometry-models.md`.
 - [CH] The entry in Section 13.1 of `docs/research/orbifold-notation.md`. `fundamental-domains.md` cites the same paper as [CONWAY-HUSON2002].
@@ -899,7 +898,6 @@ The tool emits no logs. `--stats` prints its statistics on request.
 - [DAVIS] The entry in Section 16.1 of `docs/research/geometry-models.md`. `fundamental-domains.md` cites the same book as [DAVIS2008].
 - [DDL2009] The entry in Section 15 of `docs/research/colourings.md`.
 - [DEATON1993] The entry in Section 14.3 of `docs/research/fundamental-domains.md`.
-- [EPSTEIN-PETRONIO1994] The entry in Section 14.3 of `docs/research/fundamental-domains.md`.
 - [FG] The entry in Section 13.1 of `docs/research/orbifold-notation.md`.
 - [FRETTLOH2008] The entry in Section 15 of `docs/research/colourings.md`.
 - [FWW] The entry in Section 16.2 of `docs/research/geometry-models.md`.
@@ -907,18 +905,16 @@ The tool emits no logs. `--stats` prints its statistics on request.
 - [HT] The entry in Section 16.1 of `docs/research/geometry-models.md`.
 - [HUB] The entry in Section 16.4 of `docs/research/geometry-models.md`.
 - [HUMPHREYS] The entry in Section 14 of `docs/research/rendering.md`.
-- [JESPERS2015] The entry in Section 14.2 of `docs/research/fundamental-domains.md`.
 - [KC24] The entry in Section 16.1 of `docs/research/geometry-models.md`. `rendering.md` cites the same paper as [KOPCZ24].
 - [KLR] The entry in Section 13.4 of `docs/research/orbifold-notation.md`.
 - [MASKIT2001] The entry in Section 14.1 of `docs/research/fundamental-domains.md`.
 - [NORBURY2006] The entry in Section 14.2 of `docs/research/fundamental-domains.md`.
 - [PHONG75] The entry in Section 16.4 of `docs/research/geometry-models.md`.
-- [RATCLIFFE] The entry in Section 14.3 of `docs/research/fundamental-domains.md`. `geometry-models.md` cites the same book as [RAT].
+- [RATCLIFFE] The entry in Section 14.1 of `docs/research/fundamental-domains.md`, which cites the first edition. `geometry-models.md` cites the same edition as [RAT].
 - [SCHWARZENBERGER1984] The entry in Section 15 of `docs/research/colourings.md`.
 - [SCOTT] The entry in Section 13.4 of `docs/research/orbifold-notation.md`.
 - [SERIES2013] The entry in Section 14.1 of `docs/research/fundamental-domains.md`.
 - [SIMS1994] The entry in Section 15 of `docs/research/colourings.md`.
-- [SINGERMAN1974] The entry in Section 14.3 of `docs/research/fundamental-domains.md`.
 - [SINGERMAN2014] The entry in Section 15 of `docs/research/colourings.md`.
 - [SOLOMYAK2020] The entry in Section 14.1 of `docs/research/fundamental-domains.md`.
 - [TG] The entry in Section 13.1 of `docs/research/orbifold-notation.md`.

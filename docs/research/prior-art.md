@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | Planning of Escher's features, rendering, export, and dependencies |
 
 ## Abstract
@@ -16,7 +16,7 @@ This document covers interactive tools, libraries, Rust crates, and computer alg
 
 It covers each tool only at the level that a planner needs to compare tools. The document `docs/research/symmhub.md` covers the source code of SymmHub in depth, and Section 4.1 keeps SymmHub at the same level as the other entries. This document states no mathematics that Escher implements. The definitions and algorithms belong to their own subject-matter references.
 
-All facts come from one research pass over public web pages, repositories, and registry metadata, with every source accessed on 2026-11-15. Most page text came through a summarizing fetch tool, so a quotation is approximate unless it comes from source code or from API metadata. Licences, dates, file names, and the main capabilities rest on repository and API metadata. The research rated its overall confidence as medium, because several sources could not be read (Section 17).
+All facts come from one research pass over public web pages, repositories, and registry metadata, with every source accessed on 2026-11-15. The exception is Dunham's 1986 paper [DUNHAM-1986], which was read in full on 2026-11-16 from a copy that the owner supplied, and which Section 10.2 cites with printed page numbers. Most page text came through a summarizing fetch tool, so a quotation is approximate unless it comes from source code or from API metadata. Licences, dates, file names, and the main capabilities rest on repository and API metadata. The research rated its overall confidence as medium, because several sources could not be read (Section 17).
 
 ## 2. Notation and Conventions
 
@@ -423,7 +423,7 @@ These crates and repositories are small or early. The table lists what the resea
 
 - The Tilings Encyclopedia [TILINGS-ENCYCLOPEDIA].
 - Conway, Burgiel, and Goodman-Strauss, *The Symmetries of Things*, the reference for orbifold notation, the Magic Theorem, and BCGS symbols [CBG-2008].
-- Dunham, "Hyperbolic symmetry", the classic forward replication algorithm that hypertiling implements as DUN07 [DUNHAM-1986]. Dunham's Bridges papers are collected on his home page [DUNHAM-PAPERS].
+- Dunham, "Hyperbolic symmetry", 1986 [DUNHAM-1986]. The hypertiling paper calls it "a very influential work" ([HYPERTILING-PAPER] Section 1.3). Dunham covers the groups $[p,q]$, $[p,q]^+$, and $[p^+,q]$ with the hyperbolic condition $(p-2)(q-2) > 4$ (Section 4, p. 141). He represents isometries by $3 \times 3$ Lorentz matrices on the hyperboloid $x^2 + y^2 - z^2 = -1$ with $z > 0$ (Section 6, p. 147). His replication algorithm handles $[p,q]$ and $[p,q]^+$ with $p > 3$ and $q > 3$ (p. 145, Fig. 9 on p. 146), and its layer count is its only stopping parameter (pp. 146-147). He also defines colour symmetry, with 2-, 3-, and 4-colour examples (pp. 149-152). The DUN07 kernel of hypertiling follows not this paper but "the improved version of Dunham's combinatorial algorithm", from Dunham's 2007 paper "An algorithm to generate repeating hyperbolic patterns" and unpublished notes of about 2007 ([HYPERTILING-PAPER] Section 5.4, p. 28). Dunham's Bridges papers are collected on his home page [DUNHAM-PAPERS].
 - Kaplan, *Introductory Tiling Theory for Computer Graphics*, with bibliographic details unverified [KAPLAN-2009].
 
 ## 11. Comparison Table
@@ -571,11 +571,12 @@ These sources could not be read in full, and the claims that depend on them stay
 - The Tess vendor site [TESS-VENDOR], which refused connections.
 - KaleidoTile's in-app guide and source archive [KALEIDOTILE-APP], and the iOrnament Pro app [IORNAMENT-PRO-APP].
 - The Tegula journal paper [TEGULA-PAPER], available only as an Elsevier redirect, although its arXiv version is open.
-- Dunham's 1986 paper [DUNHAM-1986], for which ScienceDirect returned HTTP 403.
 - The Shadertoy shader that pywonderland adapts [SHADERTOY-WTJ3RY], which returned HTTP 403.
 - The Inkscape manual chapter on Tiled Clones [INKSCAPE-MANUAL].
 - The Gavrog documentation [GAVROG] and Simon Tatham's tilings repository, which refused connections or returned HTTP 403.
-- *The Symmetries of Things* [CBG-2008], a printed book.
+- *The Symmetries of Things* [CBG-2008], a printed book, of which the owner supplied a copy. That copy was read in part, and Chapters 19 to 26 were not read in depth. This document cites no page of it.
+
+Dunham's 1986 paper [DUNHAM-1986] was read in full from a copy that the owner supplied, and Section 10.2 cites it.
 
 ## 18. References
 
@@ -594,7 +595,7 @@ Every web source was accessed on 2026-11-15.
 - [CRATES-IO] crates.io registry metadata, retrieved through the crates.io API. The research recorded no per-crate URL.
 - [CURVEDSPACES] Weeks, J., "Curved Spaces", <https://www.geometrygames.org/CurvedSpaces/index.html>.
 - [DEATON] Deaton, A., "Hyperbolic Orbifolds and Patterns", Princeton senior thesis, 1993, unpublished, held at the Mudd Library.
-- [DUNHAM-1986] Dunham, "Hyperbolic symmetry", Computers and Mathematics with Applications 12(1-2):139-153, 1986, DOI 10.1016/0898-1221(86)90147-1.
+- [DUNHAM-1986] Dunham, "Hyperbolic symmetry", Computers and Mathematics with Applications 12B(1/2):139-153, 1986, DOI 10.1016/0898-1221(86)90147-1. Read in full, cited by printed page.
 - [DUNHAM-PAPERS] Dunham, home page with Bridges papers, <https://www.d.umn.edu/~ddunham/>.
 - [ESCHERSKETCH-SF] "EscherSketch" SourceForge project, <https://sourceforge.net/projects/eschersketch/>.
 - [EWS] Schoeni, Hardaker, and Chapuis, "Escher Web Sketch", EPFL, <https://www.epfl.ch/schools/sb/research/iphys/teaching/crystallography/escher-web-sketch/>.
