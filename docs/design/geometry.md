@@ -33,7 +33,7 @@ This document covers the module `hyperbolic`, the crate root with its error type
 These topics are owned elsewhere or come later:
 
 - The fundamental domain, its construction, its verification, and every tolerance of that verification are specified in `docs/design/domain.md`.
-- The fold, its wall tolerance, and its renormalization interval belong to `escher-render` (Sections 9.2 and 9.3 of the architecture).
+- The fold, its wall tolerance, and its normalization policy belong to `escher-render` (Sections 9.2 and 9.3 of the architecture).
 - The Euclidean module and the spherical module are added by the milestones of Sections 5.4 and 5.5 of the plan, each with its own section in this document.
 - The Klein, half-plane, and band maps and the Jacobians of the model maps are added by the milestone of Section 5.12 of the plan. That change also records the image of the disk centre under the map to the half-plane and tests its round trip, as the row "Disk and half-plane" of Section 5.10 of the architecture requires.
 - A distance form that is accurate for close points is not part of this design (Section 5.2).
@@ -376,7 +376,7 @@ GEO-10. `translation` MUST compute the polar radius as $\operatorname{arsinh}$ o
 
 ### 8.3. Normalization Policy
 
-GEO-11. Every function other than `normalize_point` and `wall_through` MUST NOT divide its result by a norm, because where and how often a point or matrix is renormalized is the caller's policy, such as the fixed interval of the fold (Section 9.3 of the architecture), and a hidden renormalization moves a point that the caller relies on, such as a vertex of a domain.
+GEO-11. Every function other than `normalize_point` and `wall_through` MUST NOT divide its result by a norm, because where and how often a point or matrix is renormalized is the caller's policy, such as the fold, which renormalizes nothing (Section 9.3 of the architecture), and a hidden renormalization moves a point that the caller relies on, such as a vertex of a domain.
 
 `wall_through` divides by $\sqrt{\langle w, w \rangle}$ because its contract is a unit normal. The crate has no function that renormalizes a matrix, such as the Gram-Schmidt process of `fixmatrix` in [HR] (Section 8.4 of the reference). A later change adds one when a caller needs it.
 
@@ -418,7 +418,7 @@ Each bound uses the scales of Section 2.1. The column "Largest error" gives the 
 
 In the rows of `translation`, $r$ is the value of $\rho$ of Section 6.4 for the target. The reference value of $R^{\varphi} T^{\rho} R^{-\varphi} x$ takes $\cosh \rho = \sqrt{1 + t_1^2 + t_2^2}$, $\sinh \rho = \sqrt{t_1^2 + t_2^2}$, $\cos \varphi = t_1 / \sinh \rho$, and $\sin \varphi = t_2 / \sinh \rho$, with $\cos \varphi = 1$ and $\sin \varphi = 0$ when $\sinh \rho = 0$. In the row `translation`, isometry, $g$ of Section 2.1 is $\cosh r$, which the test computes in `f64` as $\sqrt{1 + t_1^2 + t_2^2}$.
 
-The table guarantees nothing outside its ranges. The tests of Section 10 compute $K$ as Section 2.1 defines it, from the distance between the exact `f64` values of the points, and skip a pair whose reference distance is 0.
+The table guarantees nothing outside its ranges. The renderer calls `side`, `reflection`, and `from_disk` outside the ranges of their rows, for points up to the rim of the disk, and states its own end-to-end bounds in Section 6.4 of `docs/design/render.md`. The tests of Section 10 compute $K$ as Section 2.1 defines it, from the distance between the exact `f64` values of the points, and skip a pair whose reference distance is 0.
 
 `normalize_point` has no stated accuracy beyond distance 15 from `ORIGIN`. There, the function may return `NotAPoint` for the vector of a point, as GEO-4 requires of a vector whose computed $q$ is not positive. The test of that range, at distances from 15 to 20, asserts no bound. It asserts that each rejected vector fails the conditions of Section 5.1 on its computed $q$ and its last coordinate, and that each accepted result is finite with a positive last coordinate.
 
@@ -671,7 +671,7 @@ None of these blocks the crate. Each states what the design does until the owner
 
 1. `astro-float-num` instead of `astro-float`. `DEC-3` names `astro-float`, whose macro crate pulls `syn` 1. The design depends on `astro-float-num`, the number crate of the same project without the macro, which resolves with no duplicate (Section 11). The alternative is `astro-float` with a `skip` entry for `syn` 1 in `deny.toml`, which TOOL-26 of `docs/design/tooling.md` allows with a reason. The design takes `astro-float-num`, because it needs no exception to the dependency policy.
 2. The comparison for `UNV-25`. It used the MPFR library of the container, called through its C interface from a script outside the repository (Section 12). The design treats the six agreeing values as the one comparison that the plan asks for. If the owner requires the comparison through another tool, such as `rug`, `UNV-25` stays open and the tests are unchanged.
-3. A gradient through the disk map. The renderer draws borders from a distance estimate that needs the derivative of the disk map, while the plan adds Jacobians to this crate only with the further model maps of Section 5.12 of the plan. This design adds none. The design of the renderer either computes the derivative itself or moves the Jacobian of the disk map earlier.
+3. A gradient through the disk map. The renderer draws borders from a distance estimate that needs the derivative of the disk map (`DEC-28`), while the plan adds Jacobians to this crate only with the further model maps of Section 5.12 of the plan. This design adds none. The design of the renderer holds the derivative as a private function of `escher-render`, which Section 5.4 of `docs/design/render.md` specifies, until a later milestone moves it to this crate with the other Jacobians.
 4. The separation floor of `wall_through`. The crate states no accuracy for two points less than $10^{-5}$ apart (Section 8.4), and Section 1.5 excludes a distance form for close points. The design keeps the floor and the one formula of Section 5.3. The alternative is a form for close points in a later change, if a caller needs walls through such points.
 5. The `dev` profile of `astro-float-num`. The root `Cargo.toml` optimizes that dev-dependency alone (Section 11). The design keeps it, because the reference tests run about seven times faster with it. The alternative is to run them unoptimized.
 

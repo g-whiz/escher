@@ -32,7 +32,7 @@ This document covers the workflow of a milestone, the owner's staging, the resea
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the proposed defaults `DEC-1` to `DEC-27`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the proposed defaults `DEC-1` to `DEC-31`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -285,25 +285,28 @@ escher render '*732' -o tiling.png
 
 - `--size 1024x768`: the image size.
 - `--colouring one|parity`: one colour, or the two-colour parity colouring.
-- `--colours '#e9c46a,#2a9d8f'`: the fill colours.
+- `--colours '#e9c46a,#2a9d8f'`: the fill colours, each as `#rgb` or `#rrggbb` (`DEC-29`).
 - `--border-width 1.5`: the border width in pixels.
 - `--border-colour`: the border colour.
 - `--samples 4`: the sample grid, here 4 by 4.
-- `--max-folds`: the fold cap.
-- `--background`: the background colour.
+- `--max-folds`: the fold cap, 1500 by default (`DEC-7`).
+- `--background`: the background colour, which is opaque (`DEC-7`).
 - `--threads`: the number of threads (`DEC-21`).
-- `--stats`: prints the time, the sample count, the mean and maximum number of folds, and the number of samples that reached the cap.
+- `--stats`: prints the sample count, the mean and maximum number of folds, the number of samples that did not converge, which includes those that reached the cap, and the time.
+
+The command replaces an existing output file (`DEC-30`), so it can run again with the same path. Sections 4.5 to 4.7 and 6.8 of `docs/design/cli.md` define the exact options, output, and diagnostics.
 
 **Scope.** The new crate `escher-render`. The binary gains `render`.
 
 - View: the canonical view shows the centre of the domain at the centre of the disk. The domain is built with its centre at the origin of the model (Section 6.3 of `docs/design/domain.md`), so the view of the disk does not move it, and the view keeps the placement for the other models.
-- Fold: the first violated side (`rendering.md` 4.1), with a tolerance, a cap, and periodic renormalization.
-- Colour: parity from the orientation of the pairings.
-- Border: a distance estimate in screen space from the gradient of the wall function pulled back through the fold (`UNV-15`).
+- Fold: the first violated side (`rendering.md` 4.1), with a tolerance and a cap, and no renormalization of the point (`DEC-31`, Section 9.3 of `docs/design/architecture.md`).
+- Colour: parity from the orientation of the pairings, computed in `escher-render`, so `M3` needs no `escher-group`.
+- Colour input: hexadecimal colours read by a parser in `escher-cli`, with no dependency (`DEC-29`).
+- Border: the gradient form of the distance estimate in screen space (`DEC-28`, `UNV-15`), with the screen tangent vectors carried through the fold. It is tested against the distance form and against the tile oracle.
 - Sampling: a regular n by n grid averaged in linear light (precedent in `rendering.md` 7.3).
 - Samples outside the disk take the background. Samples that reach the cap follow `DEC-7`.
 
-**Design documents.** `docs/design/render.md` and an extended `cli.md`. For golden images, as Section 7 of `docs/design/architecture.md` defines them, the change also extends Sections 3.2 and 14.2 of the tooling design and Section 11 of the coding standard.
+**Design documents.** `docs/design/render.md`, an extended `cli.md`, and the changes to `docs/design/architecture.md` and `docs/design/geometry.md` that the design makes, all in the design branch. The documents of golden images, as Section 7.2 of `docs/design/architecture.md` defines them, change in the code branch that adds the first golden image, which is the branch of `escher-render`, and not in the design branch: Sections 3.2 and 14.2 of the tooling design, for the recipe and its environment variable, and Section 11 of the coding standard, for the new test rule. Section 3.2 of the tooling design lists only recipes that exist (TOOL-6).
 
 **Sources.**
 
@@ -314,28 +317,33 @@ escher render '*732' -o tiling.png
 - Border definitions in published code: `rendering.md` 6.1.
 - Independence of pixels: `rendering.md` 11.
 
-**Unverified statements relied on.** `UNV-1` (termination and step count), `UNV-3` (points on walls), `UNV-4` (growth of the fold count, and precision), `UNV-15` (distance estimate), and `UNV-18` (parity). Averaging in linear light is a design choice that no research source supports.
+**Unverified statements relied on.** `UNV-1` (termination and step count), `UNV-3` (points on walls), `UNV-4` (growth of the fold count, and precision), `UNV-15` (distance estimate), and `UNV-18` (parity). The tests also rely on `UNV-14`, because the distance form against which they test the border estimate uses the hyperboloid form of the distance to a geodesic, and on `UNV-25`, because they compare with the reference-arithmetic crate. Averaging in linear light is a design choice that no research source supports.
 
 **Tests and acceptance.**
 
-- Fold properties: the result lies inside the domain, folding a reflected point gives the same result, and the fold is idempotent.
+- Fold properties: the result lies inside the domain, and the fold is idempotent. A point and its image under a pairing fold to the same point within the measured bound, with step counts that differ by exactly one and different parities.
 - Fold results for points up to the disk radius $1 - 10^{-6}$ against reference arithmetic, including words of a few hundred reflections. `symmhub.md` 5.4 reports a trace loss of $5 \times 10^{-5}$ on long words in a hyperboloid factorization.
 - Border oracle: the border mask equals, within one pixel, the mask from a change of tile identity between neighbouring samples.
-- A symmetric view, available only to tests, gives an image equal to its mirror image.
+- A symmetric view, available only to tests, gives an image with one fill colour that equals its mirror image within the allowance of the golden images. With the parity colouring the mirror image swaps the two fill colours, as Section 11 of `docs/design/render.md` records.
 - Golden images of `*732`, `*542`, and `*433` at a small size.
 - The PNG file decodes to the requested size.
 - One process-level smoke test of the binary.
 
 The performance expectation of Section 8 of `docs/design/architecture.md` is confirmed here (`DEC-27`).
 
-**Dependencies and `deny.toml` work.** `png`, `palette` without default features, `rayon`, and `csscolorparser`. `escher-render` also declares `glam` from the workspace entry of M2, which adds no licence.
+**Dependencies and `deny.toml` work.** `png` for `escher-render`, and `rayon` for `escher-cli` (`DEC-21`). `escher-render` also declares `glam` from the workspace entry of M2, which adds no licence. `M3` adds no colour crate and no `escher-group`.
 
-- Predicted duplicates: `miniz_oxide` 0.8 and 0.9, and `phf` 0.13 and 0.14 (`rust-ecosystem.md` 19, both unverified). `cargo tree -d` decides between a choice of features, a pin, or a `skip` with a reason.
+- On a prototype outside the repository, the newest resolution of `png` brought two versions of `miniz_oxide`, as `rust-ecosystem.md` 19 predicted, and failed the ban on duplicate versions. `flate2` is therefore held at 1.1.9 in `Cargo.lock`, so that one version of `miniz_oxide` resolves. The lock file is committed, so the pin holds until an update. If an update brings the duplicate back, the change that updates decides between the pin and a `skip` with a reason (TOOL-26). Section 9 of `docs/design/render.md` records the measurement.
+- No colour crate is a dependency (`DEC-29`), and `palette` is revisited at M8. On the prototype, `palette` failed the ban on duplicate versions, and `csscolorparser` failed it with its default features. Section 9.2 of `docs/design/cli.md` records the resolution of `rayon` and of the two colour crates.
 - New licences are added only as cargo-deny reports them.
 
-**Risks.** Speed. The appearance of the rim. Golden images that differ between the container and CI because of the platform mathematics library. The estimate near vertices.
+**Risks.** Speed. The appearance of the rim. Golden images that differ between the container and CI because of the platform mathematics library. The estimate near vertices. `rayon` fails under Miri, so Miri checks no test that reaches the thread pool (`DEC-21`). A plain `cargo update` brings the duplicate `miniz_oxide` back.
 
-**Split.** (a) A single-threaded renderer with one sample per pixel. (b) Supersampling, parallel rows, and statistics.
+**Split.** Three branches, in this order:
+
+1. The design branch `feature/first-image-design`, with the documents of the field "Design documents" and every bound that a test sets stated as to be measured.
+2. The branch of the crate `escher-render`, with its tests, its golden images, the documents of golden images, the `deny.toml` work of `png`, and the measured figures written into `docs/design/render.md`. If it grows, it splits into (a) one sample per pixel and (b) supersampling and statistics.
+3. The branch of the command `render` in `escher-cli`, with `rayon`, the snapshots, and the smoke test.
 
 ### 5.4. M4: Euclidean Reflection Groups and the First Shape Parameter
 
@@ -841,7 +849,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7) | Gap G8, `fundamental-domains.md` 9.7 | M10, M11, M15 | A source that constructs them, or Lean |
 | UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, the spherical law of cosines solved for a side, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5 | `geometry-models.md` 10.5, 10.6, 11.3, 15.1 items 12 and 14, and 15.2 | M5, M9 | Chapter 2 of [BUSER], or Lean |
 | UNV-13 | The inverse and metric of the band, and the choice of map between the disk and the half-plane. The maps between the disk, the hyperboloid, and the Klein model are sourced in `geometry-models.md` 4.2 | `geometry-models.md` 4.3 and 5.1, `rendering.md` 13.1 item 14 | M12 | [HUB], and round-trip tests |
-| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M5, M13 | A source, or Lean |
+| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M3 tests, M5, M13 | A source, or Lean |
 | UNV-15 | The screen-distance estimate through the fold, analytic antialiasing, and the fade of tiles smaller than a pixel | `rendering.md` 7.1 and 13.1 items 19 and 20 | M3, M14 | Measurement against supersampling |
 | UNV-16 | The lift onto the ball, the view scale of the sphere, and the Phong formulas | `rendering.md` 13.1 items 11 and 12, `geometry-models.md` 11.6 | M5 | [PHONG75], [BLINN77] |
 | UNV-17 | Coset colourings are perfect for every orbifold group, the composition order, completeness, and conjugacy | `colourings.md` 4.2, 8.4, 8.7, and 14.1 items 1 to 3 | M8 | [DDL2009], [SCHWARZENBERGER1984], or Lean. [CBGS2008] defines colour types and states none of these (`colourings.md` 3.3 and 14.1 items 1 and 2) |

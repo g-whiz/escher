@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the summary of the fundamental domain and the result of each check of the option `--check`, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
+This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the summary of the fundamental domain and the result of each check of the option `--check`, the options of the command `render`, the PNG file that it writes and the statistics that it prints, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
 
 ## 1. Introduction
 
@@ -18,7 +18,7 @@ The proof of concept is a command-line tool, and its first command reports what 
 
 ### 1.2. Purpose
 
-This document fixes the behaviour of `escher` precisely enough that an agent can implement it and a reviewer can check every line of output against it. The crate `escher-signature` parses and classifies a signature, and the crate `escher-domain` builds and verifies its fundamental domain. This crate turns their results into text, diagnostics, and an exit status.
+This document fixes the behaviour of `escher` precisely enough that an agent can implement it and a reviewer can check every line of output against it. The crate `escher-signature` parses and classifies a signature, the crate `escher-domain` builds and verifies its fundamental domain, and the crate `escher-render` renders the domain into pixels and encodes them as PNG. This crate turns their results into text, a file, diagnostics, and an exit status.
 
 ### 1.3. Audience
 
@@ -26,7 +26,9 @@ The primary readers are the coding agents that implement or extend `escher-cli`.
 
 ### 1.4. Scope
 
-This document covers the command `info` with its argument and its option `--check`, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, and with `--check` the result of each check of its verification. It prints no item that needs a group.
+This document covers the command `info` with its argument and its option `--check`, the command `render` with its argument and its options, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, and with `--check` the result of each check of its verification. It prints no item that needs a group.
+
+`render` draws the tiling of a signature that `escher-domain` constructs in the Poincare disk, with `escher-render`, and writes it to a PNG file. With `--stats`, it also prints statistics of the rendering.
 
 ### 1.5. Non-Goals
 
@@ -34,11 +36,12 @@ These topics are owned elsewhere, and this document cites them:
 
 - The grammar of a signature, its canonical form, the classification methods, and the error kinds of `escher-signature` with their `Display` text are specified in `docs/design/signature.md`.
 - The signatures that have a fundamental domain, its construction, its measurements, the checks of its verification with their tolerances, and the error kinds of `escher-domain` with their `Display` text are specified in `docs/design/domain.md`.
+- The rendering, the limits on the render options, the statistics that a rendering counts, the PNG encoding, and the error kinds of `escher-render` with their `Display` text are specified in `docs/design/render.md`.
 - The crates, the data flow, the error model, and the owner's decisions are specified in `docs/design/architecture.md`.
-- The mathematics is stated in `docs/research/orbifold-notation.md`.
+- The mathematics is stated in `docs/research/orbifold-notation.md` and, for rendering, in `docs/research/rendering.md`.
 - The recipes, the nextest profiles, the hooks, and the dependency policy are specified in `docs/design/tooling.md`.
 
-The command `render`, its options, and the lines of `info` that need parameters, a group, or a colouring belong to later milestones (Section 5.4). So do the handling of an existing output file (Section 11 of `docs/design/architecture.md`) and the diagnostic for a general non-compact signature in `render` (Section 5.8 of that document).
+The lines of `info` that need parameters, a group, or a colouring belong to later milestones (Section 5.4). So do the options of `render` that later milestones add, such as `--set` in M4, a colouring id in M8, and `--model` in M12 (Section 3.4 of `docs/design/poc-plan.md`).
 
 ## 2. Requirements Language
 
@@ -51,12 +54,17 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 This document uses the terms of Section 2.2 of `docs/writing-documentation.md` and of Section 2.1 of `docs/design/architecture.md`, such as signature, canonical signature, geometry, fundamental domain, and general non-compact signature. It adds these terms:
 
 - ON: The reference `docs/research/orbifold-notation.md`, cited as `ON` and a section number, such as ON 7.3.
-- command: A subcommand of `escher`, such as `info`.
+- command: A subcommand of `escher`, such as `info` or `render`.
 - information text: The text that `escher info` writes to standard output for a valid signature (Section 5).
 - domain: The `FundamentalDomain` that `FundamentalDomain::build` of `escher-domain` returns for a signature.
 - domain summary: The lines of the information text that describe the domain, rows 10 to 13 of Section 5.1 (Section 5.5).
 - check: One numeric condition that `verify()` of `escher-domain` evaluates, with a residual and a tolerance (Section 2.1 of `docs/design/domain.md`).
 - verification lines: The lines of the information text that `--check` adds, rows 14 to 20 of Section 5.1 (Section 5.6).
+- output file: The file that the option `--output` of `render` names (Section 4.7).
+- colour: A value of the form `#rgb` or `#rrggbb` that `render` reads for a fill, the border, or the background (Section 4.6).
+- thread pool: The `rayon` thread pool that `render` builds for one call of `run` (Section 4.5).
+- statistics lines: The lines that `render --stats` writes to standard output (Section 4.7).
+- render error: A failure of `render` after `clap` has parsed the command line, other than a signature error and an output error (Section 6.8).
 - diagnostic: The text that `escher` writes to standard error when it fails (Section 6).
 - echo line: The line of a diagnostic that repeats the signature (Section 6.2).
 - caret line: The line of a diagnostic that marks the span of an error with `^` characters under the echo line (Section 6.3).
@@ -104,7 +112,7 @@ The binary needs a library target so that tests can run every command in the tes
 
 `args` holds the program name first, as `std::env::args_os()` gives it. `run` is a thin generic wrapper that collects `args` into a `Vec<std::ffi::OsString>` and calls a private non-generic function that takes `&mut dyn std::io::Write` for each stream, as rule API-13 of `docs/rust-coding-standards.md` requires.
 
-CLI-2. `run` MUST write only to the two streams it is given and MUST NOT panic on any input or any output error, or else a test of `run` cannot observe all output, and one malformed argument or closed pipe aborts the program instead of giving a status.
+CLI-2. `run` MUST write only to the two streams it is given and to the output file of `render`, and MUST NOT panic on any input or any output error, or else a test of `run` cannot observe all output, and one malformed argument or closed pipe aborts the program instead of giving a status.
 
 `run` returns no error. Each command returns `anyhow::Result<()>` inside the crate, and one private function writes the diagnostic of Section 6 and chooses the status. No `anyhow::Error` therefore appears in a public signature, which rule ERR-2 of `docs/rust-coding-standards.md` forbids.
 
@@ -137,13 +145,13 @@ fn main() -> std::process::ExitCode {
 }
 ```
 
-CLI-3. `main.rs` MUST hold only the call of `run` and the conversion of its status, because code in the binary runs only in a test that starts a process, and this crate has no such test (Section 8.1).
+CLI-3. `main.rs` MUST hold only the call of `run` and the conversion of its status, because code in the binary runs only in a test that starts a process, and this crate has one such test, the smoke test of Section 8.1, which checks only the status and the output file of one command.
 
 The binary prints nothing itself, so `main.rs` carries no lint exception for `clippy::print_stdout`, which would fail as an unfulfilled expectation.
 
 ### 3.5. Private Modules
 
-The library target has the private modules `args`, `info`, and `diagnostic`, as files named `args.rs`, `info.rs`, and `diagnostic.rs` (Section 4.5 of `docs/rust-coding-standards.md`). `args` holds the `clap` types, `info` builds the information text, including the domain summary and the verification lines, and `diagnostic` writes the diagnostics.
+The library target has the private modules `args`, `info`, `render`, and `diagnostic`, as files named `args.rs`, `info.rs`, `render.rs`, and `diagnostic.rs` (Section 4.5 of `docs/rust-coding-standards.md`). `args` holds the `clap` types and the parser of `--size`, `info` builds the information text, including the domain summary and the verification lines, `render` runs the steps of Section 4.5 with the parser of colours and the statistics lines, and `diagnostic` writes the diagnostics.
 
 ## 4. Command Line
 
@@ -151,11 +159,12 @@ The library target has the private modules `args`, `info`, and `diagnostic`, as 
 
 ```text
 escher info [--check] <SIGNATURE>
+escher render [OPTIONS] --output <FILE> <SIGNATURE>
 escher --help
 escher --version
 ```
 
-`-h` is the short form of `--help` and `-V` of `--version`. `escher info --help` prints the help of `info`. `--check` has no short form. The usage line in the help of `info` is the form that `clap` generates, `escher info [OPTIONS] <SIGNATURE>`.
+`-h` is the short form of `--help` and `-V` of `--version`. `escher info --help` prints the help of `info`, and `escher render --help` the help of `render`. `--check` has no short form. `-o` is the short form of `--output`, and no other option of `render` has a short form. The usage line in the help of `info` is the form that `clap` generates, `escher info [OPTIONS] <SIGNATURE>`, and that of `render` is `escher render [OPTIONS] --output <FILE> <SIGNATURE>`.
 
 ### 4.2. Parser Settings
 
@@ -181,6 +190,20 @@ The help text has these summaries, and no other text beyond what `clap` generate
 | `info` | `Print the canonical form, the geometry, and other properties of a signature in orbifold notation` |
 | `SIGNATURE` | `The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'` |
 | `--check` | `Verify the fundamental domain of the signature and print the result of each check` |
+| `render` | `Render the tiling of a signature in orbifold notation in the Poincare disk and write it to a PNG file` |
+| `--output` | `The PNG file to write. An existing file is replaced` |
+| `--size` | `The image size in pixels, as WIDTHxHEIGHT` |
+| `--colouring` | `One colour for every tile, or two colours by parity` |
+| `--colours` | `The fill colours, separated by commas, each as #rgb or #rrggbb. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'` |
+| `--border-width` | `The border width in pixels. 0 draws no border` |
+| `--border-colour` | `The border colour, as #rgb or #rrggbb` |
+| `--samples` | `The number of samples along each side of a pixel. The pixel averages N by N samples` |
+| `--max-folds` | `The largest number of folds of one sample. A sample that needs more takes the border colour` |
+| `--background` | `The colour outside the disk, as #rgb or #rrggbb` |
+| `--threads` | `The number of threads, from 1 to 256. The default is the available parallelism, at most 256` |
+| `--stats` | `Print statistics of the rendering to standard output` |
+
+The help of `render` uses the summary of `SIGNATURE` above. It also shows `[default: <value>]` for each option with a fixed default in the table of Section 4.6, and `[possible values: one, parity]` for `--colouring`, which `clap` generates (Section 11.1).
 
 CLI-4. `escher --version` and `escher -V` MUST write the package name, one space, the package version, and a newline to standard output, which is `escher-cli 0.1.0` for version 0.1.0, and return `Success`, because Section 5.1 of `docs/design/poc-plan.md` keeps this output, and a script may read it.
 
@@ -188,7 +211,7 @@ CLI-4. `escher --version` and `escher -V` MUST write the package name, one space
 
 `info` takes one required positional argument, the signature, as a `String` named `SIGNATURE`, and the optional flag `--check`. An argument that is not valid UTF-8 is a usage error. The flag may stand before or after the signature. A repeated `--check` is a usage error, because `clap` rejects a flag that is given more than once, and `info` keeps that behaviour.
 
-CLI-5. `info` MUST pass its argument unchanged to the `FromStr` implementation of `Signature` from `escher-signature`, and MUST NOT trim, normalize, or check it first, because a second reading of the grammar diverges from the one that `docs/design/signature.md` specifies, and the byte spans of the error then no longer match the argument.
+CLI-5. `info` and `render` MUST pass their argument unchanged to the `FromStr` implementation of `Signature` from `escher-signature`, and MUST NOT trim, normalize, or check it first, because a second reading of the grammar diverges from the one that `docs/design/signature.md` specifies, and the byte spans of the error then no longer match the argument.
 
 On success, `info` writes the information text of Section 5 to standard output. On a signature error, it writes the diagnostic of Section 6 to standard error and nothing to standard output, with or without `--check`. A bad orbifold is a signature error (`DEC-24`).
 
@@ -200,7 +223,105 @@ A signature never starts with `-`, so it never collides with an option. An argum
 
 ### 4.4. Shell Quoting
 
-In a POSIX shell, `*`, `(`, and `)` are special characters, so a signature that contains any of them is quoted in single quotes, as in `escher info '2*(12)'`. The shell passes every character inside single quotes unchanged. The help text of `info` says this, and every example in this document that needs it quotes the signature.
+In a POSIX shell, `*`, `(`, and `)` are special characters, so a signature that contains any of them is quoted in single quotes, as in `escher info '2*(12)'`. The shell passes every character inside single quotes unchanged. The help text of `info` and `render` says this, and every example in this document that needs it quotes the signature.
+
+A word that starts with `#` starts a comment in a POSIX shell, so a colour given as a separate argument is also quoted, as in `--border-colour '#000000'`. The form `--border-colour=#000000` needs no quotes, because there the `#` does not start a word. The help text of `--colours` says this, and every example in this document quotes its colours.
+
+### 4.5. The `render` Command
+
+`render` takes one required positional argument, the signature, as a `String` named `SIGNATURE`, the required option `--output`, and the options of Section 4.6. An argument that is not valid UTF-8 is a usage error, except the value of `--output`, which is any path. The options may stand before or after the signature. An option given more than once is a usage error (Section 11.1).
+
+This command writes a 512 by 512 image of `*732` with the defaults of Section 4.6:
+
+```sh
+escher render '*732' -o tiling.png
+```
+
+`render` runs these steps in this order. It stops at the first step that fails and writes the diagnostic of Section 6.8, except at step 1, whose diagnostic is that of Section 6.1:
+
+1. Parse the signature with the `FromStr` implementation of `Signature` (CLI-5).
+2. Read the fill colours, the border colour, and the background colour (Section 4.6).
+3. Build the domain with `FundamentalDomain::build`.
+4. Build the render options of `escher-render` from the size, the sample grid, the fill colours, the border width, the border colour, the background colour, and the fold cap. `escher-render` checks every value.
+5. Build a thread pool with the number of threads of `--threads`, or with the default of Section 4.6, which this step computes.
+6. Render the image on the thread pool, in bands of one row, each with the band operation of `escher-render`, and merge the statistics of the bands. The time of this step is the time of the statistics lines.
+7. Encode the image as PNG with `escher-render`.
+8. Write the PNG bytes to the output file (Section 4.7).
+9. With `--stats`, write the statistics lines to standard output (Section 4.7).
+
+Section 3 of `docs/design/render.md` names the operations of steps 4, 6, and 7 and the statistics that step 6 merges.
+
+CLI-21. `render` MUST NOT create, truncate, or otherwise change the output file before rendering and encoding have succeeded, because a failed `render` then leaves an existing file as it was and creates no empty file that a reader could take for an image.
+
+CLI-22. `render` MUST build its own thread pool for each call, with exactly the number of threads of step 5, and MUST NOT use the global pool of `rayon`, because the global pool is shared by the whole process and is configured once, so two calls of `run` in one test process could not choose their own numbers, and the size of the pool would come from the environment instead of the option.
+
+CLI-23. The bytes of the output file MUST NOT depend on the number of threads, because a user who changes `--threads` for speed expects the same image, and a difference reveals a defect in the split into bands. Section 3.2 of `docs/design/render.md` states that a band renders the same bytes as the same rows of the whole image.
+
+The `clap` argument struct holds `--stats` as a `bool`, which `render` converts at once into a private enum with two variants, as `info` does for `--check` (Section 4.3).
+
+### 4.6. Option Values
+
+`clap` checks the syntax of every option value, and a malformed value is a usage error (Section 6.5). `render` reads the colours itself in step 2, and `escher-render` checks the other values in step 4. This table gives the value syntax and the default of each option of `render`:
+
+| Option | Value | Default |
+| --- | --- | --- |
+| `-o`, `--output <FILE>` | Any path | None. The option is required (`DEC-7`) |
+| `--size <WIDTHxHEIGHT>` | Two decimal integers joined by a lower-case `x`, such as `1024x768`. Each integer has only the digits `0` to `9` and fits a `u32` | `512x512` |
+| `--colouring <COLOURING>` | `one` or `parity` | `parity` (`DEC-7`) |
+| `--colours <COLOURS>` | Colours separated by commas, as many as the colouring needs: one for `one` and two for `parity` | `#e9c46a` for `one`, and `#e9c46a,#2a9d8f` for `parity` (`DEC-7`) |
+| `--border-width <PIXELS>` | A number in a form that the `FromStr` implementation of `f64` reads, such as `1.5`. The value `0` draws no border | `1` (`DEC-7`) |
+| `--border-colour <COLOUR>` | One colour | `#000000` (`DEC-7`) |
+| `--samples <N>` | A decimal integer that fits a `u32`. The grid of samples in each pixel is N by N | `4` (`DEC-7`) |
+| `--max-folds <N>` | A decimal integer that fits a `u32` | `1500` (`DEC-7`) |
+| `--background <COLOUR>` | One colour | `#ffffff` (`DEC-7`) |
+| `--threads <N>` | A decimal integer from 1 to 256 | The value of `std::thread::available_parallelism`, or 1 when that function returns an error, and at most 256 |
+| `--stats` | None, a flag | Off |
+
+`clap` parses `--samples` and `--max-folds` with its parser of `u32`, `--threads` with its parser of a range of `u32` from 1 to 256, and `--border-width` with its parser of `f64`. A private parser in `args` reads `--size`. For a value of another form it returns the message `expected two decimal integers joined by x, such as 512x512`, which `clap` puts into its usage error. The value of `--output` is a `std::path::PathBuf`, so a path that is not valid UTF-8 is accepted.
+
+A colour is `#` followed by exactly three or exactly six hexadecimal digits. The digits are ASCII `0` to `9` and `a` to `f` in either case. In the form `#rrggbb`, each pair of digits is one 8-bit sRGB channel, in the order red, green, and blue. In the form `#rgb`, each digit stands for the channel whose two digits both equal it, so `#e9c` is `#ee99cc`. Nothing is trimmed, so a colour with a space before or after it is not a colour. Every colour is opaque, and `render` has no transparent background (`DEC-7`). The colours are read by a private parser in the module `render`, with no dependency (`DEC-29`).
+
+Step 2 splits the value of `--colours` at each comma. It first compares the number of items with the number that the colouring needs, and then reads each item as a colour, in order. An empty item, such as the one that a trailing comma gives, is not a colour. It then reads `--border-colour` and `--background`.
+
+`escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, and returns an error kind for a value outside its limits, such as a width of 0, a grid of 0, or a border width that is negative or not finite. Section 4.1 of `docs/design/render.md` states each limit and the error kind for a value outside it. `render` reports such an error as Section 6.8 states.
+
+CLI-24. `render` MUST pass the size, the sample grid, the border width, and the fold cap to `escher-render` unchanged, and MUST NOT check them against a limit itself, because a second check in this crate can differ from the limits that `docs/design/render.md` states, and a value would then pass one check and fail the other.
+
+The limit of 256 threads is this crate's own, because the thread pool belongs to this crate (Section 3.5 of `docs/design/architecture.md`). The default never exceeds it.
+
+### 4.7. Output of `render`
+
+The output file holds the PNG bytes that `escher-render` encodes in step 7, with the size of `--size`. Section 5.6 of `docs/design/render.md` states the colour type, the bit depth, and the chunks. Step 8 writes the bytes with `std::fs::write`, which creates the file when it does not exist and truncates and replaces it when it does. `render` replaces an existing file without asking and has no option to refuse it (`DEC-30`). It creates no directory.
+
+Without `--stats`, a successful `render` writes nothing to standard output or standard error. With `--stats`, step 9 writes the lines of this table, in this order, through the helper of Section 3.2. Each line is the label, a colon, one space, and the value, followed by a line feed, as in Section 5.1. Every count is an integer of the statistics of `escher-render`, which Section 3.2 of `docs/design/render.md` states, and is written in decimal:
+
+| Order | Label | Value |
+| --- | --- | --- |
+| 1 | `Samples` | The number of samples, including the samples outside the disk |
+| 2 | `Mean folds` | The total number of folds divided by the number of samples inside the disk, rounded down to two digits after the point, or `0.00` when no sample is inside the disk |
+| 3 | `Maximum folds` | The largest number of folds of one sample |
+| 4 | `Unconverged samples` | The number of samples that reached the fold cap or met a value that is not finite |
+| 5 | `Time` | The wall-clock time of step 6 in seconds, measured with `std::time::Instant`, in fixed notation with three digits after the point, `{:.3}`, followed by one space and `s` |
+
+`Mean folds` is computed in `u128` arithmetic, so it cannot overflow. The quotient $q$ of 100 times the folds by the inside samples, rounded down, is written as the integer part of $q/100$, a point, and the remainder of $q$ by 100 in two digits. For example, 1001 folds over 100 inside samples give `10.01`.
+
+This illustration shows the form of the statistics of the default image. `Samples` is $512 \times 512 \times 16 = 4194304$, and the placeholders in angle brackets stand for the values that vary:
+
+```sh
+escher render '*732' --stats -o tiling.png
+```
+
+```text
+Samples: 4194304
+Mean folds: <mean>
+Maximum folds: <count>
+Unconverged samples: <count>
+Time: <seconds> s
+```
+
+Standard error is empty and the status is `Success`.
+
+CLI-25. `render` MUST write nothing to standard output without `--stats`, and with `--stats` only the statistics lines, after the output file is written, because a script that captures standard output must not mistake other text for statistics, and statistics written before the write would describe an image that may not exist.
 
 ## 5. Information Text
 
@@ -527,9 +648,9 @@ CLI-18. With `--check`, `info` MUST print one line for each check that `Verifica
 
 ### 6.1. Format
 
-CLI-8. `run` MUST write every diagnostic to standard error and none to standard output, because a caller that captures standard output must receive only the information text, or else an error is read as data.
+CLI-8. `run` MUST write every diagnostic to standard error and none to standard output, because a caller that captures standard output must receive only the information text or the statistics lines, or else an error is read as data.
 
-The diagnostic of a signature error, an output error, or a verification error of Section 6.7 has this form, and Section 6.5 covers a usage error:
+The diagnostic of a signature error, an output error, a verification error of Section 6.7, or a render error of Section 6.8 has this form, and Section 6.5 covers a usage error:
 
 ```text
 error: <Display text of the error>
@@ -622,7 +743,7 @@ escher info '2*(12)'
 
 ### 6.5. Usage Errors
 
-On an error of `try_parse_from`, `run` takes the text of `error.render()` as plain text and replaces each control character in it other than the line feed with `?`. When `error.use_stderr()` is false, which is the case for `--help` and `--version`, the text goes to standard output. Otherwise it goes to standard error. A usage error covers an unknown subcommand or option, a missing signature, a repeated `--check`, an argument that is not UTF-8, and `escher` with no argument. Section 7 gives the status of each case, and a failed write of the help or the version text follows Section 6.6.
+On an error of `try_parse_from`, `run` takes the text of `error.render()` as plain text and replaces each control character in it other than the line feed with `?`. When `error.use_stderr()` is false, which is the case for `--help` and `--version`, the text goes to standard output. Otherwise it goes to standard error. A usage error covers an unknown subcommand or option, a missing signature, a repeated `--check` or other repeated option, an argument that is not UTF-8, `escher` with no argument, a missing `--output`, and an option value of `render` whose syntax Section 4.6 does not allow. Section 7 gives the status of each case, and a failed write of the help or the version text follows Section 6.6.
 
 `clap` copies an unknown argument into its error message with its control characters unchanged. Without the replacement, an argument that starts with `--` and holds an escape sequence reaches standard error unchanged.
 
@@ -661,14 +782,92 @@ For example, a domain with one failed check gives `error: cannot verify fundamen
 
 When the write of the information text fails, Section 6.6 applies, the status is `Failure`, and no verification diagnostic is written.
 
+### 6.8. Render Errors
+
+A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which is the same as that of `info` for the same argument. Every other failure of the steps of Section 4.5 gives one of the diagnostics of this table. In the table, `*732` stands for the canonical signature, which is the `Display` text of `Signature`. A further `caused by` line follows for each further source in the chain of an error, as Section 6.1 states:
+
+| Case | Step | Diagnostic |
+| --- | --- | --- |
+| `--colours` has the wrong number of items | 2 | `error: cannot render *732: the colouring parity needs 2 colours, and 3 were given`, with the colouring, the number it needs, and the number of items. The words are `1 colour` and `1 was given` for the number 1 |
+| An item of `--colours` is not a colour | 2 | `error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb`, with the position of the first such item, counted from 1 |
+| `--border-colour` is not a colour | 2 | `error: cannot render *732: --border-colour is not of the form #rgb or #rrggbb` |
+| `--background` is not a colour | 2 | `error: cannot render *732: --background is not of the form #rgb or #rrggbb` |
+| `build` returns `UnsupportedSignature` | 3 | `error: cannot render *632: rendering this signature is not supported`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
+| `build` returns any other error kind | 3 | `error: cannot render *(1001)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
+| `escher-render` rejects an option | 4 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
+| The thread pool cannot be built | 5 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `rayon` |
+| `escher-render` returns an error while rendering or encoding | 6, 7 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
+| The output file cannot be written | 8 | `error: cannot write the output file`, then `  caused by: ` and the `Display` text of the `std::io::Error` |
+
+Section 7.2 of `docs/design/render.md` fixes the `Display` text of each error of `escher-render`, and Section 10.2 of `docs/design/domain.md` that of `escher-domain`. No render error has an echo line or a caret line.
+
+The first row of step 3 meets the requirement of Section 5.8 of `docs/design/architecture.md` that `render` names the signature and says that rendering it is not supported. It applies to every valid signature without a domain, including every general non-compact signature (`DEC-19`). The second row covers a corner order over the limit of `escher-domain` and a numerically degenerate construction, which are not a lack of support.
+
+CLI-26. A diagnostic of `render` MUST NOT repeat the value of an option or the output path, because both are untrusted and may hold control characters, while the canonical signature, the option names, and the numbers that the diagnostics hold are printable ASCII. A bad colour is therefore named by its option and its position, and a failed write by the words `the output file`.
+
+This example shows a Euclidean signature, which has no domain in this design:
+
+```sh
+escher render '*632' -o tiling.png
+```
+
+```text
+error: cannot render *632: rendering this signature is not supported
+  caused by: cannot build fundamental domain: the signature *632 is not supported
+```
+
+This example shows three colours for the colouring `parity`:
+
+```sh
+escher render '*732' --colours '#e9c46a,#2a9d8f,#264653' -o tiling.png
+```
+
+```text
+error: cannot render *732: the colouring parity needs 2 colours, and 3 were given
+```
+
+This example shows a colour name, which is not a colour of Section 4.6:
+
+```sh
+escher render '*732' --colours '#e9c46a,red' -o tiling.png
+```
+
+```text
+error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb
+```
+
+This example shows an order over the limit of `escher-domain`:
+
+```sh
+escher render '*(1001)32' -o tiling.png
+```
+
+```text
+error: cannot render *(1001)32
+  caused by: cannot build fundamental domain: order 1001 is larger than 1000
+```
+
+This example shows an output path in a directory that does not exist, on Linux, after a successful rendering:
+
+```sh
+escher render '*732' -o /tmp/missing/tiling.png
+```
+
+```text
+error: cannot write the output file
+  caused by: No such file or directory (os error 2)
+```
+
+Each of these diagnostics gives the status `Failure`. A failure before step 8 creates and changes no file (CLI-21). A write that fails after `std::fs::write` has opened the file can leave it truncated or partly written (Section 12). When `--stats` is given and the write of the statistics lines fails, Section 6.6 applies, and the output file stays written.
+
 ## 7. Streams and Exit Status
 
-`run` returns these statuses. Section 3.3 gives their exit statuses, and Sections 6.5, 6.6, and 6.7 give the streams.
+`run` returns these statuses. Section 3.3 gives their exit statuses, and Sections 4.7, 6.5, 6.6, 6.7, and 6.8 give the streams.
 
 | Status | When |
 | --- | --- |
-| `Success` | `info` without `--check` wrote its text, whether or not the signature has a domain. `info --check` wrote its text, and every check passed. `--help` or `--version` wrote the help or the version text |
-| `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`). A write to standard output failed (Section 6.6). With `--check`, a check failed or the signature has no domain (Section 6.7) |
+| `Success` | `info` without `--check` wrote its text, whether or not the signature has a domain. `info --check` wrote its text, and every check passed. `render` wrote the output file, and with `--stats` the statistics lines. `--help` or `--version` wrote the help or the version text |
+| `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`). A write to standard output failed (Section 6.6). With `--check`, a check failed or the signature has no domain (Section 6.7). `render` met a render error (Section 6.8), including a signature without a domain |
 | `Usage` | `clap` reports a usage error (Section 6.5) |
 
 CLI-11. `run` MUST return `Failure` for every signature error, including a bad orbifold, because a caller that gets 0 for an invalid signature treats the missing information as valid (`DEC-24`). A caller that needs the error kind uses `escher-signature` directly.
@@ -679,9 +878,11 @@ CLI-19. `info --check` MUST return `Failure` when a check fails and when the sig
 
 ### 8.1. Tests
 
-The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. Every test outside `main.rs` calls `run` with `Vec<u8>` streams, or with a test writer that fails. The two tests in `main.rs` test `Status` alone.
+The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, `render`, `process`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. Every test outside `main.rs` and `process` calls `run` with `Vec<u8>` streams, or with a test writer that fails. The two tests in `main.rs` test `Status` alone. The one test in `process` starts the binary.
 
-The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`.
+A test that passes `--output` gets a path from a helper in `common`, in a directory of its own under the directory that Cargo names in `CARGO_TARGET_TMPDIR`. The helper empties that directory first, so a file from an earlier run cannot satisfy a test.
+
+The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1 or 5.3 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2 or 5.3. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`. The fold properties, the reference tests, the border oracle, the symmetric view, the golden images, and the decoding of the pixels of the PNG file of Section 5.3 belong to `escher-render`.
 
 | Test | Plan item | Kind and module | Asserts | Under Miri |
 | --- | --- | --- | --- | --- |
@@ -698,9 +899,20 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info`, for `info --check`, and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. For `info --check '*632'`, the failed write gives only that diagnostic and no verification diagnostic. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
 | Control characters | Failure paths | Plain test, `usage` | A usage error for an argument with control characters writes `?` in place of each of them (CLI-15) | Runs |
 | Auto traits | None | Plain test, `main.rs` | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`). The test calls a generic function whose type parameter is bounded by `Send + Sync`, so it fails to compile if `Status` loses either trait | Runs |
+| Render usage snapshots | Command line of Section 5.3 of the plan, failure paths | `insta`, `usage` | `render --help`, and for `render`: a missing signature, a missing `--output`, `--size 512`, `--size 512x`, `--samples x`, `--colouring three`, `--threads 0`, `--threads 257`, a repeated `--stats`, and a repeated `--size`. The snapshot of `--help` shows `render` among the commands, and the snapshot of `render --help` shows the usage line, the defaults, and the possible values of `--colouring` | Ignored |
+| Render diagnostic snapshots | Command line of Section 5.3 of the plan, failure paths | `insta`, `render` | The diagnostic and status of `render 23`, `render '*632'`, `render '3*(inf)'`, `render '*(1001)32'`, three colours and one colour for `parity`, `--colours '#e9c46a,red'`, `--border-colour red`, `--background '#ffff'`, `--size 0x0`, a size over the limit, `--samples 0`, a sample grid over the limit, `--border-width=-1`, and an output path in a directory that does not exist. `--border-width=-1` uses `=`, so that `clap` reads `-1` as the value (Section 11.1) | Ignored |
+| Statistics snapshot | Command line of Section 5.3 of the plan | `insta`, `render` | The status, the statistics lines, and the empty standard error of `render '*732' --size 16x16 --samples 1 --stats`, with the values masked as CLI-28 requires. `Samples: 256` stays in the snapshot | Ignored |
+| Written file | The PNG file decodes to the requested size | Plain test, `render` | `Success`, empty standard output and standard error, and a file for `render '*732' --size 48x32 --samples 2`. The test reads the file by hand: it starts with the 8-byte PNG signature, its first chunk is `IHDR` with length 13, a width of 48 and a height of 32 as big-endian `u32` values, a bit depth of 8, and the colour type 2, which is RGB, as Section 5.6 of `docs/design/render.md` requires, and a chunk `sRGB` comes before the first `IDAT` chunk. The non-square size catches a swap of width and height | Ignored |
+| Thread independence | Command line of Section 5.3 of the plan (CLI-23) | Plain test, `render` | The files of `render '*732' --size 64x64 --samples 2` with `--threads 1` and with `--threads 4` are equal byte for byte | Ignored |
+| Output file handling | Failure paths (CLI-21, `DEC-30`) | Plain tests, `render` | An existing file at the output path is replaced by the image. An output path that is a symbolic link to a file gives the image in that file and stays a link (Section 11.1). For `render '*632'`, for `--size 0x0`, and for a bad colour, an existing file keeps its bytes and a missing path stays missing | Ignored |
+| Render output errors | Failure paths | Plain tests, `render` | With `--stats`, a writer that fails with a broken pipe gives `Failure` and empty standard error, and the output file is written. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6 | Ignored |
+| Render status tests | Failure paths | Plain tests, `render` | `Failure` and the first line of standard error for `render '*632'`, for two colours for `one`, for `--colours '#e9c46a,red'`, and for `--size 0x0`, and `Usage` for a missing `--output`. Each fails before step 5, so it starts no thread pool and writes no file | Runs |
+| Colour parser | Failure paths | Unit tests in `render.rs` | The private parser reads `#e9c46a`, `#E9C46A`, and `#e9c` as the channels that Section 4.6 gives, and rejects `e9c46a`, `#`, `#e9c4`, `#e9c46a0`, `#ggg`, an empty string, a colour with a space before or after it, and a colour with a non-ASCII digit. The private function that splits `--colours` reports the position of the first bad item, and the text of the wrong count uses `1 colour` and `1 was given` for the number 1 | Runs |
+| Statistics text | Command line of Section 5.3 of the plan | Unit tests in `render.rs` | The private formatter, given counts as plain integers and a time, writes the five lines of Section 4.7: `10.01` for 1001 folds over 100 inside samples, `0.00` for no inside sample, a correct mean for `u64::MAX` folds, and `0.315` for a time of 0.3154 seconds | Runs |
+| Smoke test | One process-level smoke test of the binary | Plain test, `process` | The binary that Cargo names in `CARGO_BIN_EXE_escher`, run with `render '*732' --size 32x32 -o <path>`, exits with status 0, writes nothing to standard output or standard error, and writes a file that starts with the PNG signature | Ignored |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 
-The argument that is not UTF-8 is built with `std::os::unix::ffi::OsStringExt`, so that test compiles only on Unix, which covers Linux, the supported platform.
+The argument that is not UTF-8 is built with `std::os::unix::ffi::OsStringExt`, and the symbolic link with `std::os::unix::fs::symlink`, so those tests compile only on Unix, which covers Linux, the supported platform.
 
 No known input makes a check fail, so the failed-check path is tested through private functions, as Section 12.1 of `docs/design/signature.md` does for its `Overflow` texts. The test "Failed check text" covers the formatter of one check, the check lines, the `Verification` line, and the count of failed checks built from the rows, the writing of the text before the verdict is returned, and the diagnostic function.
 
@@ -722,9 +934,17 @@ Every snapshot must be deterministic (rule TEST-2 of `docs/rust-coding-standards
 
 CLI-20. A snapshot MUST NOT hold a residual of a check, and its inputs MUST meet the condition on rounding boundaries above, because a value that depends on the last bits of floating-point arithmetic makes the snapshot test fail on a platform whose mathematics library rounds differently, although the program is correct.
 
-Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency. Likewise, the snapshots of the `Domain` line cover the `UnsupportedSignature` and `LimitExceeded` texts of `escher-domain`.
+The statistics lines need a rule of their own. The time differs on every run. The fold counts can differ between platforms, because a sample on or next to a wall can take a different side when the last bits of a side value differ (`UNV-3`). In every line that starts with `Mean folds: `, `Maximum folds: `, `Unconverged samples: `, or `Time: `, the snapshot helper replaces the text after the first `: ` with `<value>`. The line `Samples` stays, because the number of samples is the product of the size and the grid.
 
-This crate has no test that starts a process. The one smoke test of the binary as a process belongs to M3 (Section 5.3 of `docs/design/poc-plan.md`).
+CLI-28. A snapshot MUST NOT hold the value of a statistics line other than `Samples`, because the time differs on every run and the fold counts can differ between correct builds, so a snapshot that held them would fail although the program is correct.
+
+A snapshot of `render` holds no path, because no diagnostic and no statistics line repeats the output path (CLI-26), so the snapshot does not depend on the directory of `CARGO_TARGET_TMPDIR`.
+
+Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency. Likewise, the snapshots of the `Domain` line cover the `UnsupportedSignature` and `LimitExceeded` texts of `escher-domain`. The render diagnostic snapshots cover the texts of the error kinds of `escher-render` that an option produces.
+
+The smoke test is the one test of this crate that starts a process, as layer 9 of Section 7.1 of `docs/design/architecture.md`. It checks only that the binary runs `run` and turns its status into the exit status, because every other behaviour is tested in the test process.
+
+The test "Written file" reads the PNG header by hand, so this crate needs no `png` dependency. The tests of `escher-render` decode the image with `png` and compare its pixels (Section 8 of `docs/design/render.md`).
 
 ### 8.2. Snapshots Under nextest
 
@@ -769,11 +989,17 @@ The other tests of Section 8.1 run under Miri unchanged, because they use only m
 
 The plain tests that run `info` on `*732` build its domain under Miri, and those that pass `--check` also verify it, so they run the arithmetic of `glam` and the floating-point functions of the standard library in the interpreter. The verification of `*732` needs few matrix products (Section 8.2 of `docs/design/domain.md`), so these tests need no attribute. They assert the status and the start or the end of the output, and no digit of a floating-point value, because the interpreter need not reproduce the last bits of the host library (Section 12.3 of `docs/design/domain.md`). They pass under `just check-miri`.
 
+Every test of `render` that reaches step 5 of Section 4.5 starts the thread pool, and every such test that succeeds writes the output file. A two-thread pool of `rayon`, run under Miri on a prototype outside the repository on 2026-11-16, made Miri report undefined behaviour inside `crossbeam-epoch` 0.9.21, a dependency of `rayon`. With the option `-Zmiri-tree-borrows`, Miri reported memory leaks instead. The owner accepts this for the proof of concept (`DEC-21`).
+
+CLI-27. Every test that reaches the thread pool MUST carry `#[cfg_attr(miri, ignore = "the thread pool library fails the checks of the interpreter")]`, unless it already carries the attribute of a snapshot test, because without it `just check-miri` fails on a defect that is outside this crate and that the owner has accepted.
+
+The smoke test carries `#[cfg_attr(miri, ignore = "the interpreter cannot start a process")]`. The tests "Output file handling" that fail before step 5 still create and read files, which the isolation of Miri refuses, so they carry `#[cfg_attr(miri, ignore = "the interpreter refuses file access")]`. The tests "Render status tests" fail before step 5 and touch no file, so they run under Miri. They build the domain of `*732` in the interpreter, as the plain tests of `info` do.
+
 ## 9. Dependencies
 
 ### 9.1. Workspace Dependencies
 
-The crate declares these dependencies, each from one entry in the root `[workspace.dependencies]` table (rule DEP-2 of `docs/rust-coding-standards.md`). The table also holds the entries that `docs/design/signature.md`, `docs/design/geometry.md`, and `docs/design/domain.md` specify for the other crates.
+The crate declares these dependencies, each from one entry in the root `[workspace.dependencies]` table (rule DEP-2 of `docs/rust-coding-standards.md`). The table also holds the entries that `docs/design/signature.md`, `docs/design/geometry.md`, `docs/design/domain.md`, and `docs/design/render.md` specify for the other crates.
 
 ```toml
 [workspace.dependencies]
@@ -787,25 +1013,31 @@ clap = { version = "4.6", default-features = false, features = [
     "usage",
 ] }
 escher-domain = { version = "0.1.0", path = "crates/escher-domain" }
+escher-render = { version = "0.1.0", path = "crates/escher-render" }
 escher-signature = { version = "0.1.0", path = "crates/escher-signature" }
 insta = { version = "1.49", default-features = false }
+rayon = "1.12.0"
 ```
 
 | Dependency | Kind | Features | Reason |
 | --- | --- | --- | --- |
 | `escher-signature` | Normal | None | Parses and classifies the signature. The path dependency carries a version (TOOL-25) |
-| `escher-domain` | Normal | None | Builds and verifies the fundamental domain for the domain summary and `--check`. The path dependency carries a version (TOOL-25) |
+| `escher-domain` | Normal | None | Builds and verifies the fundamental domain for the domain summary and `--check`, and builds the domain that `render` draws. The path dependency carries a version (TOOL-25) |
+| `escher-render` | Normal | None | Renders the image, counts its statistics, and encodes it as PNG for `render`. The path dependency carries a version (TOOL-25) |
+| `rayon` | Normal | Default | The thread pool of `render` (`DEC-21`, Section 3.5 of `docs/design/architecture.md`) |
 | `clap` | Normal | The list above, without `color`, `env`, and `wrap_help` | The derive API (Section 3.1 of `docs/design/architecture.md`). Without `color`, `anstream` and its dependencies are not built (Section 9.2) |
 | `anyhow` | Normal | Default | The chain of errors that Section 5.8 of `docs/design/architecture.md` requires. Version 1.0.103 fixes RUSTSEC-2026-0190 (Section 10 of `docs/research/rust-ecosystem.md`) |
 | `insta` | Dev | None, so without `colors` | Snapshot tests (rule TEST-2). Without `colors`, `console` is not built (Section 9.2) |
 
-The crate declares neither `escher-geometry` nor `glam`. The measurements of the domain are methods of `FundamentalDomain` that return plain `f64` values, so this crate names no `glam` type (Section 15.2 of `docs/design/domain.md`). `escher-domain` brings `escher-geometry`, `glam`, and `thiserror` into the build of the binary.
+The crate declares neither `escher-geometry` nor `glam`. The measurements of the domain are methods of `FundamentalDomain` that return plain `f64` values, so this crate names no `glam` type (Section 15.2 of `docs/design/domain.md`). `render` passes the domain to `escher-render` unchanged and reads only integers from the statistics, so it names no `glam` type either. `escher-domain` brings `escher-geometry`, `glam`, and `thiserror` into the build of the binary, and `escher-render` brings `png` and its dependencies.
+
+The crate declares no colour crate and no `png`. The private parser of Section 4.6 reads the two hexadecimal forms of a colour (`DEC-29`), and the tests read the PNG header by hand (Section 8.1).
 
 The package keeps `publish = false` (`DEC-22`) and declares no Cargo feature.
 
 ### 9.2. Verified Resolution
 
-An adversarial test resolved these dependencies with network access on 2026-11-16, together with those of `escher-signature`, to the highest versions compatible with Rust 1.99. It covered every dependency of Section 9.1 except `escher-domain`, and verified these facts:
+An adversarial test resolved these dependencies with network access on 2026-11-16, together with those of `escher-signature`, to the highest versions compatible with Rust 1.99. It covered every dependency of Section 9.1 except `escher-domain`, `escher-render`, and `rayon`, and verified these facts:
 
 - The resolved versions include `anyhow` 1.0.104, `clap`, `clap_builder`, and `clap_derive` 4.6.7, `clap_lex` 1.1.1, `strsim` 0.11.1, `heck` 0.5.0, `syn` 3.0.10, `proc-macro2` 1.0.107, `quote` 1.0.47, `unicode-ident` 1.0.27, `insta` 1.49.0, `similar` 2.7.0, and `tempfile` 3.27.0.
 - `cargo tree -d --target all` printed no duplicate version. The graph has one major version of `syn`, so `syn` 2 and 3 do not both occur.
@@ -826,21 +1058,36 @@ The build of the package, checked with `cargo tree` on 2026-11-16, has these pro
 
 The dependencies that `escher-domain` brings were resolved on 2026-11-16 as Section 11 of `docs/design/geometry.md` records: `glam` adds no transitive dependency, no duplicate version, and no licence. `thiserror` is already in the workspace. With `escher-domain` in the package, `just check-deny` and `just check-msrv` passed on 2026-11-16, and `cargo tree -d --target all -p escher-cli` printed no duplicate version.
 
+An adversarial test resolved the dependencies of `render` on 2026-11-16 in a prototype outside the repository:
+
+- `rayon` 1.12.0 resolved with `rayon-core` 1.13.0. It added no duplicate version, `cargo deny check licenses bans` passed, every licence that it brought was `MIT OR Apache-2.0`, and the highest minimum Rust version was 1.80.
+- `csscolorparser` 0.9.1 with its default features brought `syn` 2 through `phf_macros`, beside the `syn` 3 of the workspace, and failed the ban on duplicate versions. Without its default features it passed, but read no colour name.
+- `palette` 0.7.7 brought `syn` 2 through `palette_derive` with its default features, with `std` alone, and with `libm` alone, and failed the ban on duplicate versions each time.
+
+The owner chose a parser of the project's own for colours (`DEC-29`). Section 9 of `docs/design/render.md` records the resolution of `png` and the dependencies that `escher-render` brings into the binary.
+
 ### 9.3. Dependency Risks
 
 cargo-deny leaves dev-dependencies out of the licence check and the duplicate check by default. `deny.toml` overrides both defaults, as Section 8 of `docs/design/tooling.md` states, so `just check-deny` checks dev-dependencies. With the overrides, `cargo deny list` names `insta` 1.49.0, its dependencies such as `similar`, `tempfile`, `once_cell`, `fastrand`, and `rustix`, and `proptest`. In the test of Section 9.2, which ran without the overrides, it named none of `insta`, `similar`, `tempfile`, `proptest`, and `rand`.
 
 CLI-14. The dev-dependencies of this crate MUST stay inside the dependency policy of Section 8 of `docs/design/tooling.md`, so that `cargo deny list` names `insta` and its dependencies, because otherwise the licences, advisories, and duplicates of the snapshot library go unchecked while the dependency policy appears to cover them.
 
+`rayon` fails under Miri (Section 8.3), so Miri checks no code of `rayon` and `crossbeam-epoch` that this crate runs. A defect in that code would reach the binary without any check of this repository finding it. The owner accepts this risk for the proof of concept (`DEC-21`).
+
 ## 10. Unverified Statements
 
-This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, and on `UNV-26` through `escher-domain`.
+This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-26` through `escher-domain`, and on `UNV-1`, `UNV-3`, `UNV-4`, `UNV-15`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
 
 | Id | How this crate relies on it |
 | --- | --- |
 | `UNV-20` | `info` prints the canonical signature, with parentheses for orders of 10 or more and `(inf)` for an infinite order, and accepts both spellings of infinity and `1` as the trivial signature |
 | `UNV-21` | `info` prints the geometry and the area of a non-compact signature whose Euler characteristic is not 0, and prints no deformation dimension for a non-compact signature |
 | `UNV-26` | `info --check` reports the checks of the walls of the domain, which `escher-domain` builds through the formula of the wall through two points that `UNV-26` covers. The walls, relators, and angles checks test the result (Section 14 of `docs/design/domain.md`). The domain summary does not depend on the walls, because `escher-domain` measures it from the vertices |
+| `UNV-1` | `render` relies on the fold to stop for every sample of a reflection triangle. `Unconverged samples` counts the samples for which it does not stop within the fold cap |
+| `UNV-3` | A sample on or next to a wall can take either neighbouring tile, which is why CLI-28 masks the fold counts |
+| `UNV-4` | The default fold cap of `DEC-7` rests on fold counts measured on a prototype, and no source bounds them |
+| `UNV-15` | The border that `render` draws comes from the gradient form of the border estimate (`DEC-28`) |
+| `UNV-18` | The default colouring `parity` colours the tiles by the parity of the fold |
 
 ## 11. Assumptions, Choices, and Open Questions
 
@@ -849,6 +1096,13 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 - The infinity sign takes one column in the terminal. Unicode gives it an ambiguous East Asian width, so a terminal that renders such characters as wide shifts the caret one column to the right for each infinity sign before the span.
 - With its features `env` and `wrap_help` off, `clap` reads no environment variable, so the output does not depend on the environment. A reading of the source of `clap_builder` 4.6.7 on 2026-11-16 found that it reads the environment only in `Arg::env`, which needs the feature `env`, and for `COLUMNS` and `LINES`, which need the feature `wrap_help`. No run has confirmed this.
 - The residual of a passed check can differ in its last digits between platforms, which is why Section 8.1 replaces it in the snapshots. No run on two platforms has measured this. The replacement is safe either way.
+- With the default actions of its derive API, `clap` rejects a flag or an option that is given more than once. The tests "Usage snapshots" and "Render usage snapshots" check this with a repeated `--check`, a repeated `--stats`, and a repeated `--size`.
+- `clap` reads the value of `--border-width=-1` as `-1`, although it starts with `-`. The test "Render diagnostic snapshots" checks this.
+- `clap` generates the usage line of `render` that Section 4.1 gives, and the text `[default: <value>]` and `[possible values: one, parity]` in its help. The test "Render usage snapshots" checks this with the snapshot of `render --help`.
+- `rayon` reads the environment variable `RAYON_NUM_THREADS` only for a pool whose builder sets no number of threads, so it has no effect on the pool of `render`, which always sets one. No reading of the source of `rayon-core` and no run has confirmed this, and no test can, because the output does not depend on the number of threads (CLI-23). An error here changes only the number of threads that a call starts.
+- `std::fs::write` follows a symbolic link at the path, as the documentation of `std::fs::File::create` states. The test "Output file handling" checks this with a link to a file in its own directory.
+- The PNG header that the test "Written file" reads has the layout of the PNG specification: the 8-byte signature, then the `IHDR` chunk with its length, its type, the width, the height, the bit depth, and the colour type. No document under `docs/research/` cites the specification, and the test checks the bytes that `escher-render` writes, which its own tests decode with `png`.
+- The fold counts can differ between platforms (Section 8.1). No run on two platforms has measured this. The masking of CLI-28 is safe either way.
 
 ### 11.2. Choices of This Design
 
@@ -876,6 +1130,15 @@ These choices are made here, and no other document dictates them:
 20. The snapshot helper replaces the residual of each check line, and the snapshot inputs keep the printed digits away from rounding boundaries (Section 8.1).
 21. The `clap` flag `--check` is a `bool` converted at once into a private enum (Section 4.3).
 22. A repeated `--check` stays the usage error that `clap` gives (Section 4.3).
+23. The steps of `render` and their order, with the colours read before the domain is built (Section 4.5).
+24. `clap` checks only the syntax of an option value, and `escher-render` checks its range, so a size of `0x0` gives `Failure` and not `Usage` (Section 4.6).
+25. The limit of 1 to 256 threads, and the default of the available parallelism, at most 256 (Section 4.6).
+26. A thread pool for every call, also for one thread, and bands of one row (Section 4.5).
+27. The labels, the order, and the formats of the statistics lines, with the mean rounded down and the time of the rendering step alone (Section 4.7).
+28. No diagnostic repeats an option value or the output path, so a bad colour is named by its option and its position (Section 6.8).
+29. The write with `std::fs::write`, which creates no directory (Section 4.7).
+30. The tests read the PNG header by hand, so the crate has no `png` dev-dependency (Section 8.1).
+31. The statistics snapshot masks every value except that of `Samples` (Section 8.1).
 
 ### 11.3. Points for the Owner
 
@@ -888,17 +1151,25 @@ None of these blocks the implementation:
 5. Check 6, the area check (Section 15.3, item 4, of `docs/design/domain.md`, which owns it). If the owner drops it, `--check` prints five check lines, and the diagnostic counts five checks.
 6. Two area lines. A signature with a domain prints both `Area`, the exact value from the Euler characteristic, and `Domain area`, the area measured from the angles of the domain. The design keeps both, because their agreement is visible to a reader. The simpler option drops `Domain area`.
 7. A `Domain` line for every signature. The design prints `Domain: none, ...` for every valid signature without a domain, so that a reader can tell a missing domain from a missing line. The other option prints no `Domain` line for such a signature, which keeps the text of those signatures unchanged.
+8. The default fold cap of 1500 (`DEC-7` of `docs/design/architecture.md`, which owns it). A lower default changes the default of `--max-folds` and the help text.
+9. An opaque background only (`DEC-7`). A `transparent` background would add a value to `--background` and need a rule for averaging samples with alpha, which no source gives.
+10. The default fill colours `#e9c46a` and `#2a9d8f` (`DEC-7`). Other defaults change the table of Section 4.6 and the help text.
+11. The limit of 256 threads (Section 4.6). The design bounds the threads that one call starts. The alternative is no limit beyond `u32`, which lets a caller start as many threads as the system allows.
+12. The diagnostic of a failed write does not name the path (CLI-26). The design keeps untrusted text out of the terminal. The alternative repeats the path with the replacement of Section 6.2, which helps a user who runs several commands at once.
 
 ## 12. Security Considerations
 
-The threat model is a user who passes a signature from an untrusted party to `escher info`. The attacker can choose any argument within the limits of the command line, including invalid UTF-8, control characters, and very long text. The attacker cannot change the binary, its dependencies, or the files of the repository.
+The threat model is a user who passes a signature, option values, or an output path from an untrusted party to `escher info` or `escher render`. The attacker can choose any argument within the limits of the command line, including invalid UTF-8, control characters, and very long text. The attacker cannot change the binary, its dependencies, or the files of the repository.
 
-The attacks in scope are exhaustion of memory or time through the signature, and injection of terminal escape sequences through the diagnostic. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states. `escher-domain` limits the largest corner order of a domain, which bounds the cost of `verify()`, as Section 16 of `docs/design/domain.md` states. This crate adds no limit of its own. The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`. The `Domain` line and the diagnostics of Section 6.7 hold only fixed text, numbers, and the canonical signature, which is printable ASCII. The help, version, and usage text that `clap` produces has every control character other than the line feed replaced with `?` (CLI-15).
+The attacks in scope are exhaustion of memory or time through the signature or the options of `render`, injection of terminal escape sequences through the diagnostic, and the choice of the file that `render` overwrites. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states. `escher-domain` limits the largest corner order of a domain, which bounds the cost of `verify()` and of every fold step, as Section 16 of `docs/design/domain.md` states. `escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, which bound the memory of the image and the work of each sample, as Section 13 of `docs/design/render.md` states. This crate adds one limit of its own, 256 threads (Section 4.6).
+
+The diagnostics of `render` repeat no option value and no path (CLI-26). The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`. The `Domain` line and the diagnostics of Section 6.7 hold only fixed text, numbers, and the canonical signature, which is printable ASCII. The help, version, and usage text that `clap` produces has every control character other than the line feed replaced with `?` (CLI-15).
 
 The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
 - Unsafe code: the crate has none, and the workspace denies `unsafe_code`.
-- Files: the crate reads no file and writes no file. It writes only to the two streams that `run` receives.
+- Files: the crate reads no file. `info` writes no file. `render` writes one file, the output file, with the permissions of the user, and only after rendering and encoding succeed (CLI-21). It replaces an existing file without asking (`DEC-30`), follows a symbolic link at the path (Section 11.1), and creates no directory. A caller who passes a path from an untrusted party therefore lets that party choose which file of the user `render` overwrites, and checking the path is the caller's task.
+- Threads: `render` starts at most 256 threads, in a pool that ends with the call (CLI-22).
 - Build scripts: the crate has none.
 - Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under Section 8 of `docs/design/tooling.md`, for the dev-dependencies as well as the normal ones (Section 9.3). Only `insta` is a dev-dependency, and it never reaches the binary.
 
@@ -906,9 +1177,11 @@ Attacks on the repository, the build machine, or the terminal itself are out of 
 
 The residual risk is that a usage error still echoes every character of an unknown argument that is not a control character, including characters outside ASCII, such as the formatting characters of the Unicode general category Cf. The replacement tests only for the category Cc. A second residual risk is a domain that is wrong by less than the tolerances, which `--check` reports as passed (Section 16 of `docs/design/domain.md`).
 
+The limits of `escher-render` bound memory, but at their maximum values together they allow a rendering that runs for a very long time, which only the user can stop. A write that fails after `std::fs::write` has opened the file, such as on a full disk, leaves the file truncated or partly written. Miri checks no code of `rayon` (Section 9.3).
+
 ## 13. Operational Considerations
 
-The crate declares no Cargo feature and has no build script, so no environment variable affects the build. At run time the crate reads no environment variable (Section 11.1). The snapshot tests read the variables of Section 8.2, which Section 14.2 of `docs/design/tooling.md` lists.
+The crate declares no Cargo feature and has no build script, so no environment variable affects the build. At run time the crate reads no environment variable, and, under the assumption of Section 11.1, `RAYON_NUM_THREADS` does not affect the pool of `render`. The snapshot tests read the variables of Section 8.2, which Section 14.2 of `docs/design/tooling.md` lists. The tests that write files use the directory of `CARGO_TARGET_TMPDIR`, which Cargo sets for an integration test, and the smoke test uses the binary of `CARGO_BIN_EXE_escher`.
 
 The supported platform is Linux. The minimum supported Rust version is the one that Technology Decisions of `AGENTS.md` states, and the dependencies need no later version (Section 9.2).
 
@@ -921,8 +1194,13 @@ The supported platform is Linux. The minimum supported Rust version is the one t
 | A check fails | The check lines with `failed` and the diagnostic of Section 6.7, with `Failure` | None. It is a defect of `escher-domain`, and the residual and the tolerance locate it |
 | A write to standard output fails | The diagnostic of Section 6.6, with `Failure` | Fix the output destination |
 | The reader of standard output closes the pipe | No diagnostic, with `Failure` | None needed |
+| `render` gets a signature without a domain | The diagnostic of Section 6.8, with `Failure` | Use a signature that `escher-domain` constructs, which `escher info` shows in its `Domain` line |
+| `render` gets a bad colour or the wrong number of colours | The diagnostic of Section 6.8, with `Failure` | Give each colour as `#rgb` or `#rrggbb`, quoted, as many as the colouring needs |
+| `render` gets an option value outside a limit of `escher-render` | The diagnostic of Section 6.8, with `Failure` | Choose a value within the limits of Section 4.1 of `docs/design/render.md` |
+| `render` cannot write the output file | The diagnostic of Section 6.8, with `Failure` | Fix the path or its directory, and run the command again |
+| Samples reach the fold cap | No error. `Unconverged samples` counts them with `--stats`, and they take the border colour (`DEC-7`) | Raise `--max-folds` |
 
-The crate emits no log.
+The crate emits no log. `render --stats` prints the statistics of a rendering on request.
 
 ## 14. References
 
@@ -943,10 +1221,10 @@ This table lists every labelled requirement of this document with a one-line sum
 | Label | Section | Summary |
 | --- | --- | --- |
 | CLI-1 | 3.1 | The library target exposes `run` and `Status` and nothing else. |
-| CLI-2 | 3.2 | `run` writes only to its two streams and never panics. |
+| CLI-2 | 3.2 | `run` writes only to its two streams and the output file of `render`, and never panics. |
 | CLI-3 | 3.4 | `main.rs` only calls `run` and converts the status. |
 | CLI-4 | 4.2 | `--version` and `-V` print the package name and version on standard output with `Success`. |
-| CLI-5 | 4.3 | `info` passes its argument unchanged to `escher-signature`. |
+| CLI-5 | 4.3 | `info` and `render` pass their argument unchanged to `escher-signature`. |
 | CLI-6 | 5.1 | `info` prints exactly the lines of Section 5.1, in order and under their conditions, with no name of the group in another notation. |
 | CLI-7 | 5.4 | A change to the information text updates its snapshots in the same change. |
 | CLI-8 | 6.1 | Every diagnostic goes to standard error. |
@@ -962,3 +1240,11 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-18 | 5.6 | `--check` prints each check with its result, residual, and tolerance, in order, and then the overall result. |
 | CLI-19 | 7 | `info --check` gives `Failure` for a failed check or a missing domain, and `Success` only when every check passed. |
 | CLI-20 | 8.1 | No snapshot holds a residual, and the snapshot inputs keep the printed digits away from rounding boundaries. |
+| CLI-21 | 4.5 | `render` creates or changes the output file only after rendering and encoding succeed. |
+| CLI-22 | 4.5 | `render` builds its own thread pool for each call, never the global pool. |
+| CLI-23 | 4.5 | The bytes of the output file do not depend on the number of threads. |
+| CLI-24 | 4.6 | `render` passes the size, grid, border width, and fold cap to `escher-render` unchanged and checks no limit of them itself. |
+| CLI-25 | 4.7 | `render` writes to standard output only the statistics lines, with `--stats`, after the output file is written. |
+| CLI-26 | 6.8 | No diagnostic of `render` repeats an option value or the output path. |
+| CLI-27 | 8.3 | Every test that reaches the thread pool is ignored under Miri with a reason. |
+| CLI-28 | 8.1 | No snapshot holds the value of a statistics line other than `Samples`. |

@@ -84,8 +84,8 @@ The workspace of the proof of concept has six members under `crates/`. Every mem
 | `escher-geometry` | Linear models and model maps | None | `glam` (`DEC-4`) and `thiserror`, then `num-complex` from `M12` |
 | `escher-group` | Presentations, coset enumeration, low-index search, and colourings | `escher-signature` | None |
 | `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` and `thiserror` |
-| `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-group`, `escher-signature` | `glam`, `png`, `palette` |
-| `escher-cli` | The binary `escher`, with the commands `info` and `render` | All five | `clap` with the derive API, `anyhow`, `rayon`, `csscolorparser` |
+| `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` from `M8` | `glam` and `png`, and `palette` only if the owner adopts it at `M8` (`DEC-29`) |
+| `escher-cli` | The binary `escher`, with the commands `info` and `render` | All five, with `escher-group` from `M7` | `clap` with the derive API, `anyhow`, and `rayon` (`DEC-21`) |
 
 The dev-dependencies are `insta`, `proptest`, and `astro-float-num`, the reference-arithmetic crate of `DEC-3`.
 
@@ -162,9 +162,9 @@ The command `render` turns a signature into a PNG file in these steps:
 5. The renderer processes each sample of each pixel in these steps:
    1. It maps the screen position through the view to a position in the model.
    2. It maps the model position to a point of the linear model, or to "outside the model".
-   3. It runs the fold. The fold finds the first side whose covector test is violated, applies the pairing matrix of that side, records the side, renormalizes the point at a fixed interval, and stops at the fold cap.
+   3. It runs the fold. The fold finds the first side whose covector test is violated, applies the pairing matrix of that side, records the side, and stops at the fold cap. It does not renormalize the point (Section 9.3).
    4. It computes the coset from the side sequence.
-   5. It computes the screen distance to the nearest side.
+   5. It computes the screen distance to the nearest side (`DEC-28`).
    6. It chooses the fill colour or the border colour, with shading on the sphere.
 6. The renderer averages the samples of each pixel in linear light, encodes the result as 8-bit sRGB (standard Red Green Blue), and writes it with the `png` crate with the sRGB chunk. Section 4 of `docs/research/rust-ecosystem.md` lists the setter `set_source_srgb`.
 
@@ -324,7 +324,8 @@ The repository has no definition of a golden image test. This section proposes o
 
 - A golden image is a small PNG file, such as 192 by 192 pixels with fixed options, committed under `tests/<suite>/golden/` of its crate.
 - The test renders the image, decodes the golden file with `png`, and compares channel by channel with two limits: the largest allowed difference and the number of pixels allowed to differ. Section 11.1 of `docs/research/rust-ecosystem.md` recommends this comparison.
-- The largest difference is the weight of one sample in the sample grid plus one. The count comes from a perturbation run and is recorded in the test.
+- The comparison is in linear light, because samples are averaged in linear light (Section 4.1), so the weight of one sample in stored 8-bit sRGB units depends on the colours. The largest difference is the weight of one sample in the sample grid plus the size of one 8-bit sRGB step at the stored value, in linear light.
+- The count comes from a perturbation run that the design of the crate defines numerically. The change that adds the first golden image measures both limits and records them in the design of the crate and in the test.
 - On failure, the test writes the actual image and the difference image under `target/`.
 - Golden files change only through a new recipe, which the change adds to the table of Section 3.2 of `docs/design/tooling.md` (TOOL-6), with its environment variable in Section 14.2 of that document. The name of the recipe and of the variable are left to that change.
 - Golden image tests and process tests do not run under Miri (`DEC-5`).
@@ -352,7 +353,9 @@ A side counts as violated only when its covector value exceeds a tolerance relat
 
 ### 9.3. Normalization
 
-The fold renormalizes the point onto its model surface at a fixed interval, after HyperRogue's `normalize` and the forced variant of [KC24] (Sections 8.2 and 8.4 of `docs/research/geometry-models.md`). The caller that accumulates a matrix, such as the renderer, corrects that matrix in the same way, because `escher-geometry` renormalizes only points and unit normals and has no function that renormalizes a matrix (Section 8.3 of `docs/design/geometry.md`). Long products are tested against reference arithmetic, because [FWW], of which only the abstract was read, reports a growth of error in Lorentz products. Section 5.4 of `docs/research/symmhub.md` reports a trace error of $5 \times 10^{-5}$ on long words in a hyperboloid factorization.
+The fold does not renormalize the point, neither inside its loop nor after it (`DEC-31`). HyperRogue's `normalize` and the forced variant of [KC24] renormalize a point onto its model surface (Sections 8.2 and 8.4 of `docs/research/geometry-models.md`). A prototype outside the repository measured that renormalization at a fixed interval changes which sides the fold applies near the rim of the disk and can return infinite coordinates, and that scaling the point by a power of two changes no side that the fold applies. Section 11 of `docs/design/render.md` records the figures, and its Section 6.1 states how the renderer decides on the point without normalizing it.
+
+The renderer accumulates no matrix. It carries the vectors that the border estimate needs through the same pairings as the point (Section 5.3 of `docs/design/render.md`). `escher-geometry` has no function that renormalizes a matrix (Section 8.3 of `docs/design/geometry.md`). Long folds are tested against reference arithmetic, because [FWW], of which only the abstract was read, reports a growth of error in Lorentz products. Section 5.4 of `docs/research/symmhub.md` reports a trace error of $5 \times 10^{-5}$ on long words in a hyperboloid factorization.
 
 ### 9.4. Limit Circle
 
@@ -400,7 +403,7 @@ Engineering:
 
 - The representation is the linear model: points are 3-vectors with a bilinear form per geometry, reflections are unit normals, and isometries are 3x3 matrices. Conformal circles and complex numbers appear only where a model map or the port of SymmHub needs them.
 - The workspace has one crate per concern: signature, geometry, group theory with colourings, construction of the fundamental domain, renderer, and the binary. Each crate has its own design document under `docs/design/`.
-- The dependencies are the picks of `docs/research/rust-ecosystem.md`: `png`, `clap`, `rayon`, `num-complex` and `glam` (`DEC-4`), `palette`, `thiserror`, `anyhow`, `proptest`, `insta`, and a reference-arithmetic crate for tests (`DEC-3`). The licence and duplicate-version work in `deny.toml` happens in the milestone where each dependency first appears.
+- The dependencies are the picks of `docs/research/rust-ecosystem.md`: `png`, `clap`, `rayon`, `num-complex` and `glam` (`DEC-4`), `palette`, `thiserror`, `anyhow`, `proptest`, `insta`, and a reference-arithmetic crate for tests (`DEC-3`). The licence and duplicate-version work in `deny.toml` happens in the milestone where each dependency first appears. `palette` is not a dependency in `M3`, and the owner revisits it at the milestone of the generated palette, `M8` (`DEC-29`).
 - Work proceeds on unverified statements. Each is flagged in its design document, tested numerically against high-precision reference arithmetic, and tracked until a source or a Lean proof closes it. No unverified statement blocks the proof of concept.
 - Lean is not part of the proof of concept. It is a roadmap workstream that starts after the requested sources are read, beginning with what the fold depends on. The elan installer has no checksum verification, so it is pinned by the digest of its GitHub release asset.
 
@@ -412,11 +415,18 @@ Decided defaults, which keep their labels in Section 10.2 because other document
 - `DEC-18`, MIT notice: ported SymmHub code carries its MIT notice in a notices file at the repository root and in a section of the crate-level documentation of each crate with ported code. The notice arrives in the first change that ports SymmHub code, and not before, and that change records it in `AGENTS.md` and `docs/design/tooling.md`. Rust source holds no licence header (Section 6, second row), and `UNV-24` tracks the open licence question.
 - `DEC-19`, completion: the general non-compact signatures (Section 2.1) are not part of the proof of concept and are a workstream of Section 4 of `docs/design/roadmap.md`, because the research records no implementation for them (Section 5.18 of `docs/design/poc-plan.md`). The friezes and the triangle groups with ideal corners stay in milestone `M18`, and the completion audit `M19` covers every other valid signature. Section 5.8 states how `info` and `render` treat such a signature.
 
+The owner decided these defaults on 2026-11-16, for milestone `M3`:
+
+- `DEC-21`, threads: `rayon` in the binary, although `rayon` fails under Miri. Run under Miri on a prototype outside the repository, a pool of `rayon` made Miri report undefined behaviour inside `crossbeam-epoch`. The owner accepts this for the proof of concept and wants developer work kept minimal until a minimum viable product exists. The design gives the binary the option `--threads` and ignores under Miri every test that reaches the thread pool, as Section 8.3 of `docs/design/cli.md` states.
+- `DEC-28`, border estimate: the gradient form. No source states this construction in the linear model, so it is recorded as an unverified claim (`UNV-15`) and tested against the distance form of Section 6.2 of `docs/research/rendering.md` and against an oracle of tile identity. `docs/design/render.md` specifies the estimate and its tests.
+- `DEC-29`, colour input: colours are given in hexadecimal only, in the forms `#rgb` and `#rrggbb`, and a small parser in the project reads them. No colour crate is a dependency in `M3`. A prototype outside the repository measured that `palette` fails the ban on duplicate versions, and that `csscolorparser` fails it with its default features and passes without them but then reads no colour name. Section 9.2 of `docs/design/cli.md` records the measurement. The owner revisits `palette` at the milestone of the generated palette, `M8`.
+- `DEC-30`, existing output file: `escher render` replaces an existing output file without asking. It has no `--overwrite` option.
+
 The layout of the planning documents is a proposal that the owner may change. It follows the sibling project slang-rust and has three documents under `docs/design/`. This document holds the architecture and the decisions, `docs/design/poc-plan.md` holds the milestones of the proof of concept, and `docs/design/roadmap.md` holds the phases after it.
 
 ### 10.2. Proposed Defaults
 
-The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, and Section 10.1 states them. Every other default is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
+The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, `DEC-19`, `DEC-21`, `DEC-28`, `DEC-29`, and `DEC-30`, and Section 10.1 states them. Every other default is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
 
 | Label | Topic | Proposed default | Reason |
 | --- | --- | --- | --- |
@@ -425,8 +435,8 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-3` | Reference-arithmetic crate | Decided by the owner: astro-float. The tests use its number crate `astro-float-num`, which Section 13.3 of `docs/design/geometry.md` raises with the owner | Section 10.1 |
 | `DEC-4` | Linear algebra | Decided by the owner: `glam` and `num-complex`, with no vector or matrix type of the project's own | Section 10.1 |
 | `DEC-5` | Miri | Decided by the owner: tests that cannot run under Miri carry `#[cfg_attr(miri, ignore = "...")]` | Section 10.1 |
-| `DEC-6` | Golden images | As Section 7.2 | No golden image test is defined yet |
-| `DEC-7` | Render defaults | A 4 by 4 sample grid, a black border 1 pixel wide, and a fold cap of 500. Samples at the cap take the border colour. A white background, with a `transparent` option. `--output` is required. The default colouring is the first two-colour colouring when one exists, else one colour | Section 9.1. Published caps range from 10 to 4000 |
+| `DEC-6` | Golden images | As Section 7.2, compared in linear light | No golden image test is defined yet |
+| `DEC-7` | Render defaults | A 4 by 4 sample grid, a black border 1 pixel wide, and a fold cap of 1500. Samples at the cap take the border colour. An opaque white background, and no `transparent` background. `--output` is required. The default colouring is the first two-colour colouring when one exists, else one colour. The default fill colours are `#e9c46a` and `#2a9d8f` | Section 9.1. Published caps range from 10 to 4000. `escher-domain` accepts a corner of order 1000, which needed 1000 folds on a prototype, and the cap covers every fold count that the prototype measured (Section 11 of `docs/design/render.md`). A fixed cap is simpler than one derived from the signature. Averaging samples with alpha has no source. The fill colours are the example pair of `M3` in `docs/design/poc-plan.md` |
 | `DEC-8` | Input text | Features in any order, as SymmHub accepts them, but text with two readings is rejected, such as an order after a `*` and an `o` or `x`, and a `1` directly followed by a digit, so `11` and `*11` are errors. Whitespace and the empty string are rejected. Upper-case `O` and `X` are accepted. Of the characters outside American Standard Code for Information Interchange (ASCII), only the infinity sign is accepted. An order 1 is accepted and dropped, with `1` as the trivial group. Section 4.2 of `docs/design/signature.md` states the reading rules | The SymmHub parser is the precedent (Section 11.1 of `docs/research/orbifold-notation.md`), and the proposal accepts only input whose meaning is unambiguous. `UNV-20` |
 | `DEC-9` | Canonical form | The feature order of [CH], cone orders descending with an infinite order above every finite order, each boundary at its largest rotation, boundaries descending, and every handle turned into two crosscaps when a crosscap is present, so `oox` becomes `xxxxx`. Parentheses from order 10, and `(inf)` in output. Section 7 of `docs/design/signature.md` states the algorithm, including the reversal of boundaries | No primary source defines a canonical form (`UNV-20`) |
 | `DEC-10` | Signatures with infinity | Hyperbolic when $\chi < 0$, a frieze when $\chi = 0$, and rejected when $\chi > 0$ | Recorded as `UNV-21` |
@@ -440,13 +450,17 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-18` | MIT notice | Decided by the owner: a notices file and a section in the crate-level documentation, from the first change that ports SymmHub code | Section 10.1 |
 | `DEC-19` | Completion and the general non-compact signatures | Decided by the owner: the general non-compact signatures move to the roadmap | Section 10.1 |
 | `DEC-20` | Other notations in `info` | Omitted until a primary source is read | Tables A.1 and A.2 of [CBG] give primary names for the 17 plane groups and the spherical groups. The frieze names, the order of the numbers in five Coxeter symbols, and the Thurston column have no primary source (item 11 of Section 12 of `docs/research/orbifold-notation.md`) |
-| `DEC-21` | Threads | `rayon` in the binary, with `--threads` | Section 3.5 |
+| `DEC-21` | Threads | Decided by the owner: `rayon` in the binary, although it fails under Miri | Section 10.1 |
 | `DEC-22` | Publication | `publish = false` on every crate through the proof of concept | TOOL-27, and nothing is published without the owner's go-ahead |
 | `DEC-23` | Information format | Text, covered by snapshots, and declared unstable. A machine-readable form is a roadmap item | A snapshot shows every change to the text for review |
 | `DEC-24` | Bad orbifolds | `info` exits with a non-zero status and a diagnostic | A bad orbifold corresponds to no group (Section 7.2 of `docs/research/orbifold-notation.md`) |
 | `DEC-25` | Orders | 32-bit integers, with checked exact rational arithmetic. A signature whose Euler characteristic, twice it, or the absolute value of either does not fit the `i64` over `NonZeroU64` rational type is rejected as an overflow. Section 8 of `docs/design/signature.md` states the detail | An overflow becomes an error and no wrong value |
 | `DEC-26` | `Geometry` enum | In `escher-signature` | Section 3.4 |
 | `DEC-27` | Performance budget | As Section 8, confirmed at `M3` | No published benchmark exists |
+| `DEC-28` | Border estimate | Decided by the owner: the gradient form, recorded as `UNV-15` | Section 10.1 |
+| `DEC-29` | Colour input | Decided by the owner: `#rgb` and `#rrggbb` only, read by a parser of the project, and no colour crate in `M3` | Section 10.1 |
+| `DEC-30` | Existing output file | Decided by the owner: replaced without asking, with no `--overwrite` option | Section 10.1 |
+| `DEC-31` | Normalization in the fold | No renormalization of the point, inside the fold loop or after it | Section 9.3. A prototype measured that renormalization inside the loop changes the sides that the fold applies near the rim |
 
 ## 11. Security Considerations
 
@@ -457,7 +471,7 @@ The attacks in scope are exhaustion of memory and time. A large order, a long si
 The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
 - Unsafe code: the workspace denies `unsafe_code`, and no crate of this architecture needs it. No crate calls a native library at run time, and `DEC-3` keeps a native build out of the tests.
-- File paths: the binary writes one PNG file to the path that the user gives and reads no file. The design document of `escher-cli` states how it handles an existing file at that path.
+- File paths: the binary writes one PNG file to the path that the user gives and reads no file. It replaces an existing file at that path without asking (`DEC-30`), and Section 12 of `docs/design/cli.md` states what follows from that.
 - Build scripts: no crate of this architecture has one.
 - Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under the policy of Section 8 of `docs/design/tooling.md`.
 - Prior-art code: SymmHub's code is untrusted. Agents read it as a reference and port it by hand. Nothing in the build or the tests runs it, and ported code passes the same review and checks as any other code. Fixtures from GAP or `low_index` are generated outside the repository and committed as data (Section 14.4 of `docs/research/rust-ecosystem.md`).
