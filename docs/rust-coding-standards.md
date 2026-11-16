@@ -20,9 +20,10 @@ This document assigns every rule to one of the two classes, following Section 3.
 
 ### 1.1. Scope
 
-This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has two members:
+This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has three members:
 
 - `escher-cli`: a package with a library target that runs the command line, and the binary `escher`, which calls it, as `docs/design/cli.md` specifies.
+- `escher-geometry`: a library crate that holds the linear model of the hyperbolic plane over the `glam` types, with the map to and from the Poincare disk, as `docs/design/geometry.md` specifies.
 - `escher-signature`: a library crate that parses an orbifold signature into its canonical form and computes its exact Euler characteristic, as `docs/design/signature.md` specifies.
 
 Rules ERR-1 and ERR-2 apply to library crates only, because a binary such as `escher` is an application, which may report errors through `Box<dyn std::error::Error>`.
@@ -912,6 +913,10 @@ Reason: the check runs every test under Miri, which interprets the code far more
 
 **TEST-12.** Write a snapshot of the output of a program as its status and each of its output streams after a fixed marker line, and end the snapshot with a final marker line. Reason: `insta` trims the whitespace at the end of a snapshot before it compares, so without a final marker a missing or extra line feed at the end of the last stream passes the test, and without a marker before each stream a reviewer cannot tell which stream a line belongs to.
 
+**TEST-13.** Compare a floating-point result that a transcendental function or a sequence of rounded operations produces with a tolerance that follows the scale of the quantity, and never bit for bit. Assert exact equality of two computed values only where IEEE 754 arithmetic makes them equal, such as a value and its negation, and state why in the design document of the crate. Check the formulas of a numeric crate against an independent implementation in high-precision arithmetic, in the test suite, that shares no code with the crate or with its vector library. Set each tolerance to at least 8 times the largest error measured over a stated deterministic input set, and record the input set, the tolerance, the largest error, and the margin in the design document of the crate.
+
+Reason: the last bits of a transcendental function differ between platform libraries and between the host and the Miri interpreter, so a bit-for-bit assertion fails on a correct result. A tolerance without the scale of its quantity either fails on large inputs or hides a defect on small ones. An implementation that shares code with the crate shares its transcription errors. A tolerance set from a measurement with a margin passes on a correct implementation, while a guessed tolerance either fails on it or hides a defect, and the record lets a reviewer check each tolerance against its measurement.
+
 ## 12. Dependencies and Cargo Features
 
 **DEP-1.** Make every Cargo feature additive, so that every combination compiles, and name it after what it enables. A feature never removes behaviour or selects between options that exclude each other. Section 7.8 of the writing guide defines how features are documented.
@@ -1119,6 +1124,7 @@ The identifiers FFI-1 to FFI-11, SYS-1 to SYS-8, and COM-1 to COM-13 are reserve
 | TEST-10 | One integration-test binary per crate, `tests/<suite>/main.rs`, with sibling modules and a `#[cfg(test)] mod common;`. |
 | TEST-11 | Tests too slow for Miri carry `#[cfg_attr(miri, ignore = "...")]` with a plain reason, and property tests take a Miri-aware configuration from one helper. |
 | TEST-12 | A snapshot of program output holds the status and each stream after a fixed marker line, and ends with a final marker line. |
+| TEST-13 | Floating-point results are compared with a tolerance that follows their scale and checked against an independent high-precision implementation, with each tolerance at least 8 times a recorded measured error. |
 | DEP-1 | Cargo features are additive and named after what they enable. |
 | DEP-2 | Dependencies are few, preferably standard, and declared once in the workspace, except another version requirement on a member. |
 | DEP-3 | A crate that exposes a dependency below 1.0 stays below 1.0, and a breaking upgrade of a public dependency is a breaking release. |

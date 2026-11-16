@@ -1,0 +1,22 @@
+[package]
+name = "escher-geometry"
+description = "Points, walls, isometries, and the Poincare disk map of the hyperbolic plane for Escher."
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
+glam.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+astro-float-num.workspace = true
+proptest.workspace = true
+
+[lints]
+workspace = true

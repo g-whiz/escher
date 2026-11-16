@@ -4,11 +4,12 @@ Escher is a Rust application for creating symmetry-based graphics, like those in
 
 ## Contents
 
-The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, and a crate that parses and classifies orbifold signatures. It holds no code that computes a tiling or renders a symmetry.
+The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, and a crate of hyperbolic geometry. It holds no code that computes a tiling or renders a symmetry.
 
 | Crate | Purpose |
 | --- | --- |
 | `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature. It is not published. |
+| `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model over the vector and matrix types of `glam`: points, distances, walls, reflections and other isometries, and the map to and from the Poincare disk. It is not published. |
 | `escher-signature` | A library that parses an orbifold signature, such as `*632`, into its canonical form, computes its exact Euler characteristic, and classifies it as spherical, Euclidean, or hyperbolic, with its group order, area, and deformation dimension where they apply. It is not published. |
 
 The directory `docs/research/` holds references on the mathematics of orbifolds, geometry models, fundamental domains, rendering, and colourings, and studies of SymmHub and other existing software. It also holds a survey of Rust crates, three surveys of topics beyond the proof of concept, and a list of sources that the research could not read in full. These three surveys cover aperiodic tilings, partial differential equations on orbifolds, and vector export, animation, and shader export.

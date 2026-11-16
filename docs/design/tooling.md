@@ -220,9 +220,11 @@ nextest does not run doctests, so `check-doctest` runs them, as Section 4.8 of t
 
 Under Miri, `default-miri` selects every test, so the tests themselves decide what runs in the interpreter, as TEST-11 of the coding standard requires:
 
-- A test that runs a loop too long for the interpreter carries `#[cfg_attr(miri, ignore = "...")]` with a reason in plain words. nextest reports such a test as skipped under Miri and runs it in `test` and `coverage`. Section 12.2 of `docs/design/signature.md` names the tests of `escher-signature` that carry it.
+- A test that runs a loop too long for the interpreter carries `#[cfg_attr(miri, ignore = "...")]` with a reason in plain words. nextest reports such a test as skipped under Miri and runs it in `test` and `coverage`. Section 12.2 of `docs/design/signature.md` names the tests of `escher-signature` that carry it, and Section 10.4 of `docs/design/geometry.md` names those of `escher-geometry`, which are its tests against high-precision reference arithmetic, with two exceptions, and its deterministic sweeps.
 - A test that does something that the isolation of Miri refuses, such as opening a file, carries the same attribute with its own reason. Section 8.3 of `docs/design/cli.md` names the tests of `escher-cli` that carry it, which are its snapshot tests.
 - Every property test takes its `proptest` configuration from one helper in the `common` module of its crate's integration tests. Under `cfg!(miri)` the helper returns 8 cases with `failure_persistence` set to `None`, and otherwise it returns the default configuration of `proptest`, with 256 cases. The file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and 256 cases take too long in the interpreter.
+
+The root `Cargo.toml` sets `opt-level = 3` for the dev-dependency `astro-float-num` alone in the `dev` profile, from which the `test` profile of Cargo inherits, for the reason that Section 11 of `docs/design/geometry.md` states. The crates of the workspace stay unoptimized in that profile.
 
 ## 5. Git Hooks
 
@@ -649,10 +651,10 @@ The licences other than `GPL-3.0-or-later` in `allow` are those of the dependenc
 | Licence | Why it is in the list | Compatibility |
 | --- | --- | --- |
 | `Apache-2.0` | It satisfies every `MIT OR Apache-2.0` expression | Compatible with version 3 of the GNU GPL |
-| `MIT` | `strsim` carries `MIT` alone, and `clap_builder` needs it for the `clap` feature `suggestions` | Compatible with the GNU GPL. The list names it the Expat licence |
+| `MIT` | `strsim` carries `MIT` alone, and `clap_builder` needs it for the `clap` feature `suggestions`. The dev-dependency `astro-float-num` also carries `MIT` alone | Compatible with the GNU GPL. The list names it the Expat licence |
 | `Unicode-3.0` | `unicode-ident` carries `(MIT OR Apache-2.0) AND Unicode-3.0` | Compatible with all versions of the GNU GPL |
 
-`Apache-2.0` satisfies every expression that offers `MIT` as an alternative, so `MIT` is in the list only for a crate that offers no alternative, such as `strsim`.
+`Apache-2.0` satisfies every expression that offers `MIT` as an alternative, so `MIT` is in the list only for a crate that offers no alternative, such as `strsim` and `astro-float-num`.
 
 The `[advisories]` table has no `ignore` list and the `[bans]` table has no `skip` list. The change that adds an exception under TOOL-26 adds the list, with one entry per line and its reason, and the change that adds a licence under TOOL-24 extends `allow`.
 

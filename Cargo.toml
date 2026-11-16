@@ -1,6 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["crates/escher-cli", "crates/escher-signature"]
+members = [
+    "crates/escher-cli",
+    "crates/escher-geometry",
+    "crates/escher-signature",
+]
 
 [workspace.package]
 authors = ["George Gianacopoulos <gpg.software@gmail.com>"]
@@ -13,6 +17,9 @@ readme = "README.md"
 
 [workspace.dependencies]
 anyhow = "1.0.103"
+astro-float-num = { version = "0.3.7", default-features = false, features = [
+    "std",
+] }
 clap = { version = "4.6", default-features = false, features = [
     "derive",
     "error-context",
@@ -22,6 +29,10 @@ clap = { version = "4.6", default-features = false, features = [
     "usage",
 ] }
 escher-signature = { version = "0.1.0", path = "crates/escher-signature" }
+glam = { version = "0.34.3", default-features = false, features = [
+    "float-types",
+    "std",
+] }
 insta = { version = "1.49", default-features = false }
 proptest = { version = "1.12.0", default-features = false, features = ["std"] }
 thiserror = "2.0.21"
@@ -80,3 +91,7 @@ exhaustive_enums = "warn"
 exhaustive_structs = "warn"
 partial_pub_fields = "warn"
 mod_module_files = "warn"
+
+# The high-precision arithmetic of the reference tests is too slow to run without optimization.
+[profile.dev.package.astro-float-num]
+opt-level = 3
