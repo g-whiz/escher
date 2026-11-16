@@ -4,7 +4,7 @@ Every coding agent reads this file before it works in this repository. `CLAUDE.m
 
 Escher is a Rust application for creating symmetry-based graphics, like those in some works of M. C. Escher, with the SymmHub project as prior art. It covers the planar symmetries that orbifold notation expresses, in Euclidean, spherical, and hyperbolic geometry. Its goal is a tool in which an artist draws a motif on one or more fundamental domains of a symmetry and sees it replicated live over the tiling, reshapes the tiles, animates the result, and renders it as raster images: first stills, then video, and possibly other outputs later. Tilings without a symmetry group, such as aperiodic tilings, are not a goal for now.
 
-The repository holds scaffolding, a placeholder binary, research documents, and the planning documents of the proof of concept, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
+The repository holds scaffolding, a placeholder binary, research documents, the planning documents of the proof of concept, and the design documents of its first milestone, as Project Status states. The rest of this introduction states goals that the owner has set, and none of them is implemented.
 
 The owner has set these phases and platforms:
 
@@ -89,7 +89,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Project Status
 
-As of 2026-11-16, the repository holds its scaffolding, one placeholder crate, the research documents under `docs/research/`, and the planning documents of the proof of concept, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
+As of 2026-11-16, the repository holds its scaffolding, one placeholder crate, the research documents under `docs/research/`, the planning documents of the proof of concept, and the design documents of milestone `M1`, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
 
 What exists and works:
 
@@ -98,17 +98,20 @@ What exists and works:
 - `just check`, `just check-features`, `just check-msrv`, and `just coverage`, which all pass in the development container. The workspace has no test, so the recipes that run nextest pass with a warning that no test ran.
 - The twelve research documents under `docs/research/` that Repository Layout lists: seven subject-matter references, four surveys, and the working list `docs/research/source-requests.md`.
 - The planning documents of the proof of concept: `docs/design/architecture.md`, `docs/design/poc-plan.md`, and `docs/design/roadmap.md`.
+- The design documents of milestone `M1`: `docs/design/signature.md` for the crate `escher-signature`, and `docs/design/cli.md` for the crate `escher-cli` and the command `escher info`.
 
 The research documents record what their cited sources establish, including the sources that the owner supplied in `references/`, and mark each claim that no source establishes as unverified. Each of them except `docs/research/source-requests.md` has an Open Questions and Unverified Claims section, which names what would close each question. An agent reads that section before it builds on a claim, because a claim listed there is not established.
+
 What does not exist yet:
 
 - Any code that parses an orbifold signature, computes a tiling, or renders an image.
 - Any dependency. The workspace manifest has no `[workspace.dependencies]` table, and `escher-cli` declares no dependency.
 - Any test.
-- The design document of each component, which its milestone writes before the code of the component.
+- Any code of milestone `M1`, including the crate `escher-signature`.
+- The design document of each component other than `escher-signature` and `escher-cli`, which its milestone writes before the code of the component.
 - A Lean development.
 
-The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The owner stated the scope after the proof of concept on 2026-11-16, and `docs/design/roadmap.md` records it with the proposals that the owner has yet to confirm. No milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
+The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The owner stated the scope after the proof of concept on 2026-11-16, and `docs/design/roadmap.md` records it with the proposals that the owner has yet to confirm. Milestone `M1` has started with its design branch, and no other milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
 
 Section 7.11 of the writing guide and Section 4.8 of the coding standard say which part of each rule a tool or checker enforces. Every rule that no configured tool checks stays a judgement rule.
 
@@ -137,6 +140,8 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 - `docs/design/architecture.md`: The architecture design of the proof of concept, which is authoritative for the planned crates, the data flow, the conventions between crates, the testing strategy, performance, numerical robustness, the owner's decisions, and the proposed defaults.
 - `docs/design/poc-plan.md`: The milestone plan of the proof of concept, which is authoritative for the workflow of a milestone, the owner's staging, the research prerequisites, the milestones, the documentation obligations of each milestone, and the unverified statements that the proof of concept relies on.
 - `docs/design/roadmap.md`: The roadmap design, which is authoritative for the order of the phases after the proof of concept, the workstreams, the deep-research items, and the closing of unverified statements by sources and by a Lean development.
+- `docs/design/signature.md`: The design of the planned crate `escher-signature`, which is authoritative for its public surface, the input grammar of a signature, parsing and its errors, the canonical form, the exact Euler characteristic, the classification, and the limits on untrusted input.
+- `docs/design/cli.md`: The design of the package `escher-cli`, which is authoritative for the public surface of its library target, the binary `escher`, the commands and options, the information text of `escher info`, the diagnostics, the exit statuses, and the snapshot tests.
 - `docs/research/orbifold-notation.md`: The subject-matter reference on Conway's orbifold notation, with the grammar of a signature, equivalent signatures, the Euler characteristic, the classification by geometry, the lists of spherical, wallpaper, and frieze signatures, presentations, and deformations.
 - `docs/research/geometry-models.md`: The subject-matter reference on the models of the hyperbolic plane, the sphere, and the Euclidean plane, with the conversions between models, isometries, constructions, numerical robustness, distances, and trigonometry.
 - `docs/research/fundamental-domains.md`: The subject-matter reference on building a fundamental polygon and its side-pairing isometries from a signature, with Poincare's polygon theorem, moduli, building blocks, algorithms, and the classes of signature that have a sourced construction.
@@ -176,7 +181,7 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 
 These locations are planned and do not exist yet:
 
-- `docs/design/signature.md`, `docs/design/geometry.md`, `docs/design/group.md`, `docs/design/domain.md`, `docs/design/render.md`, and `docs/design/cli.md`: The design documents of the components, which Section 1.5 and `DEC-1` of `docs/design/architecture.md` name.
+- `docs/design/geometry.md`, `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/render.md`: The design documents of the other components, which Section 1.5 and `DEC-1` of `docs/design/architecture.md` name.
 - `crates/escher-signature`, `crates/escher-geometry`, `crates/escher-group`, `crates/escher-domain`, and `crates/escher-render`: The planned crates, which Section 3 of `docs/design/architecture.md` specifies.
 
 ## Technology Decisions

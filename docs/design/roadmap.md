@@ -18,6 +18,8 @@ This document gives that order. Its readers are the agents that plan the next pi
 
 The owner's goal for the tool is this. An artist draws a motif on one or more fundamental domains, and Escher replicates it live over the tiling to help the artist see the result. The artist reshapes the tiles, animates parameters, and renders the result as raster images, first as PNG stills, then as video, and possibly as other outputs. Section 3 orders this work.
 
+By the owner's decision, the tool is first for the owner, who will use it to make art, and a public release follows at some point.
+
 These topics are out of scope, by the owner's decision:
 
 - Vector output, and any rendering path that generates tiles forward. All rendering is raster and happens per pixel. Vector graphics are only an input, as one medium of a motif (Section 3.3).
@@ -72,7 +74,6 @@ These points are open for the owner:
 - Where the first release sits relative to phases 3 to 5. The table lists it after them, and its only dependency is phase 2.
 - What "truncated versions of tilings" means (Section 3.5).
 - The order of the media of a motif (Section 3.3).
-- Who the tool is for, which the owner has not stated.
 
 ### 3.1. Live Rendering
 

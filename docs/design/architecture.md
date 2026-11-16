@@ -97,13 +97,7 @@ Section 5.8 requires an error type in every library crate. The table lists `this
 
 Each list below is the planned public surface of one crate, as types and operations. The crate design document refines the names and signatures.
 
-`escher-signature`:
-
-- `Signature`, valid by construction, with `FromStr` and `Display` in the canonical form.
-- Feature accessors for handles, cone orders, boundaries with their corner orders, and crosscaps, with each order finite or infinite.
-- `euler_characteristic()`, an exact rational number.
-- `geometry() -> Geometry`, `is_compact()`, `is_frieze()`, `group_order()`, `area()`, and `deformation_dimension()`.
-- `Error`, which carries the byte span of the offending input.
+`escher-signature`: `Signature`, valid by construction and in canonical form, with its feature accessors, its exact Euler characteristic, and its classification, and an `Error` that carries the byte span of the offending input. Section 3 of `docs/design/signature.md` specifies the public surface.
 
 `escher-geometry`:
 
@@ -136,8 +130,7 @@ Each list below is the planned public surface of one crate, as types and operati
 
 `escher-cli`:
 
-- A library target with the entry `run(args, stdout, stderr)`, so that most tests run the commands without starting a process.
-- The argument types, the parsing of `name=value` settings and of colours, the information text, diagnostics with a caret under the byte span, and row parallelism.
+- A library target whose only public items are the entry `run(args, stdout, stderr)` and its status type, so that most tests run the commands without starting a process. Section 3 of `docs/design/cli.md` specifies them. Everything else, such as the argument types, the information text, and the diagnostics, is private to the crate.
 
 ### 3.3. Dependency Graph
 
@@ -186,7 +179,7 @@ Averaging in linear light is a project convention that no research source backs.
 
 ### 4.2. To the Information Output
 
-The command `info` runs steps 1 to 4 of Section 4.1 and renders no pixels. Its output holds these items:
+The command `info` runs steps 1 to 4 of Section 4.1 and renders no pixels. Section 5 of `docs/design/cli.md` specifies the exact lines that it prints for each kind of signature, and which items arrive with later milestones. Its output holds these items:
 
 - The canonical signature.
 - The geometry, the Euler characteristic, compactness, and whether the signature is a frieze.
@@ -259,7 +252,7 @@ A colouring id is `<colour count><letter ordinal>`, such as `1a`, `2a`, and `3b`
 
 Each library crate has one `Error` with an `ErrorKind` (ERR-1), attaches the failed operation at the call site (ERR-3), writes its `Display` text in lowercase (ERR-4), and panics only for a bug in the crate itself (ERR-5). Section 7 of `docs/rust-coding-standards.md` defines these rules. A valid signature whose class has no construction returns the kind "unsupported signature".
 
-A general non-compact signature returns that kind throughout the proof of concept, because its construction is a roadmap workstream (`DEC-19`). `escher info` still parses and classifies it. `escher render` MUST print a diagnostic that names the signature and says that rendering it is not supported, and MUST exit with a non-zero status, so that a caller never mistakes a missing image for a rendered one. `docs/design/cli.md` gives the text of the diagnostic and how `info` reports the items of Section 4.2 that need a domain.
+A general non-compact signature returns that kind throughout the proof of concept, because its construction is a roadmap workstream (`DEC-19`). `escher info` still parses and classifies it. `escher render` MUST print a diagnostic that names the signature and says that rendering it is not supported, and MUST exit with a non-zero status, so that a caller never mistakes a missing image for a rendered one. The design branch of the milestone that adds `render` writes the text of the diagnostic into `docs/design/cli.md`, and the design branch of each milestone that adds an item of Section 4.2 that needs a domain writes there how `info` reports it.
 
 The binary uses `anyhow` and prints the chain of sources. It draws the caret under the byte span by hand. Section 10.1 of `docs/research/rust-ecosystem.md` recommends `codespan-reporting` or `ariadne` first, and notes that a hand-written caret line suffices because the notation is one line. Section 9.1 recommends the hand-written parser that gives the byte spans.
 
@@ -441,8 +434,8 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-5` | Miri | Decided by the owner: tests that cannot run under Miri carry `#[cfg_attr(miri, ignore = "...")]` | Section 10.1 |
 | `DEC-6` | Golden images | As Section 7.2 | No golden image test is defined yet |
 | `DEC-7` | Render defaults | A 4 by 4 sample grid, a black border 1 pixel wide, and a fold cap of 500. Samples at the cap take the border colour. A white background, with a `transparent` option. `--output` is required. The default colouring is the first two-colour colouring when one exists, else one colour | Section 9.1. Published caps range from 10 to 4000 |
-| `DEC-8` | Input text | Features in any unambiguous order, as SymmHub accepts them. Upper-case `O` and `X` are accepted. Of the characters outside American Standard Code for Information Interchange (ASCII), only the infinity sign is accepted. The empty string is rejected. Order 1 is accepted and dropped, with `1` as the trivial group | The SymmHub parser is the precedent (Section 11.1 of `docs/research/orbifold-notation.md`), and the proposal accepts only input whose meaning is unambiguous. `UNV-20` |
-| `DEC-9` | Canonical form | The feature order of [CH], cone orders descending, each boundary at its largest rotation with reversal by the rule of [CH], boundaries descending, crosscaps only when any is present, parentheses from order 10, and `(inf)` in output | No primary source defines a canonical form (`UNV-20`) |
+| `DEC-8` | Input text | Features in any order, as SymmHub accepts them, but text with two readings is rejected, such as an order after a `*` and an `o` or `x`, and a `1` directly followed by a digit, so `11` and `*11` are errors. Whitespace and the empty string are rejected. Upper-case `O` and `X` are accepted. Of the characters outside American Standard Code for Information Interchange (ASCII), only the infinity sign is accepted. An order 1 is accepted and dropped, with `1` as the trivial group. Section 4.2 of `docs/design/signature.md` states the reading rules | The SymmHub parser is the precedent (Section 11.1 of `docs/research/orbifold-notation.md`), and the proposal accepts only input whose meaning is unambiguous. `UNV-20` |
+| `DEC-9` | Canonical form | The feature order of [CH], cone orders descending with an infinite order above every finite order, each boundary at its largest rotation, boundaries descending, and every handle turned into two crosscaps when a crosscap is present, so `oox` becomes `xxxxx`. Parentheses from order 10, and `(inf)` in output. Section 7 of `docs/design/signature.md` states the algorithm, including the reversal of boundaries | No primary source defines a canonical form (`UNV-20`) |
 | `DEC-10` | Signatures with infinity | Hyperbolic when $\chi < 0$, a frieze when $\chi = 0$, and rejected when $\chi > 0$ | Recorded as `UNV-21` |
 | `DEC-11` | Domain drawn for general signatures | The assembled polygon, with a Dirichlet domain only if `M17` needs one. The design document of `escher-domain` fixes which wall the rotation subgroups double | The assembled polygon is what the port of SymmHub produces |
 | `DEC-12` | Canonical view | The centre is the normalized sum of the finite vertices. The whole disk or ball shows, with a small margin on the shorter side. The Euclidean window is fixed relative to the size of the domain | The owner decided on one canonical view centred on the domain. The centre rule and the margin are choices of this proposal |
@@ -458,7 +451,7 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-22` | Publication | `publish = false` on every crate through the proof of concept | TOOL-27, and nothing is published without the owner's go-ahead |
 | `DEC-23` | Information format | Text, covered by snapshots, and declared unstable. A machine-readable form is a roadmap item | A snapshot shows every change to the text for review |
 | `DEC-24` | Bad orbifolds | `info` exits with a non-zero status and a diagnostic | A bad orbifold corresponds to no group (Section 7.2 of `docs/research/orbifold-notation.md`) |
-| `DEC-25` | Orders | 32-bit integers, with checked exact rational arithmetic | An overflow becomes an error and no wrong value |
+| `DEC-25` | Orders | 32-bit integers, with checked exact rational arithmetic. A signature whose Euler characteristic, twice it, or the absolute value of either does not fit the `i64` over `NonZeroU64` rational type is rejected as an overflow. Section 8 of `docs/design/signature.md` states the detail | An overflow becomes an error and no wrong value |
 | `DEC-26` | `Geometry` enum | In `escher-signature` | Section 3.4 |
 | `DEC-27` | Performance budget | As Section 8, confirmed at `M3` | No published benchmark exists |
 

@@ -166,23 +166,25 @@ escher info 23
 escher --version
 ```
 
-- `escher info '*732'` prints the canonical form `*732`, hyperbolic, $\chi = -1/84$, compact, area $\pi/42$, and 0 parameters (`orbifold-notation.md` 6.1, 7.3, and 10.1).
+- `escher info '*732'` prints the canonical form `*732`, hyperbolic, $\chi = -1/84$, compact, area $\pi/42$, and deformation dimension 0 (`orbifold-notation.md` 6.1, 7.3, and 10.1).
 - `escher info '*532'` prints spherical, $\chi = 1/60$, and order 120 (`orbifold-notation.md` 6.4).
 - `escher info '4*3'` prints $\chi = -1/12$ (`orbifold-notation.md` 6.4).
-- `escher info '*3333'` prints 1 parameter (`orbifold-notation.md` 6.4 and 10.1).
-- `escher info '2*(12)'` reads the order 12 in parentheses and prints spherical and order 48, the order $4n$ of `2*n` (`orbifold-notation.md` 8.2).
-- `escher info '*22(inf)'` and the same signature with the infinity sign print Euclidean, frieze, and non-compact.
+- `escher info '*3333'` prints deformation dimension 1 (`orbifold-notation.md` 6.4 and 10.1).
+- `escher info '2*(12)'` reads the order 12 in parentheses and prints spherical and order 48, the order $4n$ of `2*n` (`orbifold-notation.md` 8.2). Without the parentheses, `escher info '2*12'` is an error.
+- `escher info '*22(inf)'` and the same signature with the infinity sign print the canonical form `*(inf)22`, Euclidean, frieze, and non-compact.
 - `escher info 23` fails with the message "bad orbifold" and a caret under the signature.
 - `escher --version` keeps printing the package name and version.
 
+Section 5 of `docs/design/cli.md` gives the exact text of each command, and its Section 6.4 gives the exact diagnostics.
+
 **Scope.** The new crate `escher-signature`. `escher-cli` gains `clap` subcommands and the `run` entry.
 
-- Parser: hand-written recursive descent over `char_indices`, with byte spans (`rust-ecosystem.md` 9.1).
+- Parser: a hand-written scanner over `char_indices`, with byte spans (`rust-ecosystem.md` 9.1).
 - Grammar: `orbifold-notation.md` 3, with parentheses for orders of 10 or more (3.4) and both spellings of infinity.
 - Euler characteristic: an exact rational by the defect rule, including the two defects of infinite order (`orbifold-notation.md` 6.1).
 - Bad orbifolds (7.2), classification (7.1), order and area (7.3), the deformation dimension of compact hyperbolic signatures (10.1), the equivalence rules 1 to 6 (4.1), and a canonical form, all in `orbifold-notation.md`.
 
-**Design documents.** `docs/design/signature.md`, and `docs/design/cli.md` with the commands, options, output format, exit status, and diagnostics. The first tests also carry the Miri policy of `DEC-5`, and Section 6 of `docs/design/architecture.md` lists the documents that change with it.
+**Design documents.** `docs/design/signature.md` specifies the crate `escher-signature`, and `docs/design/cli.md` specifies the commands, options, output format, exit status, and diagnostics of `escher-cli`. The first tests also carry the Miri policy of `DEC-5`, and Section 6 of `docs/design/architecture.md` lists the documents that change with it.
 
 **Sources.** Every item of the scope is primary in `orbifold-notation.md`, from [CH], [TH], [FG], [TG], [CBG], and [BH], except the parts that `UNV-20` and `UNV-21` name.
 
@@ -201,16 +203,17 @@ escher --version
 
 **Dependencies and `deny.toml` work.** `thiserror`, `clap`, `anyhow`, and the dev-dependencies `insta` and `proptest`. This change adds the first `[workspace.dependencies]` table.
 
-- The licences come from `cargo deny check licenses` (`rust-ecosystem.md` 18.2). The expected ones are `Apache-2.0`, which `insta` needs, possibly `MIT`, and `Unicode-3.0` for `unicode-ident` (`rust-ecosystem.md` 18.1, unverified).
+- A test resolved these dependencies on 2026-11-16. It found no crate in two versions, and `cargo deny check licenses bans` passed with the licences `Apache-2.0`, `MIT`, which `strsim` brings through `clap`, `Unicode-3.0`, which `unicode-ident` brings, and `GPL-3.0-or-later`. Section 9.2 of `docs/design/cli.md` and Section 13 of `docs/design/signature.md` record the versions and the checks.
+- In that test, the cargo-deny version in the development container did not report on dev-dependencies, so the licences, bans, and duplicates of `insta`, `proptest`, and their dependencies were not checked. The change establishes whether `just check-deny` covers dev-dependencies (Section 9.3 of `docs/design/cli.md`).
 - The change first confirms that each licence is compatible with GPL-3.0-or-later (TOOL-24). `rust-ecosystem.md` 21 records the statements on `MIT` and `Unicode-3.0` as general knowledge.
-- The expected duplicate is `syn` 2 and 3, with `proc-macro2` and `quote` (`rust-ecosystem.md` 19, "likely the first failure"). The change adds `skip` entries with reasons only if no alignment of versions removes the duplicate (TOOL-26).
+- If the change finds a duplicate, it adds `skip` entries with reasons only if no alignment of versions removes the duplicate (TOOL-26).
 - The change updates the printed `deny.toml` block and the sentences of Section 8 of the tooling design.
 
 **Risks.**
 
 - Rule 4 with a crosscap, and rule 5 (`ox` equals `xxx`, stated by [TG] and [CBG] and not by [CH]), make the canonical form subtle.
 - Degenerate inputs: `1`, `*`, `x`, and the empty string.
-- The dependency tree may need more exceptions than predicted, because every statement of `rust-ecosystem.md` 19 is unverified.
+- The dependency tree may need exceptions for the dev-dependencies, whose licences, bans, and duplicates the resolution above did not check.
 
 **Split.** The canonical form can follow as a second branch.
 
