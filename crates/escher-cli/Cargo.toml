@@ -18,7 +18,9 @@ path = "src/main.rs"
 anyhow.workspace = true
 clap.workspace = true
 escher-domain.workspace = true
+escher-render.workspace = true
 escher-signature.workspace = true
+rayon.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

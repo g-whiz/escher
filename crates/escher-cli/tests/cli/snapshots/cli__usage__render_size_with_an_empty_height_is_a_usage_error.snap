@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", \"tiling.png\", \"--size\", \"512x\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value '512x' for '--size <WIDTHxHEIGHT>': expected two decimal integers joined by x, such as 512x512
+
+For more information, try '--help'.
+--- end

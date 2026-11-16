@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"bad_orbifold\", &[\"23\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot parse orbifold signature: bad orbifold, no symmetry group has this signature
+  23
+  ^^
+--- end

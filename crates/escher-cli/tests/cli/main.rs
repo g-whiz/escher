@@ -1,9 +1,13 @@
-//! Integration tests of `escher-cli` that call `run` with in-memory streams.
+//! Integration tests of `escher-cli` that call `run` with in-memory streams, except the smoke test that starts the binary.
 
 #[cfg(test)]
 mod common;
 mod diagnostics;
 mod info;
+#[cfg(test)]
+mod process;
+#[cfg(test)]
+mod render;
 mod usage;
 
 fn assert_auto_traits<T: Send + Sync>() {}

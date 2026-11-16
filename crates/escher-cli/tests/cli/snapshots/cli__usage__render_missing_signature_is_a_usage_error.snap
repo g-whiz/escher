@@ -1,0 +1,14 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"-o\", \"tiling.png\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: the following required arguments were not provided:
+  <SIGNATURE>
+
+Usage: escher render --output <FILE> <SIGNATURE>
+
+For more information, try '--help'.
+--- end

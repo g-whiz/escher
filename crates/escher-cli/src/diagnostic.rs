@@ -64,9 +64,24 @@ pub(crate) fn report(error: &anyhow::Error, stderr: &mut dyn Write) -> Status {
 fn is_broken_pipe(error: &anyhow::Error) -> bool {
     error.chain().any(|cause| {
         cause
-            .downcast_ref::<io::Error>()
-            .is_some_and(|io_error| io_error.kind() == io::ErrorKind::BrokenPipe)
+            .downcast_ref::<StdoutError>()
+            .is_some_and(|stdout_error| stdout_error.0.kind() == io::ErrorKind::BrokenPipe)
     })
+}
+
+#[derive(Debug)]
+pub(crate) struct StdoutError(pub(crate) io::Error);
+
+impl fmt::Display for StdoutError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("cannot write to standard output")
+    }
+}
+
+impl core::error::Error for StdoutError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        Some(&self.0)
+    }
 }
 
 fn location(text: &str, error: &escher_signature::Error) -> String {

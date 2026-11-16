@@ -1,0 +1,13 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", \"tiling.png\", \"--stats\", \"--stats\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: the argument '--stats' cannot be used multiple times
+
+Usage: escher render [OPTIONS] --output <FILE> <SIGNATURE>
+
+For more information, try '--help'.
+--- end

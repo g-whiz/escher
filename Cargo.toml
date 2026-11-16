@@ -32,6 +32,7 @@ clap = { version = "4.6", default-features = false, features = [
 ] }
 escher-domain = { version = "0.1.0", path = "crates/escher-domain" }
 escher-geometry = { version = "0.1.0", path = "crates/escher-geometry" }
+escher-render = { version = "0.1.0", path = "crates/escher-render" }
 escher-signature = { version = "0.1.0", path = "crates/escher-signature" }
 glam = { version = "0.34.3", default-features = false, features = [
     "float-types",
@@ -40,6 +41,7 @@ glam = { version = "0.34.3", default-features = false, features = [
 insta = { version = "1.49", default-features = false }
 png = "0.18.1"
 proptest = { version = "1.12.0", default-features = false, features = ["std"] }
+rayon = "1.12.0"
 thiserror = "2.0.21"
 
 [workspace.lints.rust]

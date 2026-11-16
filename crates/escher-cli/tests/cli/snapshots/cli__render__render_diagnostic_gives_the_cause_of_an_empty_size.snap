@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"empty_size\", &[\"*732\", \"--size\", \"0x0\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732
+  caused by: cannot build render options: the image size 0x0 is empty
+--- end

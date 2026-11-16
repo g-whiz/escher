@@ -1,0 +1,28 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"--help\"])"
+---
+status: Success
+--- stdout
+Render the tiling of a signature in orbifold notation in the Poincare disk and write it to a PNG file
+
+Usage: escher render [OPTIONS] --output <FILE> <SIGNATURE>
+
+Arguments:
+  <SIGNATURE>  The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'
+
+Options:
+  -o, --output <FILE>           The PNG file to write. An existing file is replaced
+      --size <WIDTHxHEIGHT>     The image size in pixels, as WIDTHxHEIGHT [default: 512x512]
+      --colouring <COLOURING>   One colour for every tile, or two colours by parity [default: parity] [possible values: one, parity]
+      --colours <COLOURS>       The fill colours, separated by commas, each as #rgb or #rrggbb. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'
+      --border-width <PIXELS>   The border width in pixels. 0 draws no border [default: 1]
+      --border-colour <COLOUR>  The border colour, as #rgb or #rrggbb [default: #000000]
+      --samples <N>             The number of samples along each side of a pixel. The pixel averages N by N samples [default: 4]
+      --max-folds <N>           The largest number of folds of one sample. A sample that needs more takes the border colour [default: 1500]
+      --background <COLOUR>     The colour outside the disk, as #rgb or #rrggbb [default: #ffffff]
+      --threads <N>             The number of threads, from 1 to 256. The default is the available parallelism, at most 256
+      --stats                   Print statistics of the rendering to standard output
+  -h, --help                    Print help
+--- stderr
+--- end

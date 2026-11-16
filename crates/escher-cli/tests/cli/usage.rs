@@ -4,7 +4,7 @@ use std::os::unix::ffi::OsStringExt as _;
 
 use escher_cli::{Status, run};
 
-use crate::common::{FailingWriter, run_args, run_os, snapshot};
+use crate::common::{FailingWriter, NEVER_WRITTEN, run_args, run_os, snapshot};
 
 #[test]
 #[cfg_attr(
@@ -175,4 +175,161 @@ fn usage_error_keeps_usage_when_standard_error_fails() {
     let status = run(["escher", "draw"], &mut stdout, &mut stderr);
     assert_eq!(status, Status::Usage);
     assert_eq!(stdout, b"");
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_help_option_prints_the_help_of_render() {
+    insta::assert_snapshot!(snapshot(&["render", "--help"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_missing_signature_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&["render", "-o", NEVER_WRITTEN]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_missing_output_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&["render", "*732"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_size_without_a_height_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--size",
+        "512"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_size_with_an_empty_height_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--size",
+        "512x"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_samples_that_are_not_a_number_are_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--samples",
+        "x"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_unknown_colouring_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--colouring",
+        "three"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_zero_threads_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--threads",
+        "0"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_threads_over_the_limit_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--threads",
+        "257"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_repeated_stats_option_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--stats",
+        "--stats"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_repeated_size_option_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--size",
+        "8x8",
+        "--size",
+        "16x16"
+    ]));
 }

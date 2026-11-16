@@ -7,9 +7,10 @@
 //! short text such as `*632` that names a symmetry group of the plane, the
 //! sphere, or the hyperbolic plane. The crate `escher-domain` builds and
 //! verifies the fundamental domain of a signature, a polygon whose copies
-//! under the group tile the plane. This crate turns those results into text,
-//! diagnostics, and an exit status. Use [`run`] to call the program from Rust,
-//! such as in a test, without starting a process.
+//! under the group tile the plane, and the crate `escher-render` draws the
+//! tiling of a domain. This crate turns those results into text, an image
+//! file, diagnostics, and an exit status. Use [`run`] to call the program from
+//! Rust, such as in a test, without starting a process.
 //!
 //! The command `escher info <SIGNATURE>` prints the canonical form of the
 //! signature, its geometry, its Euler characteristic, and the values that
@@ -19,6 +20,15 @@
 //! in the signature. With the option `--check`, the command also verifies the
 //! domain, prints the result of each check, and fails when a check fails or
 //! the signature has no domain.
+//!
+//! The command `escher render --output <FILE> <SIGNATURE>` draws the tiling of
+//! the fundamental domain in the Poincare disk, a picture of the whole
+//! hyperbolic plane inside a disk. It draws on a pool of threads that it builds
+//! for the call. It writes the PNG file only after the rendering and the
+//! encoding succeed, and it replaces a file that exists. It fails for a
+//! signature without a domain. It prints nothing on standard output unless
+//! the option `--stats` is given, which prints statistics of the rendering
+//! after the file is written.
 //!
 //! ```
 //! use escher_cli::{Status, run};
@@ -47,12 +57,12 @@
 mod args;
 mod diagnostic;
 mod info;
+mod render;
 
 use std::ffi::OsString;
 use std::io::Write;
 use std::process::ExitCode;
 
-use anyhow::Context as _;
 use clap::Parser as _;
 
 use crate::args::{Cli, Command};
@@ -80,8 +90,9 @@ use crate::args::{Cli, Command};
 pub enum Status {
     /// The command wrote its output, or it printed the help or the version.
     Success,
-    /// The signature is not valid, a write to standard output failed, or the
-    /// option `--check` found a failed check or no domain to verify.
+    /// The signature is not valid, a write to standard output failed, the
+    /// option `--check` found a failed check or no domain to verify, or the
+    /// command `render` could not render the signature or write its file.
     Failure,
     /// The command line itself is wrong, such as an unknown subcommand or a
     /// missing argument.
@@ -104,8 +115,9 @@ impl From<Status> for ExitCode {
 ///
 /// Use this to run the program with streams that the caller chooses, such as a
 /// `Vec<u8>` in a test. The function writes the output to `stdout` and the
-/// diagnostics to `stderr`, and to no other stream. `args` holds the program
-/// name first, as [`std::env::args_os`] gives it. The function flushes
+/// diagnostics to `stderr`, and to no other stream. The command `render` also
+/// writes its output file. `args` holds the program name first, as
+/// [`std::env::args_os`] gives it. The function flushes
 /// `stdout` after it writes to it, and it never panics or exits the process. A
 /// failed write to `stdout` gives [`Status::Failure`], with a diagnostic on
 /// `stderr` unless the reader closed the pipe. A failed write to `stderr` is
@@ -147,6 +159,7 @@ fn run_args(args: Vec<OsString>, stdout: &mut dyn Write, stderr: &mut dyn Write)
         Command::Info { signature, check } => {
             info::info(&signature, info::Verify::from_flag(check), stdout)
         }
+        Command::Render(render_args) => render::render(&render_args, stdout),
     };
     match result {
         Ok(()) => Status::Success,
@@ -171,5 +184,5 @@ fn write_stdout(stdout: &mut dyn Write, text: &str) -> anyhow::Result<()> {
     stdout
         .write_all(text.as_bytes())
         .and_then(|()| stdout.flush())
-        .context("cannot write to standard output")
+        .map_err(|error| anyhow::Error::new(diagnostic::StdoutError(error)))
 }

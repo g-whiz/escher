@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"order_limit\", &[\"*(1001)32\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *(1001)32
+  caused by: cannot build fundamental domain: order 1001 is larger than 1000
+--- end

@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", \"tiling.png\", \"--threads\", \"0\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value '0' for '--threads <N>': 0 is not in 1..=256
+
+For more information, try '--help'.
+--- end

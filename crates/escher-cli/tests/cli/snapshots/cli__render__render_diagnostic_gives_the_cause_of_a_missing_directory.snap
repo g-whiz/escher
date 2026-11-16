@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "snapshot(&[\"render\", \"*732\", \"--size\", \"8x8\", \"--samples\", \"1\", \"-o\",\npath_text(&missing),])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot write the output file
+  caused by: No such file or directory (os error 2)
+--- end

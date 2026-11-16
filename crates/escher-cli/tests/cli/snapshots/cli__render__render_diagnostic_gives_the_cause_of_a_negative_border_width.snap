@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"negative_border\", &[\"*732\", \"--border-width=-1\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732
+  caused by: cannot build render options: the border width -1 is negative or not finite
+--- end

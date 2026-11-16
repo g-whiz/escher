@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"border_colour\", &[\"*732\", \"--border-colour\", \"red\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: --border-colour is not of the form #rgb or #rrggbb
+--- end

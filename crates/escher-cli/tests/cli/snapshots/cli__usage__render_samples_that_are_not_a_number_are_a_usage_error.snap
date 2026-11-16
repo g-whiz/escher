@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", \"tiling.png\", \"--samples\", \"x\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value 'x' for '--samples <N>': invalid digit found in string
+
+For more information, try '--help'.
+--- end

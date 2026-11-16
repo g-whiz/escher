@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"size_limit\", &[\"*732\", \"--size\", \"16385x512\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732
+  caused by: cannot build render options: the image size 16385x512 is larger than 16384 pixels on a side
+--- end

@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"one_colour\", &[\"*732\", \"--colours\", \"#e9c46a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the colouring parity needs 2 colours, and 1 was given
+--- end

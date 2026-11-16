@@ -1,5 +1,6 @@
 use std::ffi::OsString;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 use escher_cli::{Status, run};
 
@@ -31,7 +32,7 @@ pub(crate) fn snapshot(args: &[&str]) -> String {
     format!(
         "status: {:?}\n--- stdout\n{}--- stderr\n{}--- end\n",
         outcome.status,
-        without_residuals(&outcome.stdout),
+        without_statistics(&without_residuals(&outcome.stdout)),
         outcome.stderr
     )
 }
@@ -54,6 +55,48 @@ fn without_residuals(text: &str) -> String {
         }
     }
     redacted
+}
+
+fn without_statistics(text: &str) -> String {
+    let mut redacted = String::new();
+    for line in text.split_inclusive('\n') {
+        let label = ["Mean folds", "Maximum folds", "Unconverged samples", "Time"]
+            .into_iter()
+            .find(|label| line.starts_with(&format!("{label}: ")));
+        match label {
+            Some(label) => {
+                redacted.push_str(label);
+                redacted.push_str(": <value>\n");
+            }
+            None => redacted.push_str(line),
+        }
+    }
+    redacted
+}
+
+pub(crate) const NEVER_WRITTEN: &str = concat!(
+    env!("CARGO_TARGET_TMPDIR"),
+    "/",
+    env!("CARGO_PKG_NAME"),
+    "/never-written.png"
+);
+
+pub(crate) fn output_path(test: &str) -> PathBuf {
+    let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
+        .join(env!("CARGO_PKG_NAME"))
+        .join(test);
+    match std::fs::remove_dir_all(&directory) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => {
+            panic!("cannot empty the directory of the test: {error}")
+        }
+        _ => {}
+    }
+    std::fs::create_dir_all(&directory).expect("the directory of the test is created");
+    directory.join("tiling.png")
+}
+
+pub(crate) fn path_text(path: &std::path::Path) -> &str {
+    path.to_str().expect("the path of the test is UTF-8")
 }
 
 #[derive(Debug, Default)]

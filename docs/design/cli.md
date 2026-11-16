@@ -116,7 +116,7 @@ CLI-2. `run` MUST write only to the two streams it is given and to the output fi
 
 `run` returns no error. Each command returns `anyhow::Result<()>` inside the crate, and one private function writes the diagnostic of Section 6 and chooses the status. No `anyhow::Error` therefore appears in a public signature, which rule ERR-2 of `docs/rust-coding-standards.md` forbids.
 
-Every path of `run` that writes to `stdout` does so through one private helper, which writes the whole text and then flushes `stdout`, so that a write error that buffering delays still reaches the status. A path that writes nothing to `stdout` does not flush it.
+Every path of `run` that writes to `stdout` does so through one private helper, which writes the whole text and then flushes `stdout`, so that a write error that buffering delays still reaches the status. A path that writes nothing to `stdout` does not flush it. The helper wraps its `std::io::Error` in a private error type whose `Display` text is `cannot write to standard output` and whose source is that error. The diagnostic code looks for this type to tell a broken pipe on standard output from one on the output file (Section 6.6).
 
 ### 3.3. Status
 
@@ -145,7 +145,7 @@ fn main() -> std::process::ExitCode {
 }
 ```
 
-CLI-3. `main.rs` MUST hold only the call of `run` and the conversion of its status, because code in the binary runs only in a test that starts a process, and this crate has one such test, the smoke test of Section 8.1, which checks only the status and the output file of one command.
+CLI-3. `main.rs` MUST hold only the call of `run` and the conversion of its status, because code in the binary runs only in a test that starts the binary as a process, and this crate has one such test, the smoke test of Section 8.1.
 
 The binary prints nothing itself, so `main.rs` carries no lint exception for `clippy::print_stdout`, which would fail as an unfulfilled expectation.
 
@@ -277,7 +277,7 @@ The `clap` argument struct holds `--stats` as a `bool`, which `render` converts 
 | `--threads <N>` | A decimal integer from 1 to 256 | The value of `std::thread::available_parallelism`, or 1 when that function returns an error, and at most 256 |
 | `--stats` | None, a flag | Off |
 
-`clap` parses `--samples` and `--max-folds` with its parser of `u32`, `--threads` with its parser of a range of `u32` from 1 to 256, and `--border-width` with its parser of `f64`. A private parser in `args` reads `--size`. For a value of another form it returns the message `expected two decimal integers joined by x, such as 512x512`, which `clap` puts into its usage error. The value of `--output` is a `std::path::PathBuf`, so a path that is not valid UTF-8 is accepted.
+`clap` parses `--samples` and `--max-folds` with its parser of `u32`, `--threads` with its parser of a range of `u16` from 1 to 256, whose value converts to `usize` without a fallible conversion, and `--border-width` with its parser of `f64`. A private parser in `args` reads `--size`. For a value of another form it returns the message `expected two decimal integers joined by x, such as 512x512`, which `clap` puts into its usage error. The value of `--output` is a `std::path::PathBuf`, so a path that is not valid UTF-8 is accepted.
 
 A colour is `#` followed by exactly three or exactly six hexadecimal digits. The digits are ASCII `0` to `9` and `a` to `f` in either case. In the form `#rrggbb`, each pair of digits is one 8-bit sRGB channel, in the order red, green, and blue. In the form `#rgb`, each digit stands for the channel whose two digits both equal it, so `#e9c` is `#ee99cc`. Nothing is trimmed, so a colour with a space before or after it is not a colour. Every colour is opaque, and `render` has no transparent background (`DEC-7`). The colours are read by a private parser in the module `render`, with no dependency (`DEC-29`).
 
@@ -753,9 +753,9 @@ The help text and the version text hold no control character other than the line
 
 ### 6.6. Output Errors
 
-CLI-10. `run` MUST return `Failure` when a write to standard output fails, and MUST NOT write a diagnostic when the failure is a broken pipe, because a status of 0 would report output that never arrived, while a diagnostic for a closed pipe, as in `escher info '*632' | head -c0`, reports the reader's choice as an error.
+CLI-10. `run` MUST return `Failure` when a write to standard output fails, and MUST NOT write a diagnostic when that failure is a broken pipe on standard output, because a status of 0 would report output that never arrived, while a diagnostic for a closed pipe, as in `escher info '*632' | head -c0`, reports the reader's choice as an error.
 
-CLI-10 covers every write to standard output, including the help and the version text of Section 6.5. A failed flush counts as a failed write.
+CLI-10 covers every write to standard output, including the help and the version text of Section 6.5. A failed flush counts as a failed write. Only a broken pipe on standard output is silent. A broken pipe on the output file of `render`, such as a FIFO or `-o /dev/stdout` whose reader has closed, is an ordinary failed write of that file and gives the diagnostic of Section 6.8 with `Failure`.
 
 When a write to standard output fails in any other way than a broken pipe, `run` writes this diagnostic to standard error:
 
@@ -795,7 +795,7 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 | `build` returns `UnsupportedSignature` | 3 | `error: cannot render *632: rendering this signature is not supported`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
 | `build` returns any other error kind | 3 | `error: cannot render *(1001)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
 | `escher-render` rejects an option | 4 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
-| The thread pool cannot be built | 5 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `rayon` |
+| The thread pool cannot be built | 5 | `error: cannot render *732`, then `  caused by: cannot start the thread pool`, then `  caused by: ` and the `Display` text of the error of `rayon`. That text appears once, because the diagnostic takes it without the source of the error |
 | `escher-render` returns an error while rendering or encoding | 6, 7 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
 | The output file cannot be written | 8 | `error: cannot write the output file`, then `  caused by: ` and the `Display` text of the `std::io::Error` |
 
@@ -878,9 +878,9 @@ CLI-19. `info --check` MUST return `Failure` when a check fails and when the sig
 
 ### 8.1. Tests
 
-The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, `render`, `process`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. Every test outside `main.rs` and `process` calls `run` with `Vec<u8>` streams, or with a test writer that fails. The two tests in `main.rs` test `Status` alone. The one test in `process` starts the binary.
+The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, `render`, `process`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. It declares `common`, `render`, and `process` under `#[cfg(test)]`, because their helpers call `expect`, which the Clippy option `allow-expect-in-tests` accepts only in code compiled for tests. Every test outside `main.rs` and `process` calls `run` with `Vec<u8>` streams, or with a test writer that fails. The two tests in `main.rs` test `Status` alone. The one test in `process` starts the binary.
 
-A test that passes `--output` gets a path from a helper in `common`, in a directory of its own under the directory that Cargo names in `CARGO_TARGET_TMPDIR`. The helper empties that directory first, so a file from an earlier run cannot satisfy a test.
+A test that can write the output file gets a path from a helper in `common`, in a directory of its own, `CARGO_TARGET_TMPDIR/escher-cli/<test>`. The helper empties that directory first, so a file from an earlier run cannot satisfy a test. The render usage snapshots and the render status tests fail before any file access and pass the fixed path `CARGO_TARGET_TMPDIR/escher-cli/never-written.png`, which a constant in `common` holds and no test creates.
 
 The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1 or 5.3 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2 or 5.3. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`. The fold properties, the reference tests, the border oracle, the symmetric view, the golden images, and the decoding of the pixels of the PNG file of Section 5.3 belong to `escher-render`.
 
@@ -899,16 +899,18 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info`, for `info --check`, and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. For `info --check '*632'`, the failed write gives only that diagnostic and no verification diagnostic. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
 | Control characters | Failure paths | Plain test, `usage` | A usage error for an argument with control characters writes `?` in place of each of them (CLI-15) | Runs |
 | Auto traits | None | Plain test, `main.rs` | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`). The test calls a generic function whose type parameter is bounded by `Send + Sync`, so it fails to compile if `Status` loses either trait | Runs |
-| Render usage snapshots | Command line of Section 5.3 of the plan, failure paths | `insta`, `usage` | `render --help`, and for `render`: a missing signature, a missing `--output`, `--size 512`, `--size 512x`, `--samples x`, `--colouring three`, `--threads 0`, `--threads 257`, a repeated `--stats`, and a repeated `--size`. The snapshot of `--help` shows `render` among the commands, and the snapshot of `render --help` shows the usage line, the defaults, and the possible values of `--colouring` | Ignored |
+| Render usage snapshots | Command line of Section 5.3 of the plan, failure paths | `insta`, `usage` | `render --help`, and for `render`: a missing signature, a missing `--output`, `--size 512`, `--size 512x`, `--samples x`, `--colouring three`, `--threads 0`, `--threads 257`, a repeated `--stats`, and a repeated `--size`. Each of these that gives `--output` gives the fixed path that no test creates. The snapshot of `--help` shows `render` among the commands, and the snapshot of `render --help` shows the usage line, the defaults, and the possible values of `--colouring` | Ignored |
 | Render diagnostic snapshots | Command line of Section 5.3 of the plan, failure paths | `insta`, `render` | The diagnostic and status of `render 23`, `render '*632'`, `render '3*(inf)'`, `render '*(1001)32'`, three colours and one colour for `parity`, `--colours '#e9c46a,red'`, `--border-colour red`, `--background '#ffff'`, `--size 0x0`, a size over the limit, `--samples 0`, a sample grid over the limit, `--border-width=-1`, and an output path in a directory that does not exist. `--border-width=-1` uses `=`, so that `clap` reads `-1` as the value (Section 11.1) | Ignored |
 | Statistics snapshot | Command line of Section 5.3 of the plan | `insta`, `render` | The status, the statistics lines, and the empty standard error of `render '*732' --size 16x16 --samples 1 --stats`, with the values masked as CLI-28 requires. `Samples: 256` stays in the snapshot | Ignored |
 | Written file | The PNG file decodes to the requested size | Plain test, `render` | `Success`, empty standard output and standard error, and a file for `render '*732' --size 48x32 --samples 2`. The test reads the file by hand: it starts with the 8-byte PNG signature, its first chunk is `IHDR` with length 13, a width of 48 and a height of 32 as big-endian `u32` values, a bit depth of 8, and the colour type 2, which is RGB, as Section 5.6 of `docs/design/render.md` requires, and a chunk `sRGB` comes before the first `IDAT` chunk. The non-square size catches a swap of width and height | Ignored |
-| Thread independence | Command line of Section 5.3 of the plan (CLI-23) | Plain test, `render` | The files of `render '*732' --size 64x64 --samples 2` with `--threads 1` and with `--threads 4` are equal byte for byte | Ignored |
+| Thread independence | Command line of Section 5.3 of the plan (CLI-23) | Plain test, `render` | The files of `render '*732' --size 64x64 --samples 2` with `--threads 1` and with `--threads 4` are equal byte for byte, and both equal the PNG bytes that `escher-render` encodes from one call of `render` on the whole image with the same options. The second comparison catches bands that are assembled in the wrong order, which gives the same wrong bytes for every number of threads | Ignored |
+| Global pool unused | Command line of Section 5.3 of the plan (CLI-22) | Plain test, `render` | After `render '*732' --size 8x8 --samples 1` returns `Success`, building the global pool of `rayon` still succeeds, so `render` did not use the global pool. The test relies on nextest running each test in a process of its own | Ignored |
 | Output file handling | Failure paths (CLI-21, `DEC-30`) | Plain tests, `render` | An existing file at the output path is replaced by the image. An output path that is a symbolic link to a file gives the image in that file and stays a link (Section 11.1). For `render '*632'`, for `--size 0x0`, and for a bad colour, an existing file keeps its bytes and a missing path stays missing | Ignored |
-| Render output errors | Failure paths | Plain tests, `render` | With `--stats`, a writer that fails with a broken pipe gives `Failure` and empty standard error, and the output file is written. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6 | Ignored |
-| Render status tests | Failure paths | Plain tests, `render` | `Failure` and the first line of standard error for `render '*632'`, for two colours for `one`, for `--colours '#e9c46a,red'`, and for `--size 0x0`, and `Usage` for a missing `--output`. Each fails before step 5, so it starts no thread pool and writes no file | Runs |
+| Render output errors | Failure paths | Plain tests, `render` | With `--stats`, a writer that fails with a broken pipe gives `Failure` and empty standard error, and the output file is written. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6. For a broken pipe on the output file, the test makes a FIFO with `mkfifo` in its test directory, a reader thread opens the FIFO and closes it at once, and `render '*732' --size 1024x1024 --samples 1` writes into it. It asserts `Failure`, empty standard output, and a standard error of exactly `error: cannot write the output file`, then `  caused by: Broken pipe (os error 32)` | Ignored |
+| Render status tests | Failure paths | Plain tests, `render` | `Failure` and the first line of standard error for `render '*632'`, for two colours for `one`, for `--colours '#e9c46a,red'`, and for `--size 0x0`, and `Usage` for a missing `--output`. Each fails before step 5, so it starts no thread pool and writes no file. Outside Miri, each test that gives `--output` removes any file at the fixed path first and asserts afterwards that no file exists there | Runs |
 | Colour parser | Failure paths | Unit tests in `render.rs` | The private parser reads `#e9c46a`, `#E9C46A`, and `#e9c` as the channels that Section 4.6 gives, and rejects `e9c46a`, `#`, `#e9c4`, `#e9c46a0`, `#ggg`, an empty string, a colour with a space before or after it, and a colour with a non-ASCII digit. The private function that splits `--colours` reports the position of the first bad item, and the text of the wrong count uses `1 colour` and `1 was given` for the number 1 | Runs |
 | Statistics text | Command line of Section 5.3 of the plan | Unit tests in `render.rs` | The private formatter, given counts as plain integers and a time, writes the five lines of Section 4.7: `10.01` for 1001 folds over 100 inside samples, `0.00` for no inside sample, a correct mean for `u64::MAX` folds, and `0.315` for a time of 0.3154 seconds | Runs |
+| Thread pool diagnostic | Failure paths | Unit test in `render.rs` | The private function that builds the error of a failed thread pool, given a stand-in error whose `Display` text is that of its inner `std::io::Error`, which is also its source, gives the diagnostic `error: cannot render *732`, then `  caused by: cannot start the thread pool`, then `  caused by: no thread can be started`, with the cause once. A stand-in is needed because the error type of `rayon` has no public constructor | Runs |
 | Smoke test | One process-level smoke test of the binary | Plain test, `process` | The binary that Cargo names in `CARGO_BIN_EXE_escher`, run with `render '*732' --size 32x32 -o <path>`, exits with status 0, writes nothing to standard output or standard error, and writes a file that starts with the PNG signature | Ignored |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 
@@ -942,7 +944,7 @@ A snapshot of `render` holds no path, because no diagnostic and no statistics li
 
 Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency. Likewise, the snapshots of the `Domain` line cover the `UnsupportedSignature` and `LimitExceeded` texts of `escher-domain`. The render diagnostic snapshots cover the texts of the error kinds of `escher-render` that an option produces.
 
-The smoke test is the one test of this crate that starts a process, as layer 9 of Section 7.1 of `docs/design/architecture.md`. It checks only that the binary runs `run` and turns its status into the exit status, because every other behaviour is tested in the test process.
+The smoke test is the one test of this crate that starts the binary, as layer 9 of Section 7.1 of `docs/design/architecture.md`. It checks only that the binary runs `run` and turns its status into the exit status, because every other behaviour is tested in the test process.
 
 The test "Written file" reads the PNG header by hand, so this crate needs no `png` dependency. The tests of `escher-render` decode the image with `png` and compare its pixels (Section 8 of `docs/design/render.md`).
 
@@ -993,7 +995,7 @@ Every test of `render` that reaches step 5 of Section 4.5 starts the thread pool
 
 CLI-27. Every test that reaches the thread pool MUST carry `#[cfg_attr(miri, ignore = "the thread pool library fails the checks of the interpreter")]`, unless it already carries the attribute of a snapshot test, because without it `just check-miri` fails on a defect that is outside this crate and that the owner has accepted.
 
-The smoke test carries `#[cfg_attr(miri, ignore = "the interpreter cannot start a process")]`. The tests "Output file handling" that fail before step 5 still create and read files, which the isolation of Miri refuses, so they carry `#[cfg_attr(miri, ignore = "the interpreter refuses file access")]`. The tests "Render status tests" fail before step 5 and touch no file, so they run under Miri. They build the domain of `*732` in the interpreter, as the plain tests of `info` do.
+The smoke test carries `#[cfg_attr(miri, ignore = "the interpreter cannot start a process")]`. The tests "Output file handling" that fail before step 5 still create and read files, which the isolation of Miri refuses, so they carry `#[cfg_attr(miri, ignore = "the interpreter refuses file access")]`. The test of a broken pipe on the output file reaches the thread pool and also starts the process `mkfifo`. It carries the attribute of CLI-27, because a test carries only one `ignore` attribute. The tests "Render status tests" fail before step 5, so they run under Miri, and they pass under `just check-miri`. Under `cfg!(miri)` they skip the removal of a stale file and the check that no file exists, because the isolation of Miri refuses file access. They build the domain of `*732` in the interpreter, as the plain tests of `info` do.
 
 ## 9. Dependencies
 
@@ -1064,6 +1066,8 @@ An adversarial test resolved the dependencies of `render` on 2026-11-16 in a pro
 - `csscolorparser` 0.9.1 with its default features brought `syn` 2 through `phf_macros`, beside the `syn` 3 of the workspace, and failed the ban on duplicate versions. Without its default features it passed, but read no colour name.
 - `palette` 0.7.7 brought `syn` 2 through `palette_derive` with its default features, with `std` alone, and with `libm` alone, and failed the ban on duplicate versions each time.
 
+With `escher-render` and `rayon` in the package, the lock file of the workspace on 2026-11-16 holds `rayon` 1.12.0, `rayon-core` 1.13.0, `crossbeam-deque` 0.8.8, `crossbeam-epoch` 0.9.21, `crossbeam-utils` 0.8.23, and `either` 1.19.0, and keeps `flate2` at 1.1.9. On that date `cargo tree -d --target all` printed no duplicate version, and `just check-deny`, `just check-msrv`, and `just check-features` passed, with no licence added to `deny.toml`.
+
 The owner chose a parser of the project's own for colours (`DEC-29`). Section 9 of `docs/design/render.md` records the resolution of `png` and the dependencies that `escher-render` brings into the binary.
 
 ### 9.3. Dependency Risks
@@ -1096,13 +1100,14 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 - The infinity sign takes one column in the terminal. Unicode gives it an ambiguous East Asian width, so a terminal that renders such characters as wide shifts the caret one column to the right for each infinity sign before the span.
 - With its features `env` and `wrap_help` off, `clap` reads no environment variable, so the output does not depend on the environment. A reading of the source of `clap_builder` 4.6.7 on 2026-11-16 found that it reads the environment only in `Arg::env`, which needs the feature `env`, and for `COLUMNS` and `LINES`, which need the feature `wrap_help`. No run has confirmed this.
 - The residual of a passed check can differ in its last digits between platforms, which is why Section 8.1 replaces it in the snapshots. No run on two platforms has measured this. The replacement is safe either way.
-- With the default actions of its derive API, `clap` rejects a flag or an option that is given more than once. The tests "Usage snapshots" and "Render usage snapshots" check this with a repeated `--check`, a repeated `--stats`, and a repeated `--size`.
-- `clap` reads the value of `--border-width=-1` as `-1`, although it starts with `-`. The test "Render diagnostic snapshots" checks this.
-- `clap` generates the usage line of `render` that Section 4.1 gives, and the text `[default: <value>]` and `[possible values: one, parity]` in its help. The test "Render usage snapshots" checks this with the snapshot of `render --help`.
+- With the default actions of its derive API, `clap` rejects a flag or an option that is given more than once. The tests "Usage snapshots" and "Render usage snapshots" confirm this: a repeated `--check`, a repeated `--stats`, and a repeated `--size` each give a usage error.
+- `clap` reads the value of `--border-width=-1` as `-1`, although it starts with `-`. The test "Render diagnostic snapshots" confirms this: its snapshot holds the diagnostic that the border width -1 is negative or not finite.
+- `clap` generates the usage line of `render` that Section 4.1 gives, and the text `[default: <value>]` and `[possible values: one, parity]` in its help. The test "Render usage snapshots" confirms this with the snapshot of `render --help`.
 - `rayon` reads the environment variable `RAYON_NUM_THREADS` only for a pool whose builder sets no number of threads, so it has no effect on the pool of `render`, which always sets one. No reading of the source of `rayon-core` and no run has confirmed this, and no test can, because the output does not depend on the number of threads (CLI-23). An error here changes only the number of threads that a call starts.
-- `std::fs::write` follows a symbolic link at the path, as the documentation of `std::fs::File::create` states. The test "Output file handling" checks this with a link to a file in its own directory.
-- The PNG header that the test "Written file" reads has the layout of the PNG specification: the 8-byte signature, then the `IHDR` chunk with its length, its type, the width, the height, the bit depth, and the colour type. No document under `docs/research/` cites the specification, and the test checks the bytes that `escher-render` writes, which its own tests decode with `png`.
+- `std::fs::write` follows a symbolic link at the path, as the documentation of `std::fs::File::create` states. The test "Output file handling" confirms this: through a link to a file in its own directory, the image is written to that file, and the link stays a link.
+- The PNG header that the test "Written file" reads has the layout of the PNG specification: the 8-byte signature, then the `IHDR` chunk with its length, its type, the width, the height, the bit depth, and the colour type. No document under `docs/research/` cites the specification. The test passes on the bytes that `escher-render` writes, which its own tests decode with `png`, so the layout that it reads agrees with the layout that `png` writes.
 - The fold counts can differ between platforms (Section 8.1). No run on two platforms has measured this. The masking of CLI-28 is safe either way.
+- A write to a FIFO whose reader has closed fails with the error kind `BrokenPipe`, and does not end the process, because Rust ignores the signal `SIGPIPE` (Section 6.6). The test of a broken pipe on the output file in "Render output errors" confirms this. The assumption holds only while the PNG file is larger than the buffer of the pipe, 64 KiB by default on Linux, because a smaller file fits in the buffer and its write succeeds. The test therefore renders 1024 by 1024 pixels, which gives a PNG file of about 160 KB.
 
 ### 11.2. Choices of This Design
 
@@ -1117,7 +1122,7 @@ These choices are made here, and no other document dictates them:
 7. The format of the area, such as `2pi/3`.
 8. The diagnostic format: the bound of 120 characters, `?` for each unsafe character, and the byte range for a longer argument.
 9. Three statuses, with one status for every signature error (Section 7).
-10. A failed write to standard output, including the help and the version text, gives `Failure`, and a broken pipe gives no diagnostic (Section 6.6).
+10. A failed write to standard output, including the help and the version text, gives `Failure`, and a broken pipe on standard output gives no diagnostic (Section 6.6).
 11. Snapshots live only in this crate, with one snapshot for each `run` call.
 12. No recipe wraps `cargo insta`.
 13. The help, version, and usage text of `clap` has each control character other than the line feed replaced with `?` (Section 6.5).
@@ -1181,7 +1186,7 @@ The limits of `escher-render` bound memory, but at their maximum values together
 
 ## 13. Operational Considerations
 
-The crate declares no Cargo feature and has no build script, so no environment variable affects the build. At run time the crate reads no environment variable, and, under the assumption of Section 11.1, `RAYON_NUM_THREADS` does not affect the pool of `render`. The snapshot tests read the variables of Section 8.2, which Section 14.2 of `docs/design/tooling.md` lists. The tests that write files use the directory of `CARGO_TARGET_TMPDIR`, which Cargo sets for an integration test, and the smoke test uses the binary of `CARGO_BIN_EXE_escher`.
+The crate declares no Cargo feature and has no build script, so no environment variable affects the build. At run time the crate reads no environment variable, and, under the assumption of Section 11.1, `RAYON_NUM_THREADS` does not affect the pool of `render`. The snapshot tests read the variables of Section 8.2, which Section 14.2 of `docs/design/tooling.md` lists. The tests that write files use the directory `CARGO_TARGET_TMPDIR/escher-cli`, where Cargo sets `CARGO_TARGET_TMPDIR` for an integration test, and the smoke test uses the binary of `CARGO_BIN_EXE_escher`.
 
 The supported platform is Linux. The minimum supported Rust version is the one that Technology Decisions of `AGENTS.md` states, and the dependencies need no later version (Section 9.2).
 
@@ -1229,7 +1234,7 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-7 | 5.4 | A change to the information text updates its snapshots in the same change. |
 | CLI-8 | 6.1 | Every diagnostic goes to standard error. |
 | CLI-9 | 6.2 | The echo line replaces unsafe characters with `?` and holds at most 120 characters. |
-| CLI-10 | 6.6 | A failed write to standard output gives `Failure`, with no diagnostic for a broken pipe. |
+| CLI-10 | 6.6 | A failed write to standard output gives `Failure`, with no diagnostic for a broken pipe on standard output. |
 | CLI-11 | 7 | Every signature error, including a bad orbifold, gives `Failure`. |
 | CLI-12 | 8.2 | No recipe, hook, or workflow sets `INSTA_FORCE_PASS`. |
 | CLI-13 | 8.3 | Every test that uses `insta` is ignored under Miri with a reason. |

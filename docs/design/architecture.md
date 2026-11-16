@@ -332,10 +332,12 @@ TEST-14 in Section 11 of `docs/rust-coding-standards.md` states the general rule
 
 ## 8. Performance
 
-This section is non-normative. No published benchmark of a tiling renderer on the central processing unit (CPU) was found (Section 11 of `docs/research/rendering.md`). The expectations are therefore assumptions, to be confirmed at `M3`:
+This section is non-normative. No published benchmark of a tiling renderer on the central processing unit (CPU) was found (Section 11 of `docs/research/rendering.md`). The design therefore rests on these expectations:
 
 - The default image, 512 by 512 pixels with a 4 by 4 sample grid of a compact hyperbolic triangle group, renders in about one second on all cores.
 - The cost is proportional to pixels times samples times the mean number of folds times the number of sides.
+
+The default image of `*732` meets the first expectation in a release build, on all cores and on one thread. No measurement covers the second expectation, so it remains an assumption.
 
 The output of `--stats` is the measurement, read by hand in the development container. No test asserts a time. Measured numbers go into commit messages and not into design documents (Section 3.6 of `docs/writing-documentation.md`).
 

@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"non_compact\", &[\"3*(inf)\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 3*(inf): rendering this signature is not supported
+  caused by: cannot build fundamental domain: the signature 3*(inf) is not supported
+--- end

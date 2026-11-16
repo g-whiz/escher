@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"colour_name\", &[\"*732\", \"--colours\", \"#e9c46a,red\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb
+--- end

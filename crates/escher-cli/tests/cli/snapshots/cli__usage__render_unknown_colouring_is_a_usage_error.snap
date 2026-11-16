@@ -1,0 +1,12 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", \"tiling.png\", \"--colouring\", \"three\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value 'three' for '--colouring <COLOURING>'
+  [possible values: one, parity]
+
+For more information, try '--help'.
+--- end

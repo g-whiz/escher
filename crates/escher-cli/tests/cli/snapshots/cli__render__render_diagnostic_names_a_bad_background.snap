@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"background\", &[\"*732\", \"--background\", \"#ffff\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: --background is not of the form #rgb or #rrggbb
+--- end
