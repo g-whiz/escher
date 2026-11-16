@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The order of work of the proof of concept, from the first crate to the completion audit |
 
 ## Abstract
@@ -55,9 +55,10 @@ This document uses the terms that Section 2.2 of `docs/writing-documentation.md`
 - research prerequisite: A design branch, labelled `RP-1` to `RP-5`, that adds to a research document what a milestone needs before its code can start (Section 4).
 - unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-28` (Section 7).
 - stage: One of the three stages of the owner's staging (Section 3.2).
-- proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`.
+- proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`. Section 10.1 of that document states the defaults that the owner has decided, which keep their labels.
 - reference arithmetic: The independent high-precision implementation of a few formulas inside a test suite, which Section 7 of `docs/design/architecture.md` defines.
 - golden image: The committed reference image of a rendering test, which Section 7 of `docs/design/architecture.md` defines.
+- general non-compact signature: A valid signature with an infinite order that is none of the 7 friezes, the triangle groups with ideal corners, and their rotation subgroups, which Section 2.1 of `docs/design/architecture.md` defines.
 - corpus: The set of signatures that a test runs over, such as the showcase signatures of SymmHub.
 - exhaustive certificate: The test of a finite group that Section 5.5 defines.
 - fold: The per-pixel loop that maps a point into the fundamental domain, as Section 4.1 of `rendering.md` describes it.
@@ -89,7 +90,7 @@ Hard Rule 15 of `AGENTS.md` bars project documents and milestone wording from co
 
 ### 3.2. Staging
 
-The owner decided to stage the proof of concept and to end it with the full notation. It is complete only when any valid signature renders. The stages are these:
+The owner decided to stage the proof of concept and to end it with the full notation. It is complete only when every valid signature renders, except the general non-compact signatures, which `DEC-19` of `docs/design/architecture.md` moves to the roadmap. The stages are these:
 
 | Stage | Owner's scope | Milestones |
 | --- | --- | --- |
@@ -97,7 +98,7 @@ The owner decided to stage the proof of concept and to end it with the full nota
 | 2 | All 17 Euclidean and all 14 spherical groups | M10, completed by M11 |
 | 3 | General hyperbolic signatures, including handles and crosscaps, by porting the SymmHub pipeline, which is under the MIT licence | M15, completed for compact signatures by M16, with M17 |
 
-The other milestones carry the owner's decisions on colourings (M7, M8), models (M12), borders (M13), and antialiasing (M14). The parser accepts signatures with infinite orders from M1, and rendering them is the late milestone M18. M19 checks the completion criterion.
+The other milestones carry the owner's decisions on colourings (M7, M8), models (M12), borders (M13), and antialiasing (M14). The parser accepts signatures with infinite orders from M1. Rendering the friezes and the triangle groups with ideal corners is the late milestone M18, and M19 checks the completion criterion.
 
 ### 3.3. Planning Documents
 
@@ -126,7 +127,7 @@ The column "Depends on" names the milestones and research prerequisites whose re
 | M15 | General hyperbolic signatures I | Cone points and mirrors, such as `4*3` and `2223` | `escher-domain` | M8, M9, RP-3 |
 | M16 | General hyperbolic signatures II | Handles, crosscaps, several boundaries | `escher-domain` | M15 |
 | M17 | Robust reduction for general domains | `--stats` reports no unconverged sample away from the rim | `escher-domain`, `escher-render` | M16 |
-| M18 | Infinite-order points | Friezes and ideal vertices | `escher-domain`, `escher-render` | M10, M16, RP-4 |
+| M18 | Infinite-order points | Friezes, and triangle groups with ideal corners | `escher-domain`, `escher-render` | M10, M16, RP-4 |
 | M19 | Completion audit | None | All six | M18 |
 
 ## 4. Research Prerequisites
@@ -138,8 +139,10 @@ The research documents hold no step-level description of Todd-Coxeter coset enum
 | RP-1 | A step-level account of Todd-Coxeter coset enumeration and of the low-index subgroup search | `colourings.md` 7 | The `low_index` paper, the manual of Groups, Algorithms, Programming (GAP), and a line-level reading of SymmHub's `lib/sublib/src/sublib_core.js`. `symmhub.md` 17 item 8 records that the `Subgroup*.js` files were not read line by line | M7 |
 | RP-2 | The geometry of the functions of SymmHub's `lib/orbilib/WallpaperGroups_NonNegative.js`, of which the research holds little beyond names | `fundamental-domains.md` 9.5 and 9.6, and `symmhub.md` 7.1 | SymmHub source code | M10, M11 |
 | RP-3 | `atomizeOrbifold`, the twelve `unfoldAtom` cases, the weld, the walls, and `produceGenerators` at line level (gap G4) | `fundamental-domains.md` 8, and `symmhub.md` 6 | SymmHub source code | M15. Its sheet and slice part comes before M9 |
-| RP-4 | `Group_Frieze` and the ideal cases | `fundamental-domains.md` and `symmhub.md` | SymmHub source code | M18 |
+| RP-4 | `Group_Frieze`, and the ideal corners of the triangle groups and their rotation subgroups that M18 renders | `fundamental-domains.md` and `symmhub.md` | SymmHub source code | M18 |
 | RP-5 | What [CH] pp. 255 to 257 states for a boundary without corners (`orbifold-notation.md` 12 item 14), and the clearing of the rows of `source-requests.md` 7, "Obtained Since" | `orbifold-notation.md` 9.1 and 12, and `source-requests.md` | [CH], which is held locally | No milestone. It may run at any time |
+
+The research on the general non-compact signatures is not a prerequisite of any milestone. It is a deep-research item of Section 5 of `docs/design/roadmap.md`.
 
 ## 5. Milestones
 
@@ -179,7 +182,7 @@ escher --version
 - Euler characteristic: an exact rational by the defect rule, including the two defects of infinite order (`orbifold-notation.md` 6.1).
 - Bad orbifolds (7.2), classification (7.1), order and area (7.3), the deformation dimension of compact hyperbolic signatures (10.1), the equivalence rules 1 to 6 (4.1), and a canonical form, all in `orbifold-notation.md`.
 
-**Design documents.** `docs/design/signature.md`, and `docs/design/cli.md` with the commands, options, output format, exit status, and diagnostics. The Miri policy (`DEC-5`) lands with the first tests, in Section 4 of the tooling design and Section 11 of the coding standard, for the reason that Section 6 of `docs/design/architecture.md` gives.
+**Design documents.** `docs/design/signature.md`, and `docs/design/cli.md` with the commands, options, output format, exit status, and diagnostics. The first tests also carry the Miri policy of `DEC-5`, and Section 6 of `docs/design/architecture.md` lists the documents that change with it.
 
 **Sources.** Every item of the scope is primary in `orbifold-notation.md`, from [CH], [TH], [FG], and [TG].
 
@@ -225,7 +228,7 @@ escher info --check '*732'
 - `escher info '*732'` adds a domain summary: three mirror sides, the corner angles, the side lengths, and the area, equal to $-2\pi\chi$ (`orbifold-notation.md` 7.3).
 - `escher info --check '*732'` prints the result of the verification.
 
-**Scope.** The new crate `escher-geometry`, with the vector types, the hyperbolic module, and the disk map in both directions. The new crate `escher-domain`, with the compact `*pqr` for $1/p + 1/q + 1/r < 1$.
+**Scope.** The new crate `escher-geometry`, with the `glam` types of `DEC-4` and the free functions of the conventions over them (Section 5.1 of `docs/design/architecture.md`), the hyperbolic module, and the disk map in both directions. The new crate `escher-domain`, with the compact `*pqr` for $1/p + 1/q + 1/r < 1$.
 
 - Construction: the side lengths from the angles, the vertices placed with the boost and rotation of [KC24], and each wall normal as the unit vector orthogonal to its two vertices.
 - `verify()` checks the isometry condition, the Coxeter relators numerically, the angle sum, and the area.
@@ -253,12 +256,15 @@ escher info --check '*732'
 - Primary numeric checks for $\{7, 3\}$ from Table 2 and equations 24 and 29 of [HT]: $h = 1.090550$ and $r_0 = 0.300743$ (`geometry-models.md` 10.4), through the split of the polygon into $2p$ right triangles (`geometry-models.md` 10.1).
 - Properties: for random admissible triples, the relators hold, the inverse equals $J M^{t} J$, and the disk map round-trips.
 
-**Dependencies and `deny.toml` work.** The reference-arithmetic dev-dependency (`DEC-3`).
+**Dependencies and `deny.toml` work.** `glam` (`DEC-4`) for `escher-geometry` and `escher-domain`, and the reference-arithmetic dev-dependency `astro-float` (`DEC-3`). Each is declared once in `[workspace.dependencies]` (DEP-2).
 
-- With `astro-float`, under `MIT`, there is no native build.
-- With `rug`, the change adds `LGPL-3.0-or-later`, a C toolchain in the container image (TOOL-9, TOOL-28), and the exclusion of its tests from Miri. CI caches nothing, so the native build would repeat in every job (Section 6 of `docs/design/architecture.md`).
+- `glam` is under `MIT OR Apache-2.0`, and `astro-float` under `MIT` (`rust-ecosystem.md` 6, 12, and 18.1). The change confirms with `cargo deny check licenses` that the allow-list covers both, and adds a licence only where the check reports one (TOOL-24).
+- `glam` has no default dependencies, and its types `DVec2`, `DVec3`, and `DMat3` come from its feature `float-types`, which is on by default (`rust-ecosystem.md` 6). `rust-ecosystem.md` 19 lists no duplicate version for `glam` or `astro-float`.
+- `glam` is a public dependency of `escher-geometry` and `escher-domain` under rule DEP-3, with the obligations that Section 3.5 of `docs/design/architecture.md` states.
+- `astro-float` needs no native build (`rust-ecosystem.md` 12).
+- The change updates Section 8 of the tooling design for every change to `deny.toml`.
 
-**Risks.** Slips in the conventions, precision at very large orders, and the maturity of the reference crate (`UNV-25`).
+**Risks.** Slips in the conventions, precision at very large orders, and the maturity of the reference crate (`UNV-25`). `glam` uses single instruction, multiple data (SIMD) intrinsics internally, and its feature `scalar-math` disables them (`rust-ecosystem.md` 6). The research does not record whether that code runs under Miri.
 
 ### 5.3. M3: First Image
 
@@ -317,7 +323,7 @@ escher render '*732' -o tiling.png
 
 The performance expectation of Section 8 of `docs/design/architecture.md` is confirmed here (`DEC-27`).
 
-**Dependencies and `deny.toml` work.** `png`, `palette` without default features, `rayon`, and `csscolorparser`.
+**Dependencies and `deny.toml` work.** `png`, `palette` without default features, `rayon`, and `csscolorparser`. `escher-render` also declares `glam` from the workspace entry of M2, which adds no licence.
 
 - Predicted duplicates: `miniz_oxide` 0.8 and 0.9, and `phf` 0.13 and 0.14 (`rust-ecosystem.md` 19, both unverified). `cargo tree -d` decides between a choice of features, a pin, or a `skip` with a reason.
 - New licences are added only as cargo-deny reports them.
@@ -683,7 +689,7 @@ escher render 2223 --set tube1.twist=0.2 -o twist.png
 
 **Scope.** A port of the normalization, atomization, unfolding, assembly, and generators (`fundamental-domains.md` 8, `symmhub.md` 6 and 8.1). The combinatorics and the scalar formulas are ported. The layout and the generators are rebuilt from linear isometries, so circles and complex numbers appear only where a formula cannot be restated. Prerequisite RP-3.
 
-**Design documents.** An extension of `domain.md`. The MIT notice (`DEC-18`) is decided first.
+**Design documents.** An extension of `domain.md`. The first code branch that ports SymmHub code adds the MIT notice in the places that `DEC-18` names.
 
 **Sources.** The classes are code only (`fundamental-domains.md` 3 and 13.1). The sourced parts are the deformation dimension (Corollary 13.3.7 of [TH]), the orientable generators of [MASKIT2001] (`fundamental-domains.md` 7) as a cross-check for signatures without mirrors, and the presentations of [CH].
 
@@ -752,7 +758,7 @@ escher render 23x --set cap1.length=1.5 -o cap.png
 
 ### 5.18. M18: Infinite-Order Points, Friezes and Ideal Vertices
 
-**Goal.** Rendering of signatures with infinite orders.
+**Goal.** Rendering of the friezes and of the triangle groups with ideal corners.
 
 **Command line.** These commands illustrate the milestone:
 
@@ -761,31 +767,32 @@ escher render '*22(inf)' -o frieze.png
 escher render '*23(inf)' -o ideal.png
 ```
 
-**Scope.** Three parts:
+**Scope.** Two parts:
 
 1. The 7 friezes (`orbifold-notation.md` 8.3).
 2. Triangle groups with ideal corners and their rotation subgroups (Sections 4.4 and 5.9 of [MASKIT2001], `fundamental-domains.md` 4.4 and 7.6, and SymmHub's ideal triangle, `geometry-models.md` 7.6.5).
-3. General signatures with infinite orders.
+
+The general non-compact signatures are outside the proof of concept and are a workstream of `docs/design/roadmap.md` (`DEC-19` of `docs/design/architecture.md`). The research records no implementation for them, because SymmHub's orbifold parser has no infinite order (`symmhub.md` 4.2), and the only sourced material is Maskit's cusps for orientable signatures (`fundamental-domains.md` 7).
 
 **Design documents.** Extensions of `domain.md` and `render.md`. Prerequisite RP-4.
 
-**Sources.** The sources of part 2. For part 3 the research records no implementation at all, because SymmHub's orbifold parser has no infinite order (`symmhub.md` 4.2). The sourced material is Maskit's cusps for orientable signatures.
+**Sources.** The sources named in part 2, the frieze list of `orbifold-notation.md` 8.3, and SymmHub's `Group_Frieze` as RP-4 records it.
 
-**Unverified statements relied on.** `UNV-23`, `UNV-21`, `UNV-5` (ideal reflection polygons with more than three sides), and `UNV-26` (conversions into the linear model).
+**Unverified statements relied on.** `UNV-23` for the fold near an ideal vertex (Section 9.5 of `docs/design/architecture.md`), `UNV-21` for the geometry of the triangle signatures with an infinite order, and `UNV-26` for the conversions into the linear model.
 
-**Tests and acceptance.** The parabolic cycle condition in `verify()` (item 5 of `fundamental-domains.md` 4.8). Samples near an ideal point reach the cap and take the colour that `DEC-7` of `docs/design/architecture.md` gives to samples at the cap. Golden images.
+**Tests and acceptance.** The parabolic cycle condition in `verify()` (item 5 of `fundamental-domains.md` 4.8). Samples near an ideal point reach the cap and take the colour that `DEC-7` of `docs/design/architecture.md` gives to samples at the cap. Golden images. A test that `escher render` rejects a general non-compact signature as Section 5.8 of `docs/design/architecture.md` states, with an `insta` snapshot of the diagnostic.
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Part 3 is research-grade. The owner's completion criterion keeps it in the proof of concept, and `DEC-19` proposes only that the owner may move general non-compact signatures to the roadmap if RP-4 finds no construction. Until the owner decides, the plan keeps part 3.
+**Risks.** No source establishes that the fold applies at an ideal vertex (`UNV-23`), so the images near an ideal corner depend on the behaviour at the fold cap.
 
 ### 5.19. M19: Completion Audit
 
-**Goal.** Any valid signature renders.
+**Goal.** Every valid signature renders, except the general non-compact signatures (`DEC-19`).
 
 **Command line.** No new capability.
 
-**Scope.** A property test that generates valid signatures up to a size bound and renders each at a small size without error. The snapshot corpus of `info`. The reconciled list of unverified statements across the design documents. The final usage in `README.md`, and Project Status in `AGENTS.md`.
+**Scope.** A property test that generates valid signatures up to a size bound. It renders each signature that is not general non-compact at a small size without error, and checks that `render` rejects each general non-compact signature as Section 5.8 of `docs/design/architecture.md` states. The snapshot corpus of `info`. The reconciled list of unverified statements across the design documents. The final usage in `README.md`, and Project Status in `AGENTS.md`.
 
 **Design documents.** Every crate design document, for the reconciled list of unverified statements.
 
@@ -821,7 +828,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-2 | The same fold terminates for general side pairings and domains that are not convex | `rendering.md` 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M15 to M17 | A source, a change to Voight's rule, or Lean |
 | UNV-3 | Behaviour on or near a wall | `rendering.md` 13.1 item 2 | M3 on | Tests. No source is known |
 | UNV-4 | Growth of the fold count, the reading of the exponents, and the limits of precision | `rendering.md` 13.1 items 5 and 6, `geometry-models.md` 15.1 item 10 | M3 defaults | The body of [FWW], and measurement |
-| UNV-5 | The polygon theorem with reflections mixed with other pairings, glide cycles, mirror corners beside paired sides, and ideal reflection polygons | `fundamental-domains.md` 4.7, gap G1 | M6, M7, M10, M11, M15, M16, M18 | [EPSTEIN-PETRONIO1994], Theorem 11.2.2 of [RATCLIFFE], Theorem 9.8.4 of [BEARDON] |
+| UNV-5 | The polygon theorem with reflections mixed with other pairings, glide cycles, mirror corners beside paired sides, and ideal reflection polygons with more than three sides | `fundamental-domains.md` 4.7, gap G1 | M6, M7, M10, M11, M15, M16 | [EPSTEIN-PETRONIO1994], Theorem 11.2.2 of [RATCLIFFE], Theorem 9.8.4 of [BEARDON] |
 | UNV-6 | The generalized law of cosines with truncated vertices, and the pillow and hat formulas | `fundamental-domains.md` 8.7, 8.8, and 13.3 item 1, gap G3 | M9, M15, M16 | [BUSER], Section 3.5 of [RATCLIFFE] |
 | UNV-7 | Deaton's cut rules, the twelve atoms, and the twist in three situations | Gap G4, `fundamental-domains.md` 13.3 items 4 and 5 | M9, M15, M16 | [DEATON1993] |
 | UNV-8 | The cap generator is a glide reflection consistent with a polygon theorem | Gap G2, `fundamental-domains.md` 13.3 item 2 | M10, M16 | [CHOI2012], [BUSER] |
@@ -839,7 +846,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-20 | Text conventions and the canonical form | `orbifold-notation.md` 12 items 1 to 4 | M1, M11 | [CBG], [BH], or else a project convention |
 | UNV-21 | Geometry and parameters of non-compact signatures with $\chi \ne 0$ | `orbifold-notation.md` 12 item 15 | M1, M18 | A source |
 | UNV-22 | The Conway presentation for a boundary without corners, the NEC dictionary, and the signature of the rotation subgroup | `orbifold-notation.md` 12 items 5, 12, and 14, gap G10 | M6, M7 | A re-reading of [CH], [SINGERMAN1974] |
-| UNV-23 | Ideal vertices outside the triangle case | `rendering.md` 13.1 item 3, `geometry-models.md` 7.6.5 | M18 | The sources of UNV-5 |
+| UNV-23 | Whether the results of [DAVIS] for polytopes and the fold apply to a domain with an ideal vertex | `rendering.md` 13.1 item 3, `geometry-models.md` 7.6.5 | M18 | The sources of UNV-5 |
 | UNV-24 | MIT code inside a work under GPL-3.0-or-later | `symmhub.md` 17 item 1 | M15 | The licence texts, and the owner's judgement |
 | UNV-25 | Correct rounding of the reference-arithmetic crate | `rust-ecosystem.md` 21 item 5 | M2 on | One comparison with MPFR |
 | UNV-26 | Statements on the linear model that the research lacks: the normal through two points, normals and the corner angle, a disk circle to a normal, and the Euclidean reflection as a matrix | None | M2, M4, M15, M18 | Chapter 3 of [RATCLIFFE], or Lean |
@@ -850,7 +857,7 @@ The owner decided how the proof of concept treats a statement that no source est
 
 This document defines no component, so the threat model is that of the tool it plans. The attacker is assumed to control the input of `escher`: the signature string, every option value, every `name=value` setting, and the output path. Every milestone that adds such an input states, in the Security Considerations of its design document, the limits that Section 5.9 of `docs/design/architecture.md` requires: the maximum order, the signature length, the image size, the fold cap, and the search budget. Without these limits a crafted signature or option exhausts memory or time, for example through the colouring search of M8, whose cost grows exponentially with the index.
 
-The output path is the only file that `render` writes, and no milestone reads a file supplied by the user. Every dependency enters through the milestone that first needs it, with the licence and advisory checks of cargo-deny (Section 8 of the tooling design). A native build, such as `rug` in M2, would add code that runs at build time, which is one reason why `DEC-3` prefers a pure Rust crate. Ported SymmHub code carries its MIT notice under `DEC-18`, and `UNV-24` tracks the open licence question.
+The output path is the only file that `render` writes, and no milestone reads a file supplied by the user. Every dependency enters through the milestone that first needs it, with the licence and advisory checks of cargo-deny (Section 8 of the tooling design). A native build, such as `rug`, would add code that runs at build time, which is one reason why `DEC-3` chooses the pure-Rust `astro-float`. Ported SymmHub code carries its MIT notice under `DEC-18`, and `UNV-24` tracks the open licence question.
 
 Attacks on the repository itself, such as a malicious change to a document or a compromised CI runner, are out of scope, because `AGENTS.md` and the tooling design govern the repository and its workflow. The residual risk is that a limit chosen in a design document is too high for the machine that runs the tool, and that an unverified statement of Section 7 makes the tool draw a wrong image without any error.
 
@@ -863,7 +870,7 @@ The plan has these failure modes:
 | Failure | Handling |
 | --- | --- |
 | A milestone grows beyond a design branch and a few code branches | It splits along its Split field |
-| A research prerequisite finds no construction | The milestone proceeds on the unverified statements of Section 7, or the owner decides to move the work to the roadmap (`DEC-19` for M18 part 3) |
+| A research prerequisite finds no construction | The milestone proceeds on the unverified statements of Section 7, or the owner decides to move the work to the roadmap (`DEC-19`) |
 | A test reads a file, starts a process, or runs long numeric loops | It is excluded from Miri under the policy of `DEC-5` |
 | A golden image differs between the container and CI | The comparison limits of Section 7 of `docs/design/architecture.md` apply, and a golden file changes only through its recipe |
 | A CI job is cancelled because no runner acquired it | The job is rerun, and the merge waits (Section 14.4 of the tooling design) |

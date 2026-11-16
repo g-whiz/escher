@@ -89,7 +89,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Project Status
 
-As of 2026-11-15, the repository holds its scaffolding, one placeholder crate, the research documents under `docs/research/`, and the planning documents of the proof of concept, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
+As of 2026-11-16, the repository holds its scaffolding, one placeholder crate, the research documents under `docs/research/`, and the planning documents of the proof of concept, and no usable tool. The agent updates this section, and its date, in the same change that alters what exists.
 
 What exists and works:
 
@@ -109,7 +109,7 @@ What does not exist yet:
 - The design document of each component, which its milestone writes before the code of the component.
 - A Lean development.
 
-The owner has not yet reviewed the plan of the proof of concept or its proposed defaults. No milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
+The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The scope after the proof of concept is under discussion with the owner, so `docs/design/roadmap.md` is expected to change. No milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
 
 Section 7.11 of the writing guide and Section 4.8 of the coding standard say which part of each rule a tool or checker enforces. Every rule that no configured tool checks stays a judgement rule.
 

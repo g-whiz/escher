@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The development of Escher after the proof of concept: its phases, workstreams, research, and the closing of unverified statements |
 
 ## Abstract
@@ -31,7 +31,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 - phase: A unit of work that the owner has placed in the order of Section 3.
 - workstream: A unit of work that no single phase contains, listed in Section 4.
 - survey: A research document that maps a topic for the roadmap and is not an implementation reference, such as `aperiodic-tilings.md`.
-- deep-research item: A research task that turns a survey, or part of one, into a subject-matter reference (Section 5).
+- deep-research item: A research task that turns a survey, or part of one, into a subject-matter reference, or adds to a subject-matter reference what it lacks for a design (Section 5).
 - owner's decision: A statement that the owner made and that this document records. A table marks it "Owner".
 - proposal: A statement of this document or of the planning behind it that the owner has not decided. A table marks it "Proposal", and prose says "the planning proposes".
 
@@ -110,20 +110,24 @@ These items are not tied to one phase. Each is a proposal of the planning unless
 | Names of each group in other notations | Item 11 of Section 12 of `orbifold-notation.md` | Reading "The Symmetries of Things" by Conway, Burgiel, and Goodman-Strauss (Section 6.1). `DEC-20` omits these names from `info` until a primary source is read | Proposal |
 | Pattern fills and motifs | Section 10 of `rendering.md`, and gaps 1 and 4 of Section 14 of `prior-art.md` | None | Proposal |
 | A machine-readable form of the info output | `DEC-23` | None | Proposal |
+| Rendering of the general non-compact signatures, which Section 2.1 of `docs/design/architecture.md` defines | The deep-research item of Section 5. Section 5.18 of `docs/design/poc-plan.md` records why the research knows no construction | `M18` | Owner for the item, which moved out of the proof of concept (`DEC-19`) |
 
 ## 5. Deep Research
 
-The owner asked for a deep-research item for each of the five topics below. Each item produces a subject-matter reference that follows Section 3.7 of the writing guide, and the design cites the reference and not the survey. Section 1 of `export-and-animation.md` states that such a reference prevails over its survey.
+The owner asked for a deep-research item for each of the first five topics below. Each of these items produces a subject-matter reference that follows Section 3.7 of the writing guide, and the design cites the reference and not the survey. Section 1 of `export-and-animation.md` states that such a reference prevails over its survey.
 
-The planning proposes this rule, and the columns of the table are proposals too. A design of animation, shader export, vector export, aperiodic tilings, or PDEs on orbifolds MUST NOT start before its deep-research item has produced a reference, because the design would rest on a survey whose claims no one has checked.
+The sixth topic, the general non-compact signatures, has no survey. Its item follows from `DEC-19` and adds a sourced construction to the subject-matter references that the proof of concept uses.
 
-| Topic | Survey sections to start from | What the reference must settle first |
+The planning proposes this rule, and the columns of the table are proposals too. A design of animation, shader export, vector export, aperiodic tilings, PDEs on orbifolds, or the general non-compact signatures MUST NOT start before its deep-research item has produced or extended a reference, because the design would rest on claims that no one has checked.
+
+| Topic | Research sections to start from | What the reference must settle first |
 | --- | --- | --- |
 | Aperiodic tilings | Sections 6, 9, 10, and 12.1 of `aperiodic-tilings.md` | Per-pixel point location for the hat and the spectre, the tile count per substitution level, and precision at deep zoom (items 1, 2, and 4 of Section 12.1) |
 | PDEs on orbifolds | Sections 4 and 10 of `pdes-on-orbifolds.md` | The error of symmetrization, ghost cells across glide-reflection and hyperbolic pairings, smoothness at a cone point, and a sourced time-step bound (items 1, 3, 4, and 2 of Section 10.2) |
 | Vector export | Section 3 of `export-and-animation.md` | The stopping rule, the numerics of nearly straight SVG arcs, the shapes of geodesics under each projection, and how other tools stop (items 1 to 4 of Section 8.1) |
 | Animation | Section 4 of `export-and-animation.md` | Seamless loops, interpolation between isometries, band scrolling, deformation of a group, morphing between geometries, and frame timing (items 5 to 10 of Section 8.1) |
 | Shader export | Section 5 of `export-and-animation.md` | Fold bounds and single precision near the limit circle, Slang's loop and precision behaviour on its targets, and the published hyperbolic shaders (items 11 to 13 of Section 8.1) |
+| General non-compact signatures | Section 7 of `fundamental-domains.md` for Maskit's cusps, its Section 4.7 with gaps G1 and G6, item 15 of Section 12 of `orbifold-notation.md`, and item 3 of Section 13.1 of `rendering.md` | A construction of the fundamental domain and its side pairings for each such signature, the polygon theorem for ideal reflection polygons with more than three sides (`UNV-5`), the geometry and parameters of these signatures (`UNV-21`), and the fold at ideal vertices (`UNV-23`) |
 
 ## 6. Closing Unverified Statements
 

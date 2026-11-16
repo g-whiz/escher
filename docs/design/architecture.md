@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Applies to | The planned workspace crates of the proof of concept, the conventions between them, and the decisions that bind them |
 
 ## Abstract
@@ -51,6 +51,7 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md`, 
 
 - signature: A string in Conway's orbifold notation that names a planar symmetry group, such as `*732`, with the grammar of Section 3 of `docs/research/orbifold-notation.md`.
 - canonical signature: The one form of a signature that `escher-signature` produces for every equivalent signature (`DEC-9`).
+- general non-compact signature: A valid signature with an infinite order that is none of the 7 friezes, the triangle groups with ideal corners, and their rotation subgroups (`DEC-19`).
 - geometry: One of spherical, Euclidean, and hyperbolic, as the sign of the Euler characteristic $\chi$ determines (Section 7.1 of `docs/research/orbifold-notation.md`).
 - linear model: The representation of a geometry in which a point is a 3-vector, a wall is a unit normal, and an isometry is a 3x3 matrix (Section 5.1).
 - model: A map of a geometry to the screen plane, such as the Poincare disk, the Klein disk, the upper half-plane, the band, or the lit ball for the sphere.
@@ -80,13 +81,15 @@ The workspace of the proof of concept has six members under `crates/`. Every mem
 | Crate | Responsibility | Internal dependencies | External dependencies |
 | --- | --- | --- | --- |
 | `escher-signature` | Parse, validate, canonicalize, and classify a signature | None | `thiserror` |
-| `escher-geometry` | Linear models and model maps | None | None at first (`DEC-4`), then `num-complex` from `M12` |
+| `escher-geometry` | Linear models and model maps | None | `glam` (`DEC-4`), then `num-complex` from `M12` |
 | `escher-group` | Presentations, coset enumeration, low-index search, and colourings | `escher-signature` | None |
-| `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | None |
-| `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-group`, `escher-signature` | `png`, `palette` |
+| `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` |
+| `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-group`, `escher-signature` | `glam`, `png`, `palette` |
 | `escher-cli` | The binary `escher`, with the commands `info` and `render` | All five | `clap` with the derive API, `anyhow`, `rayon`, `csscolorparser` |
 
-The dev-dependencies are `insta`, `proptest`, and the reference-arithmetic crate of `DEC-3`.
+The dev-dependencies are `insta`, `proptest`, and `astro-float`, the reference-arithmetic crate of `DEC-3`.
+
+`escher-domain` and `escher-render` compute with the `glam` types that `escher-geometry` exposes, so each declares `glam` itself, from the one entry in `[workspace.dependencies]` that rule DEP-2 in Section 12 of `docs/rust-coding-standards.md` requires.
 
 Section 5.8 requires an error type in every library crate. The table lists `thiserror` for `escher-signature` only. Whether another library crate implements its error type with `thiserror` is for its design document to decide.
 
@@ -104,7 +107,8 @@ Each list below is the planned public surface of one crate, as types and operati
 
 `escher-geometry`:
 
-- Its own 3-vector, covector, and 3x3 matrix types.
+- No vector or matrix type of its own (`DEC-4`). A point, a unit normal, and a covector are a `glam` `DVec3`, an isometry is a `DMat3`, and a position in a planar model is a `DVec2`.
+- The bilinear form of each geometry and the side test, as free functions over these types (Sections 5.1 and 5.2).
 - The modules `hyperbolic`, `spherical`, and `euclidean`. Each has point normalization, the reflection from a unit normal, rotation, translation, point distance, an isometry check, and the inverse.
 - Model maps in both directions between the hyperboloid and the disk, Klein, half-plane, and band models, the ball lift for the sphere, and their Jacobians.
 
@@ -147,7 +151,15 @@ The enum `Geometry`, with the variants spherical, Euclidean, and hyperbolic, liv
 
 ### 3.5. Reasons for the Dependency Choices
 
-No type of `glam`, `palette`, `num-complex`, or `png` appears in a public signature of a library crate. Rule DEP-3 in Section 12 of `docs/rust-coding-standards.md` makes every dependency whose type appears in a public signature a public dependency, whose version becomes part of the crate's own. Rule ERR-2 in Section 7 forbids a dependency type in the public error. The `glam` row of Section 6 of `docs/research/rust-ecosystem.md` records a breaking minor release every one to three months, so a public `glam` type would force a breaking release of Escher's crates at the same rate. The vector and matrix types of `escher-geometry` are therefore its own (`DEC-4`).
+`glam` types appear in public signatures (`DEC-4`). `escher-geometry` takes and returns points, normals, covectors, and isometries as `glam` types, and `escher-domain` exposes them through `FundamentalDomain`. Rule DEP-3 in Section 12 of `docs/rust-coding-standards.md` therefore makes `glam` a public dependency of both crates, and of every other library crate whose design document puts a `glam` type in a public signature. For each such crate, DEP-3 requires these points:
+
+- The version of `glam` is part of the crate's own version.
+- `glam` is below version 1.0, and the `glam` row of Section 6 of `docs/research/rust-ecosystem.md` records 0.34.3 as its latest version. The crate therefore stays below version 1.0 for as long as it exposes `glam`.
+- Every breaking upgrade of `glam` is a breaking change of the crate and is released as one. The same row records a breaking minor release of `glam` every one to three months.
+
+The owner accepts this cost (`DEC-4`).
+
+Rule ERR-2 in Section 7 forbids a dependency type in the public error, so no `glam` type appears in an `Error` or an `ErrorKind`. No type of `palette`, `num-complex`, or `png` appears in a public signature of a library crate.
 
 `rayon` sits in the binary, and the renderer exposes a row-band operation. Rule CONC-4 in Section 10 of `docs/rust-coding-standards.md` forbids a library to start threads that the caller cannot see, and lets the caller choose the parallelism.
 
@@ -196,6 +208,8 @@ $$\langle x, y \rangle = x_1 y_1 + x_2 y_2 - x_3 y_3$$
 
 This is the case $n = 2$ of the form of [CFKP] that Section 2.2 of `docs/research/geometry-models.md` states. The hyperboloid is $\lbrace x : \langle x, x \rangle = -1, \ x_3 > 0 \rbrace$ (Section 3.1 of the same document). The sphere is the unit sphere with the dot product, as [KC24] treats it (Section 11.1). The Euclidean plane is the affine plane $x_3 = 1$, which is a project convention with no research source.
 
+A point is a `glam` `DVec3` with the time coordinate as its last component (`DEC-4`). The bilinear form of each geometry, the reflections of Section 5.2, and the side test are free functions of `escher-geometry` over the `glam` types, so these conventions stay the project's own.
+
 The support for the time-last order is in `docs/research/geometry-models.md`:
 
 - Section 2.4 records that [CFKP], [KC24], and the code of [HR] put the time coordinate last.
@@ -243,7 +257,9 @@ A colouring id is `<colour count><letter ordinal>`, such as `1a`, `2a`, and `3b`
 
 ### 5.8. Error Model
 
-Each library crate has one `Error` with an `ErrorKind` (ERR-1), attaches the failed operation at the call site (ERR-3), writes its `Display` text in lowercase (ERR-4), and panics only for a bug in the crate itself (ERR-5). Section 7 of `docs/rust-coding-standards.md` defines these rules. A valid signature whose class has no construction yet returns the kind "unsupported signature".
+Each library crate has one `Error` with an `ErrorKind` (ERR-1), attaches the failed operation at the call site (ERR-3), writes its `Display` text in lowercase (ERR-4), and panics only for a bug in the crate itself (ERR-5). Section 7 of `docs/rust-coding-standards.md` defines these rules. A valid signature whose class has no construction returns the kind "unsupported signature".
+
+A general non-compact signature returns that kind throughout the proof of concept, because its construction is a roadmap workstream (`DEC-19`). `escher info` still parses and classifies it. `escher render` MUST print a diagnostic that names the signature and says that rendering it is not supported, and MUST exit with a non-zero status, so that a caller never mistakes a missing image for a rendered one. `docs/design/cli.md` gives the text of the diagnostic and how `info` reports the items of Section 4.2 that need a domain.
 
 The binary uses `anyhow` and prints the chain of sources. It draws the caret under the byte span by hand. Section 10.1 of `docs/research/rust-ecosystem.md` recommends `codespan-reporting` or `ariadne` first, and notes that a hand-written caret line suffices because the notation is one line. Section 9.1 recommends the hand-written parser that gives the byte spans.
 
@@ -284,7 +300,7 @@ Eight facts of the repository shape the design. Each row names the document that
 | Design documents hold no progress | Section 3.6 of `docs/writing-documentation.md` | `docs/design/poc-plan.md` states its milestones as a plan. Status goes only into Project Status of `AGENTS.md` |
 | No derivation in prose | Hard Rule 14 of `AGENTS.md`, Section 2.4 of `docs/research/geometry-models.md` | The linear models of Section 5.1 need a few statements that the research gives only in another convention or not at all. They are `UNV-26` and follow the owner's decision on unverified statements (Section 10.1) |
 | Research prerequisites | Section 8.5 and gap G4 of `docs/research/fundamental-domains.md`, and Development Workflow of `AGENTS.md` | The research holds no step-level account of Todd-Coxeter or of the low-index search, of the geometry of SymmHub's Euclidean and spherical catalogue, or of five of the nine cut types. A change that implements mathematics starts from its subject-matter reference, so the research prerequisites `RP-1` to `RP-5` of `docs/design/poc-plan.md` precede the milestones that need them |
-| CI caches nothing | Section 7.1 of `docs/design/tooling.md` | A native build, such as the GNU Multiple Precision Arithmetic Library (GMP) and the GNU Multiple Precision Floating-Point Reliable Library (MPFR) for `rug`, rebuilds in every job on every push (`DEC-3`) |
+| CI caches nothing | Section 7.1 of `docs/design/tooling.md` | A native build, such as the GNU Multiple Precision Arithmetic Library (GMP) and the GNU Multiple Precision Floating-Point Reliable Library (MPFR) for `rug`, would rebuild in every job on every push, so the reference arithmetic is the pure-Rust `astro-float` (`DEC-3`) |
 
 These rules of `docs/rust-coding-standards.md` have an effect on the architecture:
 
@@ -379,8 +395,8 @@ Goals of the proof of concept:
 
 Scope and staging:
 
-- The proof of concept proceeds in three stages and ends with the full notation. Stage 1 covers reflection polygons and their rotation subgroups in all three geometries. Stage 2 covers all 17 Euclidean and 14 spherical groups. Stage 3 covers general hyperbolic signatures, including handles and crosscaps, by porting SymmHub's pipeline, which is under the MIT licence. The proof of concept is complete only when any valid signature renders.
-- From the first milestone, the parser accepts parentheses for orders of 10 or more, and both the infinity sign and `(inf)`, and `info` classifies such signatures. Rendering friezes and ideal vertices is a late milestone of the proof of concept.
+- The proof of concept proceeds in three stages and ends with the full notation. Stage 1 covers reflection polygons and their rotation subgroups in all three geometries. Stage 2 covers all 17 Euclidean and 14 spherical groups. Stage 3 covers general hyperbolic signatures, including handles and crosscaps, by porting SymmHub's pipeline, which is under the MIT licence. The proof of concept is complete only when every valid signature renders, except the general non-compact signatures (`DEC-19`).
+- From the first milestone, the parser accepts parentheses for orders of 10 or more, and both the infinity sign and `(inf)`, and `info` classifies such signatures. Rendering the friezes and the triangle groups with ideal corners is a late milestone of the proof of concept.
 - Every signature has a default, most symmetric shape. `info` reports the number, names, and ranges of the free parameters, and `render` accepts `name=value` settings. Each parameter arrives with the signatures that have it.
 
 Image content:
@@ -397,7 +413,7 @@ Engineering:
 
 - The representation is the linear model: points are 3-vectors with a bilinear form per geometry, reflections are unit normals, and isometries are 3x3 matrices. Conformal circles and complex numbers appear only where a model map or the port of SymmHub needs them.
 - The workspace has one crate per concern: signature, geometry, group theory with colourings, construction of the fundamental domain, renderer, and the binary. Each crate has its own design document under `docs/design/`.
-- The dependencies are the picks of `docs/research/rust-ecosystem.md`: `png`, `clap`, `rayon`, `num-complex` or `glam`, `palette`, `thiserror`, `anyhow`, `proptest`, `insta`, and a reference-arithmetic crate for tests. The licence and duplicate-version work in `deny.toml` happens in the milestone where each dependency first appears.
+- The dependencies are the picks of `docs/research/rust-ecosystem.md`: `png`, `clap`, `rayon`, `num-complex` and `glam` (`DEC-4`), `palette`, `thiserror`, `anyhow`, `proptest`, `insta`, and a reference-arithmetic crate for tests (`DEC-3`). The licence and duplicate-version work in `deny.toml` happens in the milestone where each dependency first appears.
 - Work proceeds on unverified statements. Each is flagged in its design document, tested numerically against high-precision reference arithmetic, and tracked until a source or a Lean proof closes it. No unverified statement blocks the proof of concept.
 - Lean is not part of the proof of concept. It is a roadmap workstream that starts after the requested sources are read, beginning with what the fold depends on. The elan installer has no checksum verification, so it is pinned by the digest of its GitHub release asset.
 
@@ -407,19 +423,27 @@ Roadmap:
 - Vector graphics follow, then other planar tilings in the medium term, then the simulation of partial differential equations on orbifolds in the long term.
 - The roadmap has a deep-research item for each topic that the research only surveyed: aperiodic tilings, partial differential equations on orbifolds, vector export, animation, and shader export.
 
+Decided defaults, which keep their labels in Section 10.2 because other documents cite them:
+
+- `DEC-3`, reference arithmetic: `astro-float`, which is pure Rust under the MIT licence, with one comparison against MPFR recorded (`UNV-25`). Section 12.1 of `docs/research/rust-ecosystem.md` recommends `rug` if a C toolchain in CI is acceptable, because MPFR is the reference standard, and `astro-float` for pure Rust, checked once against `rug` or MPFR because nobody has verified its claims of correct rounding. `DEC-3` takes the pure-Rust branch, because a native build rebuilds in every CI job (Section 6, last row) and native code fails under Miri (Section 6, first row). `rug` also adds the licence `LGPL-3.0-or-later`.
+- `DEC-4`, linear algebra: the real vectors and matrices are the `glam` types `DVec2`, `DVec3`, and `DMat3`, and the project writes no vector or matrix type of its own. `num-complex` provides complex numbers from `M12`. The owner chose `glam` because much of the logic moves to Slang after the proof of concept, so a vector and matrix library of the project's own would be wasted work. The double-precision types are the ones that Section 6.1 of `docs/research/rust-ecosystem.md` recommends. Section 5.1 states the conventions over these types, and Section 3.5 states what rule DEP-3 requires as a result.
+- `DEC-5`, Miri: tests that use files, processes, or long numeric loops carry `#[cfg_attr(miri, ignore = "...")]`, and property tests use fewer cases under Miri. Section 6, first row, gives the reason and says which documents the first change that adds tests updates.
+- `DEC-18`, MIT notice: ported SymmHub code carries its MIT notice in a notices file at the repository root and in a section of the crate-level documentation of each crate with ported code. The notice arrives in the first change that ports SymmHub code, and not before, and that change records it in `AGENTS.md` and `docs/design/tooling.md`. Rust source holds no licence header (Section 6, second row), and `UNV-24` tracks the open licence question.
+- `DEC-19`, completion: the general non-compact signatures (Section 2.1) are not part of the proof of concept and are a workstream of Section 4 of `docs/design/roadmap.md`, because the research records no implementation for them (Section 5.18 of `docs/design/poc-plan.md`). The friezes and the triangle groups with ideal corners stay in milestone `M18`, and the completion audit `M19` covers every other valid signature. Section 5.8 states how `info` and `render` treat such a signature.
+
 The layout of the planning documents is a proposal that the owner may change. It follows the sibling project slang-rust and has three documents under `docs/design/`. This document holds the architecture and the decisions, `docs/design/poc-plan.md` holds the milestones of the proof of concept, and `docs/design/roadmap.md` holds the phases after it.
 
 ### 10.2. Proposed Defaults
 
-The open decisions below have proposed defaults. Each default is a proposal and holds until the owner changes it. A design document that relies on one cites its label.
+The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, and Section 10.1 states them. Every other default is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
 
 | Label | Topic | Proposed default | Reason |
 | --- | --- | --- | --- |
 | `DEC-1` | Names | Crates `escher-signature`, `escher-geometry`, `escher-group`, `escher-domain`, `escher-render`, and `escher-cli`. Design documents `architecture.md`, `signature.md`, `geometry.md`, `group.md`, `domain.md`, `render.md`, and `cli.md` | One crate per concern, as the owner decided. Availability on crates.io is checked only before publication |
 | `DEC-2` | Location of the plan and roadmap | The milestone plan `docs/design/poc-plan.md` and the roadmap `docs/design/roadmap.md`, next to this document, as plans without status (Section 10.1) | Section 3.6 of `docs/writing-documentation.md` |
-| `DEC-3` | Reference-arithmetic crate | `astro-float`, which is pure Rust under the MIT licence, with one comparison against MPFR recorded. It takes the pure-Rust branch of the survey's recommendation, as the paragraph after this table describes | `rug` needs a native build in a CI that caches nothing, its native code fails under Miri (Section 6, first row), and it adds the licence `LGPL-3.0-or-later` |
-| `DEC-4` | Linear algebra | Hand-written 3-vector and 3x3 matrix types, and no `glam`. `num-complex` from `M12`. It takes the alternative that the survey names, as the paragraph after this table describes | Section 3.5 |
-| `DEC-5` | Miri | Tests that use files, processes, or long numeric loops carry `#[cfg_attr(miri, ignore = "...")]`, and property tests use fewer cases under Miri. Section 4 of `docs/design/tooling.md` and Section 11 of `docs/rust-coding-standards.md` state the rule. The alternative is a `default-filter` on `default-miri` | Section 6, first row |
+| `DEC-3` | Reference-arithmetic crate | Decided by the owner: `astro-float` | Section 10.1 |
+| `DEC-4` | Linear algebra | Decided by the owner: `glam` and `num-complex`, with no vector or matrix type of the project's own | Section 10.1 |
+| `DEC-5` | Miri | Decided by the owner: tests that cannot run under Miri carry `#[cfg_attr(miri, ignore = "...")]` | Section 10.1 |
 | `DEC-6` | Golden images | As Section 7.2 | No golden image test is defined yet |
 | `DEC-7` | Render defaults | A 4 by 4 sample grid, a black border 1 pixel wide, and a fold cap of 500. Samples at the cap take the border colour. A white background, with a `transparent` option. `--output` is required. The default colouring is the first two-colour colouring when one exists, else one colour | Section 9.1. Published caps range from 10 to 4000 |
 | `DEC-8` | Input text | Features in any unambiguous order, as SymmHub accepts them. Upper-case `O` and `X` are accepted. Of the characters outside American Standard Code for Information Interchange (ASCII), only the infinity sign is accepted. The empty string is rejected. Order 1 is accepted and dropped, with `1` as the trivial group | The SymmHub parser is the precedent (Section 11.1 of `docs/research/orbifold-notation.md`), and the proposal accepts only input whose meaning is unambiguous. `UNV-20` |
@@ -432,8 +456,8 @@ The open decisions below have proposed defaults. Each default is a proposal and 
 | `DEC-15` | Colourings | One entry per conjugacy class, a budget on search work with truncation reported, and ids as Section 5.7 | The time of GAP's low-index search grows exponentially with the index (Section 7.7 of `docs/research/colourings.md`) |
 | `DEC-16` | Sphere | The rotation is three angles in degrees. One directional light from the upper left front. Borders are shaded like fills. The pixel width uses the same estimate as elsewhere | The renderer keeps one border estimate in every model. The light direction is a choice of this proposal |
 | `DEC-17` | Euclidean intrinsic unit | The normalization length of the domain, stated per signature | An intrinsic width needs a unit. This unit is a project convention |
-| `DEC-18` | MIT notice | A notices file at the repository root, and a section in the crate-level documentation of each crate with ported code, recorded in `AGENTS.md` and `docs/design/tooling.md` | Rust source holds no licence header (Section 6, second row). `UNV-24` |
-| `DEC-19` | Completion and the general non-compact signatures | Included in the last milestones, `M18` and `M19`. The owner may move general non-compact signatures to the roadmap if the research prerequisite `RP-4` finds no construction | The owner decided that the proof of concept is complete only when any valid signature renders |
+| `DEC-18` | MIT notice | Decided by the owner: a notices file and a section in the crate-level documentation, from the first change that ports SymmHub code | Section 10.1 |
+| `DEC-19` | Completion and the general non-compact signatures | Decided by the owner: the general non-compact signatures move to the roadmap | Section 10.1 |
 | `DEC-20` | Other notations in `info` | Omitted until a primary source is read | No primary source has been read |
 | `DEC-21` | Threads | `rayon` in the binary, with `--threads` | Section 3.5 |
 | `DEC-22` | Publication | `publish = false` on every crate through the proof of concept | TOOL-27, and nothing is published without the owner's go-ahead |
@@ -442,10 +466,6 @@ The open decisions below have proposed defaults. Each default is a proposal and 
 | `DEC-25` | Orders | 32-bit integers, with checked exact rational arithmetic | An overflow becomes an error and no wrong value |
 | `DEC-26` | `Geometry` enum | In `escher-signature` | Section 3.4 |
 | `DEC-27` | Performance budget | As Section 8, confirmed at `M3` | No published benchmark exists |
-
-The owner decided to adopt the picks of `docs/research/rust-ecosystem.md` and named "a reference-arithmetic crate" without a name. Section 12.1 of that survey recommends `rug` as the dev-dependency if a C toolchain in CI is acceptable, because MPFR is the reference standard. For pure Rust it recommends `astro-float`, and advises checking a sample against `rug` or MPFR once, because nobody has verified its claims of correct rounding (item 5 of Section 21, `UNV-25`). `DEC-3` takes the pure-Rust branch, because the proposal does not accept a C toolchain in a CI that caches nothing. The choice differs from the first crate in the survey.
-
-The owner's list names "num-complex or glam". Section 6.1 of the survey recommends `num-complex` for complex numbers and the `glam` types `DVec2`, `DVec3`, and `DMat3` for real vectors. The same section names hand-written types with no `glam` at all as an alternative, because nothing later forces `glam`. `DEC-4` keeps `num-complex` and takes that alternative for the real vectors and matrices. The choice differs from the survey's first recommendation and stays within the owner's "or".
 
 ## 11. Security Considerations
 
@@ -477,7 +497,7 @@ Each library crate reports a failure through its `Error` and `ErrorKind` (Sectio
 | Failure | Reported as | Recovery |
 | --- | --- | --- |
 | Malformed or bad signature | An error of `escher-signature` with a byte span. `info` exits with a non-zero status (`DEC-24`) | Correct the signature |
-| Valid signature without a construction | The kind "unsupported signature" | None until its milestone in `docs/design/poc-plan.md` |
+| Valid signature without a construction | The kind "unsupported signature". `render` exits with a non-zero status (Section 5.8) | None until its milestone in `docs/design/poc-plan.md`. None in the proof of concept for a general non-compact signature (`DEC-19`) |
 | Parameter outside its range | An error of `escher-domain` with its documented kind | Choose a value in the range that `info` lists |
 | Search budget exhausted | A truncated listing, reported as truncated (`DEC-15`) | Lower the maximum colour count |
 | Coset enumeration over its bound | The limit error of `escher-group` | None. The group is infinite or the bound is too low |
