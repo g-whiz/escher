@@ -20,9 +20,10 @@ This document assigns every rule to one of the two classes, following Section 3.
 
 ### 1.1. Scope
 
-This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has three members:
+This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has four members:
 
 - `escher-cli`: a package with a library target that runs the command line, and the binary `escher`, which calls it, as `docs/design/cli.md` specifies.
+- `escher-domain`: a library crate that builds and verifies the fundamental domain of a compact hyperbolic reflection triangle, as `docs/design/domain.md` specifies.
 - `escher-geometry`: a library crate that holds the linear model of the hyperbolic plane over the `glam` types, with the map to and from the Poincare disk, as `docs/design/geometry.md` specifies.
 - `escher-signature`: a library crate that parses an orbifold signature into its canonical form and computes its exact Euler characteristic, as `docs/design/signature.md` specifies.
 

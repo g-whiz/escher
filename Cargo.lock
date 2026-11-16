@@ -134,6 +134,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "escher-domain"
+version = "0.1.0"
+dependencies = [
+ "astro-float-num",
+ "escher-geometry",
+ "escher-signature",
+ "glam",
+ "proptest",
+ "thiserror",
+]
+
+[[package]]
 name = "escher-geometry"
 version = "0.1.0"
 dependencies = [

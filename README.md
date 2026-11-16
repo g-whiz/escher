@@ -4,11 +4,12 @@ Escher is a Rust application for creating symmetry-based graphics, like those in
 
 ## Contents
 
-The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, and a crate of hyperbolic geometry. It holds no code that computes a tiling or renders a symmetry.
+The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, a crate of hyperbolic geometry, and a crate that builds the fundamental domain of a hyperbolic reflection triangle. It holds no code that computes a tiling or renders a symmetry.
 
 | Crate | Purpose |
 | --- | --- |
 | `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature. It is not published. |
+| `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, with a wall and a reflection for each side, measures its side lengths, corner angles, and area, and checks it numerically. It is not published. |
 | `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model over the vector and matrix types of `glam`: points, distances, walls, reflections and other isometries, and the map to and from the Poincare disk. It is not published. |
 | `escher-signature` | A library that parses an orbifold signature, such as `*632`, into its canonical form, computes its exact Euler characteristic, and classifies it as spherical, Euclidean, or hyperbolic, with its group order, area, and deformation dimension where they apply. It is not published. |
 

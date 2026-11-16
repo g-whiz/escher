@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/escher-cli",
+    "crates/escher-domain",
     "crates/escher-geometry",
     "crates/escher-signature",
 ]
@@ -28,6 +29,7 @@ clap = { version = "4.6", default-features = false, features = [
     "suggestions",
     "usage",
 ] }
+escher-geometry = { version = "0.1.0", path = "crates/escher-geometry" }
 escher-signature = { version = "0.1.0", path = "crates/escher-signature" }
 glam = { version = "0.34.3", default-features = false, features = [
     "float-types",

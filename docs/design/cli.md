@@ -257,7 +257,7 @@ The floating-point values of the domain summary and the verification lines have 
 | Corner angle | 11 | The value of `corner_angles()` in radians converted with `f64::to_degrees`, then written in fixed notation with six digits after the point, `{:.6}` | `25.714286` |
 | Side length | 12 | Fixed notation with six digits after the point, `{:.6}` | `0.545275` |
 | Domain area | 13 | Fixed notation with six digits after the point, `{:.6}` | `0.074800` |
-| Residual and tolerance | 14 to 19 | Scientific notation with one digit after the point, `{:.1e}` of Rust, which writes an infinite value as `inf` and a NaN as `NaN` | `2.5e-3`, `1.0e-9` |
+| Residual and tolerance | 14 to 19 | Scientific notation with one digit after the point, `{:.1e}` of Rust, which writes an infinite value as `inf` | `2.5e-3`, `1.0e-9` |
 
 Rows 11 and 12 separate the values with a comma and one space. Angles are in degrees on the command line, as Section 5.5 of `docs/design/architecture.md` states.
 
@@ -452,7 +452,7 @@ Domain area: 0.074800
 Check isometries: passed, residual <residual>, tolerance 1.0e-9
 Check pairings: passed, residual <residual>, tolerance 1.0e-9
 Check walls: passed, residual <residual>, tolerance 1.0e-9
-Check relators: passed, residual <residual>, tolerance 1.0e-6
+Check relators: passed, residual <residual>, tolerance 2.0e-6
 Check angles: passed, residual <residual>, tolerance 1.0e-9
 Check area: passed, residual <residual>, tolerance 1.0e-9
 Verification: passed
@@ -517,7 +517,7 @@ The value of each of rows 14 to 19 has this form, where the result is `passed` w
 <result>, residual <residual>, tolerance <tolerance>
 ```
 
-For example, a failed relator check prints `Check relators: failed, residual 2.5e-3, tolerance 1.0e-6`. A residual of infinity, which marks a failed structural condition (Section 8.1 of `docs/design/domain.md`), prints as `inf`, and a NaN residual as `NaN`.
+For example, a failed relator check prints `Check relators: failed, residual 2.5e-3, tolerance 2.0e-6`. A residual of infinity, which marks a failed structural condition or a computation that gave no finite number (Section 8.1 of `docs/design/domain.md`), prints as `inf`. No residual is NaN.
 
 Row 20 gives the overall result, `Verification: passed` or `Verification: failed`, from `Verification::passed()`.
 
@@ -693,7 +693,7 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Echo limit tests | Failure paths | Plain tests, `diagnostics` | The status and the exact diagnostic for a signature of exactly 120 characters, which gets the echo line and the caret line, for one of 121 characters, which gets the byte span, and for one of 42 characters and 124 bytes, built with the infinity sign, which gets the echo line and the caret line because the limit counts characters | Runs |
 | Status tests | Failure paths | Plain tests, `main.rs`, `usage`, and `info` | `Success` for `*732`, `Failure` for `23`, `Usage` for an unknown subcommand and for an argument that is not UTF-8, each with the start of the standard output or standard error that it writes, equal output for `*22(inf)` and the same signature with the infinity sign, and the exit statuses 0, 1, and 2 of the three values of `Status` | Runs |
 | Verification status tests | Command line of Section 5.2 of the plan, failure paths | Plain tests, `info` | `Success`, empty standard error, and a standard output that ends with `Verification: passed` and a line feed for `info --check '*732'`, and the same with `--check` after the signature. `Failure`, the diagnostic of Section 6.7, and a standard output that ends with the `Domain` line for `info --check '*632'`. `Success` and empty standard error for `info '*632'` | Runs |
-| Failed check text | Failure paths | Unit tests in `info.rs` | The private formatter, given a failed check as plain numbers, writes `failed, residual 2.5e-3, tolerance 1.0e-6`, writes `inf` for an infinite residual and `NaN` for a NaN residual, and the private function that writes the diagnostic of Section 6.7 writes `2 of 6 checks failed` for two failed checks | Runs |
+| Failed check text | Failure paths | Unit tests in `info.rs` | The private formatter, given a failed check as plain numbers, writes `failed, residual 2.5e-3, tolerance 1.0e-6`, writes `inf` for an infinite residual, and writes `NaN` when given a NaN, which no residual of `escher-domain` is, and the private function that writes the diagnostic of Section 6.7 writes `2 of 6 checks failed` for two failed checks | Runs |
 | Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info`, for `info --check`, and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
 | Control characters | Failure paths | Plain test, `usage` | A usage error for an argument with control characters writes `?` in place of each of them (CLI-15) | Runs |
 | Auto traits | None | Plain test, `main.rs` | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`). The test calls a generic function whose type parameter is bounded by `Send + Sync`, so it fails to compile if `Status` loses either trait | Runs |
@@ -717,7 +717,7 @@ Each stream follows its marker line unchanged, so a stream that ends with a line
 Every snapshot must be deterministic (rule TEST-2 of `docs/rust-coding-standards.md`), and two kinds of floating-point value in the output need a rule for that:
 
 - The residual of a passed check is a rounding error, whose last digits can depend on the mathematics library of the platform. In every line that starts with `Check `, the snapshot helper replaces the text between `residual ` and the next `,` with `<residual>`, as the example of Section 5.3 shows. The tolerance, the result, and the line `Verification` stay in the snapshot. The test "Failed check text" covers the form of a residual.
-- The values of rows 11 to 13 are printed with six digits after the point (Section 5.5). A snapshot input is chosen so that the exact value of each of these rows lies farther from a rounding boundary of the sixth digit than the bound of Section 9.3 of `docs/design/domain.md` in the column for the orders of that input, converted to degrees for an angle. The column "Orders up to 12" applies to `*732`, `*542`, and `*433`, and the column "(1000, 3, 2)" to `*(1000)32`. Every correct build then prints the same digits. A 256-bit computation of `*732` confirms this for every value of its summary, as Section 5.3 shows. The change that adds the snapshots computes the values of the other inputs in the reference arithmetic of `escher-domain`, and replaces an input that fails the condition.
+- The values of rows 11 to 13 are printed with six digits after the point (Section 5.5). A snapshot input is chosen so that the exact value of each of these rows lies farther from a rounding boundary of the sixth digit than the bound of Section 9.3 of `docs/design/domain.md` in the column for the orders of that input, converted to degrees for an angle. The column "Orders up to 12" applies to `*732`, `*542`, and `*433`, and the column "(1000, 3, 2)" to `*(1000)32`. Every correct build then prints the same digits. A 256-bit computation of `*732` confirms this for every value of its summary, as Section 5.3 shows. The test "Triangles" of `docs/design/domain.md` checks the values of the other inputs against the reference arithmetic of `escher-domain`, within the bound of that column (Section 12.1 of that document). The change that adds the snapshots replaces an input whose printed value fails the condition.
 
 CLI-20. A snapshot MUST NOT hold a residual of a check, and its inputs MUST meet the condition on rounding boundaries above, because a value that depends on the last bits of floating-point arithmetic makes the snapshot test fail on a platform whose mathematics library rounds differently, although the program is correct.
 

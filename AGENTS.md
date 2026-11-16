@@ -4,7 +4,7 @@ Every coding agent reads this file before it works in this repository. `CLAUDE.m
 
 Escher is a Rust application for creating symmetry-based graphics, like those in some works of M. C. Escher, with the SymmHub project as prior art. It covers the planar symmetries that orbifold notation expresses, in Euclidean, spherical, and hyperbolic geometry. Its goal is a tool in which an artist draws a motif on one or more fundamental domains of a symmetry and sees it replicated live over the tiling, reshapes the tiles, animates the result, and renders it as raster images: first stills, then video, and possibly other outputs later. Tilings without a symmetry group, such as aperiodic tilings, are not a goal for now.
 
-The repository holds scaffolding, the command-line tool `escher`, a library that parses and classifies orbifold signatures, a library of hyperbolic geometry, research documents, the planning documents of the proof of concept, and the design documents of its first two milestones, as Project Status states. The rest of this introduction states goals that the owner has set, and the tool meets none of them in full.
+The repository holds scaffolding, the command-line tool `escher`, a library that parses and classifies orbifold signatures, a library of hyperbolic geometry, a library that builds and verifies the fundamental domain of a hyperbolic reflection triangle, research documents, the planning documents of the proof of concept, and the design documents of its first two milestones, as Project Status states. The rest of this introduction states goals that the owner has set, and the tool meets none of them in full.
 
 The owner has set these phases and platforms:
 
@@ -89,35 +89,37 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Project Status
 
-As of 2026-11-16, the repository holds its scaffolding, the package `escher-cli` with the command-line tool `escher`, the library crates `escher-signature` and `escher-geometry`, the research documents under `docs/research/`, the planning documents of the proof of concept, and the design documents of milestones `M1` and `M2`. The tool reports on a signature and draws no image. The agent updates this section, and its date, in the same change that alters what exists.
+As of 2026-11-16, the repository holds its scaffolding, the package `escher-cli` with the command-line tool `escher`, the library crates `escher-signature`, `escher-geometry`, and `escher-domain`, the research documents under `docs/research/`, the planning documents of the proof of concept, and the design documents of milestones `M1` and `M2`. The tool reports on a signature and draws no image. The agent updates this section, and its date, in the same change that alters what exists.
 
 What exists and works:
 
 - The scaffolding that Repository Layout lists: the standards documents, the tooling design, the tool configuration, the `justfile` and its recipes, the custom checkers and their self-tests, the git hooks, the Claude Code settings, and the CI workflow.
 - The workspace member `crates/escher-cli`, whose binary `escher` has the command `escher info <SIGNATURE>`. It prints the canonical form of the signature, its geometry, its Euler characteristic, whether it is compact, and, where they apply, whether it is a frieze or general non-compact, its group order, its area, and its deformation dimension. A malformed signature or a bad orbifold gives a diagnostic that locates the offending characters and exit status 1, and a usage error gives exit status 2. `escher --version` prints `escher-cli 0.1.0`. The library target exposes only `run` and `Status`, as `docs/design/cli.md` specifies.
 - The workspace member `crates/escher-signature`, a library that parses a signature in orbifold notation into a `Signature` that is valid and canonical by construction, prints its canonical form, gives its exact Euler characteristic, and classifies it. The classification gives the geometry, whether the signature is compact, a frieze, or general non-compact, and the group order, area, and deformation dimension where `docs/design/signature.md` defines them. `escher info` uses the crate.
-- The workspace member `crates/escher-geometry`, a library that holds the linear model of the hyperbolic plane over the `glam` types: the bilinear form, the side test, point normalization, distance, the wall through two points, the basic isometries and their inverse, an isometry check, and the map to and from the Poincare disk. `docs/design/geometry.md` states the accuracy of each function, measured against high-precision reference arithmetic. No other crate uses it yet.
-- The `[workspace.dependencies]` table, with `thiserror` and the dev-dependency `proptest`, which `escher-signature` and `escher-geometry` use, `glam` and the dev-dependency `astro-float-num`, which `escher-geometry` uses, and `anyhow`, `clap`, `escher-signature`, and the dev-dependency `insta`, which `escher-cli` uses.
+- The workspace member `crates/escher-geometry`, a library that holds the linear model of the hyperbolic plane over the `glam` types: the bilinear form, the side test, point normalization, distance, the wall through two points, the basic isometries and their inverse, an isometry check, and the map to and from the Poincare disk. `docs/design/geometry.md` states the accuracy of each function, measured against high-precision reference arithmetic. `escher-domain` uses it.
+- The workspace member `crates/escher-domain`, a library that builds the fundamental domain of a compact hyperbolic reflection triangle `*pqr` with corner orders up to 1000, as a triangle in the linear model with a wall, a reflection, and a partner for each side, and returns an error kind for every other signature. It measures the side lengths, corner angles, and area of the domain, and verifies it with six numeric checks, each with its residual and tolerance. `docs/design/domain.md` states the accuracy, measured against high-precision reference arithmetic, and the largest residual of each check. No other crate uses it yet.
+- The `[workspace.dependencies]` table, with `thiserror` and the dev-dependency `proptest`, which `escher-signature`, `escher-geometry`, and `escher-domain` use, `glam` and the dev-dependency `astro-float-num`, which `escher-geometry` and `escher-domain` use, `escher-geometry`, which `escher-domain` uses, `escher-signature`, which `escher-domain` and `escher-cli` use, and `anyhow`, `clap`, and the dev-dependency `insta`, which `escher-cli` uses.
+- The tests of `escher-domain`: unit tests and one integration-test binary, with tests against the reference arithmetic, property tests, and table tests. `check-miri` skips the reference tests and the test of the checks at the worst cases, which run loops too long for the Miri interpreter.
 - The tests of `escher-geometry`: unit tests and one integration-test binary, with tests against the reference arithmetic, property tests, and deterministic sweeps. `check-miri` skips the reference tests and the sweeps, which run loops too long for the Miri interpreter, except the self-check of the reference arithmetic and one check of the disk map.
 - The tests of `escher-signature`: unit tests and one integration-test binary, with property tests and enumeration tests. `check-miri` skips the enumeration tests, which run a loop too long for the Miri interpreter.
 - The tests of `escher-cli`: one integration-test binary that calls `run` with in-memory streams, with `insta` snapshot tests of the information text, the diagnostics, and the help and usage text, and plain tests of the statuses and of failed writes. `check-miri` skips the snapshot tests, because they open files that the isolation of Miri refuses.
-- `just check`, `just check-features`, `just check-msrv`, and `just coverage`, which all pass in the development container. `just check` runs the tests and doctests of the three crates, and runs under Miri the tests that do not skip themselves.
+- `just check`, `just check-features`, `just check-msrv`, and `just coverage`, which all pass in the development container. `just check` runs the tests and doctests of the four crates, and runs under Miri the tests that do not skip themselves.
 - The twelve research documents under `docs/research/` that Repository Layout lists: seven subject-matter references, four surveys, and the working list `docs/research/source-requests.md`.
 - The planning documents of the proof of concept: `docs/design/architecture.md`, `docs/design/poc-plan.md`, and `docs/design/roadmap.md`.
 - The design documents of milestone `M1`: `docs/design/signature.md` for the crate `escher-signature`, and `docs/design/cli.md` for the crate `escher-cli` and the command `escher info`.
-- The design documents of milestone `M2`: `docs/design/geometry.md` for the crate `escher-geometry`, `docs/design/domain.md` for the planned crate `escher-domain`, and the extension of `docs/design/cli.md` with the domain summary and the option `--check` of `escher info`. `docs/design/cli.md` therefore specifies lines and an option that the binary does not have yet.
+- The design documents of milestone `M2`: `docs/design/geometry.md` for the crate `escher-geometry`, `docs/design/domain.md` for the crate `escher-domain`, and the extension of `docs/design/cli.md` with the domain summary and the option `--check` of `escher info`. `docs/design/cli.md` therefore specifies lines and an option that the binary does not have yet.
 
 The research documents record what their cited sources establish, including the sources that the owner supplied in `references/`, and mark each claim that no source establishes as unverified. Each of them except `docs/research/source-requests.md` has an Open Questions and Unverified Claims section, which names what would close each question. An agent reads that section before it builds on a claim, because a claim listed there is not established.
 
 What does not exist yet:
 
 - Any code that computes a tiling or renders an image.
-- The rest of milestone `M2`: the crate `escher-domain`, and the domain summary and the option `--check` of `escher info`.
+- The rest of milestone `M2`: the domain summary and the option `--check` of `escher info`.
 - Any command of `escher` other than `info`, such as `render`.
 - The design document of each component other than `escher-signature`, `escher-cli`, `escher-geometry`, and `escher-domain`, which its milestone writes before the code of the component.
 - A Lean development.
 
-The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The owner stated the scope after the proof of concept on 2026-11-16, and `docs/design/roadmap.md` records it with the proposals that the owner has yet to confirm. Milestone `M1` is complete: its design documents, the crate `escher-signature`, and the command `escher info` exist, and every test that its field "Tests and acceptance" names exists and passes. Milestone `M2` is in progress: its design documents and the crate `escher-geometry` exist, and the crate `escher-domain` and the new lines and option of `escher info` do not. No other milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
+The owner reviewed the plan of the proof of concept on 2026-11-16 and decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, and `DEC-19`, which Section 10.1 of `docs/design/architecture.md` states. The other proposed defaults stand until the owner changes them. The owner stated the scope after the proof of concept on 2026-11-16, and `docs/design/roadmap.md` records it with the proposals that the owner has yet to confirm. Milestone `M1` is complete: its design documents, the crate `escher-signature`, and the command `escher info` exist, and every test that its field "Tests and acceptance" names exists and passes. Milestone `M2` is in progress: its design documents and the crates `escher-geometry` and `escher-domain` exist, and the new lines and option of `escher info` do not. No other milestone has started. The change that starts or completes a milestone updates this section, and no design document records that progress.
 
 Section 7.11 of the writing guide and Section 4.8 of the coding standard say which part of each rule a tool or checker enforces. Every rule that no configured tool checks stays a judgement rule.
 
@@ -127,13 +129,16 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 
 - `AGENTS.md`: This file.
 - `CLAUDE.md`: A one-line file that imports `AGENTS.md` for Claude Code.
-- `Cargo.toml`: The workspace manifest, with resolver 3, the members `crates/escher-cli`, `crates/escher-geometry`, and `crates/escher-signature`, the `[workspace.package]` fields that every member inherits, such as edition 2024, `rust-version`, and the licence, the `[workspace.dependencies]` table with `anyhow`, `astro-float-num`, `clap`, `escher-signature`, `glam`, `insta`, `proptest`, and `thiserror`, the workspace lint tables of Section 4.2 of the coding standard, and the table `[profile.dev.package.astro-float-num]`, which optimizes that dev-dependency in the `dev` profile (Section 11 of `docs/design/geometry.md`).
+- `Cargo.toml`: The workspace manifest, with resolver 3, the members `crates/escher-cli`, `crates/escher-domain`, `crates/escher-geometry`, and `crates/escher-signature`, the `[workspace.package]` fields that every member inherits, such as edition 2024, `rust-version`, and the licence, the `[workspace.dependencies]` table with `anyhow`, `astro-float-num`, `clap`, `escher-geometry`, `escher-signature`, `glam`, `insta`, `proptest`, and `thiserror`, the workspace lint tables of Section 4.2 of the coding standard, and the table `[profile.dev.package.astro-float-num]`, which optimizes that dev-dependency in the `dev` profile (Section 11 of `docs/design/geometry.md`).
 - `Cargo.lock`: The lock file of the workspace.
 - `LICENSE`: The text of version 3 of the GNU General Public License.
-- `README.md`: The README, which is also the readme of `escher-cli`, `escher-geometry`, and `escher-signature` through the inherited `readme` field.
+- `README.md`: The README, which is also the readme of `escher-cli`, `escher-domain`, `escher-geometry`, and `escher-signature` through the inherited `readme` field.
 - `crates/escher-cli/Cargo.toml`: The manifest of the package `escher-cli`, which sets `publish = false`, inherits the workspace fields and lints, declares the binary `escher`, depends on `anyhow`, `clap`, and `escher-signature`, has the dev-dependency `insta`, and declares no Cargo feature.
 - `crates/escher-cli/src/`: The library target `lib.rs` with `run` and `Status`, its private modules `args.rs`, `info.rs`, and `diagnostic.rs`, and the binary `escher` in `main.rs`, which only calls `run`, as Section 3 of `docs/design/cli.md` specifies.
 - `crates/escher-cli/tests/cli/`: The one integration-test binary of the crate, `main.rs`, with the test modules and the shared helpers in `common.rs` (TEST-10 of the coding standard), and the committed `insta` snapshot files in `snapshots/`.
+- `crates/escher-domain/Cargo.toml`: The manifest of the package `escher-domain`, which sets `publish = false`, inherits the workspace fields and lints, depends on `escher-geometry`, `escher-signature`, `glam`, and `thiserror`, has the dev-dependencies `astro-float-num` and `proptest`, and declares no Cargo feature.
+- `crates/escher-domain/src/`: The library, with the modules that Section 3.3 of `docs/design/domain.md` lists and their unit tests.
+- `crates/escher-domain/tests/domain/`: The one integration-test binary of the crate, `main.rs`, with the test modules, the reference arithmetic in `reference.rs`, and the shared helpers in `common.rs` (TEST-10 of the coding standard).
 - `crates/escher-geometry/Cargo.toml`: The manifest of the package `escher-geometry`, which sets `publish = false`, inherits the workspace fields and lints, depends on `glam` and `thiserror`, has the dev-dependencies `astro-float-num` and `proptest`, and declares no Cargo feature.
 - `crates/escher-geometry/src/`: The library, with the modules that Section 3.3 of `docs/design/geometry.md` lists and their unit tests.
 - `crates/escher-geometry/tests/geometry/`: The one integration-test binary of the crate, `main.rs`, with the test modules, the reference arithmetic in `reference.rs`, and the shared helpers in `common.rs` (TEST-10 of the coding standard).
@@ -155,7 +160,7 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 - `docs/design/signature.md`: The design of the crate `escher-signature`, which is authoritative for its public surface, the input grammar of a signature, parsing and its errors, the canonical form, the exact Euler characteristic, the classification, and the limits on untrusted input.
 - `docs/design/cli.md`: The design of the package `escher-cli`, which is authoritative for the public surface of its library target, the binary `escher`, the commands and options, the information text of `escher info` with the domain summary and the verification lines of `--check`, the diagnostics and the replacement of control characters, the exit statuses, the tests and the form of a snapshot, the behaviour of `insta` under nextest, and the dependencies of the package.
 - `docs/design/geometry.md`: The design of the crate `escher-geometry`, which is authoritative for its public surface over the `glam` types, the conventions and sources of each formula of the hyperbolic linear model, the disk map, numerical robustness and accuracy, the error type, the tests with reference arithmetic, and the dependencies.
-- `docs/design/domain.md`: The design of the planned crate `escher-domain`, which is authoritative for its public surface, the signatures that have a fundamental domain, the construction and placement of the hyperbolic reflection triangle, its measurements, the checks of its verification with their tolerances, numerical accuracy, the error type and its text, the limit on the corner order, the tests, and the dependencies.
+- `docs/design/domain.md`: The design of the crate `escher-domain`, which is authoritative for its public surface, the signatures that have a fundamental domain, the construction and placement of the hyperbolic reflection triangle, its measurements, the checks of its verification with their tolerances, numerical accuracy, the error type and its text, the limit on the corner order, the tests, and the dependencies.
 - `docs/research/orbifold-notation.md`: The subject-matter reference on Conway's orbifold notation, with the grammar of a signature, equivalent signatures, the Euler characteristic, the classification by geometry, the lists of spherical, wallpaper, and frieze signatures, presentations, and deformations.
 - `docs/research/geometry-models.md`: The subject-matter reference on the models of the hyperbolic plane, the sphere, and the Euclidean plane, with the conversions between models, isometries, constructions, numerical robustness, distances, and trigonometry.
 - `docs/research/fundamental-domains.md`: The subject-matter reference on building a fundamental polygon and its side-pairing isometries from a signature, with Poincare's polygon theorem, moduli, building blocks, algorithms, and the classes of signature that have a sourced construction.
@@ -196,7 +201,7 @@ The agent MUST NOT assume that a planned crate, recipe, file, or tool exists, be
 These locations are planned and do not exist yet:
 
 - `docs/design/group.md` and `docs/design/render.md`: The design documents of the other components, which Section 1.5 and `DEC-1` of `docs/design/architecture.md` name.
-- `crates/escher-group`, `crates/escher-domain`, and `crates/escher-render`: The planned crates, which Section 3 of `docs/design/architecture.md` specifies.
+- `crates/escher-group` and `crates/escher-render`: The planned crates, which Section 3 of `docs/design/architecture.md` specifies.
 
 ## Technology Decisions
 
@@ -209,7 +214,7 @@ These decisions are in force:
 - The workspace denies `unsafe_code` (Hard Rule 7).
 - CI runs on GitHub Actions on hosted Linux runners, with the jobs of Section 7.1 of `docs/design/tooling.md`.
 - `.config/nextest.toml` defines the profiles `default`, for `test` and `coverage`, and `default-miri`, which Miri uses. Neither has a filter, so each selects every test, and a test that is too slow for Miri skips itself there (TEST-11 of the coding standard), as does a snapshot test (Section 8.3 of `docs/design/cli.md`). `just check` passes without a graphics processing unit (GPU) or a display (TOOL-8).
-- No crate is published, and `escher-cli`, `escher-geometry`, and `escher-signature` set `publish = false`. Nothing is published without the owner's explicit go-ahead.
+- No crate is published, and `escher-cli`, `escher-domain`, `escher-geometry`, and `escher-signature` set `publish = false`. Nothing is published without the owner's explicit go-ahead.
 
 The development container provides this environment:
 
@@ -289,10 +294,10 @@ When a snapshot test fails because the change to the output is intended, `insta`
 cargo insta review
 ```
 
-`just test` captures the output of a test that passes, so it hides the largest errors that the accuracy tests of `escher-geometry` print. To print them, with the margin and the worst input of each bound of Sections 8.4 and 10.3 of `docs/design/geometry.md`, run this command, which no recipe wraps. A filter such as `-E 'test(wall_through_close)'` selects one test:
+`just test` captures the output of a test that passes, so it hides the largest errors that the accuracy tests of `escher-geometry` and `escher-domain` print. To print them, with the margin and the worst input of each bound of Sections 8.4 and 10.3 of `docs/design/geometry.md` and of each tolerance and bound of Sections 8.4 and 9.3 of `docs/design/domain.md`, run this command, which no recipe wraps. A filter such as `-E 'test(wall_through_close)'` selects one test:
 
 ```sh
-cargo nextest run -p escher-geometry --no-capture
+cargo nextest run -p escher-geometry -p escher-domain --no-capture
 ```
 
 To check the dependencies after a change to a manifest:
