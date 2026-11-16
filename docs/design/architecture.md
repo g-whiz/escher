@@ -81,17 +81,17 @@ The workspace of the proof of concept has six members under `crates/`. Every mem
 | Crate | Responsibility | Internal dependencies | External dependencies |
 | --- | --- | --- | --- |
 | `escher-signature` | Parse, validate, canonicalize, and classify a signature | None | `thiserror` |
-| `escher-geometry` | Linear models and model maps | None | `glam` (`DEC-4`), then `num-complex` from `M12` |
+| `escher-geometry` | Linear models and model maps | None | `glam` (`DEC-4`) and `thiserror`, then `num-complex` from `M12` |
 | `escher-group` | Presentations, coset enumeration, low-index search, and colourings | `escher-signature` | None |
-| `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` |
+| `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` and `thiserror` |
 | `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-group`, `escher-signature` | `glam`, `png`, `palette` |
 | `escher-cli` | The binary `escher`, with the commands `info` and `render` | All five | `clap` with the derive API, `anyhow`, `rayon`, `csscolorparser` |
 
-The dev-dependencies are `insta`, `proptest`, and `astro-float`, the reference-arithmetic crate of `DEC-3`.
+The dev-dependencies are `insta`, `proptest`, and `astro-float-num`, the reference-arithmetic crate of `DEC-3`.
 
 `escher-domain` and `escher-render` compute with the `glam` types that `escher-geometry` exposes, so each declares `glam` itself, from the one entry in `[workspace.dependencies]` that rule DEP-2 in Section 12 of `docs/rust-coding-standards.md` requires.
 
-Section 5.8 requires an error type in every library crate. The table lists `thiserror` for `escher-signature` only. Whether another library crate implements its error type with `thiserror` is for its design document to decide.
+Section 5.8 requires an error type in every library crate. The table lists `thiserror` for `escher-signature`, `escher-geometry`, and `escher-domain`, whose design documents choose it. Whether another library crate implements its error type with `thiserror` is for its design document to decide.
 
 ### 3.2. Public Surface
 
@@ -99,12 +99,7 @@ Each list below is the public surface of one crate as this document designs it, 
 
 `escher-signature`: `Signature`, valid by construction and in canonical form, with its feature accessors, its exact Euler characteristic, and its classification, and an `Error` that carries the byte span of the offending input. Section 3 of `docs/design/signature.md` specifies the public surface.
 
-`escher-geometry`:
-
-- No vector or matrix type of its own (`DEC-4`). A point, a unit normal, and a covector are a `glam` `DVec3`, an isometry is a `DMat3`, and a position in a planar model is a `DVec2`.
-- The bilinear form of each geometry and the side test, as free functions over these types (Sections 5.1 and 5.2).
-- The modules `hyperbolic`, `spherical`, and `euclidean`. Each has point normalization, the reflection from a unit normal, rotation, translation, point distance, an isometry check, and the inverse.
-- Model maps in both directions between the hyperboloid and the disk, Klein, half-plane, and band models, the ball lift for the sphere, and their Jacobians.
+`escher-geometry`: no vector or matrix type of its own (`DEC-4`), and one module per geometry, `hyperbolic`, `spherical`, and `euclidean`, of free functions over the `glam` types. They give the bilinear form and the side test (Sections 5.1 and 5.2), point normalization, distance, the reflection from a unit normal, rotation, translation, the inverse, an isometry check, and the model maps in both directions between the hyperboloid and the disk, Klein, half-plane, and band models, with the ball lift for the sphere and the Jacobians of the maps. Section 3 of `docs/design/geometry.md` specifies the public surface, and its Section 3.4 states where the other geometries and the further model maps go.
 
 `escher-group`:
 
@@ -113,13 +108,11 @@ Each list below is the public surface of one crate as this document designs it, 
 - The low-index search, as an iterator with a work budget over standard coset tables, one per conjugacy class.
 - `Colouring`, with an id, a colour count, and a coset table, and `colour_of`, which maps a side sequence to a colour.
 
-`escher-domain`:
+`escher-domain`: `FundamentalDomain`, built from a signature, which holds its geometry, its sides, its vertices, and a centre, and `verify()`, which evaluates numerically the items of the checklist of Section 4.8 of `docs/research/fundamental-domains.md` that apply to the domain. Each side holds its unit normal, its covector, its pairing isometry, its partner side, its pairing kind, and its orientation. Section 3 of `docs/design/domain.md` specifies the public surface. These parts of the design belong to the same crate, and `docs/design/domain.md` specifies each one in the change that adds the first signature that needs it:
 
-- `ParameterSpec`, with a name, a kind, a range, a default, and a unit, and `ShapeParameters`.
-- `parameters(&Signature)` and `build(&Signature, &ShapeParameters) -> FundamentalDomain`.
-- `FundamentalDomain`, which holds its geometry, its sides, its finite and ideal vertices, and a centre. Each side holds its covector, its pairing isometry, its partner side, its pairing kind, and its orientation.
+- `ParameterSpec`, with a name, a kind, a range, a default, and a unit, `ShapeParameters`, `parameters(&Signature)`, and the form of `build` that takes the shape parameters.
+- Ideal vertices.
 - `side_presentation()`, the presentation that the sides give.
-- `verify()`, which evaluates numerically the checklist of Section 4.8 of `docs/research/fundamental-domains.md`.
 
 `escher-render`:
 
@@ -293,7 +286,7 @@ Eight facts of the repository shape the design. Each row names the document that
 | Design documents hold no progress | Section 3.6 of `docs/writing-documentation.md` | `docs/design/poc-plan.md` states its milestones as a plan. Status goes only into Project Status of `AGENTS.md` |
 | No derivation in prose | Hard Rule 14 of `AGENTS.md`, Section 2.4 of `docs/research/geometry-models.md` | The linear models of Section 5.1 need a few statements that the research gives only in another convention or not at all. They are `UNV-26` and follow the owner's decision on unverified statements (Section 10.1) |
 | Research prerequisites | Section 8.5 and gap G4 of `docs/research/fundamental-domains.md`, and Development Workflow of `AGENTS.md` | The research holds no step-level account of Todd-Coxeter or of the low-index search, of the geometry of SymmHub's Euclidean and spherical catalogue, or of five of the nine cut types. A change that implements mathematics starts from its subject-matter reference, so the research prerequisites `RP-1` to `RP-5` of `docs/design/poc-plan.md` precede the milestones that need them |
-| CI caches nothing | Section 7.1 of `docs/design/tooling.md` | A native build, such as the GNU Multiple Precision Arithmetic Library (GMP) and the GNU Multiple Precision Floating-Point Reliable Library (MPFR) for `rug`, would rebuild in every job on every push, so the reference arithmetic is the pure-Rust `astro-float` (`DEC-3`) |
+| CI caches nothing | Section 7.1 of `docs/design/tooling.md` | A native build, such as the GNU Multiple Precision Arithmetic Library (GMP) and the GNU Multiple Precision Floating-Point Reliable Library (MPFR) for `rug`, would rebuild in every job on every push, so the reference arithmetic is the pure-Rust astro-float project, through its crate `astro-float-num` (`DEC-3`) |
 
 These rules of `docs/rust-coding-standards.md` have an effect on the architecture:
 
@@ -359,7 +352,7 @@ A side counts as violated only when its covector value exceeds a tolerance relat
 
 ### 9.3. Normalization
 
-The fold renormalizes the point onto its model surface at a fixed interval, after HyperRogue's `normalize` and the forced variant of [KC24] (Sections 8.2 and 8.4 of `docs/research/geometry-models.md`). Any accumulated matrix is corrected in the same way. Long products are tested against reference arithmetic, because [FWW], of which only the abstract was read, reports a growth of error in Lorentz products. Section 5.4 of `docs/research/symmhub.md` reports a trace error of $5 \times 10^{-5}$ on long words in a hyperboloid factorization.
+The fold renormalizes the point onto its model surface at a fixed interval, after HyperRogue's `normalize` and the forced variant of [KC24] (Sections 8.2 and 8.4 of `docs/research/geometry-models.md`). The caller that accumulates a matrix, such as the renderer, corrects that matrix in the same way, because `escher-geometry` renormalizes only points and unit normals and has no function that renormalizes a matrix (Section 8.3 of `docs/design/geometry.md`). Long products are tested against reference arithmetic, because [FWW], of which only the abstract was read, reports a growth of error in Lorentz products. Section 5.4 of `docs/research/symmhub.md` reports a trace error of $5 \times 10^{-5}$ on long words in a hyperboloid factorization.
 
 ### 9.4. Limit Circle
 
@@ -413,7 +406,7 @@ Engineering:
 
 Decided defaults, which keep their labels in Section 10.2 because other documents cite them:
 
-- `DEC-3`, reference arithmetic: `astro-float`, which is pure Rust under the MIT licence, with one comparison against MPFR recorded (`UNV-25`). Section 12.1 of `docs/research/rust-ecosystem.md` recommends `rug` if a C toolchain in CI is acceptable, because MPFR is the reference standard, and `astro-float` for pure Rust, checked once against `rug` or MPFR because nobody has verified its claims of correct rounding. `DEC-3` takes the pure-Rust branch, because a native build rebuilds in every CI job (Section 6, last row) and native code fails under Miri (Section 6, first row). `rug` also adds the licence `LGPL-3.0-or-later`.
+- `DEC-3`, reference arithmetic: astro-float, which is pure Rust under the MIT licence, with one comparison against MPFR recorded (`UNV-25`). The tests use `astro-float-num`, the number crate of the astro-float project, for the reason that Section 11 of `docs/design/geometry.md` states. Section 12.1 of `docs/research/rust-ecosystem.md` recommends `rug` if a C toolchain in CI is acceptable, because MPFR is the reference standard, and `astro-float` for pure Rust, checked once against `rug` or MPFR because nobody has verified its claims of correct rounding. `DEC-3` takes the pure-Rust branch, because a native build rebuilds in every CI job (Section 6, last row) and native code fails under Miri (Section 6, first row). `rug` also adds the licence `LGPL-3.0-or-later`.
 - `DEC-4`, linear algebra: the real vectors and matrices are the `glam` types `DVec2`, `DVec3`, and `DMat3`, and the project writes no vector or matrix type of its own. `num-complex` provides complex numbers from `M12`. The owner chose `glam` because much of the logic moves to Slang after the proof of concept, so a vector and matrix library of the project's own would be wasted work. The double-precision types are the ones that Section 6.1 of `docs/research/rust-ecosystem.md` recommends. Section 5.1 states the conventions over these types, and Section 3.5 states what rule DEP-3 requires as a result.
 - `DEC-5`, Miri: tests that use files, processes, or long numeric loops carry `#[cfg_attr(miri, ignore = "...")]`, and property tests use fewer cases under Miri. Section 6, first row, gives the reason and names the documents that state the rule.
 - `DEC-18`, MIT notice: ported SymmHub code carries its MIT notice in a notices file at the repository root and in a section of the crate-level documentation of each crate with ported code. The notice arrives in the first change that ports SymmHub code, and not before, and that change records it in `AGENTS.md` and `docs/design/tooling.md`. Rust source holds no licence header (Section 6, second row), and `UNV-24` tracks the open licence question.
@@ -429,7 +422,7 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | --- | --- | --- | --- |
 | `DEC-1` | Names | Crates `escher-signature`, `escher-geometry`, `escher-group`, `escher-domain`, `escher-render`, and `escher-cli`. Design documents `architecture.md`, `signature.md`, `geometry.md`, `group.md`, `domain.md`, `render.md`, and `cli.md` | One crate per concern, as the owner decided. Availability on crates.io is checked only before publication |
 | `DEC-2` | Location of the plan and roadmap | The milestone plan `docs/design/poc-plan.md` and the roadmap `docs/design/roadmap.md`, next to this document, as plans without status (Section 10.1) | Section 3.6 of `docs/writing-documentation.md` |
-| `DEC-3` | Reference-arithmetic crate | Decided by the owner: `astro-float` | Section 10.1 |
+| `DEC-3` | Reference-arithmetic crate | Decided by the owner: astro-float. The tests use its number crate `astro-float-num`, which Section 13.3 of `docs/design/geometry.md` raises with the owner | Section 10.1 |
 | `DEC-4` | Linear algebra | Decided by the owner: `glam` and `num-complex`, with no vector or matrix type of the project's own | Section 10.1 |
 | `DEC-5` | Miri | Decided by the owner: tests that cannot run under Miri carry `#[cfg_attr(miri, ignore = "...")]` | Section 10.1 |
 | `DEC-6` | Golden images | As Section 7.2 | No golden image test is defined yet |

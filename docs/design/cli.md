@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
+This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the summary of the fundamental domain and the result of each check of the option `--check`, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
 
 ## 1. Introduction
 
@@ -18,7 +18,7 @@ The proof of concept is a command-line tool, and its first command reports what 
 
 ### 1.2. Purpose
 
-This document fixes the behaviour of `escher` precisely enough that an agent can implement it and a reviewer can check every line of output against it. The crate `escher-signature` parses and classifies a signature. This crate turns its results into text, diagnostics, and an exit status.
+This document fixes the behaviour of `escher` precisely enough that an agent can implement it and a reviewer can check every line of output against it. The crate `escher-signature` parses and classifies a signature, and the crate `escher-domain` builds and verifies its fundamental domain. This crate turns their results into text, diagnostics, and an exit status.
 
 ### 1.3. Audience
 
@@ -26,18 +26,19 @@ The primary readers are the coding agents that implement or extend `escher-cli`.
 
 ### 1.4. Scope
 
-This document covers the command `info` with its single argument, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature, and prints no item that needs a fundamental domain or a group.
+This document covers the command `info` with its argument and its option `--check`, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, and with `--check` the result of each check of its verification. It prints no item that needs a group.
 
 ### 1.5. Non-Goals
 
 These topics are owned elsewhere, and this document cites them:
 
 - The grammar of a signature, its canonical form, the classification methods, and the error kinds of `escher-signature` with their `Display` text are specified in `docs/design/signature.md`.
+- The signatures that have a fundamental domain, its construction, its measurements, the checks of its verification with their tolerances, and the error kinds of `escher-domain` with their `Display` text are specified in `docs/design/domain.md`.
 - The crates, the data flow, the error model, and the owner's decisions are specified in `docs/design/architecture.md`.
 - The mathematics is stated in `docs/research/orbifold-notation.md`.
 - The recipes, the nextest profiles, the hooks, and the dependency policy are specified in `docs/design/tooling.md`.
 
-The command `render`, its options, and the lines of `info` that need a domain, a group, or a colouring belong to later milestones (Section 5.4). So do the handling of an existing output file (Section 11 of `docs/design/architecture.md`) and the diagnostic for a general non-compact signature in `render` (Section 5.8 of that document).
+The command `render`, its options, and the lines of `info` that need parameters, a group, or a colouring belong to later milestones (Section 5.4). So do the handling of an existing output file (Section 11 of `docs/design/architecture.md`) and the diagnostic for a general non-compact signature in `render` (Section 5.8 of that document).
 
 ## 2. Requirements Language
 
@@ -47,11 +48,15 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ### 2.1. Terminology
 
-This document uses the terms of Section 2.2 of `docs/writing-documentation.md` and of Section 2.1 of `docs/design/architecture.md`, such as signature, canonical signature, geometry, and general non-compact signature. It adds these terms:
+This document uses the terms of Section 2.2 of `docs/writing-documentation.md` and of Section 2.1 of `docs/design/architecture.md`, such as signature, canonical signature, geometry, fundamental domain, and general non-compact signature. It adds these terms:
 
 - ON: The reference `docs/research/orbifold-notation.md`, cited as `ON` and a section number, such as ON 7.3.
 - command: A subcommand of `escher`, such as `info`.
 - information text: The text that `escher info` writes to standard output for a valid signature (Section 5).
+- domain: The `FundamentalDomain` that `FundamentalDomain::build` of `escher-domain` returns for a signature.
+- domain summary: The lines of the information text that describe the domain, rows 10 to 13 of Section 5.1 (Section 5.5).
+- check: One numeric condition that `verify()` of `escher-domain` evaluates, with a residual and a tolerance (Section 2.1 of `docs/design/domain.md`).
+- verification lines: The lines of the information text that `--check` adds, rows 14 to 20 of Section 5.1 (Section 5.6).
 - diagnostic: The text that `escher` writes to standard error when it fails (Section 6).
 - echo line: The line of a diagnostic that repeats the signature (Section 6.2).
 - caret line: The line of a diagnostic that marks the span of an error with `^` characters under the echo line (Section 6.3).
@@ -138,19 +143,19 @@ The binary prints nothing itself, so `main.rs` carries no lint exception for `cl
 
 ### 3.5. Private Modules
 
-The library target has the private modules `args`, `info`, and `diagnostic`, as files named `args.rs`, `info.rs`, and `diagnostic.rs` (Section 4.5 of `docs/rust-coding-standards.md`). `args` holds the `clap` types, `info` builds the information text, and `diagnostic` writes the diagnostics.
+The library target has the private modules `args`, `info`, and `diagnostic`, as files named `args.rs`, `info.rs`, and `diagnostic.rs` (Section 4.5 of `docs/rust-coding-standards.md`). `args` holds the `clap` types, `info` builds the information text, including the domain summary and the verification lines, and `diagnostic` writes the diagnostics.
 
 ## 4. Command Line
 
 ### 4.1. Synopsis
 
 ```text
-escher info <SIGNATURE>
+escher info [--check] <SIGNATURE>
 escher --help
 escher --version
 ```
 
-`-h` is the short form of `--help` and `-V` of `--version`. `escher info --help` prints the help of `info`.
+`-h` is the short form of `--help` and `-V` of `--version`. `escher info --help` prints the help of `info`. `--check` has no short form.
 
 ### 4.2. Parser Settings
 
@@ -175,16 +180,21 @@ The help text has these summaries, and no other text beyond what `clap` generate
 | `escher` | The package description, `Command-line program of Escher, a tool for symmetry-based graphics.` |
 | `info` | `Print the canonical form, the geometry, and other properties of a signature in orbifold notation` |
 | `SIGNATURE` | `The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'` |
+| `--check` | `Verify the fundamental domain of the signature and print the result of each check` |
 
 CLI-4. `escher --version` and `escher -V` MUST write the package name, one space, the package version, and a newline to standard output, which is `escher-cli 0.1.0` for version 0.1.0, and return `Success`, because Section 5.1 of `docs/design/poc-plan.md` keeps this output, and a script may read it.
 
 ### 4.3. The `info` Command
 
-`info` takes one required positional argument, the signature, as a `String` named `SIGNATURE`. An argument that is not valid UTF-8 is a usage error.
+`info` takes one required positional argument, the signature, as a `String` named `SIGNATURE`, and the optional flag `--check`. An argument that is not valid UTF-8 is a usage error. The flag may stand before or after the signature.
 
 CLI-5. `info` MUST pass its argument unchanged to the `FromStr` implementation of `Signature` from `escher-signature`, and MUST NOT trim, normalize, or check it first, because a second reading of the grammar diverges from the one that `docs/design/signature.md` specifies, and the byte spans of the error then no longer match the argument.
 
-On success, `info` writes the information text of Section 5 to standard output. On a signature error, it writes the diagnostic of Section 6 to standard error. A bad orbifold is a signature error (`DEC-24`).
+On success, `info` writes the information text of Section 5 to standard output. On a signature error, it writes the diagnostic of Section 6 to standard error and nothing to standard output, with or without `--check`. A bad orbifold is a signature error (`DEC-24`).
+
+With `--check`, `info` also runs `verify()` on the domain, adds the verification lines of Section 5.6 to the information text, and writes the diagnostic of Section 6.7 when a check fails or the signature has no domain.
+
+The `clap` argument struct holds the flag as a `bool`, because the derive API sets a flag through a `bool` field. `info` converts it at once into a private enum with two variants, which the private functions take (TYPE-2 of `docs/rust-coding-standards.md`).
 
 A signature never starts with `-`, so it never collides with an option. An argument that starts with `-` is read as an option, and an unknown option is a usage error.
 
@@ -196,7 +206,7 @@ In a POSIX shell, `*`, `(`, and `)` are special characters, so a signature that 
 
 ### 5.1. Lines
 
-`info` writes the lines of this table, in this order. Each line is the label, a colon, one space, and the value, followed by a line feed. No other line, blank line, or trailing space appears. The accessors are those of `Signature` (Sections 3.1 and 9.1 of `docs/design/signature.md`).
+`info` writes the lines of this table, in this order. Each line is the label, a colon, one space, and the value, followed by a line feed. No other line, blank line, or trailing space appears. The accessors of rows 1 to 9 are those of `Signature` (Sections 3.1 and 9.1 of `docs/design/signature.md`). The accessors of rows 10 to 20 are those of `FundamentalDomain`, `Verification`, and `Check` (Section 3.1 of `docs/design/domain.md`), and "a domain is built" means that `FundamentalDomain::build` returned `Ok`.
 
 | Order | Label | Printed when | Value |
 | --- | --- | --- | --- |
@@ -209,8 +219,21 @@ In a POSIX shell, `*`, `(`, and `)` are special characters, so a signature that 
 | 7 | `Group order` | `group_order()` returns a value, which it does for a spherical signature | The integer in decimal |
 | 8 | `Area` | `area_over_pi()` returns a value, which it does for a spherical or hyperbolic signature | The form of Section 5.2 |
 | 9 | `Deformation dimension` | `deformation_dimension()` returns a value, which it does for a compact hyperbolic signature | The integer in decimal |
+| 10 | `Domain` | Always | `<n> mirror sides` when a domain is built, and otherwise `none, ` followed by the `Display` text of the error (Section 5.5) |
+| 11 | `Corner angles in degrees` | A domain is built | Each value of `corner_angles()` in degrees, in corner order, in the form of Section 5.2 |
+| 12 | `Side lengths` | A domain is built | Each value of `side_lengths()`, in side order, in the form of Section 5.2 |
+| 13 | `Domain area` | A domain is built | `area()`, in the form of Section 5.2 |
+| 14 | `Check isometries` | `--check` is given and a domain is built | The result of `isometries()`, in the form of Section 5.6 |
+| 15 | `Check pairings` | As row 14 | The result of `pairings()` |
+| 16 | `Check walls` | As row 14 | The result of `walls()` |
+| 17 | `Check relators` | As row 14 | The result of `relators()` |
+| 18 | `Check angles` | As row 14 | The result of `angles()` |
+| 19 | `Check area` | As row 14 | The result of `area()` of `Verification` |
+| 20 | `Verification` | As row 14 | `passed` when `Verification::passed()` is true, and otherwise `failed` |
 
 CLI-6. `info` MUST print exactly the lines of this table, in this order and under these conditions, because the snapshots of Section 8 and every reader of the text rely on one layout, and an extra or missing line changes what a reader concludes about the signature. The table has no name of the group in another notation, such as an IUC or Schoenflies name, because `DEC-20` omits them until a primary source is read.
+
+So a signature without a domain gets the lines of rows 1 to 9 that apply to it and then exactly one more line, the `Domain` line of row 10, with or without `--check`. Rows 14 to 20 follow the order of the checks of Section 8.2 of `docs/design/domain.md`.
 
 ### 5.2. Number Formats
 
@@ -227,11 +250,22 @@ The area is $2\pi \lvert \chi \rvert$ (ON 7.3). `area_over_pi()` gives the posit
 | Greater than 1 | 1 | `npi` | `4pi` |
 | Greater than 1 | Greater than 1 | `npi/d` | `2pi/3` |
 
+The floating-point values of the domain summary and the verification lines have these forms:
+
+| Value | Rows | Form | Example |
+| --- | --- | --- | --- |
+| Corner angle | 11 | The value of `corner_angles()` in radians converted with `f64::to_degrees`, then written in fixed notation with six digits after the point, `{:.6}` | `25.714286` |
+| Side length | 12 | Fixed notation with six digits after the point, `{:.6}` | `0.545275` |
+| Domain area | 13 | Fixed notation with six digits after the point, `{:.6}` | `0.074800` |
+| Residual and tolerance | 14 to 19 | Scientific notation with one digit after the point, `{:.1e}` of Rust, which writes an infinite value as `inf` and a NaN as `NaN` | `2.5e-3`, `1.0e-9` |
+
+Rows 11 and 12 separate the values with a comma and one space. Angles are in degrees on the command line, as Section 5.5 of `docs/design/architecture.md` states.
+
 ### 5.3. Examples
 
-The examples follow the canonical form that `docs/design/signature.md` defines. Each value cites the section of ON that gives it or its formula. The deformation dimension applies the formula of ON 10.1 with the reading of the Euler characteristic of the underlying surface that Section 15.1 of `docs/design/signature.md` records.
+The examples follow the canonical form that `docs/design/signature.md` defines. Each value cites the section of ON that gives it or its formula. The deformation dimension applies the formula of ON 10.1 with the reading of the Euler characteristic of the underlying surface that Section 15.1 of `docs/design/signature.md` records. The domain summary and the `Domain` line follow Section 5.5, and the verification lines Section 5.6.
 
-This example shows a compact hyperbolic signature:
+This example shows a compact hyperbolic signature with a domain:
 
 ```sh
 escher info '*732'
@@ -244,11 +278,15 @@ Euler characteristic: -1/84
 Compact: yes
 Area: pi/42
 Deformation dimension: 0
+Domain: 3 mirror sides
+Corner angles in degrees: 25.714286, 60.000000, 90.000000
+Side lengths: 0.545275, 0.620672, 0.283128
+Domain area: 0.074800
 ```
 
-The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. Section 5.1 of `docs/design/poc-plan.md` states all three values.
+The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. Section 5.1 of `docs/design/poc-plan.md` states all three values. The corner angles are $180/7$, 60, and 90 degrees, in the corner order of Section 5.1 of `docs/design/domain.md`. A 256-bit computation of the exact triangle gave the side lengths 0.5452748318, 0.6206717376, and 0.2831281534 and the area $\pi/42 = 0.0747998251$, so the printed values are correct to the digits shown. `Domain area` is the area of the triangle measured from its angles, and `Area` is the exact value from the Euler characteristic, so the two agree to the digits shown.
 
-This example shows a spherical signature:
+This example shows a spherical signature, which has no domain:
 
 ```sh
 escher info '*532'
@@ -261,6 +299,7 @@ Euler characteristic: 1/60
 Compact: yes
 Group order: 120
 Area: pi/30
+Domain: none, cannot build fundamental domain: the signature *532 is not supported
 ```
 
 ON 6.4 gives the Euler characteristic $1/60$ and the order 120, which the table of ON 8.2 lists. The area comes from ON 7.3.
@@ -278,6 +317,7 @@ Euler characteristic: -1/12
 Compact: yes
 Area: pi/6
 Deformation dimension: 0
+Domain: none, cannot build fundamental domain: the signature 4*3 is not supported
 ```
 
 ON 6.4 gives the Euler characteristic. The area comes from ON 7.3 and the dimension from ON 10.1.
@@ -295,6 +335,7 @@ Euler characteristic: -1/3
 Compact: yes
 Area: 2pi/3
 Deformation dimension: 1
+Domain: none, cannot build fundamental domain: the signature *3333 is not supported
 ```
 
 ON 6.4 gives the Euler characteristic, and ON 7.3 states the area $2\pi/3$ for this signature. The dimension comes from ON 10.1, and Section 5.1 of `docs/design/poc-plan.md` states it.
@@ -312,6 +353,7 @@ Euler characteristic: 1/24
 Compact: yes
 Group order: 48
 Area: pi/12
+Domain: none, cannot build fundamental domain: the signature 2*(12) is not supported
 ```
 
 The order $4n = 48$ of `2*n` comes from ON 8.2. The Euler characteristic is $2/48 = 1/24$ by ON 7.3, which also gives the area.
@@ -327,6 +369,7 @@ Signature: *632
 Geometry: Euclidean
 Euler characteristic: 0
 Compact: yes
+Domain: none, cannot build fundamental domain: the signature *632 is not supported
 ```
 
 ON 8.1 lists `*632` among the 17 Euclidean signatures.
@@ -345,6 +388,7 @@ Euler characteristic: 0
 Compact: no
 Frieze: yes
 General non-compact: no
+Domain: none, cannot build fundamental domain: the signature *(inf)22 is not supported
 ```
 
 ON 6.4 gives the Euler characteristic 0, ON 8.3 lists the signature among the friezes, and ON 7.1 states that a signature with an infinite order is not compact. An infinite order sorts above every finite order in the canonical form, so the canonical signature is `*(inf)22` (Section 11.3).
@@ -363,6 +407,7 @@ Compact: no
 Frieze: no
 General non-compact: yes
 Area: pi/3
+Domain: none, cannot build fundamental domain: the signature 3*(inf) is not supported
 ```
 
 The Euler characteristic comes from the defect rule of ON 6.1, including the defect of a corner of infinite order. The geometry follows `DEC-10`, and the geometry and the area rest on `UNV-21` (Section 10). No deformation dimension is printed, because none is known for a non-compact signature (ON 12 item 15).
@@ -380,9 +425,65 @@ Euler characteristic: 2
 Compact: yes
 Group order: 1
 Area: 4pi
+Domain: none, cannot build fundamental domain: the signature 1 is not supported
 ```
 
 The Euler characteristic 2 is the defect rule of ON 6.1 with no defect. The order is that of `nn` with $n = 1$ in ON 8.2, and the area comes from ON 7.3.
+
+For a supported signature whose largest corner order is above the limit of `escher-domain`, such as `*(1001)32`, rows 1 to 9 apply as for `*732`, and the last line is `Domain: none, cannot build fundamental domain: order 1001 is larger than 1000`, as Section 10.2 of `docs/design/domain.md` fixes it.
+
+The option `--check` adds the verification lines after the domain summary. This example shows the form, with `<residual>` in place of each residual, because Section 8.1 replaces the residuals of these lines in the snapshot:
+
+```sh
+escher info --check '*732'
+```
+
+```text
+Signature: *732
+Geometry: hyperbolic
+Euler characteristic: -1/84
+Compact: yes
+Area: pi/42
+Deformation dimension: 0
+Domain: 3 mirror sides
+Corner angles in degrees: 25.714286, 60.000000, 90.000000
+Side lengths: 0.545275, 0.620672, 0.283128
+Domain area: 0.074800
+Check isometries: passed, residual <residual>, tolerance 1.0e-9
+Check pairings: passed, residual <residual>, tolerance 1.0e-9
+Check walls: passed, residual <residual>, tolerance 1.0e-9
+Check relators: passed, residual <residual>, tolerance 1.0e-6
+Check angles: passed, residual <residual>, tolerance 1.0e-9
+Check area: passed, residual <residual>, tolerance 1.0e-9
+Verification: passed
+```
+
+Standard error is empty and the status is `Success`. The tolerances are those of Section 8.4 of `docs/design/domain.md`.
+
+With `--check`, a signature without a domain prints the same information text as without it, and then the diagnostic of Section 6.7:
+
+```sh
+escher info --check '*632'
+```
+
+Standard output:
+
+```text
+Signature: *632
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Domain: none, cannot build fundamental domain: the signature *632 is not supported
+```
+
+Standard error:
+
+```text
+error: cannot verify fundamental domain
+  caused by: cannot build fundamental domain: the signature *632 is not supported
+```
+
+The status is `Failure`, so the exit status is 1.
 
 ### 5.4. Stability and Omissions
 
@@ -390,7 +491,37 @@ The information text is not a stable interface, and a machine-readable form is a
 
 CLI-7. A change that alters the information text MUST update its snapshots in the same change, because the snapshot test fails otherwise, and the snapshot diff is how a reviewer sees each change to the text (`DEC-23`, rule TEST-2 of `docs/rust-coding-standards.md`).
 
-`info` prints no line about parameters, domains, presentations, colourings, polygons, or colours, and no placeholder for them. Each needs a crate that a later milestone adds. Section 3.4 of `docs/design/poc-plan.md` places them: the domain summary in M2 (its Section 5.2), the named parameters in M4 (Section 5.4), the presentation in M7 (Section 5.7), and the list of colourings with their colour counts in M8 (Section 5.8). The owner's goal that `info` reports how many polygons the representative set has, and so which colour counts are possible, is met by that list in M8.
+`info` prints no line about parameters, presentations, colourings, polygons, or colours, and no placeholder for them. Each needs a crate or a part of a crate that a later milestone adds. Section 3.4 of `docs/design/poc-plan.md` places them: the named parameters in M4 (Section 5.4), the presentation in M7 (Section 5.7), and the list of colourings with their colour counts in M8 (Section 5.8). The owner's goal that `info` reports how many polygons the representative set has, and so which colour counts are possible, is met by that list in M8. The domain summary covers exactly the signatures that `escher-domain` constructs (Section 4 of `docs/design/domain.md`).
+
+### 5.5. Domain Summary
+
+For every valid signature, `info` calls `FundamentalDomain::build` once and prints the `Domain` line of row 10. Rows 11 to 13 follow only when a domain is built.
+
+When a domain is built, the value of the `Domain` line is the number of `sides()` in decimal, one space, and `mirror sides`. Every side of a domain that `escher-domain` builds has the kind `Mirror` (Section 3.2 of `docs/design/domain.md`).
+
+When `build` returns an error, the value is `none, ` followed by the `Display` text of that error, for every error kind. The `Display` text starts with `cannot build fundamental domain: ` (Section 10.2 of `docs/design/domain.md`), so the line reads, for example, `Domain: none, cannot build fundamental domain: the signature *632 is not supported`. The line holds only the `Display` text of the top error and no text of its source. The text holds the canonical signature or a number, both in printable ASCII, so it needs no replacement of characters.
+
+CLI-16. `info` MUST take the values of rows 10 to 20 from `escher-domain` unchanged, except for the conversion of the angles to degrees and the formats of Section 5.2, and MUST NOT measure or check the domain itself, because a second computation in this crate can differ from what `verify()` checks, and the printed values would then describe another domain than the one that passed.
+
+CLI-17. Without `--check`, `info` MUST print the `Domain` line with `none` and return `Success` for a valid signature for which `build` returns an error, because the signature is still parsed, valid, and classified, and a non-zero status would tell a script that the signature itself is invalid.
+
+The values of rows 11 to 13 are rounded to six digits after the point. Section 9.3 of `docs/design/domain.md` bounds the error of each value that `build` returns. A printed digit can therefore differ between two correct builds, such as builds on two platforms, only when the exact value lies within that bound of a rounding boundary of the sixth digit. Section 8.1 states how the snapshot inputs avoid that case.
+
+### 5.6. Verification Lines
+
+With `--check`, when a domain is built, `info` calls `verify()` once and prints rows 14 to 20 after the domain summary. The information text and the verification lines form one text, which `info` writes in one write.
+
+The value of each of rows 14 to 19 has this form, where the result is `passed` when `Check::passed()` is true and `failed` otherwise, and the residual and the tolerance have the form of Section 5.2:
+
+```text
+<result>, residual <residual>, tolerance <tolerance>
+```
+
+For example, a failed relator check prints `Check relators: failed, residual 2.5e-3, tolerance 1.0e-6`. A residual of infinity, which marks a failed structural condition (Section 8.1 of `docs/design/domain.md`), prints as `inf`, and a NaN residual as `NaN`.
+
+Row 20 gives the overall result, `Verification: passed` or `Verification: failed`, from `Verification::passed()`.
+
+CLI-18. With `--check`, `info` MUST print one line for each check that `Verification` reports, with its result, its residual, and its tolerance, in the order of Section 8.2 of `docs/design/domain.md`, and then the overall result, because a reader who sees only the overall result cannot tell which condition failed or by how much, and a line that omits the tolerance cannot be read without the design document.
 
 ## 6. Diagnostics
 
@@ -398,7 +529,7 @@ CLI-7. A change that alters the information text MUST update its snapshots in th
 
 CLI-8. `run` MUST write every diagnostic to standard error and none to standard output, because a caller that captures standard output must receive only the information text, or else an error is read as data.
 
-The diagnostic of a signature error or an output error has this form, and Section 6.5 covers a usage error:
+The diagnostic of a signature error, an output error, or a verification error of Section 6.7 has this form, and Section 6.5 covers a usage error:
 
 ```text
 error: <Display text of the error>
@@ -516,17 +647,33 @@ A failed write to standard error is discarded in the form of rule ERR-5 of `docs
 
 This is a choice of this design. It is the simplest behaviour that never panics: Rust ignores the signal `SIGPIPE`, so a write to a closed pipe returns an error, and the `println!` macro panics on that error.
 
+### 6.7. Verification Errors
+
+With `--check`, `info` writes the information text first and then one of these diagnostics:
+
+| Case | Diagnostic |
+| --- | --- |
+| Every check passes | None |
+| At least one check fails | `error: cannot verify fundamental domain: <k> of 6 checks failed`, with `k` the number of checks whose `passed()` is false, in decimal |
+| `build` returns an error | `error: cannot verify fundamental domain`, then `  caused by: ` and the `Display` text of the error of `escher-domain`, then one `caused by` line for each further source in its chain, as Section 6.1 states |
+
+For example, a domain with one failed check gives `error: cannot verify fundamental domain: 1 of 6 checks failed`. A `Numerical` error of `escher-domain` with an `escher-geometry` error as its source (Section 10.1 of `docs/design/domain.md`) gives a third line with the `Display` text of the `escher-geometry` error. Neither diagnostic has an echo line or a caret line.
+
+When the write of the information text fails, Section 6.6 applies, the status is `Failure`, and no verification diagnostic is written.
+
 ## 7. Streams and Exit Status
 
-`run` returns these statuses. Section 3.3 gives their exit statuses, and Sections 6.5 and 6.6 give the streams.
+`run` returns these statuses. Section 3.3 gives their exit statuses, and Sections 6.5, 6.6, and 6.7 give the streams.
 
 | Status | When |
 | --- | --- |
-| `Success` | `info` wrote its text, or `--help` or `--version` wrote the help or the version text |
-| `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`), or a write to standard output failed (Section 6.6) |
+| `Success` | `info` without `--check` wrote its text, whether or not the signature has a domain. `info --check` wrote its text, and every check passed. `--help` or `--version` wrote the help or the version text |
+| `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`). A write to standard output failed (Section 6.6). With `--check`, a check failed or the signature has no domain (Section 6.7) |
 | `Usage` | `clap` reports a usage error (Section 6.5) |
 
 CLI-11. `run` MUST return `Failure` for every signature error, including a bad orbifold, because a caller that gets 0 for an invalid signature treats the missing information as valid (`DEC-24`). A caller that needs the error kind uses `escher-signature` directly.
+
+CLI-19. `info --check` MUST return `Failure` when a check fails and when the signature has no domain, and MUST return `Success` only when every check passed, because a script that runs `--check` reads the exit status as the verdict, and a status of 0 for a signature with nothing to check reads as verified. Section 5.8 of `docs/design/architecture.md` gives the same reason for `render`.
 
 ## 8. Testing
 
@@ -534,22 +681,27 @@ CLI-11. `run` MUST return `Failure` for every signature error, including a bad o
 
 The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. Every test outside `main.rs` calls `run` with `Vec<u8>` streams, or with a test writer that fails. The two tests in `main.rs` test `Status` alone.
 
-The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1 of `docs/design/poc-plan.md` that each test serves. The tables, the enumeration, and the properties of that field belong to `escher-signature`.
+The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`.
 
 | Test | Plan item | Kind and module | Asserts | Under Miri |
 | --- | --- | --- | --- | --- |
-| Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself | Ignored |
+| Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself. Each text includes its `Domain` line, and the text of `*732` its domain summary | Ignored |
+| Domain snapshots | Command line of Section 5.2 of the plan | `insta`, `info` | The text and status for `info '*542'`, `info '*433'`, `info '*(1001)32'`, `info --check '*732'`, `info --check '*632'`, and `info --check '*(1000)32'`. The plan writes the triangle $(3, 3, 4)$, whose canonical signature is `*433` | Ignored |
 | Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Section 12.1 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, a span after the infinity sign, and a span that is the infinity sign, under one caret | Ignored |
-| Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, and a missing signature | Ignored |
+| Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, and a missing signature. The help of `info` shows `--check` | Ignored |
 | Version tests | None | Plain tests, `usage` | `--version` and `-V` give `Success`, empty standard error, and standard output equal to the package name, one space, the package version, and a line feed. Each test takes the name and the version from the package when it compiles, so a new version needs no change to the tests | Runs |
 | Echo limit tests | Failure paths | Plain tests, `diagnostics` | The status and the exact diagnostic for a signature of exactly 120 characters, which gets the echo line and the caret line, for one of 121 characters, which gets the byte span, and for one of 42 characters and 124 bytes, built with the infinity sign, which gets the echo line and the caret line because the limit counts characters | Runs |
 | Status tests | Failure paths | Plain tests, `main.rs`, `usage`, and `info` | `Success` for `*732`, `Failure` for `23`, `Usage` for an unknown subcommand and for an argument that is not UTF-8, each with the start of the standard output or standard error that it writes, equal output for `*22(inf)` and the same signature with the infinity sign, and the exit statuses 0, 1, and 2 of the three values of `Status` | Runs |
-| Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info` and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
+| Verification status tests | Command line of Section 5.2 of the plan, failure paths | Plain tests, `info` | `Success`, empty standard error, and a standard output that ends with `Verification: passed` and a line feed for `info --check '*732'`, and the same with `--check` after the signature. `Failure`, the diagnostic of Section 6.7, and a standard output that ends with the `Domain` line for `info --check '*632'`. `Success` and empty standard error for `info '*632'` | Runs |
+| Failed check text | Failure paths | Unit tests in `info.rs` | The private formatter, given a failed check as plain numbers, writes `failed, residual 2.5e-3, tolerance 1.0e-6`, writes `inf` for an infinite residual and `NaN` for a NaN residual, and the private function that writes the diagnostic of Section 6.7 writes `2 of 6 checks failed` for two failed checks | Runs |
+| Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info`, for `info --check`, and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
 | Control characters | Failure paths | Plain test, `usage` | A usage error for an argument with control characters writes `?` in place of each of them (CLI-15) | Runs |
 | Auto traits | None | Plain test, `main.rs` | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`). The test calls a generic function whose type parameter is bounded by `Send + Sync`, so it fails to compile if `Status` loses either trait | Runs |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 
 The argument that is not UTF-8 is built with `std::os::unix::ffi::OsStringExt`, so that test compiles only on Unix, which covers Linux, the supported platform.
+
+No known input makes a check fail, so the failed-check path is tested on the private formatter and the private diagnostic function, as Section 12.1 of `docs/design/signature.md` does for its `Overflow` texts.
 
 A snapshot holds the status, the standard output, and the standard error of one `run` call, in this form, which a helper in the module `common` builds (rule TEST-12 of `docs/rust-coding-standards.md`):
 
@@ -562,7 +714,14 @@ status: <Debug text of the Status>
 
 Each stream follows its marker line unchanged, so a stream that ends with a line feed puts the next marker on a line of its own, and a stream that does not runs into it. The final marker `--- end` is needed because `insta` trims the whitespace at the end of a snapshot before it compares, so without it a missing or extra final line feed of standard error would pass. The writer that fails, `FailingWriter`, is also in `common`.
 
-Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency.
+Every snapshot must be deterministic (rule TEST-2 of `docs/rust-coding-standards.md`), and two kinds of floating-point value in the output need a rule for that:
+
+- The residual of a passed check is a rounding error, whose last digits can depend on the mathematics library of the platform. In every line that starts with `Check `, the snapshot helper replaces the text between `residual ` and the next `,` with `<residual>`, as the example of Section 5.3 shows. The tolerance, the result, and the line `Verification` stay in the snapshot. The test "Failed check text" covers the form of a residual.
+- The values of rows 11 to 13 are printed with six digits after the point (Section 5.5). A snapshot input is chosen so that the exact value of each of these rows lies farther from a rounding boundary of the sixth digit than the bound of Section 9.3 of `docs/design/domain.md` in the column for the orders of that input, converted to degrees for an angle. The column "Orders up to 12" applies to `*732`, `*542`, and `*433`, and the column "(1000, 3, 2)" to `*(1000)32`. Every correct build then prints the same digits. A 256-bit computation of `*732` confirms this for every value of its summary, as Section 5.3 shows. The change that adds the snapshots computes the values of the other inputs in the reference arithmetic of `escher-domain`, and replaces an input that fails the condition.
+
+CLI-20. A snapshot MUST NOT hold a residual of a check, and its inputs MUST meet the condition on rounding boundaries above, because a value that depends on the last bits of floating-point arithmetic makes the snapshot test fail on a platform whose mathematics library rounds differently, although the program is correct.
+
+Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency. Likewise, the snapshots of the `Domain` line cover the `UnsupportedSignature` and `LimitExceeded` texts of `escher-domain`.
 
 This crate has no test that starts a process. The one smoke test of the binary as a process belongs to M3 (Section 5.3 of `docs/design/poc-plan.md`).
 
@@ -599,17 +758,19 @@ Section 6 of `docs/design/architecture.md` names the documents that state how a 
 
 ### 8.3. Tests Under Miri
 
-The snapshot tests carry `#[cfg_attr(miri, ignore = "the snapshot library reads snapshot files and starts a process")]`, because Miri's isolation refuses file access and process creation (`DEC-5`). The reason is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`).
+The snapshot tests carry `#[cfg_attr(miri, ignore = "the snapshot library reads snapshot files and starts a process")]`, because Miri's isolation refuses file access and process creation (`DEC-5`). The reason is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`). The domain snapshots carry the same attribute.
 
 CLI-13. Every test that uses `insta` MUST carry that attribute, because without it `just check-miri` fails on every snapshot test.
 
-The other tests of Section 8.1 run under Miri unchanged, because they use only memory, and `clap` runs under Miri: on 2026-11-16 every one of them passed under `just check-miri`. A snapshot test run under Miri with its attribute overridden failed with `unsupported operation: 'open' not available when isolation is enabled`. A test that fails under Miri only because Miri does not support an operation is marked in the same way, with its own reason.
+The other tests of Section 8.1 run under Miri unchanged, because they use only memory, and `clap` runs under Miri: on 2026-11-16 every such test of rows 1 to 9, the diagnostics of Sections 6.1 to 6.6, and the usage text passed under `just check-miri`. A snapshot test run under Miri with its attribute overridden failed with `unsupported operation: 'open' not available when isolation is enabled`. A test that fails under Miri only because Miri does not support an operation is marked in the same way, with its own reason.
+
+The plain tests that run `info` on `*732` build and verify its domain under Miri, and so run the arithmetic of `glam` and the floating-point functions of the standard library in the interpreter. The verification of `*732` needs few matrix products (Section 8.2 of `docs/design/domain.md`), so these tests need no attribute. They assert the status and the start or the end of the output, and no digit of a floating-point value, because the interpreter need not reproduce the last bits of the host library (Section 12.3 of `docs/design/domain.md`). The implementing change confirms that they pass under `just check-miri`.
 
 ## 9. Dependencies
 
 ### 9.1. Workspace Dependencies
 
-The crate declares these dependencies, each from one entry in the root `[workspace.dependencies]` table (rule DEP-2 of `docs/rust-coding-standards.md`). The table also holds the entries that `docs/design/signature.md` specifies for `escher-signature`.
+The crate declares these dependencies, each from one entry in the root `[workspace.dependencies]` table (rule DEP-2 of `docs/rust-coding-standards.md`). The table also holds the entries that `docs/design/signature.md`, `docs/design/geometry.md`, and `docs/design/domain.md` specify for the other crates.
 
 ```toml
 [workspace.dependencies]
@@ -622,6 +783,7 @@ clap = { version = "4.6", default-features = false, features = [
     "suggestions",
     "usage",
 ] }
+escher-domain = { version = "0.1.0", path = "crates/escher-domain" }
 escher-signature = { version = "0.1.0", path = "crates/escher-signature" }
 insta = { version = "1.49", default-features = false }
 ```
@@ -629,15 +791,18 @@ insta = { version = "1.49", default-features = false }
 | Dependency | Kind | Features | Reason |
 | --- | --- | --- | --- |
 | `escher-signature` | Normal | None | Parses and classifies the signature. The path dependency carries a version (TOOL-25) |
+| `escher-domain` | Normal | None | Builds and verifies the fundamental domain for the domain summary and `--check`. The path dependency carries a version (TOOL-25) |
 | `clap` | Normal | The list above, without `color`, `env`, and `wrap_help` | The derive API (Section 3.1 of `docs/design/architecture.md`). Without `color`, `anstream` and its dependencies are not built (Section 9.2) |
 | `anyhow` | Normal | Default | The chain of errors that Section 5.8 of `docs/design/architecture.md` requires. Version 1.0.103 fixes RUSTSEC-2026-0190 (Section 10 of `docs/research/rust-ecosystem.md`) |
 | `insta` | Dev | None, so without `colors` | Snapshot tests (rule TEST-2). Without `colors`, `console` is not built (Section 9.2) |
+
+The crate declares neither `escher-geometry` nor `glam`. The measurements of the domain are methods of `FundamentalDomain` that return plain `f64` values, so this crate names no `glam` type (Section 15.2 of `docs/design/domain.md`). `escher-domain` brings `escher-geometry`, `glam`, and `thiserror` into the build of the binary.
 
 The package keeps `publish = false` (`DEC-22`) and declares no Cargo feature.
 
 ### 9.2. Verified Resolution
 
-An adversarial test resolved these dependencies with network access on 2026-11-16, together with those of `escher-signature`, to the highest versions compatible with Rust 1.99. It verified these facts:
+An adversarial test resolved these dependencies with network access on 2026-11-16, together with those of `escher-signature`, to the highest versions compatible with Rust 1.99. It covered every dependency of Section 9.1 except `escher-domain`, and verified these facts:
 
 - The resolved versions include `anyhow` 1.0.104, `clap`, `clap_builder`, and `clap_derive` 4.6.7, `clap_lex` 1.1.1, `strsim` 0.11.1, `heck` 0.5.0, `syn` 3.0.10, `proc-macro2` 1.0.107, `quote` 1.0.47, `unicode-ident` 1.0.27, `insta` 1.49.0, `similar` 2.7.0, and `tempfile` 3.27.0.
 - `cargo tree -d --target all` printed no duplicate version. The graph has one major version of `syn`, so `syn` 2 and 3 do not both occur.
@@ -656,6 +821,8 @@ The build of the package, checked with `cargo tree` on 2026-11-16, has these pro
 
 `deny.toml` allows `MIT`, and Section 8 of `docs/design/tooling.md` records its compatibility with GPL-3.0-or-later, as TOOL-24 of that document requires. `just check-deny` passes with no unused licence.
 
+The dependencies that `escher-domain` brings were resolved on 2026-11-16 as Section 11 of `docs/design/geometry.md` records: `glam` adds no transitive dependency, no duplicate version, and no licence. `thiserror` is already in the workspace. The change that adds `escher-domain` to this crate confirms the resolution of the whole package with `just check-deny` and `just check-msrv`.
+
 ### 9.3. Dependency Risks
 
 cargo-deny leaves dev-dependencies out of the licence check and the duplicate check by default. `deny.toml` overrides both defaults, as Section 8 of `docs/design/tooling.md` states, so `just check-deny` checks dev-dependencies. With the overrides, `cargo deny list` names `insta` 1.49.0, its dependencies such as `similar`, `tempfile`, `once_cell`, `fastrand`, and `rustix`, and `proptest`. In the test of Section 9.2, which ran without the overrides, it named none of `insta`, `similar`, `tempfile`, `proptest`, and `rand`.
@@ -664,12 +831,13 @@ CLI-14. The dev-dependencies of this crate MUST stay inside the dependency polic
 
 ## 10. Unverified Statements
 
-This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on both through `escher-signature`.
+This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, and on `UNV-26` through `escher-domain`.
 
 | Id | How this crate relies on it |
 | --- | --- |
 | `UNV-20` | `info` prints the canonical signature, with parentheses for orders of 10 or more and `(inf)` for an infinite order, and accepts both spellings of infinity and `1` as the trivial signature |
 | `UNV-21` | `info` prints the geometry and the area of a non-compact signature whose Euler characteristic is not 0, and prints no deformation dimension for a non-compact signature |
+| `UNV-26` | `info --check` reports the checks of the walls of the domain, which `escher-domain` builds through the formula of the wall through two points that `UNV-26` covers. The walls, relators, and angles checks test the result (Section 14 of `docs/design/domain.md`). The domain summary does not depend on the walls, because `escher-domain` measures it from the vertices |
 
 ## 11. Assumptions, Choices, and Open Questions
 
@@ -677,6 +845,7 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 
 - The infinity sign takes one column in the terminal. Unicode gives it an ambiguous East Asian width, so a terminal that renders such characters as wide shifts the caret one column to the right for each infinity sign before the span.
 - With its features `env` and `wrap_help` off, `clap` reads no environment variable, so the output does not depend on the environment. A reading of the source of `clap_builder` 4.6.7 on 2026-11-16 found that it reads the environment only in `Arg::env`, which needs the feature `env`, and for `COLUMNS` and `LINES`, which need the feature `wrap_help`. No run has confirmed this.
+- The residual of a passed check can differ in its last digits between platforms, which is why Section 8.1 replaces it in the snapshots. No run on two platforms has measured this. The replacement is safe either way.
 
 ### 11.2. Choices of This Design
 
@@ -696,6 +865,13 @@ These choices are made here, and no other document dictates them:
 12. No recipe wraps `cargo insta`.
 13. The help, version, and usage text of `clap` has each control character other than the line feed replaced with `?` (Section 6.5).
 14. A snapshot holds the status and each stream between fixed marker lines, with a final marker line (Section 8.1).
+15. A `Domain` line for every valid signature, with `none, ` and the `Display` text of the error of `escher-domain` when no domain is built, and the status `Success` for such a signature without `--check` (Section 5.5).
+16. The labels of rows 10 to 20, angles in degrees, and six digits after the point for the domain summary (Sections 5.1 and 5.2).
+17. Every check line shows its result, its residual, and its tolerance in the form `{:.1e}`, and a final `Verification` line gives the overall result (Section 5.6).
+18. With `--check`, a failed check and a missing domain each give `Failure` and a diagnostic (Section 6.7).
+19. The information text is written before the verification diagnostic (Section 6.7).
+20. The snapshot helper replaces the residual of each check line, and the snapshot inputs keep the printed digits away from rounding boundaries (Section 8.1).
+21. The `clap` flag `--check` is a `bool` converted at once into a private enum (Section 4.3).
 
 ### 11.3. Points for the Owner
 
@@ -704,12 +880,16 @@ None of these blocks the implementation:
 1. Order of infinity (Section 15.3, item 1, of `docs/design/signature.md`, which owns it). The canonical form sorts an infinite order above every finite order, so `*22(inf)` prints as `*(inf)22`, and the examples of Section 5.3 assume this. If the owner chooses the other order, the canonical strings in the examples and the snapshots change.
 2. Area of a non-compact hyperbolic signature. `info` prints it, as Section 5.3 shows for `3*(inf)`, and the value rests on `UNV-21` (Section 15.3, item 3, of `docs/design/signature.md`). The stricter option prints the area only for a compact signature until a source covers the non-compact case.
 3. The trivial group as `11`. The rejection of a digit `1` followed by another digit also rejects `11` and `*11`, which ON 3.5 records as spellings in [CBG] and [CH] (Section 15.3, item 2, of `docs/design/signature.md`, which owns it). This changes what `info` accepts.
+4. The largest corner order of 1000 (Section 15.3, item 2, of `docs/design/domain.md`, which owns it). `escher info '*(2000)32'` prints `Domain: none, cannot build fundamental domain: order 2000 is larger than 1000` and exits with status 0. A higher limit changes the snapshot of `*(1001)32`.
+5. Check 6, the area check (Section 15.3, item 4, of `docs/design/domain.md`, which owns it). If the owner drops it, `--check` prints five check lines, and the diagnostic counts five checks.
+6. Two area lines. A signature with a domain prints both `Area`, the exact value from the Euler characteristic, and `Domain area`, the area measured from the angles of the domain. The design keeps both, because their agreement is visible to a reader. The simpler option drops `Domain area`.
+7. A `Domain` line for every signature. The design prints `Domain: none, ...` for every valid signature without a domain, so that a reader can tell a missing domain from a missing line. The other option prints no `Domain` line for such a signature, which keeps the text of those signatures unchanged.
 
 ## 12. Security Considerations
 
 The threat model is a user who passes a signature from an untrusted party to `escher info`. The attacker can choose any argument within the limits of the command line, including invalid UTF-8, control characters, and very long text. The attacker cannot change the binary, its dependencies, or the files of the repository.
 
-The attacks in scope are exhaustion of memory or time through the signature, and injection of terminal escape sequences through the diagnostic. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states, and this crate adds no limit of its own. The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`. The help, version, and usage text that `clap` produces has every control character other than the line feed replaced with `?` (CLI-15).
+The attacks in scope are exhaustion of memory or time through the signature, and injection of terminal escape sequences through the diagnostic. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states. `escher-domain` limits the largest corner order of a domain, which bounds the cost of `verify()`, as Section 16 of `docs/design/domain.md` states. This crate adds no limit of its own. The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`. The `Domain` line and the diagnostics of Section 6.7 hold only fixed text, numbers, and the canonical signature, which is printable ASCII. The help, version, and usage text that `clap` produces has every control character other than the line feed replaced with `?` (CLI-15).
 
 The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -720,7 +900,7 @@ The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as 
 
 Attacks on the repository, the build machine, or the terminal itself are out of scope, because this document governs the crate and not access control or the terminal.
 
-The residual risk is that a usage error still echoes every character of an unknown argument that is not a control character, including characters outside ASCII, such as the formatting characters of the Unicode general category Cf. The replacement tests only for the category Cc.
+The residual risk is that a usage error still echoes every character of an unknown argument that is not a control character, including characters outside ASCII, such as the formatting characters of the Unicode general category Cf. The replacement tests only for the category Cc. A second residual risk is a domain that is wrong by less than the tolerances, which `--check` reports as passed (Section 16 of `docs/design/domain.md`).
 
 ## 13. Operational Considerations
 
@@ -732,6 +912,9 @@ The supported platform is Linux. The minimum supported Rust version is the one t
 | --- | --- | --- |
 | The command line is wrong | The `clap` message on standard error, with `Usage` | Correct the command line, with `escher --help` |
 | The signature is malformed, over a limit, or a bad orbifold | The diagnostic of Section 6, with `Failure` | Correct the signature at the caret |
+| The signature has no domain, without `--check` | The `Domain` line with `none`, with `Success` | None needed |
+| The signature has no domain, with `--check` | The diagnostic of Section 6.7, with `Failure` | Run `info` without `--check`, or use a signature that `escher-domain` constructs |
+| A check fails | The check lines with `failed` and the diagnostic of Section 6.7, with `Failure` | None. It is a defect of `escher-domain`, and the residual and the tolerance locate it |
 | A write to standard output fails | The diagnostic of Section 6.6, with `Failure` | Fix the output destination |
 | The reader of standard output closes the pipe | No diagnostic, with `Failure` | None needed |
 
@@ -770,3 +953,8 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-13 | 8.3 | Every test that uses `insta` is ignored under Miri with a reason. |
 | CLI-14 | 9.3 | The dev-dependencies stay inside the dependency policy, so cargo-deny lists `insta` and its dependencies. |
 | CLI-15 | 6.5 | The help, version, and usage text of `clap` has every control character other than the line feed replaced with `?`. |
+| CLI-16 | 5.5 | The domain summary and the check lines take their values from `escher-domain`, which this crate does not measure or check again. |
+| CLI-17 | 5.5 | Without `--check`, a valid signature without a domain prints `Domain: none, ...` and gives `Success`. |
+| CLI-18 | 5.6 | `--check` prints each check with its result, residual, and tolerance, in order, and then the overall result. |
+| CLI-19 | 7 | `info --check` gives `Failure` for a failed check or a missing domain, and `Success` only when every check passed. |
+| CLI-20 | 8.1 | No snapshot holds a residual, and the snapshot inputs keep the printed digits away from rounding boundaries. |

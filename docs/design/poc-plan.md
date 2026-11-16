@@ -228,15 +228,17 @@ escher info '*732'
 escher info --check '*732'
 ```
 
-- `escher info '*732'` adds a domain summary: three mirror sides, the corner angles, the side lengths, and the area, equal to $-2\pi\chi$ (`orbifold-notation.md` 7.3).
-- `escher info --check '*732'` prints the result of the verification.
+- `escher info '*732'` adds a domain summary: three mirror sides, the corner angles in degrees, the side lengths, and the area of the domain, equal to $-2\pi\chi$ (`orbifold-notation.md` 7.3). A valid signature without a construction in this milestone gets one line that says it has no domain, and the exit status stays 0.
+- `escher info --check '*732'` also prints one line for each of the six checks of the verification and a line with the overall result. It exits with status 1 when a check fails or the signature has no domain.
+
+Sections 5 and 6.7 of `docs/design/cli.md` define the exact lines and diagnostics.
 
 **Scope.** The new crate `escher-geometry`, with the `glam` types of `DEC-4` and the free functions of the conventions over them (Section 5.1 of `docs/design/architecture.md`), the hyperbolic module, and the disk map in both directions. The new crate `escher-domain`, with the compact `*pqr` for $1/p + 1/q + 1/r < 1$.
 
-- Construction: the side lengths from the angles, the vertices placed with the boost and rotation of [KC24], and each wall normal as the unit vector orthogonal to its two vertices.
-- `verify()` checks the isometry condition, the Coxeter relators numerically, the angle sum, and the area.
+- Construction: the side lengths from the angles, the vertices placed with the boost and rotation of [KC24] and then moved so that the centre of `DEC-12` is at the origin, and each wall normal as the unit vector orthogonal to its two vertices.
+- `verify()` runs the six checks of Section 8.2 of `docs/design/domain.md`. `build` returns an error for a corner order above the limit of its Section 4.
 
-**Design documents.** `docs/design/geometry.md` and `docs/design/domain.md`.
+**Design documents.** `docs/design/geometry.md` for `escher-geometry`, `docs/design/domain.md` for `escher-domain`, and an extension of `docs/design/cli.md` for the domain summary and the option `--check`.
 
 **Sources.**
 
@@ -250,7 +252,7 @@ escher info --check '*732'
 
 **Unverified statements relied on.**
 
-- `UNV-26`: the normal through two points, and the relation between the inner product of two unit normals and the corner angle, which `geometry-models.md` 7.4 states only in the conventions of [RATCLIFFE], with inward normals. The design does not rely on such a relation, and the relator and area checks cover the result.
+- `UNV-26`: the normal through two points, and the relation between the inner product of two unit normals and the corner angle, which `geometry-models.md` 7.4 states only in the conventions of [RATCLIFFE], with inward normals. The design does not rely on such a relation, and Section 14 of `docs/design/domain.md` states which checks cover the result.
 - `UNV-28` applies if SymmHub's disk triangle (`geometry-models.md` 7.6) serves as a test oracle, because its properties are candidate statements (`geometry-models.md` 15.1 item 5).
 
 **Tests and acceptance.**
@@ -259,15 +261,15 @@ escher info --check '*732'
 - Numeric checks for $\{7, 3\}$, through the split of the polygon into $2p$ right triangles (`geometry-models.md` 10.1): the expected edge length and circumradius in the disk are equations 29 and 24 of [HT] (`geometry-models.md` 10.4), evaluated with the reference arithmetic of `DEC-3`. No value that Table 2 of [HT] prints serves as an expected value, because the table and equation 29 disagree on the edge length of $\{7, 3\}$ (`geometry-models.md` 15.1 item 23).
 - Properties: for random admissible triples, the relators hold, the inverse equals $J M^{t} J$, and the disk map round-trips.
 
-**Dependencies and `deny.toml` work.** `glam` (`DEC-4`) for `escher-geometry` and `escher-domain`, and the reference-arithmetic dev-dependency `astro-float` (`DEC-3`). Each is declared once in `[workspace.dependencies]` (DEP-2).
+**Dependencies and `deny.toml` work.** `glam` (`DEC-4`) and `thiserror` for `escher-geometry` and `escher-domain`, `escher-domain` for `escher-cli`, and the reference-arithmetic dev-dependency `astro-float-num` of `DEC-3`. Each is declared once in `[workspace.dependencies]` (DEP-2).
 
-- `glam` is under `MIT OR Apache-2.0`, and `astro-float` under `MIT` (`rust-ecosystem.md` 6, 12, and 18.1). The change confirms with `cargo deny check licenses` that the allow-list covers both, and adds a licence only where the check reports one (TOOL-24).
-- `glam` has no default dependencies, and its types `DVec2`, `DVec3`, and `DMat3` come from its feature `float-types`, which is on by default (`rust-ecosystem.md` 6). `rust-ecosystem.md` 19 lists no duplicate version for `glam` or `astro-float`.
+- `astro-float-num` is the number crate of the astro-float project. Section 11 of `docs/design/geometry.md` states why the design uses it in place of `astro-float`.
+- Section 11 of `docs/design/geometry.md` records the resolution of `glam` and `astro-float-num` with their versions, features, licences, and transitive dependencies, and the run of `glam` arithmetic under Miri. The allow-list of the tooling design already covers their licences.
 - `glam` is a public dependency of `escher-geometry` and `escher-domain` under rule DEP-3, with the obligations that Section 3.5 of `docs/design/architecture.md` states.
-- `astro-float` needs no native build (`rust-ecosystem.md` 12).
+- `astro-float-num` needs no native build (`rust-ecosystem.md` 12).
 - The change updates Section 8 of the tooling design for every change to `deny.toml`.
 
-**Risks.** Slips in the conventions, precision at very large orders, and the maturity of the reference crate (`UNV-25`). `glam` uses single instruction, multiple data (SIMD) intrinsics internally, and its feature `scalar-math` disables them (`rust-ecosystem.md` 6). The research does not record whether that code runs under Miri.
+**Risks.** Slips in the conventions, precision at very large orders, and the maturity of the reference crate (`UNV-25`). The run of `glam` under Miri is recorded in Section 11 of `docs/design/geometry.md`, so the remaining risk is that a test of the crates themselves fails under `just check-miri`.
 
 ### 5.3. M3: First Image
 
@@ -294,7 +296,7 @@ escher render '*732' -o tiling.png
 
 **Scope.** The new crate `escher-render`. The binary gains `render`.
 
-- View: the canonical view places the centre of the domain at the centre of the disk.
+- View: the canonical view shows the centre of the domain at the centre of the disk. The domain is built with its centre at the origin of the model (Section 6.3 of `docs/design/domain.md`), so the view of the disk does not move it, and the view keeps the placement for the other models.
 - Fold: the first violated side (`rendering.md` 4.1), with a tolerance, a cap, and periodic renormalization.
 - Colour: parity from the orientation of the pairings.
 - Border: a distance estimate in screen space from the gradient of the wall function pulled back through the fold (`UNV-15`).
@@ -859,7 +861,7 @@ The owner decided how the proof of concept treats a statement that no source est
 
 This document defines no component, so the threat model is that of the tool it plans. The attacker is assumed to control the input of `escher`: the signature string, every option value, every `name=value` setting, and the output path. Every milestone that adds such an input states, in the Security Considerations of its design document, the limits that Section 5.9 of `docs/design/architecture.md` requires: the maximum order, the signature length, the image size, the fold cap, and the search budget. Without these limits a crafted signature or option exhausts memory or time, for example through the colouring search of M8, whose cost grows exponentially with the index.
 
-The output path is the only file that `render` writes, and no milestone reads a file supplied by the user. Every dependency enters through the milestone that first needs it, with the licence and advisory checks of cargo-deny (Section 8 of the tooling design). A native build, such as `rug`, would add code that runs at build time, which is one reason why `DEC-3` chooses the pure-Rust `astro-float`. Ported SymmHub code carries its MIT notice under `DEC-18`, and `UNV-24` tracks the open licence question.
+The output path is the only file that `render` writes, and no milestone reads a file supplied by the user. Every dependency enters through the milestone that first needs it, with the licence and advisory checks of cargo-deny (Section 8 of the tooling design). A native build, such as `rug`, would add code that runs at build time, which is one reason why `DEC-3` chooses the pure-Rust astro-float, used through its crate `astro-float-num`. Ported SymmHub code carries its MIT notice under `DEC-18`, and `UNV-24` tracks the open licence question.
 
 Attacks on the repository itself, such as a malicious change to a document or a compromised CI runner, are out of scope, because `AGENTS.md` and the tooling design govern the repository and its workflow. The residual risk is that a limit chosen in a design document is too high for the machine that runs the tool, and that an unverified statement of Section 7 makes the tool draw a wrong image without any error.
 
