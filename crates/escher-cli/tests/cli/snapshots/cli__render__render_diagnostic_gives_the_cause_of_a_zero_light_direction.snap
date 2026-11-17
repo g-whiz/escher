@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"light_zero\", &[\"*532\", \"--light\", \"0,0,0\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *532
+  caused by: cannot build render options: the light direction is zero or not finite
+--- end

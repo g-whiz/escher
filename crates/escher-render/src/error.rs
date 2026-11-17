@@ -70,6 +70,14 @@ impl Error {
         Self::build(Detail::LargeCap(cap))
     }
 
+    pub(crate) fn rotation_angle(angle: f64) -> Self {
+        Self::build(Detail::RotationAngle(angle))
+    }
+
+    pub(crate) fn light_direction() -> Self {
+        Self::build(Detail::LightDirection)
+    }
+
     pub(crate) fn partial_rows(length: usize, row: usize) -> Self {
         Self {
             operation: RENDER,
@@ -117,9 +125,11 @@ impl Error {
     #[must_use]
     pub fn kind(&self) -> ErrorKind {
         match self.detail {
-            Detail::EmptySize { .. } | Detail::EmptyGrid | Detail::NegativeBorder(_) => {
-                ErrorKind::InvalidOption
-            }
+            Detail::EmptySize { .. }
+            | Detail::EmptyGrid
+            | Detail::NegativeBorder(_)
+            | Detail::RotationAngle(_)
+            | Detail::LightDirection => ErrorKind::InvalidOption,
             Detail::LargeSide { .. }
             | Detail::ManyPixels { .. }
             | Detail::LargeGrid(_)
@@ -151,6 +161,8 @@ impl core::error::Error for Error {
             | Detail::LargeGrid(_)
             | Detail::WideBorder(_)
             | Detail::LargeCap(_)
+            | Detail::RotationAngle(_)
+            | Detail::LightDirection
             | Detail::PartialRows { .. }
             | Detail::RowsOutside { .. }
             | Detail::WrongImage { .. } => None,
@@ -174,7 +186,9 @@ impl core::error::Error for Error {
 #[non_exhaustive]
 pub enum ErrorKind {
     /// An option has a value that means nothing, such as an empty image, an
-    /// empty sample grid, or a negative or non-finite border width.
+    /// empty sample grid, a negative or non-finite border width, a rotation
+    /// angle that is not finite, or a light direction that is zero or not
+    /// finite.
     InvalidOption,
     /// An option is larger than its limit, which bounds the memory and the
     /// time of a render.
@@ -205,6 +219,10 @@ enum Detail {
     WideBorder(f64),
     #[error("the fold cap {0} is larger than {LARGEST_FOLD_CAP}")]
     LargeCap(u32),
+    #[error("the rotation angle {0} is not finite")]
+    RotationAngle(f64),
+    #[error("the light direction is zero or not finite")]
+    LightDirection,
     #[error("the buffer of {length} bytes does not hold whole rows of {row} bytes")]
     PartialRows { length: usize, row: usize },
     #[error("the rows {first} to {last} are outside the image of {height} rows")]
@@ -268,6 +286,21 @@ mod tests {
                 Error::large_cap(100_001),
                 ErrorKind::LimitExceeded,
                 "cannot build render options: the fold cap 100001 is larger than 100000",
+            ),
+            (
+                Error::rotation_angle(f64::INFINITY),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the rotation angle inf is not finite",
+            ),
+            (
+                Error::rotation_angle(f64::NEG_INFINITY),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the rotation angle -inf is not finite",
+            ),
+            (
+                Error::light_direction(),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the light direction is zero or not finite",
             ),
             (
                 Error::partial_rows(1535, 1536),

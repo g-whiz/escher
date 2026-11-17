@@ -84,6 +84,17 @@ pub(crate) fn apply(matrix: &Matrix, x: &Vector) -> Vector {
     })
 }
 
+pub(crate) fn product(left: &Matrix, right: &Matrix) -> Matrix {
+    [0, 1, 2].map(|row| {
+        [0, 1, 2].map(|column| {
+            let first = mul(&left[row][0], &right[0][column]);
+            let second = mul(&left[row][1], &right[1][column]);
+            let third = mul(&left[row][2], &right[2][column]);
+            add(&add(&first, &second), &third)
+        })
+    })
+}
+
 pub(crate) fn scale(factor: &BigFloat, x: &Vector) -> Vector {
     [mul(factor, &x[0]), mul(factor, &x[1]), mul(factor, &x[2])]
 }
@@ -172,6 +183,32 @@ pub(crate) fn fold(walls: &[Wall], point: [f64; 3], cap: u32) -> ExactFold {
     }
 }
 
+pub(crate) fn cross(x: &Vector, y: &Vector) -> Vector {
+    [
+        sub(&mul(&x[1], &y[2]), &mul(&x[2], &y[1])),
+        sub(&mul(&x[2], &y[0]), &mul(&x[0], &y[2])),
+        sub(&mul(&x[0], &y[1]), &mul(&x[1], &y[0])),
+    ]
+}
+
+pub(crate) fn length(x: &Vector) -> BigFloat {
+    sqrt(&dot(x, x))
+}
+
+pub(crate) fn transpose_apply(matrix: &Matrix, x: &Vector) -> Vector {
+    [0, 1, 2].map(|column| {
+        let first = mul(&matrix[0][column], &x[0]);
+        let second = mul(&matrix[1][column], &x[1]);
+        let third = mul(&matrix[2][column], &x[2]);
+        add(&add(&first, &second), &third)
+    })
+}
+
+pub(crate) fn screen_point_exact(first: &BigFloat, second: &BigFloat) -> Vector {
+    let squared = add(&mul(first, first), &mul(second, second));
+    [first.clone(), second.clone(), sqrt(&sub(&int(1), &squared))]
+}
+
 pub(crate) fn replay(walls: &[Wall], point: [f64; 3], sides: &[usize]) -> Vector {
     let mut x = vector(point);
     for &index in sides {
@@ -197,6 +234,94 @@ impl Reference {
 
     pub(crate) fn cos(&mut self, value: &BigFloat) -> BigFloat {
         value.cos(PRECISION, ROUNDING, &mut self.consts)
+    }
+
+    pub(crate) fn sin(&mut self, value: &BigFloat) -> BigFloat {
+        value.sin(PRECISION, ROUNDING, &mut self.consts)
+    }
+
+    pub(crate) fn atan(&mut self, value: &BigFloat) -> BigFloat {
+        value.atan(PRECISION, ROUNDING, &mut self.consts)
+    }
+
+    pub(crate) fn angle(&mut self, x: &Vector, y: &Vector) -> BigFloat {
+        let across = length(&cross(x, y));
+        let along = dot(x, y);
+        if across.is_zero() {
+            return int(0);
+        }
+        assert!(
+            along.is_positive(),
+            "the reference measures only angles below a quarter turn"
+        );
+        self.atan(&div(&across, &along))
+    }
+
+    pub(crate) fn viewing(&mut self, [yaw, pitch, roll]: [f64; 3]) -> Matrix {
+        let [yaw, pitch, roll] = [yaw, pitch, roll].map(num);
+        let (sin_yaw, cos_yaw) = (self.sin(&yaw), self.cos(&yaw));
+        let (sin_pitch, cos_pitch) = (self.sin(&pitch), self.cos(&pitch));
+        let (sin_roll, cos_roll) = (self.sin(&roll), self.cos(&roll));
+        let zero = int(0);
+        let one = int(1);
+        let turn_yaw = [
+            [cos_yaw.clone(), zero.clone(), sin_yaw.clone()],
+            [zero.clone(), one.clone(), zero.clone()],
+            [sin_yaw.neg(), zero.clone(), cos_yaw],
+        ];
+        let turn_pitch = [
+            [one.clone(), zero.clone(), zero.clone()],
+            [zero.clone(), cos_pitch.clone(), sin_pitch.clone()],
+            [zero.clone(), sin_pitch.neg(), cos_pitch],
+        ];
+        let turn_roll = [
+            [cos_roll.clone(), sin_roll.neg(), zero.clone()],
+            [sin_roll, cos_roll, zero.clone()],
+            [zero.clone(), zero, one],
+        ];
+        product(&turn_roll, &product(&turn_pitch, &turn_yaw))
+    }
+
+    pub(crate) fn lift(&mut self, position: [f64; 2], angles: [f64; 3]) -> Vector {
+        let [first, second] = position.map(num);
+        let viewing = self.viewing(angles);
+        transpose_apply(&viewing, &screen_point_exact(&first, &second))
+    }
+
+    pub(crate) fn ball_tangents(&mut self, position: [f64; 2], pixel: f64) -> [Vector; 2] {
+        let step = self.parse("1e-40");
+        let half = div(&num(pixel), &mul(&int(2), &step));
+        let [first, second] = position.map(num);
+        let partial = |plus: Vector, minus: Vector| scale(&half, &difference(&plus, &minus));
+        [
+            partial(
+                screen_point_exact(&add(&first, &step), &second),
+                screen_point_exact(&sub(&first, &step), &second),
+            ),
+            partial(
+                screen_point_exact(&first, &add(&second, &step)),
+                screen_point_exact(&first, &sub(&second, &step)),
+            ),
+        ]
+    }
+
+    pub(crate) fn shade(&mut self, normal: [f64; 3], light: [f64; 3], channel: f64) -> BigFloat {
+        let normal = vector(normal);
+        let light = vector(light);
+        let channel = num(channel);
+        let facing = dot(&normal, &light);
+        let diffuse = max(&facing, &int(0));
+        let highlight = if facing.is_positive() {
+            let reflected = sub(&mul(&mul(&int(2), &facing), &normal[2]), &light[2]);
+            (0..5).fold(max(&reflected, &int(0)), |power, _| mul(&power, &power))
+        } else {
+            int(0)
+        };
+        let ambient = self.parse("0.25");
+        let specular_weight = self.parse("0.25");
+        let weight = add(&ambient, &mul(&self.parse("0.75"), &diffuse));
+        let specular = mul(&mul(&specular_weight, &highlight), &sub(&int(1), &channel));
+        add(&mul(&channel, &weight), &specular)
     }
 
     pub(crate) fn sinh(&mut self, value: &BigFloat) -> BigFloat {

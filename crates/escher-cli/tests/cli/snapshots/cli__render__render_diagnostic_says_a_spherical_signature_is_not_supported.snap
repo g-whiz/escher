@@ -1,9 +1,0 @@
----
-source: crates/escher-cli/tests/cli/render.rs
-expression: "render_snapshot(\"spherical\", &[\"*532\"])"
----
-status: Failure
---- stdout
---- stderr
-error: cannot render *532: rendering this signature is not supported
---- end

@@ -4,12 +4,13 @@ use glam::DVec3;
 
 use crate::colour::{Colour, Fill, encode};
 use crate::error::{Error, Result};
-use crate::fold::{Wall, fold_carrying};
-use crate::options::RenderOptions;
+use crate::fold::{Fold, PointSize, Wall, fold_carrying};
+use crate::options::{RenderOptions, Shading};
 use crate::view::View;
 
 /// Renders the tiling of a fundamental domain into 8-bit sRGB pixels, in the
-/// Poincare disk for a hyperbolic domain and in the plane for a Euclidean one.
+/// Poincare disk for a hyperbolic domain, in the plane for a Euclidean one,
+/// and on a lit ball for a spherical one.
 ///
 /// Make one per image with [`Renderer::new`], then render the whole image
 /// with [`render`](Renderer::render) or bands of rows with
@@ -17,13 +18,19 @@ use crate::view::View;
 /// centred in the image, with the centre of the domain at the centre of the
 /// disk. For a Euclidean domain the tiling fills the image, with the centre of
 /// the domain at the centre of the image and 8 units of the plane across the
-/// shorter side. For each sample of the grid of a pixel, the renderer folds
-/// the point of the view into the domain, gives the sample the fill, border,
-/// or background colour, and stores the mean colour of the samples, computed in
-/// linear light. The colour of a pixel depends only on the domain, the options,
-/// and the position of the pixel, so every split into bands gives the same
-/// bytes. The renderer starts no thread, so the caller chooses how to run bands
-/// in parallel.
+/// shorter side. For a spherical domain the ball has the size and the place of
+/// the disk and shows the front half of the sphere, seen from far away along
+/// its third axis and turned by the viewing rotation of the options. With no
+/// rotation, the centre of the domain lies at the centre of the ball.
+///
+/// For each sample of the grid of a pixel, the renderer folds the point of the
+/// view into the domain and gives the sample the fill, border, or background
+/// colour. It shades each sample on the ball by the [`Shading`] and the light
+/// of the options, and it stores the mean colour of the samples, computed in
+/// linear light. The colour of a pixel depends only on the domain, the
+/// options, and the position of the pixel, so every split into bands gives the
+/// same bytes. The renderer starts no thread, so the caller chooses how to run
+/// bands in parallel.
 ///
 /// # Examples
 ///
@@ -45,6 +52,7 @@ use crate::view::View;
 #[derive(Clone, Debug)]
 pub struct Renderer {
     walls: Vec<Wall>,
+    size: PointSize,
     view: View,
     options: RenderOptions,
     half_width: f64,
@@ -55,10 +63,9 @@ impl Renderer {
     /// Returns a renderer of the tiling of a domain with the given options.
     ///
     /// The renderer chooses the view from the geometry of the domain, which is
-    /// the Poincare disk for a hyperbolic domain and the plane for a Euclidean
-    /// one. It copies what it needs from the sides of the domain, so it keeps
-    /// no reference to the domain. For a geometry without a view, every sample
-    /// lies outside the view and takes the background colour.
+    /// the Poincare disk for a hyperbolic domain, the plane for a Euclidean
+    /// one, and the ball for a spherical one. It copies what it needs from the
+    /// sides of the domain, so it keeps no reference to the domain.
     #[must_use]
     pub fn new(domain: &FundamentalDomain, options: RenderOptions) -> Self {
         let walls = domain.sides().iter().map(|&side| Wall::new(side)).collect();
@@ -68,6 +75,7 @@ impl Renderer {
     fn with_walls(walls: Vec<Wall>, geometry: Geometry, options: RenderOptions) -> Self {
         Self {
             walls,
+            size: PointSize::of(geometry),
             view: View::canonical(&options, geometry),
             half_width: options.border_width / 2.0,
             row_bytes: length(3 * u64::from(options.width)),
@@ -129,7 +137,7 @@ impl Renderer {
                 for down in 0..grid {
                     for across in 0..grid {
                         let colour = self.sample(column, row, across, down, &mut stats);
-                        for (total, channel) in sum.iter_mut().zip(colour.linear()) {
+                        for (total, channel) in sum.iter_mut().zip(colour) {
                             *total += channel;
                         }
                     }
@@ -149,31 +157,45 @@ impl Renderer {
         across: u32,
         down: u32,
         stats: &mut RenderStats,
-    ) -> Colour {
+    ) -> [f64; 3] {
         stats.samples = stats.samples.saturating_add(1);
-        let sampled = self
-            .view
-            .position(column, row, across, down)
-            .and_then(|position| self.view.point(position));
-        let Some((point, tangents)) = sampled else {
+        let position = self.view.position(column, row, across, down);
+        let Some(lift) = self.view.point(position) else {
             stats.outside = stats.outside.saturating_add(1);
-            return self.options.background;
+            return self.options.background.linear();
         };
-        let (result, tangents) =
-            fold_carrying(&self.walls, point, tangents, self.options.max_folds, |_| {});
+        let (result, tangents) = fold_carrying(
+            &self.walls,
+            self.size,
+            lift.point,
+            lift.tangents,
+            self.options.max_folds,
+            |_| {},
+        );
         stats.folds = stats.folds.saturating_add(u64::from(result.steps()));
         stats.largest_fold = stats.largest_fold.max(result.steps());
-        if !result.converged() {
+        let colour = if result.converged() {
+            self.converged_colour(result, tangents)
+        } else {
             stats.unconverged = stats.unconverged.saturating_add(1);
-            return self.options.border_colour;
+            self.options.border_colour
+        };
+        match (lift.normal, self.options.shading) {
+            (Some(normal), Shading::Phong) => shade(colour.linear(), normal, self.options.light),
+            (Some(_), Shading::Flat) | (None, _) => colour.linear(),
         }
+    }
+}
+
+impl Renderer {
+    fn converged_colour(&self, result: Fold, tangents: [DVec3; 2]) -> Colour {
         if on_border(&self.walls, result.point(), tangents, self.half_width) {
             return self.options.border_colour;
         }
         match self.options.fill {
             Fill::One(colour) => colour,
             Fill::Parity([even, odd]) => {
-                if result.reversals() % 2 == 0 {
+                if result.reversals().is_multiple_of(2) {
                     even
                 } else {
                     odd
@@ -181,6 +203,26 @@ impl Renderer {
             }
         }
     }
+}
+
+const AMBIENT: f64 = 0.25;
+const DIFFUSE: f64 = 0.75;
+const SPECULAR: f64 = 0.25;
+
+fn shade(colour: [f64; 3], normal: DVec3, light: DVec3) -> [f64; 3] {
+    let facing = normal.dot(light);
+    let diffuse = AMBIENT + DIFFUSE * facing.max(0.0);
+    let highlight = if facing > 0.0 {
+        let reflected = (2.0 * facing * normal.z - light.z).max(0.0);
+        let squared = reflected * reflected;
+        let fourth = squared * squared;
+        let eighth = fourth * fourth;
+        let sixteenth = eighth * eighth;
+        SPECULAR * (sixteenth * sixteenth)
+    } else {
+        0.0
+    };
+    colour.map(|channel| channel * diffuse + highlight * (1.0 - channel))
 }
 
 #[expect(
@@ -237,9 +279,9 @@ impl RenderStats {
     /// Returns the number of samples outside the view, which take the
     /// background colour.
     ///
-    /// For a hyperbolic domain these are the samples outside the disk. It is 0
-    /// for a Euclidean domain, whose view covers the whole image, and it equals
-    /// [`samples`](RenderStats::samples) for a geometry without a view.
+    /// For a hyperbolic domain these are the samples outside the disk, and for
+    /// a spherical domain those on or outside the rim of the ball. It is 0 for
+    /// a Euclidean domain, whose view covers the whole image.
     #[must_use]
     pub fn outside(self) -> u64 {
         self.outside
@@ -290,20 +332,19 @@ impl Renderer {
 #[cfg(test)]
 mod tests {
     use escher_domain::FundamentalDomain;
-    use escher_geometry::euclidean;
     use escher_geometry::hyperbolic::{covector, reflection};
+    use escher_geometry::{euclidean, spherical};
     use escher_signature::{Geometry, Signature};
     use glam::{DVec2, DVec3};
 
-    use super::{RenderStats, Renderer, on_border};
+    use super::{AMBIENT, DIFFUSE, RenderStats, Renderer, on_border, shade};
     use crate::colour::{Colour, Fill};
-    use crate::fold::{Wall, fold_carrying};
+    use crate::fold::{PointSize, Wall, fold_carrying};
     use crate::golden_images::{
-        ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_IMAGES, compare, domain_with_aspect, golden_options,
-        linear_table,
+        ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_IMAGES, compare, domain_with_aspect, linear_table,
     };
-    use crate::options::RenderOptions;
-    use crate::reference::{Reference, count_bound, plane_border_distance, vector};
+    use crate::options::{RenderOptions, Shading};
+    use crate::reference::{Reference, Worst, count_bound, error, plane_border_distance, vector};
     use crate::view::View;
 
     const EUCLIDEAN_DOMAINS: [(&str, Option<f64>); 7] = [
@@ -425,7 +466,7 @@ mod tests {
         for image in GOLDEN_IMAGES {
             let text = image.signature;
             let domain = image.domain();
-            let options = golden_options();
+            let options = image.options();
             let (pixels, _) = Renderer::new(&domain, options.clone()).render();
             let geometry = domain.geometry();
             let walls = domain
@@ -436,13 +477,34 @@ mod tests {
                         let moved = next_up(side.covector());
                         Wall::from_parts(moved, euclidean::reflection(moved), side.orientation())
                     }
-                    Geometry::Hyperbolic | Geometry::Spherical => {
+                    Geometry::Hyperbolic => {
                         let moved = next_up(side.normal());
                         Wall::from_parts(covector(moved), reflection(moved), side.orientation())
                     }
+                    Geometry::Spherical => {
+                        let moved = next_up(side.normal());
+                        Wall::from_parts(moved, spherical::reflection(moved), side.orientation())
+                    }
                 })
                 .collect();
-            let (moved, _) = Renderer::with_walls(walls, geometry, options).render();
+            let moved_renderer = match geometry {
+                Geometry::Spherical => {
+                    let viewing = crate::view::viewing_matrix(options.rotation);
+                    let moved_viewing = glam::DMat3::from_cols(
+                        next_up(viewing.x_axis),
+                        next_up(viewing.y_axis),
+                        next_up(viewing.z_axis),
+                    );
+                    let mut moved_options = options;
+                    moved_options.light = next_up(moved_options.light);
+                    let view = View::rotated(&moved_options, moved_viewing);
+                    Renderer::with_walls(walls, geometry, moved_options).with_view(view)
+                }
+                Geometry::Hyperbolic | Geometry::Euclidean => {
+                    Renderer::with_walls(walls, geometry, options)
+                }
+            };
+            let (moved, _) = moved_renderer.render();
             let comparison = compare(&pixels, &moved, GOLDEN_GRID, &linear);
             println!(
                 "{text}, golden image {}: {comparison:?}, allowed {ALLOWED_PIXELS} differing pixels",
@@ -473,9 +535,7 @@ mod tests {
             Err(error) => panic!("{error}"),
         };
         let view = View::canonical(&options, Geometry::Hyperbolic);
-        let Some(pixel) = view.pixel() else {
-            panic!("the view has no pixel scale");
-        };
+        let pixel = view.pixel();
         for (band, measured) in (1..=6).zip(MEASURED) {
             let bounds = measured.map(count_bound);
             let radius = 1.0 - 10.0_f64.powi(-band);
@@ -493,10 +553,17 @@ mod tests {
                 for index in 0..ANGLES {
                     let angle = core::f64::consts::TAU * f64::from(index) / f64::from(ANGLES);
                     let position = DVec2::new(radius * angle.cos(), radius * angle.sin());
-                    let Some((point, tangents)) = view.point(position) else {
+                    let Some(lift) = view.point(position) else {
                         panic!("{text}: {position:?} is outside the disk");
                     };
-                    let (result, tangents) = fold_carrying(&walls, point, tangents, 1500, |_| {});
+                    let (result, tangents) = fold_carrying(
+                        &walls,
+                        PointSize::LastCoordinate,
+                        lift.point,
+                        lift.tangents,
+                        1500,
+                        |_| {},
+                    );
                     assert!(result.converged(), "{text}: {position:?} does not converge");
                     let exact = reference.border_distance(
                         &covectors,
@@ -567,9 +634,7 @@ mod tests {
             Err(error) => panic!("{error}"),
         };
         let view = View::canonical(&options, Geometry::Euclidean);
-        let Some(pixel) = view.pixel() else {
-            panic!("the view has no pixel scale");
-        };
+        let pixel = view.pixel();
         for (radius, measured) in DISTANCES.into_iter().zip(MEASURED) {
             let bounds = measured.map(count_bound);
             let mut near = 0;
@@ -586,10 +651,17 @@ mod tests {
                 for index in 0..ANGLES {
                     let angle = core::f64::consts::TAU * f64::from(index) / f64::from(ANGLES);
                     let position = DVec2::new(radius * angle.cos(), radius * angle.sin());
-                    let Some((point, tangents)) = view.point(position) else {
+                    let Some(lift) = view.point(position) else {
                         panic!("{text}: the plane view has no point at {position:?}");
                     };
-                    let (result, tangents) = fold_carrying(&walls, point, tangents, 1500, |_| {});
+                    let (result, tangents) = fold_carrying(
+                        &walls,
+                        PointSize::LastCoordinate,
+                        lift.point,
+                        lift.tangents,
+                        1500,
+                        |_| {},
+                    );
                     assert!(result.converged(), "{text}: {position:?} does not converge");
                     let exact = plane_border_distance(&covectors, result.point().to_array(), pixel);
                     let exact = reference.approximate(&exact);
@@ -634,6 +706,414 @@ mod tests {
                 differing[0] <= bounds[0] && differing[1] <= bounds[1],
                 "distance {radius}: {differing:?}"
             );
+        }
+    }
+
+    const SHADING_BOUND: f64 = 2e-14;
+
+    const SPHERE_BORDER_DOMAINS: [&str; 5] = ["*532", "*432", "*332", "*722", "*55"];
+
+    const RIM_DISTANCES: [f64; 7] = [120.0, 24.0, 8.0, 4.0, 2.0, 1.0, 0.5];
+
+    const SPHERE_BORDER_MEASURED: [[usize; 2]; 7] = [
+        [0, 3],
+        [3, 23],
+        [8, 99],
+        [39, 336],
+        [92, 956],
+        [278, 0],
+        [1593, 0],
+    ];
+
+    fn light_directions() -> [DVec3; 4] {
+        [
+            DVec3::new(-1.0, 1.0, 2.0),
+            DVec3::new(1.0, 1.0, 1.0),
+            DVec3::new(0.0, -1.0, 1.0),
+            DVec3::new(2.0, 0.0, 1.0),
+        ]
+    }
+
+    fn normalized_light(direction: DVec3) -> DVec3 {
+        match RenderOptions::builder(Fill::One(Colour::WHITE))
+            .light(direction)
+            .build()
+        {
+            Ok(options) => options.light,
+            Err(error) => panic!("{direction:?}: {error}"),
+        }
+    }
+
+    fn hemisphere(steps: u32) -> Vec<DVec3> {
+        let mut normals = Vec::new();
+        for row in 0..=steps {
+            for column in 0..=steps {
+                let first = -1.0 + 2.0 * f64::from(column) / f64::from(steps);
+                let second = -1.0 + 2.0 * f64::from(row) / f64::from(steps);
+                let d = 1.0 - (first * first + second * second);
+                if d > 0.0 {
+                    normals.push(DVec3::new(first, second, d.sqrt()));
+                }
+            }
+        }
+        normals
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+    )]
+    fn shading_agrees_with_the_reference() {
+        let mut reference = Reference::new();
+        let normals = hemisphere(32);
+        let mut worst = Worst::new("shaded linear-light channel, absolute error", 1000);
+        for direction in light_directions() {
+            let light = normalized_light(direction);
+            for &normal in &normals {
+                for step in 0..=16 {
+                    let channel = f64::from(step) / 16.0;
+                    let [shaded, ..] = shade([channel; 3], normal, light);
+                    let exact = reference.shade(normal.to_array(), light.to_array(), channel);
+                    worst.record(&error(shaded, &exact), &crate::reference::int(1), || {
+                        format!("light {direction:?}, normal {normal:?}, channel {channel}")
+                    });
+                }
+            }
+        }
+        worst.assert_at_most(&mut reference, SHADING_BOUND);
+    }
+
+    #[test]
+    fn shading_keeps_every_channel_between_zero_and_one() {
+        for direction in light_directions() {
+            let light = normalized_light(direction);
+            for normal in hemisphere(24) {
+                for step in 0..=16 {
+                    let channel = f64::from(step) / 16.0;
+                    for shaded in shade([channel; 3], normal, light) {
+                        assert!(
+                            (0.0..=1.0).contains(&shaded),
+                            "{shaded} for {normal:?}, {light:?}, {channel}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn shading_gives_exact_values_at_chosen_inputs() {
+        let cases = [
+            (DVec3::Z, DVec3::Z, 0.0, 0.25),
+            (DVec3::Z, DVec3::Z, 0.5, 0.625),
+            (DVec3::Z, DVec3::Z, 1.0, 1.0),
+            (DVec3::X, DVec3::NEG_X, 0.0, 0.0),
+            (DVec3::X, DVec3::NEG_X, 0.5, 0.125),
+            (DVec3::X, DVec3::Z, 0.0, 0.0),
+            (DVec3::X, DVec3::Z, 0.5, 0.125),
+            (DVec3::X, DVec3::new(0.6, 0.0, 0.8), 0.0, 0.0),
+        ];
+        for (normal, light, channel, expected) in cases {
+            assert_eq!(
+                shade([channel; 3], normal, light),
+                [expected; 3],
+                "{normal:?}, {light:?}, {channel}"
+            );
+        }
+    }
+
+    fn small_ball(shading: Shading, colour: Colour) -> Vec<u8> {
+        let options = match RenderOptions::builder(Fill::One(colour))
+            .size(3, 3)
+            .samples(1)
+            .border_width(0.0)
+            .shading(shading)
+            .build()
+        {
+            Ok(options) => options,
+            Err(error) => panic!("{error}"),
+        };
+        Renderer::new(&domain("*532"), options).render().0
+    }
+
+    #[test]
+    fn flat_shading_leaves_the_colour_of_the_ball_unchanged() {
+        let colour = Colour::from_srgb8(128, 64, 200);
+        let flat = small_ball(Shading::Flat, colour);
+        let phong = small_ball(Shading::Phong, colour);
+        assert_eq!(flat[12..15], colour.to_srgb8());
+        assert_ne!(phong[12..15], colour.to_srgb8());
+        assert_eq!(flat[0..3], Colour::WHITE.to_srgb8());
+        assert_eq!(phong[0..3], Colour::WHITE.to_srgb8());
+    }
+
+    #[test]
+    fn shading_terms_peak_where_the_normal_meets_the_light_and_the_halfway_vector() {
+        let normals = hemisphere(100);
+        let spacing = 2.0 / 100.0;
+        for direction in light_directions() {
+            let light = normalized_light(direction);
+            let peak = |channel: f64| {
+                normals
+                    .iter()
+                    .copied()
+                    .fold((f64::NEG_INFINITY, DVec3::ZERO), |best, normal| {
+                        let [value, ..] = shade([channel; 3], normal, light);
+                        if value > best.0 {
+                            (value, normal)
+                        } else {
+                            best
+                        }
+                    })
+                    .1
+            };
+            let diffuse = peak(1.0);
+            assert!(
+                diffuse.angle_between(light) <= 2.0 * spacing,
+                "{direction:?}: diffuse peak {diffuse:?}"
+            );
+            let halfway = (light + DVec3::Z).normalize();
+            let specular = peak(0.0);
+            assert!(
+                specular.angle_between(halfway) <= 2.0 * spacing,
+                "{direction:?}: specular peak {specular:?}"
+            );
+        }
+        assert!((AMBIENT + DIFFUSE - 1.0).abs() <= 0.0);
+    }
+
+    fn grey_ball(direction: DVec3) -> Vec<u8> {
+        let options = match RenderOptions::builder(Fill::One(Colour::from_srgb8(128, 128, 128)))
+            .size(BRIGHT_SIZE, BRIGHT_SIZE)
+            .samples(GOLDEN_GRID)
+            .border_width(0.0)
+            .background(Colour::BLACK)
+            .light(direction)
+            .build()
+        {
+            Ok(options) => options,
+            Err(error) => panic!("{error}"),
+        };
+        Renderer::new(&domain("*532"), options).render().0
+    }
+
+    const BRIGHT_SIZE: u32 = 192;
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "rendering whole images runs loops too long for the interpreter"
+    )]
+    fn brightest_pixel_follows_the_light_and_a_quarter_turn_of_the_light_turns_the_image() {
+        let size = usize::try_from(BRIGHT_SIZE).unwrap_or(usize::MAX);
+        let grey = Colour::from_srgb8(128, 128, 128).linear();
+        let pixel = 2.0 / (15.0 / 16.0 * f64::from(BRIGHT_SIZE));
+        let half = f64::from(BRIGHT_SIZE) / 2.0;
+        for direction in light_directions() {
+            let light = normalized_light(direction);
+            let mut predicted = (f64::NEG_INFINITY, 0, 0);
+            for row in 0..size {
+                for column in 0..size {
+                    #[expect(
+                        clippy::cast_precision_loss,
+                        reason = "the pixel indices are far below 2 to the power 52"
+                    )]
+                    let position = DVec2::new(
+                        (column as f64 + 0.5 - half) * pixel,
+                        (half - row as f64 - 0.5) * pixel,
+                    );
+                    let d = 1.0 - position.length_squared();
+                    if d > 0.0 {
+                        let normal = DVec3::new(position.x, position.y, d.sqrt());
+                        let [value, ..] = shade(grey, normal, light);
+                        if value > predicted.0 {
+                            predicted = (value, column, row);
+                        }
+                    }
+                }
+            }
+            let pixels = grey_ball(direction);
+            let brightest = pixels.as_chunks::<3>().0.iter().map(|pixel| pixel[0]).max();
+            let at: Vec<(usize, usize)> = pixels
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .enumerate()
+                .filter(|(_, pixel)| Some(pixel[0]) == brightest)
+                .map(|(index, _)| (index % size, index / size))
+                .collect();
+            println!(
+                "light {direction:?}: brightest byte {brightest:?} at {at:?}, formula largest at ({}, {})",
+                predicted.1, predicted.2
+            );
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the pixel indices and their count are far below 2 to the power 52"
+            )]
+            let centroid = {
+                let count = at.len() as f64;
+                let column = at.iter().map(|&(column, _)| column as f64).sum::<f64>() / count;
+                let row = at.iter().map(|&(_, row)| row as f64).sum::<f64>() / count;
+                (column, row)
+            };
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the pixel indices are far below 2 to the power 52"
+            )]
+            let offset = (
+                (centroid.0 - predicted.1 as f64).abs(),
+                (centroid.1 - predicted.2 as f64).abs(),
+            );
+            assert!(
+                offset.0 <= 1.0 && offset.1 <= 1.0,
+                "{direction:?}: brightest pixels centred at {centroid:?}, predicted ({}, {})",
+                predicted.1,
+                predicted.2
+            );
+        }
+        let linear = linear_table();
+        for direction in light_directions() {
+            let turned_light = DVec3::new(-direction.y, direction.x, direction.z);
+            let image = grey_ball(direction);
+            let turned = grey_ball(turned_light);
+            let mut expected = vec![0; image.len()];
+            for row in 0..size {
+                for column in 0..size {
+                    let source = 3 * (column * size + (size - 1 - row));
+                    let target = 3 * (row * size + column);
+                    expected[target..target + 3].copy_from_slice(&image[source..source + 3]);
+                }
+            }
+            let comparison = compare(&expected, &turned, GOLDEN_GRID, &linear);
+            println!(
+                "light {direction:?} turned a quarter turn: {comparison:?}, allowed {ALLOWED_PIXELS} differing pixels"
+            );
+            assert!(
+                comparison.within_allowance(),
+                "{direction:?}: {comparison:?}"
+            );
+        }
+    }
+
+    fn tile(
+        walls: &[Wall],
+        pairings: &[glam::DMat3],
+        point: DVec3,
+        centre: DVec3,
+    ) -> Option<DVec3> {
+        let mut sides = Vec::new();
+        let (result, _) = fold_carrying(
+            walls,
+            PointSize::LargestCoordinate,
+            point,
+            [DVec3::ZERO; 2],
+            1500,
+            |index| sides.push(index),
+        );
+        result.converged().then(|| {
+            sides.iter().rev().fold(centre, |centre, &index| {
+                spherical::inverse(pairings[index]) * centre
+            })
+        })
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+    )]
+    fn gradient_form_of_the_border_agrees_with_the_oracle_on_the_ball() {
+        const SAMPLES: u32 = 4000;
+        const CIRCLE: u32 = 64;
+        const HALF_WIDTHS: [f64; 2] = [0.5, 1.5];
+        const SAME_TILE: f64 = 1e-4;
+        let options = match RenderOptions::builder(Fill::One(Colour::WHITE)).build() {
+            Ok(options) => options,
+            Err(error) => panic!("{error}"),
+        };
+        let view = View::canonical(&options, Geometry::Spherical);
+        let pixel = view.pixel();
+        let domains: Vec<_> = SPHERE_BORDER_DOMAINS
+            .iter()
+            .map(|&text| {
+                let domain = domain(text);
+                let walls: Vec<Wall> = domain.sides().iter().map(|&side| Wall::new(side)).collect();
+                let pairings: Vec<_> = domain.sides().iter().map(|side| side.pairing()).collect();
+                (text, walls, pairings, domain.centre())
+            })
+            .collect();
+        for (distance, measured) in RIM_DISTANCES.into_iter().zip(SPHERE_BORDER_MEASURED) {
+            let radius = 1.0 - distance * pixel;
+            let mut differing = [0_usize; 2];
+            let mut tested = [0_usize; 2];
+            let mut border = 0_usize;
+            for (text, walls, pairings, centre) in &domains {
+                for index in 0..SAMPLES {
+                    let angle = core::f64::consts::TAU * f64::from(index) / f64::from(SAMPLES);
+                    let position = DVec2::new(radius * angle.cos(), radius * angle.sin());
+                    let Some(lift) = view.point(position) else {
+                        panic!("{text}: {position:?} is outside the ball");
+                    };
+                    let (result, tangents) = fold_carrying(
+                        walls,
+                        PointSize::LargestCoordinate,
+                        lift.point,
+                        lift.tangents,
+                        1500,
+                        |_| {},
+                    );
+                    assert!(result.converged(), "{text}: {position:?} does not converge");
+                    let Some(here) = tile(walls, pairings, lift.point, *centre) else {
+                        panic!("{text}: {position:?} has no tile");
+                    };
+                    for (slot, half_width) in HALF_WIDTHS.into_iter().enumerate() {
+                        if distance < half_width {
+                            continue;
+                        }
+                        tested[slot] += 1;
+                        let gradient = on_border(walls, result.point(), tangents, half_width);
+                        if slot == 0 && gradient {
+                            border += 1;
+                        }
+                        let oracle = (0..CIRCLE).any(|step| {
+                            let turn = core::f64::consts::TAU * f64::from(step) / f64::from(CIRCLE);
+                            let offset = DVec2::new(turn.cos(), turn.sin()) * (half_width * pixel);
+                            view.point(position + offset).is_some_and(|other| {
+                                tile(walls, pairings, other.point, *centre).is_none_or(|there| {
+                                    spherical::distance(here, there) >= SAME_TILE
+                                })
+                            })
+                        });
+                        if gradient != oracle {
+                            differing[slot] += 1;
+                        }
+                    }
+                }
+            }
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the counts are far below 2 to the power 52"
+            )]
+            let share = border as f64 / tested[0] as f64;
+            let bounds = measured.map(count_bound);
+            for (slot, half_width) in HALF_WIDTHS.into_iter().enumerate() {
+                if tested[slot] == 0 {
+                    println!(
+                        "rim distance {distance}: skipped at half width {half_width}, because the band lies closer to the rim than the half width"
+                    );
+                    continue;
+                }
+                println!(
+                    "rim distance {distance}, half width {half_width}: {} of {} samples classified differently, bound {}",
+                    differing[slot], tested[slot], bounds[slot]
+                );
+                assert!(
+                    differing[slot] <= bounds[slot],
+                    "rim distance {distance}, half width {half_width}: {differing:?}"
+                );
+            }
+            println!("rim distance {distance}: border share {share:.4} at half width 0.5");
         }
     }
 }

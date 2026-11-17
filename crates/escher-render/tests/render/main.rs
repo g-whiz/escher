@@ -1,7 +1,7 @@
 //! Integration tests of `escher-render` through its public interface.
 
 #[cfg(test)]
-use escher_render::{Colour, Fill, RenderOptions};
+use escher_render::{Colour, Fill, RenderOptions, Shading};
 
 #[cfg(test)]
 mod borders;

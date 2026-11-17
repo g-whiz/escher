@@ -1,12 +1,16 @@
 use escher_geometry::hyperbolic::{ORIGIN, from_disk, side};
+use escher_geometry::spherical;
 use escher_render::{Fill, RenderOptions, Renderer, fold};
-use glam::DVec3;
+use escher_signature::{Geometry, Signature};
+use glam::{DMat3, DVec3};
 
 use crate::common::{
     BANDS, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS, EUCLIDEAN_REPLAY_BOUNDS,
-    FOLD_TRIPLES, REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane, domain,
-    euclidean_domain, euclidean_fold_set, euclidean_name, fold_set, one_fill, options,
-    pixel_position, reference_walls, rim_set, text,
+    FOLD_TRIPLES, REPLAY_BOUNDS, SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS,
+    SPHERICAL_IMAGE_BOUNDS, SPHERICAL_REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe,
+    describe_plane, describe_sphere, domain, euclidean_domain, euclidean_fold_set, euclidean_name,
+    fold_set, one_fill, options, pixel_position, reference_walls, rim_set, spherical_domain,
+    spherical_fold_set, text,
 };
 use crate::golden_images::domain_with_aspect;
 use crate::reference::{self, Reference, Worst, count_bound, vector};
@@ -16,6 +20,8 @@ const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 6];
 const EUCLIDEAN_DECISION_COUNTS: [usize; 4] = [0, 0, 0, 0];
 
 const VERTEX_ASPECTS: u32 = 64;
+
+const CENTRE_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
 
 fn sides_of(
     domain: &escher_domain::FundamentalDomain,
@@ -175,7 +181,14 @@ fn largest_vertex_ratio(
         for (index, &vertex) in domain.vertices().iter().enumerate() {
             for (side_index, wall) in domain.sides().iter().enumerate() {
                 let covector = wall.covector();
-                let ratio = side(covector, vertex) / (covector.abs().element_sum() * vertex.z);
+                let (value, size) = match domain.geometry() {
+                    Geometry::Spherical => (
+                        spherical::side(covector, vertex),
+                        vertex.abs().max_element(),
+                    ),
+                    _ => (side(covector, vertex), vertex.z),
+                };
+                let ratio = value / (covector.abs().element_sum() * size);
                 if ratio > largest.0 {
                     largest = (ratio, format!("{name} vertex {index} side {side_index}"));
                 }
@@ -213,9 +226,12 @@ fn every_vertex_folds_in_zero_steps() {
                 domain_with_aspect("*2222", Some(aspect)),
             )
         }));
+    let spherical = (0..SPHERICAL_DOMAINS.len())
+        .map(|index| (SPHERICAL_DOMAINS[index].to_owned(), spherical_domain(index)));
     for (set, domains) in [
         ("", largest_vertex_ratio(hyperbolic)),
         ("Euclidean ", largest_vertex_ratio(euclidean)),
+        ("spherical ", largest_vertex_ratio(spherical)),
     ] {
         let (ratio, at) = domains;
         println!(
@@ -325,6 +341,266 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
         assert_eq!(stats.unconverged(), 0);
         assert_eq!(stats.outside(), 0);
     }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_fold_replay_and_decisions_stay_within_their_bounds_and_converge_within_the_default_cap()
+ {
+    let mut reference = Reference::new();
+    for (index, (&name, &bound)) in SPHERICAL_DOMAINS
+        .iter()
+        .zip(&SPHERICAL_REPLAY_BOUNDS)
+        .enumerate()
+    {
+        let domain = spherical_domain(index);
+        let walls = reference_walls(&domain);
+        let set = spherical_fold_set(index);
+        let mut worst = Worst::new(
+            format!("folded point, angle from the replay, {name}"),
+            set.len(),
+        );
+        let mut differing = 0_usize;
+        let mut total = 0_u64;
+        let mut largest = 0_u32;
+        for sample in &set {
+            let (result, sides) = sides_of(&domain, sample.point, DEFAULT_CAP);
+            assert!(
+                result.converged(),
+                "{} does not converge",
+                describe_sphere(sample)
+            );
+            total += u64::from(result.steps());
+            largest = largest.max(result.steps());
+            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let angle = reference.angle(&vector(result.point().to_array()), &replayed);
+            worst.record(&angle, &reference::int(1), || describe_sphere(sample));
+            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
+            assert!(
+                exact.converged,
+                "the exact fold of {} does not converge",
+                describe_sphere(sample)
+            );
+            if exact.sides != sides {
+                println!("{}: the side sequences differ", describe_sphere(sample));
+                differing += 1;
+            }
+        }
+        worst.assert_at_most(&mut reference, bound);
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the total is far below 2 to the power 52"
+        )]
+        let mean = total as f64 / set.len() as f64;
+        let allowed = count_bound(SPHERICAL_DECISION_COUNTS[index]);
+        println!(
+            "{name}: mean steps {mean:.1}, largest {largest}, {differing} of {} folds differ, bound {allowed}",
+            set.len()
+        );
+        assert!(
+            differing <= allowed,
+            "{name}: {differing} folds differ, more than {allowed}"
+        );
+    }
+}
+
+struct GroupElement {
+    approximate: DMat3,
+    exact: reference::Matrix,
+    depth: u32,
+}
+
+fn enumerate_group(domain: &escher_domain::FundamentalDomain, order: u64) -> Vec<GroupElement> {
+    let generators: Vec<(DMat3, reference::Matrix)> = domain
+        .sides()
+        .iter()
+        .map(|side| {
+            let pairing = side.pairing();
+            (pairing, reference::matrix(pairing.to_cols_array()))
+        })
+        .collect();
+    let mut elements = vec![GroupElement {
+        approximate: DMat3::IDENTITY,
+        exact: reference::matrix(DMat3::IDENTITY.to_cols_array()),
+        depth: 0,
+    }];
+    let mut next = 0;
+    while next < elements.len() {
+        let depth = elements[next].depth;
+        for (generator, exact) in &generators {
+            let product = elements[next].approximate * *generator;
+            if !elements
+                .iter()
+                .any(|known| known.approximate.abs_diff_eq(product, 1e-9))
+            {
+                let exact = reference::product(&elements[next].exact, exact);
+                elements.push(GroupElement {
+                    approximate: product,
+                    exact,
+                    depth: depth + 1,
+                });
+                assert!(
+                    u64::try_from(elements.len()).is_ok_and(|count| count <= order),
+                    "the enumeration found more than {order} elements"
+                );
+            }
+        }
+        next += 1;
+    }
+    elements
+}
+
+fn image_bound(largest: usize, first: usize, order: u32) -> f64 {
+    if order == 1000 {
+        return SPHERICAL_IMAGE_BOUNDS[largest];
+    }
+    let position = CENTRE_ORDERS
+        .iter()
+        .position(|&known| known >= order)
+        .unwrap_or_else(|| panic!("{order} is above every order of the set"));
+    SPHERICAL_REPLAY_BOUNDS[first + position]
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the enumeration of the group runs loops too long for the interpreter"
+)]
+fn images_of_the_centre_under_the_group_fold_back_in_as_many_steps_as_their_depth() {
+    let mut reference = Reference::new();
+    let signatures = [("*332", 0), ("*432", 1), ("*532", 2)]
+        .into_iter()
+        .map(|(name, index)| (name.to_owned(), SPHERICAL_REPLAY_BOUNDS[index]))
+        .chain((2..=12).chain([1000]).flat_map(|order| {
+            let corner = if order < 10 {
+                order.to_string()
+            } else {
+                format!("({order})")
+            };
+            [
+                (format!("*{corner}22"), image_bound(0, 3, order)),
+                (format!("*{corner}{corner}"), image_bound(1, 10, order)),
+            ]
+        }));
+    for (name, bound) in signatures {
+        let signature: Signature = name
+            .parse()
+            .unwrap_or_else(|error| panic!("{name:?} is rejected: {error}"));
+        let order = signature
+            .group_order()
+            .unwrap_or_else(|| panic!("{name} has no group order"))
+            .get();
+        let domain = domain_with_aspect(&name, None);
+        let elements = enumerate_group(&domain, order);
+        assert_eq!(elements.len() as u64, order, "{name}");
+        let centre = domain.centre();
+        let mut largest_depth = 0;
+        let mut largest = 0.0_f64;
+        let exact_centre = vector(centre.to_array());
+        for element in &elements {
+            let depth = element.depth;
+            let exact_image = reference::apply(&element.exact, &exact_centre);
+            let image =
+                DVec3::from_array([0, 1, 2].map(|row| reference.approximate(&exact_image[row])));
+            let result = fold(&domain, image, DEFAULT_CAP, |_| {});
+            assert!(result.converged(), "{name} at depth {depth}");
+            assert_eq!(result.steps(), depth, "{name} at {:?}", element.approximate);
+            let angle = reference.angle(
+                &vector(result.point().to_array()),
+                &vector(centre.to_array()),
+            );
+            let angle = reference.approximate(&angle);
+            largest_depth = largest_depth.max(depth);
+            largest = largest.max(angle);
+            assert!(
+                angle <= bound,
+                "{name} at depth {depth}: angle {angle:e} exceeds {bound:e}"
+            );
+        }
+        println!(
+            "{name}: {} elements, largest depth {largest_depth}, largest angle {largest:.3e}, bound {bound:e}",
+            elements.len()
+        );
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "folding thousands of points of a large group runs loops too long for the interpreter"
+)]
+fn fold_near_a_vertex_of_the_largest_order_and_its_antipode_returns_within_the_cap() {
+    let domain = domain_with_aspect("*(1000)22", None);
+    let target = core::f64::consts::PI / 1000.0;
+    let (index, _) = domain
+        .corner_angles()
+        .into_iter()
+        .enumerate()
+        .min_by(|(_, left), (_, right)| (left - target).abs().total_cmp(&(right - target).abs()))
+        .unwrap_or_else(|| panic!("the domain has no corner"));
+    let vertex = domain.vertices()[index];
+    let first = vertex.any_orthonormal_vector();
+    let second = vertex.cross(first).normalize();
+    for (name, centre) in [("vertex", vertex), ("antipode", -vertex)] {
+        let mut unconverged = 0;
+        for direction in 0..1000_u32 {
+            let heading = core::f64::consts::TAU * f64::from(direction) / 1000.0;
+            let angle = 1e-14 * f64::from(direction + 1) / 1000.0;
+            let tangent = first * heading.cos() + second * heading.sin();
+            let point = centre * angle.cos() + tangent * angle.sin();
+            let result = fold(&domain, point, DEFAULT_CAP, |_| {});
+            assert!(
+                result.steps() <= DEFAULT_CAP,
+                "{name} direction {direction}"
+            );
+            if !result.converged() {
+                unconverged += 1;
+            }
+        }
+        println!(
+            "*(1000)22 near its {name} of order 1000: {unconverged} of 1000 points unconverged"
+        );
+    }
+}
+
+#[test]
+fn spherical_fold_of_wrong_inputs_stops_as_the_cap_and_the_point_size_require() {
+    let domain = spherical_domain(2);
+    for vector in [DVec3::ZERO, -DVec3::ZERO] {
+        let result = fold(&domain, vector, DEFAULT_CAP, |_| {});
+        assert!(!result.converged(), "{vector:?}");
+        assert_eq!(result.steps(), 0, "{vector:?}");
+    }
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        for point in [
+            DVec3::new(value, 0.0, 1.0),
+            DVec3::new(0.0, value, 1.0),
+            DVec3::new(0.0, 0.0, value),
+        ] {
+            let result = fold(&domain, point, DEFAULT_CAP, |_| {});
+            assert!(!result.converged(), "{point:?}");
+            assert_eq!(result.steps(), 0, "{point:?}");
+        }
+    }
+    let point = DVec3::new(0.0, 0.0, -1.0);
+    let needed = fold(&domain, point, DEFAULT_CAP, |_| {});
+    println!(
+        "*532 at (0, 0, -1): converged {}, {} steps",
+        needed.converged(),
+        needed.steps()
+    );
+    assert!(needed.converged());
+    assert!(needed.steps() > 1);
+    let none = fold(&domain, point, 0, |_| {});
+    assert!(!none.converged());
+    assert_eq!(none.steps(), 0);
+    assert_eq!(none.point(), point);
+    let capped = fold(&domain, point, needed.steps() - 1, |_| {});
+    assert!(!capped.converged());
+    assert_eq!(capped.steps(), needed.steps() - 1);
 }
 
 #[test]

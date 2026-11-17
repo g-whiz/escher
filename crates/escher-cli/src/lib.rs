@@ -4,13 +4,14 @@
 //! The binary `escher` is a thin wrapper around [`run`], which it calls with
 //! the arguments of the process, standard output, and standard error. The
 //! crate `escher-signature` parses and classifies an orbifold signature, a
-//! short text such as `*632` that names a symmetry group of the plane, the
-//! sphere, or the hyperbolic plane. The crate `escher-domain` builds and
-//! verifies the fundamental domain of a signature, a polygon whose copies
-//! under the group tile the plane or the sphere, and the crate `escher-render` draws the
-//! tiling of a domain. This crate turns those results into text, an image
-//! file, diagnostics, and an exit status. Use [`run`] to call the program from
-//! Rust, such as in a test, without starting a process.
+//! short text such as `*632` that names a symmetry group of the Euclidean
+//! plane, the sphere, or the hyperbolic plane. The crate `escher-domain`
+//! builds and verifies the fundamental domain of a signature, a region whose
+//! copies under the group tile the plane, the sphere, or the hyperbolic plane,
+//! and the crate `escher-render` draws the tiling of a domain. This crate
+//! turns those results into text, an image file, diagnostics, and an exit
+//! status. Use [`run`] to call the program from Rust, such as in a test,
+//! without starting a process.
 //!
 //! The command `escher info <SIGNATURE>` prints the canonical form of the
 //! signature, its geometry, its Euler characteristic, the values that depend
@@ -24,16 +25,17 @@
 //!
 //! The command `escher render --output <FILE> <SIGNATURE>` draws the tiling of
 //! the fundamental domain in the Poincare disk, a picture of the whole
-//! hyperbolic plane inside a disk, for a hyperbolic domain, and in a window
-//! of the plane for a Euclidean domain. The option `--set NAME=VALUE` sets a
-//! shape parameter of the domain, such as `aspect=1.5` for `*2222`. The
-//! command draws on a pool of threads that it builds for the call. It writes
-//! the PNG file only after the rendering and the encoding succeed, and it
-//! replaces a file that exists. It fails for a signature without a domain, for
-//! a setting that the domain does not accept, and for a domain that is neither
-//! hyperbolic nor Euclidean. It prints nothing on standard output unless the
-//! option `--stats` is given, which prints statistics of the rendering after
-//! the file is written.
+//! hyperbolic plane inside a disk, for a hyperbolic domain, in a window of the
+//! plane for a Euclidean domain, and on a lit ball for a spherical domain. The
+//! options `--rotation`, `--light`, and `--shading` set the viewing rotation,
+//! the light direction, and the shading of the ball. The option
+//! `--set NAME=VALUE` sets a shape parameter of the domain, such as
+//! `aspect=1.5` for `*2222`. The command draws on a pool of threads that it
+//! builds for the call. It writes the PNG file only after the rendering and
+//! the encoding succeed, and it replaces a file that exists. It fails for a
+//! signature without a domain and for a setting that the domain does not
+//! accept. It prints nothing on standard output unless the option `--stats` is
+//! given, which prints statistics of the rendering after the file is written.
 //!
 //! ```
 //! use escher_cli::{Status, run};

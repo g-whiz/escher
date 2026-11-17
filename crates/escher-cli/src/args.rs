@@ -100,7 +100,7 @@ pub(crate) struct RenderArgs {
         long,
         value_name = "COLOUR",
         default_value = "#ffffff",
-        help = "The colour outside the disk of a hyperbolic tiling, as #rgb or #rrggbb"
+        help = "The colour outside the disk of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb"
     )]
     pub(crate) background: String,
     #[arg(
@@ -120,6 +120,31 @@ pub(crate) struct RenderArgs {
         help = "Set a shape parameter, as NAME=VALUE, such as aspect=1.5. The command info lists the parameters of a signature. The option can be given once for each parameter"
     )]
     pub(crate) set: Vec<Setting>,
+    #[arg(
+        long,
+        value_name = "YAW,PITCH,ROLL",
+        default_value = "0,0,0",
+        value_parser = parse_triple,
+        allow_hyphen_values = true,
+        help = "The rotation of the ball of a spherical tiling, as three angles in degrees. YAW turns the front of the ball to the right, PITCH turns it up, and ROLL turns the image counterclockwise, in this order"
+    )]
+    pub(crate) rotation: [f64; 3],
+    #[arg(
+        long,
+        value_name = "X,Y,Z",
+        default_value = "-1,1,2",
+        value_parser = parse_triple,
+        allow_hyphen_values = true,
+        help = "The direction from the ball of a spherical tiling to the light, as X,Y,Z, with X to the right, Y up, and Z toward the viewer. The length is ignored"
+    )]
+    pub(crate) light: [f64; 3],
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = ShadingChoice::Phong,
+        help = "Phong shading of the ball of a spherical tiling, or none"
+    )]
+    pub(crate) shading: ShadingChoice,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -149,6 +174,13 @@ impl Colouring {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub(crate) enum ShadingChoice {
+    Phong,
+    #[value(name = "none")]
+    Flat,
+}
+
 fn parse_size(text: &str) -> Result<Size, &'static str> {
     let error = "expected two decimal integers joined by x, such as 512x512";
     let (width, height) = text.split_once('x').ok_or(error)?;
@@ -170,6 +202,18 @@ fn parse_setting(text: &str) -> Result<Setting, &'static str> {
     })
 }
 
+fn parse_triple(text: &str) -> Result<[f64; 3], &'static str> {
+    let error = "expected three numbers separated by commas, such as 20,35,0";
+    let mut items = text.split(',');
+    let (Some(first), Some(second), Some(third), None) =
+        (items.next(), items.next(), items.next(), items.next())
+    else {
+        return Err(error);
+    };
+    let number = |item: &str| item.parse::<f64>().ok().ok_or(error);
+    Ok([number(first)?, number(second)?, number(third)?])
+}
+
 fn decimal(text: &str) -> Option<u32> {
     if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
@@ -179,7 +223,7 @@ fn decimal(text: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Setting, parse_setting};
+    use super::{Setting, parse_setting, parse_triple};
 
     const MESSAGE: &str = "expected a parameter name and a number joined by =, such as aspect=1.5";
 
@@ -207,6 +251,33 @@ mod tests {
     fn parse_setting_rejects_other_forms() {
         for text in ["aspect", "=2", "aspect=", "aspect=x", "a=b=1"] {
             assert_eq!(parse_setting(text), Err(MESSAGE), "{text:?}");
+        }
+    }
+
+    const TRIPLE_MESSAGE: &str = "expected three numbers separated by commas, such as 20,35,0";
+
+    #[test]
+    fn parse_triple_reads_three_numbers() {
+        assert_eq!(parse_triple("20,35,0"), Ok([20.0, 35.0, 0.0]));
+        assert_eq!(parse_triple("-1,1,2"), Ok([-1.0, 1.0, 2.0]));
+    }
+
+    #[test]
+    fn parse_triple_reads_nan_as_a_number() {
+        let Ok([first, second, third]) = parse_triple("nan,0,0") else {
+            panic!("nan is a number of the f64 parser");
+        };
+        assert!(first.is_nan());
+        assert_eq!(second, 0.0);
+        assert_eq!(third, 0.0);
+    }
+
+    #[test]
+    fn parse_triple_rejects_other_forms() {
+        for text in [
+            "1,2", "a,b,c", "1,2,3,4", "1,,2", "", " 1,2,3", "1,2,3 ", "1, 2,3",
+        ] {
+            assert_eq!(parse_triple(text), Err(TRIPLE_MESSAGE), "{text:?}");
         }
     }
 }

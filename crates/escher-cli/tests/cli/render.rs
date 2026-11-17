@@ -32,15 +32,6 @@ fn render_diagnostic_marks_a_bad_orbifold() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
-fn render_diagnostic_says_a_spherical_signature_is_not_supported() {
-    insta::assert_snapshot!(render_snapshot("spherical", &["*532"]));
-}
-
-#[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_a_non_compact_signature_is_not_supported() {
     insta::assert_snapshot!(render_snapshot("non_compact", &["3*(inf)"]));
 }
@@ -226,10 +217,67 @@ fn render_diagnostic_gives_the_cause_of_a_parameter_outside_its_range() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn render_diagnostic_names_a_rotation_angle_that_is_not_finite() {
+    insta::assert_snapshot!(render_snapshot(
+        "rotation_nan",
+        &["*532", "--rotation", "nan,0,0"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_a_zero_light_direction() {
+    insta::assert_snapshot!(render_snapshot("light_zero", &["*532", "--light", "0,0,0"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_an_infinite_light_direction() {
+    insta::assert_snapshot!(render_snapshot(
+        "light_infinite",
+        &["*532", "--light", "inf,0,0"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_a_parameter_of_a_spherical_signature() {
+    insta::assert_snapshot!(render_snapshot(
+        "spherical_parameter",
+        &["*532", "--set", "aspect=2"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn render_statistics_hold_the_samples_and_masked_values() {
     insta::assert_snapshot!(render_snapshot(
         "statistics",
         &["*732", "--size", "16x16", "--samples", "1", "--stats"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_statistics_of_a_spherical_tiling_hold_the_samples_and_masked_values() {
+    insta::assert_snapshot!(render_snapshot(
+        "statistics_spherical",
+        &["*532", "--size", "16x16", "--samples", "1", "--stats"]
     ));
 }
 
@@ -485,6 +533,18 @@ fn render_with_a_bad_colour_changes_no_file() {
     assert_no_file_changes("bad_colour_file", &["*732", "--colours", "#e9c46a,red"]);
 }
 
+#[test]
+#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
+fn render_with_a_rotation_that_is_not_finite_changes_no_file() {
+    assert_no_file_changes("rotation_nan_file", &["*532", "--rotation", "nan,0,0"]);
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
+fn render_with_a_zero_light_direction_changes_no_file() {
+    assert_no_file_changes("light_zero_file", &["*532", "--light", "0,0,0"]);
+}
+
 fn statistics_to(test: &str, stdout: &mut FailingWriter) -> (Status, Vec<u8>, Vec<u8>) {
     let output = output_path(test);
     let mut stderr = Vec::new();
@@ -535,6 +595,95 @@ fn render_statistics_to_a_failing_writer_give_a_diagnostic() {
         "error: cannot write to standard output\n  caused by: other error\n"
     );
     assert!(file.starts_with(PNG_SIGNATURE));
+}
+
+fn ball(test: &str, extra: &[&str]) -> Vec<u8> {
+    let output = output_path(test);
+    let mut args = vec!["render", "*532", "--size", "64x64", "--samples", "2"];
+    args.extend_from_slice(extra);
+    args.extend_from_slice(&["-o", path_text(&output)]);
+    let outcome = run_args(&args);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(outcome.stderr, "");
+    std::fs::read(&output).expect("the output file is written")
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_a_png_file_of_a_spherical_tiling() {
+    let output = output_path("spherical_file");
+    let outcome = run_args(&[
+        "render",
+        "*532",
+        "--size",
+        "48x32",
+        "--samples",
+        "2",
+        "-o",
+        path_text(&output),
+    ]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    assert_png_header(&output, 48, 32);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_the_same_bytes_of_a_ball_for_one_thread_and_four() {
+    let one = ball("ball_one_thread", &["--threads", "1"]);
+    let four = ball("ball_four_threads", &["--threads", "4"]);
+    assert_eq!(one, four);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_accepts_a_value_that_starts_with_a_hyphen_for_the_rotation_and_the_light() {
+    let output = output_path("hyphen_values");
+    let rotation = run_args(&[
+        "render",
+        "*532",
+        "--size",
+        "8x8",
+        "--samples",
+        "1",
+        "--rotation",
+        "-20,35,0",
+        "-o",
+        path_text(&output),
+    ]);
+    assert_eq!(rotation.status, Status::Success, "{}", rotation.stderr);
+    let light = run_args(&[
+        "render",
+        "*532",
+        "--size",
+        "8x8",
+        "--samples",
+        "1",
+        "--light=-1,1,2",
+        "-o",
+        path_text(&output),
+    ]);
+    assert_eq!(light.status, Status::Success, "{}", light.stderr);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_turns_the_ball_with_the_rotation() {
+    let turned = ball("ball_turned", &["--rotation", "20,35,0"]);
+    let default = ball("ball_default", &[]);
+    assert_ne!(turned, default);
 }
 
 fn first_error_line(args: &[&str]) -> (Status, String) {

@@ -1,6 +1,6 @@
-use escher_geometry::euclidean;
 use escher_geometry::hyperbolic::{distance, from_disk, inverse};
-use escher_render::{Colour, Fill, RenderOptions, Renderer, fold};
+use escher_geometry::{euclidean, spherical};
+use escher_render::{Colour, Fill, RenderOptions, Renderer, Shading, fold};
 use glam::{DVec2, DVec3};
 
 use crate::common::{
@@ -39,7 +39,8 @@ fn border_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool
     let options = options(
         RenderOptions::builder(Fill::One(Colour::from_srgb8(70, 130, 180)))
             .size(size, size)
-            .samples(1),
+            .samples(1)
+            .shading(Shading::Flat),
     );
     let (pixels, _) = Renderer::new(domain, options).render();
     pixels
@@ -271,5 +272,39 @@ fn rectangle_borders_and_parities_match_the_grid_of_the_rectangle() {
                 "aspect {aspect}, half width {half_width}"
             );
         }
+    }
+}
+
+const SPHERE_DOMAINS: [&str; 5] = ["*532", "*432", "*332", "*722", "*55"];
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn spherical_border_pixels_lie_where_the_tile_of_a_sample_changes() {
+    let size = usize::try_from(SIZE).unwrap_or(usize::MAX);
+    for text in SPHERE_DOMAINS {
+        let domain = domain_with_aspect(text, None);
+        let border = border_mask(&domain, SIZE);
+        let mut tiles: Vec<Option<DVec3>> = Vec::with_capacity(size * size);
+        for row in 0..SIZE {
+            for column in 0..SIZE {
+                let position = position(column, row);
+                let tile = (position.length() <= RADIUS)
+                    .then(|| {
+                        let height = (1.0 - position.length_squared()).sqrt();
+                        DVec3::new(position.x, position.y, height)
+                    })
+                    .and_then(|point| tile_of(&domain, point, spherical::inverse));
+                tiles.push(tile);
+            }
+        }
+        let (changes, borders) = compare_with_tiles(text, &border, &tiles, size, |here, there| {
+            spherical::distance(here, there) >= SAME_TILE
+        });
+        println!(
+            "{text}: {changes} pixels where the tile changes and {borders} border pixels within ball radius {RADIUS}"
+        );
     }
 }

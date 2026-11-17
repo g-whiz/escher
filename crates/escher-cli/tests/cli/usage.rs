@@ -365,3 +365,117 @@ fn render_setting_without_a_name_is_a_usage_error() {
         "=2"
     ]));
 }
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_rotation_with_two_angles_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*532",
+        "-o",
+        NEVER_WRITTEN,
+        "--rotation",
+        "1,2"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_rotation_that_is_not_numbers_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*532",
+        "-o",
+        NEVER_WRITTEN,
+        "--rotation",
+        "a,b,c"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_rotation_with_four_angles_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*532",
+        "-o",
+        NEVER_WRITTEN,
+        "--rotation",
+        "1,2,3,4"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_light_with_an_empty_component_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*532",
+        "-o",
+        NEVER_WRITTEN,
+        "--light",
+        "1,,2"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_unknown_shading_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*532",
+        "-o",
+        NEVER_WRITTEN,
+        "--shading",
+        "gouraud"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_repeated_rotation_option_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*532",
+        "-o",
+        NEVER_WRITTEN,
+        "--rotation",
+        "0,0,0",
+        "--rotation",
+        "1,1,1"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_rotation_followed_by_an_option_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*532",
+        "-o",
+        NEVER_WRITTEN,
+        "--rotation",
+        "--stats"
+    ]));
+}

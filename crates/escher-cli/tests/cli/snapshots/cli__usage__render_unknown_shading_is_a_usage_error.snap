@@ -1,0 +1,12 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*532\", \"-o\", NEVER_WRITTEN, \"--shading\", \"gouraud\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value 'gouraud' for '--shading <SHADING>'
+  [possible values: phong, none]
+
+For more information, try '--help'.
+--- end

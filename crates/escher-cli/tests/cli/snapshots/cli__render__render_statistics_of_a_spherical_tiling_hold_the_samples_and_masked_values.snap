@@ -1,0 +1,13 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"statistics_spherical\",\n&[\"*532\", \"--size\", \"16x16\", \"--samples\", \"1\", \"--stats\"])"
+---
+status: Success
+--- stdout
+Samples: 256
+Mean folds: <value>
+Maximum folds: <value>
+Unconverged samples: <value>
+Time: <value>
+--- stderr
+--- end

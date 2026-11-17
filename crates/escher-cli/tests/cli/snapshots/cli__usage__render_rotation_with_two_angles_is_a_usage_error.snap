@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*532\", \"-o\", NEVER_WRITTEN, \"--rotation\", \"1,2\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value '1,2' for '--rotation <YAW,PITCH,ROLL>': expected three numbers separated by commas, such as 20,35,0
+
+For more information, try '--help'.
+--- end

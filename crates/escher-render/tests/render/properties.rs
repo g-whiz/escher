@@ -1,13 +1,15 @@
 use core::f64::consts::TAU;
 
 use escher_geometry::hyperbolic::{from_disk, side, to_disk};
+use escher_geometry::spherical;
 use escher_render::fold;
 use glam::{DVec2, DVec3};
 use proptest::prelude::{any, prop_assert, prop_assert_eq, prop_assume, proptest};
 
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
-    REPLAY_BOUNDS, TOLERANCE, domain, euclidean_band, euclidean_domain, proptest_config,
+    REPLAY_BOUNDS, SPHERICAL_DOMAINS, TOLERANCE, domain, euclidean_band, euclidean_domain,
+    proptest_config, spherical_domain,
 };
 use crate::reference::{self, Reference, num, vector};
 
@@ -32,6 +34,11 @@ fn band(exponent: f64) -> usize {
     )]
     let band = band as usize;
     band - 1
+}
+
+fn sphere_point(height: f64, angle: f64, exponent: i32) -> DVec3 {
+    let radius = (1.0 - height * height).sqrt();
+    DVec3::new(radius * angle.cos(), radius * angle.sin(), height) * power_of_two(exponent)
 }
 
 fn power_of_two(exponent: i32) -> f64 {
@@ -256,5 +263,81 @@ proptest! {
             prop_assert!(!result.converged());
             prop_assert_eq!(result.steps(), 0);
         }
+    }
+
+    #[test]
+    fn spherical_fold_converges_inside_every_side(
+        index in 0..SPHERICAL_DOMAINS.len(),
+        height in -1.0..=1.0_f64,
+        angle in 0.0..TAU,
+        exponent in -100..=100_i32,
+    ) {
+        let domain = spherical_domain(index);
+        let result = fold(&domain, sphere_point(height, angle, exponent), DEFAULT_CAP, |_| {});
+        prop_assert!(result.converged());
+        let point = result.point();
+        for wall in domain.sides() {
+            let covector = wall.covector();
+            let threshold = TOLERANCE * covector.abs().element_sum() * point.abs().max_element();
+            prop_assert!(spherical::side(covector, point) <= threshold);
+        }
+    }
+
+    #[test]
+    fn spherical_fold_of_a_folded_point_takes_zero_steps_and_returns_the_same_bits(
+        index in 0..SPHERICAL_DOMAINS.len(),
+        height in -1.0..=1.0_f64,
+        angle in 0.0..TAU,
+        exponent in -100..=100_i32,
+    ) {
+        let domain = spherical_domain(index);
+        let first = fold(&domain, sphere_point(height, angle, exponent), DEFAULT_CAP, |_| {});
+        prop_assume!(first.converged());
+        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
+        prop_assert!(second.converged());
+        prop_assert_eq!(second.steps(), 0);
+        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+    }
+
+    #[test]
+    fn spherical_fold_takes_the_same_decisions_for_the_point_scaled_by_a_power_of_two(
+        index in 0..SPHERICAL_DOMAINS.len(),
+        height in -1.0..=1.0_f64,
+        angle in 0.0..TAU,
+        exponent in -100..=100_i32,
+    ) {
+        let domain = spherical_domain(index);
+        let point = sphere_point(height, angle, exponent);
+        let mut sides = Vec::new();
+        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
+        for power in -40..=40 {
+            let factor = power_of_two(power);
+            let mut scaled_sides = Vec::new();
+            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
+            prop_assert_eq!(&scaled_sides, &sides);
+            prop_assert_eq!(scaled.steps(), unscaled.steps());
+            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
+            prop_assert_eq!(scaled.converged(), unscaled.converged());
+            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
+        }
+    }
+
+    #[test]
+    fn spherical_fold_of_any_bit_pattern_returns_within_the_cap_and_converges_only_at_a_finite_point_that_is_not_zero(
+        index in 0..SPHERICAL_DOMAINS.len(),
+        bits in any::<[u64; 3]>(),
+        cap in 0..=2000_u32,
+        negative in any::<[bool; 3]>(),
+    ) {
+        let domain = spherical_domain(index);
+        let point = DVec3::from_array(bits.map(f64::from_bits));
+        let result = fold(&domain, point, cap, |_| {});
+        prop_assert!(result.steps() <= cap);
+        prop_assert!(result.reversals() <= result.steps());
+        prop_assert!(!result.converged() || (result.point().is_finite() && result.point() != DVec3::ZERO));
+        let zero = DVec3::from_array(negative.map(|negative| if negative { -0.0 } else { 0.0 }));
+        let from_zero = fold(&domain, zero, cap, |_| {});
+        prop_assert!(!from_zero.converged());
+        prop_assert_eq!(from_zero.steps(), 0);
     }
 }

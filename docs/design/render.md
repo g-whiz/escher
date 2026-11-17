@@ -96,7 +96,7 @@ It adds these terms:
 - outside sample: A sample whose disk position `hyperbolic::from_disk` rejects, or a sample of the view of a spherical domain that lies on or outside the rim of the ball (Section 5.9).
 - tolerance constant: The constant $\tau$ of the side test of the fold (Section 6.2).
 - radius band $k$: The disk positions $z$ with $\lvert z \rvert = 1 - 10^{-k}$, for an integer $k$ from 1 to 6.
-- range of accuracy: For a hyperbolic domain, the disk positions with $\lvert z \rvert \le 1 - 10^{-6}$ (Section 6.4). For a Euclidean domain, the plane positions within distance 65 of the centre of the image (Section 6.6). For a spherical domain, every ball position inside the rim for the fold, and for the border estimate the rim bands that Section 6.7 states.
+- range of accuracy: For a hyperbolic domain, the disk positions with $\lvert z \rvert \le 1 - 10^{-6}$ (Section 6.4). For a Euclidean domain, the plane positions within distance 65 of the centre of the image (Section 6.6). For a spherical domain, every vector whose largest absolute coordinate is at least $10^{-300}$ and whose fold converges, which includes the point of every ball position inside the rim whose fold converges (Section 6.1). For the border estimate, the range is the rim bands that Section 6.7 states.
 - linear light: Colour values proportional to light intensity, in which the crate averages samples.
 - 8-bit sRGB: Colour values encoded by the sRGB transfer function and stored as one byte per channel.
 - band: A run of whole rows of the image, which `render_rows` fills.
@@ -563,7 +563,15 @@ RND-29. For a spherical domain with `Shading::Phong`, the renderer MUST shade ev
 
 ### 6.1. Scale and Renormalization
 
-The side test of step 3 of Section 5.3 compares $c_i \cdot x$ with $\tau \sigma_i \lambda(x)$, and both scale with $x$. The fold decides on the ray of $x$, not on its point of the hyperboloid or the sphere, so it needs no renormalization. The point size of the sphere, the largest absolute coordinate, is exact and scales exactly with a power of two, as the last coordinate does. Multiplication by a power of two is exact in IEEE 754 arithmetic when no overflow or underflow occurs, so a point scaled by $2^k$ gives every product and sum of the side test and of the pairing scaled by exactly $2^k$, and the fold takes the same decisions. The test "Scale" of Section 8.1 asserts this exactly, and states that reason.
+The side test of step 3 of Section 5.3 compares $c_i \cdot x$ with $\tau \sigma_i \lambda(x)$, and both scale with $x$. The fold decides on the ray of $x$, not on its point of the hyperboloid or the sphere, so it needs no renormalization. The point size of the sphere, the largest absolute coordinate, is exact and scales exactly with a power of two, as the last coordinate does. Multiplication by a power of two is exact in IEEE 754 arithmetic when no overflow or underflow occurs. So while no product or sum of the side test and of the pairing underflows or overflows, a point scaled by $2^k$ gives each of them scaled by exactly $2^k$, and the fold takes the same decisions. The test "Scale" of Section 8.1 asserts this exactly, and states that reason.
+
+For a spherical domain, every finite vector other than the zero vector is a point, so a small vector reaches the subnormal range, where the products round and the scaling is not exact. A probe outside the repository measured where the decisions change. It took the 17 domains of the spherical domain set and 42,878 points: for each domain, 2000 points of a Fibonacci sphere, the centre and its antipode, the vertices, and the first 200 points of the Fibonacci sphere projected onto each wall. It scaled each point by $2^k$ exactly:
+
+- No $k$ from $-1000$ to 0 changed the result of any point.
+- No $k$ from 0 to 1023 changed the result of any point.
+- Going down, the first change was at $2^{-1001}$, for point 1579 of the Fibonacci sphere of `*(1000)22`.
+
+The probe points have length 1, so the scaled points have largest absolute coordinates from below $10^{-301}$ up to $2^{1023}$. `fold` states its accuracy for a spherical domain only for a vector whose largest absolute coordinate is at least $10^{-300}$, a limit of this design inside the measured range. The limit rests on that measurement and not on exact arithmetic, because at a point size of $10^{-300}$ the threshold $\tau \sigma_i \lambda(x)$ is below $10^{-314}$, in the subnormal range. Above the limit, a fold can still fail to converge within the cap near a vertex of very high order (Section 6.7), so the range of accuracy of Section 2.1 also requires a converged fold. Point 34 of Section 12.3 gives the alternative of rescaling a small vector.
 
 The point drifts off the hyperboloid during a long fold. The fold does not correct the drift, and Section 6.4 measures the folded point against the reference, which carries the same unnormalized ray, as a hyperbolic distance between the normalized points.
 
@@ -581,9 +589,9 @@ $\tau$ is $4 \times 10^{-15}$, a choice of this design. The test "Vertices" of S
 | --- | --- | --- | --- |
 | The vertices of the 7 triples of the fold set (Section 6.4) and of the 25 vertex triples of Section 8.1 | $3.047 \times 10^{-16}$ | Vertex 1, side 2, of $(923, 6, 5)$ | 13.1 |
 | The vertices of the Euclidean domain set, of `*2222` with `aspect` 4, and of `*2222` at 64 values of `aspect` evenly spaced in its logarithm over its range | $6.235 \times 10^{-17}$ | Vertex 0, side 1, of `*2222` with `aspect` 2.438027308408951 | 64.2 |
-| The vertices of the spherical domain set, which include the two poles of each lune | To be measured | To be measured | At least 8 |
+| The vertices of the spherical domain set, which include the two poles of each lune | $9.308 \times 10^{-17}$ | Vertex 1, side 2, of `*522` | 43.0 |
 
-$\tau$ keeps its value for the Euclidean and the spherical domains, because another value moves the decisions of the hyperbolic fold and changes the committed golden images. Every Euclidean vertex folds in zero steps, and so does every spherical vertex. The sphere prototype measured a largest spherical ratio of $9.3 \times 10^{-17}$, a margin of 43 (Section 11). The alternative point size of the sphere, should the measured margin be below 8, is the sum of the absolute coordinates.
+$\tau$ keeps its value for the Euclidean and the spherical domains, because another value moves the decisions of the hyperbolic fold and changes the committed golden images. Every Euclidean vertex folds in zero steps, and so does every spherical vertex. The margin at the spherical vertices is above 8, so the point size of the sphere stays the largest absolute coordinate (point 22 of Section 12.3 gives the alternative).
 
 With $\tau = 0$ the test "Vertices" fails, because a vertex then takes steps. Over the fold set alone the largest ratio is $7.2 \times 10^{-17}$, and over all 10,622 hyperbolic triples with orders up to 40 and the fold set it is $1.85 \times 10^{-16}$, at vertex 2, side 2, of $(38, 20, 4)$. Those two sweeps ran outside the repository, and the vertex triples include the triple at which each has its largest ratio.
 
@@ -595,7 +603,7 @@ The crate turns a non-finite point and every NaN into an unconverged fold, a bor
 | --- | --- | --- |
 | A non-finite coordinate of the input or of the point after a step | Step 2 of Section 5.3 | Unconverged |
 | A point size that is not positive, of the input or of the point after a step: for a hyperbolic or Euclidean domain a last coordinate that is not positive, including a zero of either sign, and for a spherical domain the zero vector | Step 2 of Section 5.3 | Unconverged |
-| For a spherical domain, a finite vector with subnormal coordinates, such as $(0, 0, -10^{-320})$ | Step 2 of Section 5.3 | Folded as any other ray. It can converge (Section 11). The scaling of Section 6.1 does not hold in the subnormal range, so the test "Scale" draws no such point |
+| For a spherical domain, a finite vector with subnormal coordinates, such as $(0, 0, -10^{-320})$ | Step 2 of Section 5.3 | Folded as any other ray. It can converge (Section 11), but it lies below the limit of Section 6.1 and outside the range of accuracy. The argument of Section 6.1 for exact scaling does not hold there, so the test "Scale" draws no such point |
 | A side value that is NaN | Step 3 of Section 5.3 | Unconverged |
 | A side value that overflows to an infinity for a finite point | Step 3 of Section 5.3 | Compared as a number. A violated side leads to a step, and step 2 then checks the new point |
 | A NaN $f_i$, or a NaN $g_i$ | Section 5.4 | Border sample, because a comparison with NaN is false |
@@ -690,7 +698,7 @@ RND-16. A test that asserts a quantity for which this document states no measure
 
 The count bound is a choice of this design. Each bound of a floating-point quantity is at least 8 times its largest value, as TEST-13 requires. The tests print each largest value with its input and its margin, and the Validating Changes section of `AGENTS.md` gives the command that shows that output.
 
-The figures of Sections 6.2, 6.4, 6.6, 6.7, 8.1, and 8.4 were measured on Linux x86-64 with the code of the crate, and the cells marked "To be measured" are set by the change that adds the test. The figures of Section 11 come from the prototype, the Euclidean prototype, and the sphere prototype. Where the two differ, the figures of the crate are the fact, and those of a prototype remain only as the evidence that motivated a choice. No bound takes a figure from a prototype, except the golden-image allowance, which Section 8.4 explains.
+The figures of Sections 6.2, 6.4, 6.6, 6.7, 8.1, and 8.4 were measured on Linux x86-64 with the code of the crate. The figures of Section 11 come from the prototype, the Euclidean prototype, and the sphere prototype. Where a figure of the crate differs from one of a prototype, the figure of the crate is the fact, and the prototype's remains only as the evidence that motivated a choice. No bound takes a figure from a prototype, except the golden-image allowance, which Section 8.4 explains.
 
 ### 6.6. Euclidean Domains
 
@@ -772,45 +780,109 @@ The spherical fold set is the spherical domain set at 512 evenly spaced angles i
 | Folded point | The angle between the normalized folded point and the normalized result of the reference replay, for each domain | The replay of the side sequence of the fold in the reference arithmetic | The spherical fold set |
 | Fold decisions | The number of folds whose side sequence differs from that of an independent 256-bit fold, for each domain | The 256-bit fold with $\tau = 0$ | The spherical fold set |
 | Lift | The angle between the lifted point and the reference lift, in each rim band | The lift of Section 5.9 in the reference | The spherical fold set |
-| Ball tangents | The largest component of the difference of each tangent, divided by the largest component of the reference tangent, in each rim band | Central differences of the reference lift, times $h$ | 2048 ball positions with rim distances from 0.01 to 240 pixels, log-uniform, at angles that step by the golden angle, with $h$ of a 512 by 512 image |
+| Ball tangents | The largest component of the difference of each tangent, divided by the largest component of the reference tangent, in each bin of rim distances | Central differences of the reference lift, times $h$ | 2048 ball positions with rim distances from 0.01 to 240 pixels, log-uniform, at angles that step by the golden angle, with $h$ of a 512 by 512 image |
 | Border estimate | The number of samples that the gradient form and the brute-force oracle of the test "Spherical border forms" classify differently, at half widths 0.5 and 1.5 pixels, in each rim band at least one half width from the rim | The oracle | 4000 samples in each rim band of `*532` and of each domain of the spherical golden images |
 | Border share | The fraction of border samples in each rim band, at a half width of 0.5 pixels | None. The test prints it and asserts no bound | As the row above |
 | Shading | The largest difference of a shaded linear-light channel from the reference | The formula of Section 5.10 in the reference | A grid of normals of the front hemisphere, the default light and three other light directions, and channel values from 0 to 1 |
 | Fold count | The mean and the largest number of steps | None | The spherical fold set, and the samples of the canonical image of each domain of the spherical golden images, of `*(1000)22`, and of `*(1000)(1000)`, at 512 by 512 pixels with a 4 by 4 grid |
 
-The folded point, the fold decisions, the lift, the ball tangents, and the shading stay within these bounds:
+The folded point and the fold decisions stay within these bounds, over the 7168 folds of each domain. Each bound of the folded point is 8 times the largest angle, rounded up to one significant digit. A decision cell gives the number of folds whose side sequence differs from the 256-bit fold, then the count bound. The last column gives the mean, then the largest number of steps, which the test prints:
 
-| Quantity | Largest value | Where | Bound |
-| --- | --- | --- | --- |
-| Folded point, for each domain | To be measured | To be measured | To be measured |
-| Fold decisions, for each domain | To be measured | To be measured | The count bound of the measured count |
-| Lift, in each rim band | To be measured | To be measured | To be measured |
-| Ball tangents, in each rim band | To be measured | To be measured | To be measured |
-| Shading | To be measured | To be measured | To be measured |
+| Domain | Largest angle in radians | Bound | Margin | Fold decisions | Fold count |
+| --- | --- | --- | --- | --- | --- |
+| `*332` | $2.929 \times 10^{-16}$ | $3 \times 10^{-15}$ | 10.2 | 0, 8 | 2.4, 5 |
+| `*432` | $3.146 \times 10^{-16}$ | $3 \times 10^{-15}$ | 9.5 | 0, 8 | 3.7, 7 |
+| `*532` | $4.314 \times 10^{-16}$ | $4 \times 10^{-15}$ | 9.3 | 0, 8 | 6.1, 11 |
+| `*222` | $2.776 \times 10^{-16}$ | $3 \times 10^{-15}$ | 10.8 | 0, 8 | 1.2, 2 |
+| `*322` | $2.587 \times 10^{-16}$ | $3 \times 10^{-15}$ | 11.6 | 0, 8 | 1.6, 3 |
+| `*522` | $2.797 \times 10^{-16}$ | $3 \times 10^{-15}$ | 10.7 | 0, 8 | 2.3, 5 |
+| `*(12)22` | $4.561 \times 10^{-16}$ | $4 \times 10^{-15}$ | 8.8 | 0, 8 | 5.0, 12 |
+| `*(100)22` | $1.452 \times 10^{-15}$ | $2 \times 10^{-14}$ | 13.8 | 0, 8 | 38.2, 100 |
+| `*(999)22` | $4.128 \times 10^{-15}$ | $4 \times 10^{-14}$ | 9.7 | 0, 8 | 377.6, 999 |
+| `*(1000)22` | $5.145 \times 10^{-15}$ | $5 \times 10^{-14}$ | 9.7 | 0, 8 | 378.0, 1000 |
+| `*22` | $9.949 \times 10^{-17}$ | $8 \times 10^{-16}$ | 8.0 | 0, 8 | 0.8, 2 |
+| `*33` | $1.860 \times 10^{-16}$ | $2 \times 10^{-15}$ | 10.8 | 2, 16 | 1.0, 3 |
+| `*55` | $2.008 \times 10^{-16}$ | $2 \times 10^{-15}$ | 10.0 | 0, 8 | 1.8, 5 |
+| `*(12)(12)` | $3.110 \times 10^{-16}$ | $3 \times 10^{-15}$ | 9.6 | 0, 8 | 4.5, 12 |
+| `*(100)(100)` | $1.022 \times 10^{-15}$ | $9 \times 10^{-15}$ | 8.8 | 0, 8 | 37.4, 100 |
+| `*(999)(999)` | $2.654 \times 10^{-15}$ | $3 \times 10^{-14}$ | 11.3 | 2, 16 | 373.3, 997 |
+| `*(1000)(1000)` | $2.622 \times 10^{-15}$ | $3 \times 10^{-14}$ | 11.4 | 0, 8 | 373.6, 998 |
 
-The border estimate stays within these count bounds. A cell gives the number of samples that the two classify differently, then the count bound. A band closer to the rim than the half width has no cell, because the test skips it:
+Every fold of the spherical fold set converges within the default cap of 1500. The test prints the worst input of each domain.
+
+The lift stays within these bounds, as the angle from the reference lift over the spherical fold set:
+
+| Rim distance in pixels | Largest angle in radians | Where | Bound | Margin |
+| --- | --- | --- | --- | --- |
+| 120 | $1.476 \times 10^{-16}$ | Rotation 20, 35, 0 degrees, angle 462 | $2 \times 10^{-15}$ | 13.6 |
+| 24 | $2.169 \times 10^{-16}$ | Rotation 20, 35, 0 degrees, angle 9 | $2 \times 10^{-15}$ | 9.2 |
+| 8 | $3.134 \times 10^{-16}$ | Rotation 20, 35, 0 degrees, angle 339 | $3 \times 10^{-15}$ | 9.6 |
+| 4 | $3.945 \times 10^{-16}$ | Rotation 20, 35, 0 degrees, angle 436 | $4 \times 10^{-15}$ | 10.1 |
+| 2 | $4.960 \times 10^{-16}$ | Rotation 20, 35, 0 degrees, angle 160 | $4 \times 10^{-15}$ | 8.06 |
+| 1 | $6.973 \times 10^{-16}$ | Default rotation, angle 208 | $6 \times 10^{-15}$ | 8.6 |
+| 0.5 | $1.041 \times 10^{-15}$ | Default rotation, angle 330 | $9 \times 10^{-15}$ | 8.6 |
+
+The ball positions of the test "Ball tangents" have continuous rim distances, so the test sorts them into bins, a choice of this design. A position falls in the bin whose lower end is the largest rim distance of the rim bands that does not exceed its own, and a position less than 0.5 pixels from the rim falls in a bin of its own. The ball tangents stay within these bounds:
+
+| Bin of the rim distance in pixels | Largest relative error | Where, as rim distance in pixels | Bound | Margin |
+| --- | --- | --- | --- | --- |
+| At least 120 | $1.188 \times 10^{-16}$ | 127.74 | $1 \times 10^{-15}$ | 8.4 |
+| 24 to less than 120 | $3.535 \times 10^{-16}$ | 24.28 | $3 \times 10^{-15}$ | 8.5 |
+| 8 to less than 24 | $7.639 \times 10^{-16}$ | 10.71 | $7 \times 10^{-15}$ | 9.2 |
+| 4 to less than 8 | $1.508 \times 10^{-15}$ | 4.35 | $2 \times 10^{-14}$ | 13.3 |
+| 2 to less than 4 | $3.094 \times 10^{-15}$ | 2.24 | $3 \times 10^{-14}$ | 9.7 |
+| 1 to less than 2 | $6.694 \times 10^{-15}$ | 1.20 | $6 \times 10^{-14}$ | 9.0 |
+| 0.5 to less than 1 | $1.108 \times 10^{-14}$ | 0.549 | $9 \times 10^{-14}$ | 8.1 |
+| Less than 0.5 | $6.411 \times 10^{-13}$ | 0.0104 | $6 \times 10^{-12}$ | 9.4 |
+
+The viewing matrix and the shading stay within these bounds:
+
+| Quantity | Largest value | Where | Bound | Margin |
+| --- | --- | --- | --- | --- |
+| Viewing matrix, largest entry of $V^{\mathsf{T}} V - I$, over the seven angle triples of the test "Viewing matrix" | $4.441 \times 10^{-16}$ | $(-7, 100, -0.25)$ radians | $4 \times 10^{-15}$ | 9.0 |
+| Viewing matrix, distance of the determinant from 1, over the same triples | $4.441 \times 10^{-16}$ | $(-7, 100, -0.25)$ radians | $4 \times 10^{-15}$ | 9.0 |
+| Shading, absolute difference of a shaded linear-light channel | $1.372 \times 10^{-15}$ | Light $(0, -1, 1)$, normal $(0, -0.375, 0.927)$, channel 0 | $2 \times 10^{-14}$ | 14.6 |
+
+The seven angle triples, in radians, are $(0, 0, 0)$, the rotation 20, 35, 0 degrees, $(1, 2, 3)$, $(-2.5, 0.7, 5)$, $(1000, -1000, 0.1)$, $(\pi/2, \pi/2, \pi/2)$, and $(-7, 100, -0.25)$. The shading is measured over the normals of the front hemisphere that lie above a grid of 33 values along each axis of the screen, the default light and the lights $(1, 1, 1)$, $(0, -1, 1)$, and $(2, 0, 1)$, and the channel values $0, 1/16, \ldots, 1$. The reference takes the same `f64` normal and the same normalized `f64` light as the crate, so the test measures the shading arithmetic only. Every shaded channel stays in the range 0 to 1.
+
+The border estimate stays within these count bounds. The test "Spherical border forms" draws 4000 samples in each rim band for each of the five domains of its set, 20,000 samples per cell. A cell gives the number of samples that the two classify differently, then the count bound. A band closer to the rim than the half width has no cell, because the test skips it. The last column gives the border share at a half width of 0.5, which the test prints and does not assert:
 
 | Rim distance in pixels | Half width 0.5 | Half width 1.5 | Border share |
 | --- | --- | --- | --- |
-| 120 | To be measured | To be measured | To be measured |
-| 24 | To be measured | To be measured | To be measured |
-| 8 | To be measured | To be measured | To be measured |
-| 4 | To be measured | To be measured | To be measured |
-| 2 | To be measured | To be measured | To be measured |
-| 1 | To be measured | None, skipped | To be measured |
-| 0.5 | To be measured | None, skipped | To be measured |
+| 120 | 0, 8 | 3, 24 | 0.0233 |
+| 24 | 3, 24 | 23, 184 | 0.0291 |
+| 8 | 8, 64 | 99, 792 | 0.0476 |
+| 4 | 39, 312 | 336, 2688 | 0.0653 |
+| 2 | 92, 736 | 956, 7648 | 0.0851 |
+| 1 | 278, 2224 | None, skipped | 0.1071 |
+| 0.5 | 1593, 12744 | None, skipped | 0.1510 |
 
-The range of accuracy of the border estimate on the ball is the rim bands of this table in which its count bound holds, which the change that adds the test records here. Closer to the rim, the renderer and `fold` promise only a result without a panic. Section 11 records what the sphere prototype measured.
+The range of accuracy of the border estimate on the ball is the rim bands of this table in which its count bound holds. Each count bound is set from the count measured in its own band, so it holds in all seven bands. Point 33 of Section 12.3 asks the owner how to define this range. Closer to the rim, the renderer and `fold` promise only a result without a panic. Section 11 records what the sphere prototype measured.
 
-RND-30. For a spherical domain, the renderer and `fold` MUST meet the bounds of this section for every ball position inside the rim, and the border estimate MUST meet its count bound in each rim band of the range of accuracy, and for a sample closer to the rim MUST only return without a panic and give the sample one of the colours of Section 5.5, because the border estimate degrades toward the rim, and a promise there would be false for many samples.
+RND-30. For a spherical domain, `fold` MUST meet the bounds of this section for every vector whose largest absolute coordinate is at least $10^{-300}$ and whose fold converges, the renderer MUST meet them for every ball position inside the rim whose fold converges, and the border estimate MUST meet its count bound in each rim band of the range of accuracy, and for a sample closer to the rim MUST only return without a panic and give the sample one of the colours of Section 5.5. A smaller vector lies beyond the measurement of Section 6.1, an unconverged fold stops at no reliable point, and the border estimate degrades toward the rim, so a promise beyond these limits would be unsupported or false for many inputs.
 
-The fold counts are these, for each domain. A cell gives the mean, then the largest number of steps:
+The fold counts over the spherical fold set are in the first table of this section. The canonical images at 512 by 512 pixels with a 4 by 4 grid, which the test "Spherical statistics" renders, each have 2,895,324 samples inside the ball and no unconverged sample, with these fold counts:
 
-| Domain | Spherical fold set | Image at 512 by 512 with a 4 by 4 grid |
-| --- | --- | --- |
-| Each domain of the spherical domain set | To be measured | To be measured |
+| Domain | Mean steps | Largest steps | Group order |
+| --- | --- | --- | --- |
+| `*532` | 3.70 | 10 | 120 |
+| `*432` | 2.19 | 6 | 48 |
+| `*332` | 1.42 | 4 | 24 |
+| `*722` | 1.77 | 7 | 28 |
+| `*55` | 0.88 | 2 | 10 |
+| `*(1000)22` | 215.57 | 1000 | 4000 |
+| `*(1000)(1000)` | 181.69 | 499 | 2000 |
 
-The fold of a finite group stops within the cap for the samples of these images and for the images of the centre of the domain, which the test "Centre images" of Section 8.1 folds. It need not stop for every point. On the sphere prototype, for `*(1000)22`, some points within $10^{-14}$ radians of the vertex of order 1000 stayed unconverged even at a cap of 100000, and for `*(999)22` some points took more steps than the longest word of the group (Section 11). Such a sample takes the border colour, which is the colour that a sample on a vertex shows. This is part of `UNV-1` (Section 10). No bound from the group order enters the code, and the fold cap stays the only bound. The test "Spherical statistics" compares the largest fold count of each image with the group order.
+The fold of a finite group stops within the cap for the samples of these images and for the images of the centre of the domain, which the test "Centre images" of Section 8.1 folds. It need not stop for every point. On the sphere prototype, for `*(1000)22`, some points within $10^{-14}$ radians of the vertex of order 1000 stayed unconverged even at a cap of 100000, and for `*(999)22` some points took more steps than the longest word of the group (Section 11). In the crate, the test "Near vertex" left 135 of 1000 points near the vertex of order 1000 of `*(1000)22` unconverged at the default cap, and 140 of 1000 near its antipode, each within the cap and without a panic. Such a sample takes the border colour, which is the colour that a sample on a vertex shows. This is part of `UNV-1` (Section 10).
+
+The images of the centre need bounds of their own at $n = 1000$. For `*332`, `*432`, `*532`, and for `*n22` and `*nn` with $n$ from 2 to 12, each image of the centre folds back to within the bound of the folded point of its domain in the first table of this section. A domain whose $n$ is not in the spherical domain set takes the bound of the next larger $n$ of that set, so $n = 4$ takes the bound of $n = 5$, and $n$ from 6 to 11 the bound of $n = 12$. Over these domains the largest angle from the centre was $2.629 \times 10^{-15}$, at `*(10)22`. At $n = 1000$ the images of the centre fold back farther than the bound of the folded point, so the test "Centre images" uses these bounds, measured separately and set as RND-16 states:
+
+| Domain | Largest angle from the centre in radians | Bound of the folded point | Bound of the images of the centre | Margin |
+| --- | --- | --- | --- | --- |
+| `*(1000)22` | $1.100 \times 10^{-13}$ | $5 \times 10^{-14}$ | $9 \times 10^{-13}$ | 8.2 |
+| `*(1000)(1000)` | $3.555 \times 10^{-14}$ | $3 \times 10^{-14}$ | $3 \times 10^{-13}$ | 8.4 |
+
+The likely cause, which no test has confirmed, is that the `f64` pairings are not exact involutions, so the error of the image grows with its depth, which reaches 1001 at `*(1000)22` and 1000 at `*(1000)(1000)`. The replay of the test "Spherical fold replay" multiplies by the same `f64` matrices, so it cannot show this error. No bound from the group order enters the code, and the fold cap stays the only bound. The test "Spherical statistics" compares the largest fold count of each image with the group order.
 
 ## 7. Errors
 
@@ -903,7 +975,7 @@ Each test names the item of the field "Tests and acceptance" of Section 5.3, 5.4
 | Sample position | None | Unit tests in `view.rs` | The position of each sample follows the grid and the margin of Section 5.1, and a sample outside the disk has no point |
 | Fold steps | None | Unit tests in `fold.rs` | The private fold carries the screen tangents through each pairing, and counts as reversals only the steps whose pairing reverses orientation |
 | NaN border | None | Unit test in `renderer.rs` | The rows of Section 6.3 for a NaN side value, a NaN gradient, and an infinite gradient with a finite side value each give a border sample, and a finite sample inside the domain does not |
-| Options | Failure paths | Unit tests in `options.rs` | Each row of Section 4.1 at its limits and one past them, with the kind and the text of Section 7.2, the defaults, the colours and fill kept, and the first failing option in the order of the table. A NaN, positive infinite, and negative infinite value in each angle of `rotation` and in each component of `light`, and the zero light direction, give their texts. The light directions $(10^{300}, 10^{300}, 0)$ and $(10^{-310}, 0, 0)$ are accepted and normalized to the same unit vectors as $(1, 1, 0)$ and $(1, 0, 0)$ |
+| Options | Failure paths | Unit tests in `options.rs` | Each row of Section 4.1 at its limits and one past them, with the kind and the text of Section 7.2, the defaults, the colours and fill kept, and the first failing option in the order of the table. A NaN, positive infinite, and negative infinite value in each angle of `rotation` and in each component of `light`, and the zero light direction, give their texts. The light directions $(10^{300}, 10^{300}, 0)$, $(10^{-310}, 0, 0)$, and $(-4, 4, 8)$ are accepted and normalized to the same bits as $(1, 1, 0)$, $(1, 0, 0)$, and $(-1, 1, 2)$, and the length of each normalized direction lies within $9 \times 10^{-16}$ of 1. The largest measured distance from 1 was $1.110 \times 10^{-16}$, at $(10^{300}, 10^{300}, 0)$, a margin of 8.1 |
 | Statistics | None | Unit tests in `renderer.rs` | `merged` adds the counts, saturates at `u64::MAX`, and takes the larger `largest_fold()`. For a 4 by 4 image with one sample of `*732`, `samples()` is 16 and `outside()` counts the corners of the image outside the disk |
 | Error text | Failure paths | Unit tests in `error.rs` | The `Display` of every row of Section 7.2, in lower case apart from `PNG` and without trailing punctuation, `kind()` for each cause, and `source()` only for `Encoding` |
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type is `Send`, `Sync`, and `'static` (CONC-1 of the coding standard) |
@@ -917,18 +989,18 @@ Each test names the item of the field "Tests and acceptance" of Section 5.3, 5.4
 | Periodicity | Periodicity | Integration test, `images`, for the canonical view, and unit test in `view.rs` for the periodic view | The cases of the table below this one |
 | Half-pixel tie | None | Integration test, `images` | `*2222` with `aspect` 1 at 512 by 512 pixels, with one sample per pixel and a border width of 1, has no border pixel, and with a 2 by 2 grid it has border pixels. The assertion of no border pixel is exact for the reason of Section 6.6. Section 5.8 explains the case. The measurement found 0 pixels that differ from the fill at one sample per pixel, and 16128 with the 2 by 2 grid |
 | Spherical fold replay | Reference arithmetic | Reference test, `folds` | For the spherical fold set, the folded point lies within the bound of Section 6.7 of the reference replay, the number of differing fold decisions is within its count bound, and every fold converges within the default cap of 1500. It prints the mean and the largest step count of each domain, which Section 6.7 records |
-| Spherical fold properties | Fold properties | `proptest`, `properties` | "Inside", "Idempotent", "Scale", and "Any input" for each domain of the spherical domain set, with points drawn as non-zero vectors in every direction and above the subnormal range. "Inside" uses the threshold $\tau \sigma_i \lambda(x)$. "Any input" asserts that a converged result has a finite point other than the zero vector, and that the zero vector gives an unconverged result with zero steps |
-| Centre images | Exhaustive certificate | Integration test, `folds` | For `*332`, `*432`, `*532`, and `*n22` and `*nn` with $n$ from 2 to 12 and $n = 1000$, each product of the pairings that a breadth-first enumeration finds, with matrices equal within $10^{-9}$ merged, maps the centre of the domain to a point that folds back to within the bound of the folded point of Section 6.7 of the centre, with a step count equal to the depth of the product in the enumeration, and never reaches the cap. The enumeration itself and its count against `group_order()` belong to the domain design |
-| Near vertex | Termination | Integration test, `folds` | For `*(1000)22`, 2000 points within $10^{-14}$ radians of the vertex of order 1000 and of its antipode each fold without a panic, with at most the default cap of steps. An unconverged result is allowed, and the test prints how many there are |
+| Spherical fold properties | Fold properties | `proptest`, `properties` | "Inside", "Idempotent", "Scale", and "Any input" for each domain of the spherical domain set, with points drawn in every direction with a length of $2^e$ for an integer $e$ from $-100$ to 100, so that every point that "Scale" folds lies far above the limit of Section 6.1. "Inside" uses the threshold $\tau \sigma_i \lambda(x)$. "Any input" asserts that a converged result has a finite point other than the zero vector, and that the zero vector gives an unconverged result with zero steps |
+| Centre images | Exhaustive certificate | Integration test, `folds` | For `*332`, `*432`, `*532`, and `*n22` and `*nn` with $n$ from 2 to 12 and $n = 1000$, each product of the pairings that a breadth-first enumeration finds, with matrices equal within $10^{-9}$ merged, maps the centre of the domain to a point that folds back to within the bound of the images of the centre of Section 6.7, with a step count equal to the depth of the product in the enumeration, and never reaches the cap. The enumeration itself and its count against `group_order()` belong to the domain design |
+| Near vertex | Termination | Integration test, `folds` | For `*(1000)22`, 1000 points within $10^{-14}$ radians of the vertex of order 1000 and 1000 points within $10^{-14}$ radians of its antipode each fold without a panic, with at most the default cap of steps. An unconverged result is allowed, and the test prints how many there are |
 | Ball view | None | Unit tests in `view.rs` | The ball position of each sample follows Section 5.1. The centre sample of an image with odd sides and one sample per pixel has exactly the point $(0, 0, 1)$ and the tangents $(h, 0, 0)$ and $(0, h, 0)$ with the default rotation. A sample on the rim, beyond it, or at a NaN position is an outside sample |
-| Ball tangents | Reference arithmetic | Reference test, unit test in `view.rs` | The screen tangents of Section 5.9 agree with central differences of the reference lift, times $h$, within the bound of Section 6.7 in each rim band, and the lifted point agrees with the reference lift. This tests the unverified statement of Section 10 on the tangents of the ball |
-| Viewing matrix | None | Unit tests in `view.rs` | For several triples of angles, $V$ is orthogonal and has determinant 1, within bounds that RND-16 sets and that are to be measured. A positive yaw moves the image of $(0, 0, 1)$ to a positive first coordinate, a positive pitch to a positive second coordinate, and a positive roll turns $(1, 0, 0)$ toward a positive second coordinate. With all angles 0, $V s$ equals $s$ for every screen point of the test |
-| Rotation by a group element | With shading off, rotating the view by a group element leaves the image unchanged | Unit test in `view.rs`, through the rotated view | For `*532` with the default rotation and with the rotation 20, 35, 0 degrees, for `*55`, and for `*722`, at 192 by 192 pixels with a 4 by 4 grid, with `Shading::Phong` and `Shading::Flat`: for $g$ a product of two pairings and for a product of four pairings, the image with $V g$ in place of $V$ equals the image with $V$, and for $g$ one pairing, the image with `Fill::Parity` equals the image with $V$ and the two fill colours exchanged. Each comparison is within the golden allowance of Section 8.4, because the folded points differ in their last bits. The sphere prototype measured no differing pixel (Section 11) |
-| Brightest point | The brightest point follows the light direction | Unit tests in `renderer.rs` | Over a grid of normals of the front hemisphere, the private shading function has its diffuse term largest at $N = L$ and its specular term largest where $N$ is the normalized sum of $L$ and $(0, 0, 1)$. For `*532` with `Fill::One` of a mid-grey and a border width of 0, at 192 by 192 pixels, the brightest pixel lies within one pixel of the pixel centre at which the formula of Section 5.10 is largest, for the default light and three other directions. The image with the light turned a quarter turn about the third axis equals the image turned a quarter turn, within the golden allowance |
-| Shading | Reference arithmetic | Reference test and unit tests in `renderer.rs` | The shaded channel agrees with the reference within the bound of Section 6.7. Every shaded channel of the grid of that row lies in the range 0 to 1 in `f64`. `Shading::Flat` leaves every colour unchanged, and a black sample shaded with `Shading::Phong` takes $k_s \rho$ in each channel |
-| Spherical border forms | Border oracle | Reference test, unit test in `renderer.rs` | For the samples of each rim band of Section 6.7 that lies at least one half width from the rim, the number of samples that the gradient form and the brute-force oracle classify differently is within the count bound of Section 6.7, at half widths 0.5 and 1.5. The oracle marks a sample as near a wall when some of 64 evenly spaced points on the circle of the half width around its screen position lifts to another tile than the sample. A point of the circle outside the ball is skipped, so leaving the ball does not count as a border. The tile is that of the test "Border oracle". The test skips the bands closer to the rim than the half width and prints that it does. It also prints the border share of each band |
-| Spherical border oracle | Border oracle | Integration test, `borders` | As "Border oracle", for `*532`, `*432`, `*332`, `*722`, and `*55` at 192 by 192 pixels with one sample per pixel and the default rotation, over the pixels whose 3 by 3 neighbourhood lies within ball radius 0.9. The tile of a sample is the image of the domain centre under the inverse of the pairings that `fold` reports, in reverse order, and two tiles differ when their centres are at least $10^{-4}$ apart |
-| Spherical statistics | Every sample folds within the bound | Integration test, `images` | For the canonical image of each domain of the spherical golden images, of `*(1000)22`, and of `*(1000)(1000)` at 512 by 512 pixels with a 4 by 4 grid, `largest_fold()` is less than `group_order()` of the signature, and `unconverged()` is 0. `outside()` of a 4 by 4 image of `*532` with one sample counts the four corners. It prints the fold counts that Section 6.7 records |
+| Ball tangents | Reference arithmetic | Reference test, unit test in `view.rs` | The screen tangents of Section 5.9 agree with central differences of the reference lift, times $h$, within the bound of Section 6.7 in each bin of rim distances, and the lifted point agrees with the reference lift. This tests the unverified statement of Section 10 on the tangents of the ball |
+| Viewing matrix | None | Unit tests in `view.rs` | For the seven triples of angles of Section 6.7, $V$ is orthogonal and has determinant 1, within the bounds of Section 6.7. A positive yaw moves the image of $(0, 0, 1)$ to a positive first coordinate, a positive pitch to a positive second coordinate, and a positive roll turns $(1, 0, 0)$ toward a positive second coordinate. With all angles 0, $V s$ equals $s$ for every screen point of the test |
+| Rotation by a group element | Rotating the view by a group element leaves the image unchanged, with shading on and off | Unit test in `view.rs`, through the rotated view | For `*532` with the default rotation and with the rotation 20, 35, 0 degrees, for `*55`, and for `*722`, at 192 by 192 pixels with a 4 by 4 grid, with `Shading::Phong` and `Shading::Flat`: for $g$ a product of two pairings and for a product of four pairings, the image with $V g$ in place of $V$ equals the image with $V$, and for $g$ one pairing, the image with `Fill::Parity` equals the image with $V$ and the two fill colours exchanged. Each comparison is within the golden allowance of Section 8.4, because the folded points differ in their last bits. The sphere prototype measured no differing pixel (Section 11) |
+| Brightest point | The brightest point follows the light direction | Unit tests in `renderer.rs` | Over a grid of normals of the front hemisphere, the private shading function has its diffuse term largest at $N = L$ and its specular term largest where $N$ is the normalized sum of $L$ and $(0, 0, 1)$. For `*532` with `Fill::One` of the mid-grey $(128, 128, 128)$, a border width of 0, a 4 by 4 grid, and a black background, at 192 by 192 pixels, the centroid of the pixels that tie for the brightest red byte lies within one pixel along each axis of the predicted pixel, for the default light and the lights $(1, 1, 1)$, $(0, -1, 1)$, and $(2, 0, 1)$. The predicted pixel is the first pixel, in row order, whose centre gives the largest value of the formula of Section 5.10 for the normal of the ball at that centre. The image with the light turned a quarter turn about the third axis equals the image turned a quarter turn, within the golden allowance |
+| Shading | Reference arithmetic | Reference test and unit tests in `renderer.rs` | The shaded channel agrees with the reference within the bound of Section 6.7. Every shaded channel of the grid of that row lies in the range 0 to 1 in `f64`. `Shading::Flat` leaves every colour unchanged. With `Shading::Phong`, the shading function gives these values, which the test asserts as exact equalities: with the normal and the light both $(0, 0, 1)$, the channels 0, 0.5, and 1 give 0.25, 0.625, and 1, and with the normal $(1, 0, 0)$, the light $(-1, 0, 0)$ or $(0, 0, 1)$ gives 0 for the channel 0 and 0.125 for the channel 0.5, and the light $(0.6, 0, 0.8)$ gives 0 for the channel 0. The last input faces the light but reflects it away from the viewer, so the specular term is 0. The reference test and the range test of this row cover the general formula |
+| Spherical border forms | Border oracle | Reference test, unit test in `renderer.rs` | For the samples of each rim band of Section 6.7 that lies at least one half width from the rim, the number of samples that the gradient form and the brute-force oracle classify differently is within the count bound of Section 6.7, at half widths 0.5 and 1.5. The oracle marks a sample as near a wall when some of 64 evenly spaced points on the circle of the half width around its screen position lifts to another tile than the sample. A point of the circle outside the ball is skipped, so leaving the ball does not count as a border, and a point of the circle whose fold does not converge counts as another tile. The sample itself must converge, or the test fails. The tile is that of the test "Border oracle". The test skips the bands closer to the rim than the half width and prints that it does. It also prints the border share of each band |
+| Spherical border oracle | Border oracle | Integration test, `borders` | As "Border oracle", for `*532`, `*432`, `*332`, `*722`, and `*55` at 192 by 192 pixels with one sample per pixel, the default rotation, and `Shading::Flat`, over the pixels whose 3 by 3 neighbourhood lies within ball radius 0.9. The tile of a sample is the image of the domain centre under the inverse of the pairings that `fold` reports, in reverse order, and two tiles differ when their centres are at least $10^{-4}$ apart |
+| Spherical statistics | Every sample folds within the bound | Three integration tests, `images`: one for the domains of the spherical golden images, one for `*(1000)22`, and one for `*(1000)(1000)` | For the canonical image of each domain of the spherical golden images, of `*(1000)22`, and of `*(1000)(1000)` at 512 by 512 pixels with a 4 by 4 grid, `largest_fold()` is less than `group_order()` of the signature, and `unconverged()` is 0. `outside()` of a 4 by 4 image of `*532` with one sample counts the four corners, in the test of the golden domains. Each test prints the fold counts that Section 6.7 records |
 | Doctests | None | Doctests | The examples of the crate-level and item documentation |
 
 The tests "Tangents", "Border forms", "Colour", "Thresholds", "Colour constants", "Perturbation", and "Symmetric view" read private items, such as the screen tangents, the linear value of a `Colour`, and the walls inside the renderer, so they are unit tests. `src/lib.rs` loads `tests/render/reference.rs` and `tests/render/golden_images.rs` under `#[cfg(test)]` through `#[path]`, so the unit tests and the integration tests use the same reference module, which shares no code with the crate (RND-19), and the same golden configuration, allowance, and comparison. The module `reference` carries `#![expect(dead_code, reason = "the unit tests of the crate and the integration tests each use a different part of this module")]`, because each test binary uses a different part of it, and its self-check runs in both binaries.
@@ -954,6 +1026,20 @@ The test "Euclidean border oracle" runs at 193 by 193 pixels, a choice of this d
 | `*2222`, `aspect` 1 | 5856 | 2992 |
 | `*2222`, `aspect` 1.618 | 5872 | 2996 |
 | `*2222`, `aspect` 0.125 and 8 | 8992 | 4540 |
+
+The test "Spherical border oracle" renders its border mask with `Shading::Flat`, a choice of this design, because Phong shading turns a black border grey near the highlight, so a border pixel there is not exactly black. It measured these counts of pixels:
+
+| Domain | Changes | Border pixels |
+| --- | --- | --- |
+| `*532` | 3434 | 1941 |
+| `*432` | 2093 | 1177 |
+| `*332` | 1418 | 778 |
+| `*722` | 1915 | 1039 |
+| `*55` | 1068 | 548 |
+
+The test "Brightest point" compares the centroid of the tied brightest pixels, a choice of this design, because the 8-bit values form a plateau at the highlight on which several pixels tie, and the tied pixels can span 2 pixels. A rule that every tied pixel lie within one pixel fails for the light $(0, -1, 1)$, with a tied pixel at $(97, 130)$ against the predicted $(95, 130)$. The measured predicted pixels were $(76, 76)$, $(125, 66)$, $(95, 130)$, and $(143, 95)$ for the four lights, and each centroid lay within one pixel. The background is black, because a white background would be brighter than any pixel of the ball. The image with the light turned a quarter turn differed from the turned image in no pixel.
+
+The test "Rotation by a group element" uses the words $(0)$, $(0, 1)$, and $(0, 1, 0, 2)$ of side indices, where an index past the last side of the domain is replaced by the last side, so the lune `*55` takes $(0, 1, 0, 1)$ as its word of four pairings. All 24 comparisons measured no differing pixel. The test "Perturbation" measured no differing pixel in any of the 14 golden images.
 
 In the test "Rectangle grid", no pixel differed from the oracle in any case. The oracle gave these counts of border pixels:
 
@@ -1008,7 +1094,7 @@ The property tests commit their regression files (TEST-9 of the coding standard)
 
 The reference is the independent high-precision implementation of Section 7 of the architecture:
 
-- Structure. The module `reference`, in `tests/render/reference.rs`, which the integration-test binary and the unit tests load (Section 8.1), holds points, vectors, and matrices as arrays of high-precision numbers and writes each formula componentwise from the research documents: the map from the disk to the hyperboloid, the side test, the reflection, the fold of Section 5.3 with the point size of each geometry, the distance form of Section 5.4, the lift onto the ball of Section 5.9, the shading of Section 5.10, and the sRGB transfer function. It calls no function of `escher-render`, `escher-domain`, `escher-geometry`, or `glam`.
+- Structure. The module `reference`, in `tests/render/reference.rs`, which the integration-test binary and the unit tests load (Section 8.1), holds points, vectors, and matrices as arrays of high-precision numbers and writes each formula componentwise from the research documents: the map from the disk to the hyperboloid, the side test, the reflection, the fold of Section 5.3 with the point size of each geometry, the distance form of Section 5.4, the lift onto the ball of Section 5.9, the shading of Section 5.10, and the sRGB transfer function. The shading of the reference holds the specular weight $k_s$ as a value of its own, apart from the ambient weight $k_a$, although both are 0.25, so that it follows the formula of Section 5.10 term by term. It calls no function of `escher-render`, `escher-domain`, `escher-geometry`, or `glam`.
 - Inputs. The reference takes the exact `f64` values of the inputs, and of the pairings and covectors of the domain, which it reads through the public accessors of `Side`.
 - Precision. 256 bits, rounding to nearest with ties to even.
 - Comparison. As in Section 12.2 of the domain design, each test converts the `f64` result exactly into the reference type, takes the difference there, and compares it with the tolerance there.
@@ -1024,10 +1110,10 @@ RND-20. The golden-image test MUST decode the committed file with `png`, convert
 
 The allowed number of pixels is 16 for each image, a choice of this design. The evidence for it is:
 
-- The test "Perturbation" of Section 8.1 applies `f64::next_up` to every component of every normal copied into the renderer and rebuilds the covector and the reflection of each side from the moved normal. That perturbation is the size of a difference in the platform mathematics library, which the plan names as a risk. It changed no pixel of the three hyperbolic images, and the test asserts the allowance. For the four Euclidean images it moves every covector instead, because the normal of a Euclidean wall does not carry its offset, and rebuilds the reflection of each side from the moved covector. It changed no pixel of the four Euclidean images either.
+- The test "Perturbation" of Section 8.1 applies `f64::next_up` to every component of every normal copied into the renderer and rebuilds the covector and the reflection of each side from the moved normal. That perturbation is the size of a difference in the platform mathematics library, which the plan names as a risk. It changed no pixel of the three hyperbolic images, and the test asserts the allowance. For the four Euclidean images it moves every covector instead, because the normal of a Euclidean wall does not carry its offset, and rebuilds the reflection of each side from the moved covector. It changed no pixel of the four Euclidean images either. For the seven spherical images it also moves the normalized light direction and the entries of the viewing matrix, and it changed no pixel of them.
 - The committed images match a fresh rendering with no differing pixel.
 - On the prototype, a rotation of $10^{-6}$ changed 4 to 9 pixels by at most one sample each (Section 11). 16 pixels admit a difference between platforms of that size.
-- Every defect tried that changes an image changes thousands of pixels, so 16 pixels hide none of them.
+- Every defect tried that changes an image changes at least 1,182 pixels of it, so 16 pixels hide none of them.
 
 An allowance of 0 pixels, which 8 times the measured count gives, would fail on the first platform whose mathematics library moves one sample across a border. The count bound of RND-16 does not apply here, because the allowance covers a difference between platforms that no measurement on one platform can show.
 
@@ -1052,19 +1138,19 @@ The same procedure gave these counts for the Euclidean golden images:
 
 The defect "Tangent not carried" changes no pixel of a Euclidean image, because the gradient size of a Euclidean domain does not depend on it, so no Euclidean test catches it. The hyperbolic tests of the first table catch it.
 
-The same procedure applies to the spherical golden images, with these defects. Each count of pixels and each list of failed tests is to be measured by the change that adds the images:
+The same procedure gave these counts for the spherical golden images. The columns `rotated` and `flat` are `*532` with the rotation 20, 35, 0 degrees and `*532` with `Shading::Flat`:
 
-| Defect | Pixels of each spherical golden image | Tests that failed |
-| --- | --- | --- |
-| No parity flip | To be measured | To be measured |
-| Screen tangents not turned by $V^{\mathsf{T}}$ | To be measured | To be measured |
-| $V$ in place of $V^{\mathsf{T}}$ | To be measured | To be measured |
-| The opposite sign of the pitch | To be measured | To be measured |
-| The test of a positive last coordinate kept for a spherical domain | To be measured | To be measured |
-| The factor $(1 - c)$ dropped from the specular term | To be measured | To be measured |
-| Shading applied after the samples are averaged | To be measured | To be measured |
+| Defect | `*532` | `*432` | `*332` | `*722` | `*55` | `rotated` | `flat` | Tests that failed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| No parity flip | 12,594 | 12,643 | 12,443 | 12,832 | 12,692 | 12,641 | 12,594 | "Golden images", "Rectangle grid", and "Rotation by a group element" |
+| Screen tangents not turned by $V^{\mathsf{T}}$ | 0 | 0 | 0 | 0 | 0 | 4,139 | 0 | "Golden images" and "Rotation by a group element" |
+| $V$ in place of $V^{\mathsf{T}}$ | 0 | 0 | 0 | 0 | 0 | 16,759 | 0 | "Golden images", "Perturbation", and "Ball tangents" |
+| The opposite sign of the pitch | 0 | 0 | 0 | 0 | 0 | 18,435 | 0 | "Golden images", "Ball tangents", and "Viewing matrix" |
+| The test of a positive last coordinate kept for a spherical domain | 0 | 0 | 0 | 0 | 0 | 2,981 | 0 | "Golden images", the unit test of the point size in `fold.rs`, "Vertices", "Centre images", "Wrong inputs", "Spherical fold replay", "Inside" of "Spherical fold properties", and "Rotation by a group element" |
+| The factor $(1 - c)$ dropped from the specular term | 1,757 | 1,735 | 1,774 | 1,761 | 1,776 | 1,748 | 0 | "Golden images", the reference test and the range test of "Shading", and the test of the shading function in "Brightest point" |
+| Shading applied after the samples are averaged | 1,960 | 1,654 | 1,370 | 1,592 | 1,182 | 1,916 | 0 | "Golden images" only |
 
-On the sphere prototype, shading after averaging changed 2354 of 262,144 pixels of a 512 by 512 image of `*532` by at most 3 in a byte (Section 11), so the golden allowance may hide that defect at 192 by 192 pixels. If it does, the change that adds the images records which other test fails, or records that none does.
+The defects of the view change only the rotated image, because the default rotation gives a viewing matrix with the entries of the identity (Section 5.9). The golden allowance does not hide shading after averaging at 192 by 192 pixels, because the defect changes between 1,182 and 1,960 pixels of each shaded image. On the hyperbolic and Euclidean golden images, the defect "No parity flip" gives the counts of the tables above.
 
 These defects change no pixel of the golden images, and another test fails for each:
 
@@ -1087,7 +1173,9 @@ When an image differs beyond the allowance, the test writes `actual-<name>.png`,
 | Tests | Under Miri | Attribute or configuration |
 | --- | --- | --- |
 | "Fold replay", "Fold decisions", "Cap", "Tangents", "Border forms", "Colour", "Thresholds", "Reference self-check" in both binaries, "Pairing", "Euclidean pairing", "Euclidean fold replay", "Euclidean border forms", "Spherical fold replay", "Ball tangents", "Shading" against the reference, and "Spherical border forms" | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
-| "Rim", "Border oracle", "Bands", "Symmetric view", "Perturbation", "Euclidean border oracle", "Rectangle grid", "Periodicity", "Half-pixel tie", "Centre images", "Near vertex", "Rotation by a group element", the image tests of "Brightest point", "Spherical border oracle", and "Spherical statistics" | Ignored | `#[cfg_attr(miri, ignore = "rendering whole images runs loops too long for the interpreter")]` |
+| "Rim", "Border oracle", "Bands", "Symmetric view", "Perturbation", "Euclidean border oracle", "Rectangle grid", "Periodicity", "Half-pixel tie", "Rotation by a group element", the image test of "Brightest point", "Spherical border oracle", and the three tests of "Spherical statistics" | Ignored | `#[cfg_attr(miri, ignore = "rendering whole images runs loops too long for the interpreter")]` |
+| "Centre images" | Ignored | `#[cfg_attr(miri, ignore = "the enumeration of the group runs loops too long for the interpreter")]` |
+| "Near vertex" | Ignored | `#[cfg_attr(miri, ignore = "folding thousands of points of a large group runs loops too long for the interpreter")]` |
 | "Golden images" | Ignored | `#[cfg_attr(miri, ignore = "rendering whole images runs loops too long for the interpreter, and the test reads files")]` |
 | "Inside", "Idempotent", "Scale", "Any input", "Euclidean fold properties", and "Spherical fold properties" | Run with 8 cases and no failure persistence | The helper of RND-21 |
 | "Vertices", "Wrong inputs", "Sample position", "Fold steps", "NaN border", "Colour constants", "Options", "Statistics", "Error text", "Auto traits", "PNG size", "Plane view", "Ball view", "Viewing matrix", the unit tests of "Shading", and the test of the shading function in "Brightest point" | Run unchanged | None |
@@ -1097,7 +1185,7 @@ Each reason in an attribute is in plain words and cites no document (Hard Rule 1
 
 The exact assertions of "Ball view" and "Viewing matrix" at the angles 0 rely on `f64::sin_cos` of 0 giving exactly 0 and 1. If the interpreter perturbs that result, as it perturbs other results of the platform mathematics library, those assertions move to a test that carries an `ignore` attribute under Miri with that reason in plain words.
 
-"Pairing" is a property test, but each case folds in the 256-bit reference, and 8 cases took 287 seconds under Miri, so it carries the attribute instead of running with 8 cases. "Scale" builds its powers of two by exact doubling and halving, because Miri perturbs the result of `powi`, and the exact comparison would then fail. On an unloaded machine, the Euclidean "Scale" took 87.8 seconds under Miri, the longest of the tests that run there, and "Vertices" took 46 seconds.
+"Pairing" is a property test, but each case folds in the 256-bit reference, and 8 cases took 287 seconds under Miri, so it carries the attribute instead of running with 8 cases. "Scale" builds its powers of two by exact doubling and halving, because Miri perturbs the result of `powi`, and the exact comparison would then fail. On an unloaded machine, the Euclidean "Scale" took 87.8 seconds under Miri, and "Vertices" took 46 seconds. In one run of `just check`, the spherical "Scale" took 137 seconds under Miri, the longest of the tests that run there, against 128 seconds for the Euclidean "Scale" in the same run. The range test of "Shading" took 104 seconds and the test of the shading function in "Brightest point" 108 seconds. Their grids are those of Section 8.1, and a smaller grid would shorten them.
 
 No test asserts a bit-exact result of a transcendental function. The exact comparisons of Section 8.1 involve no transcendental function, and each states why IEEE 754 arithmetic makes it exact.
 
@@ -1204,9 +1292,9 @@ The sphere prototype changed the fold of a copy of the crate to read the point s
 | The point size, and no other change to the fold | 5.3 | The tests of the crate, its seven golden images, and the files that `escher render` writes for `*732`, `*542`, `*433`, `*632`, `*442`, `*333`, and `*2222` at the defaults | All 69 tests of the crate passed, and their filtered output before and after the change was identical. Each golden image had no differing pixel. `cmp` reported every file identical before and after the change |
 | The fold on the whole sphere | 5.3, 6.3 | 18 spherical domains, each with a Fibonacci sphere of 400,000 points, the poles, the axes, $(0, 0, -1)$, points from $10^{-3}$ to $10^{-300}$ from the poles of a lune, points on and $10^{-15}$ off each wall, and the vertices with their antipodes | Every point converged with no side violated: 405,391 points for each triangle and 403,853 for each lune. $(0, 0, -1)$ converged in 15 steps for `*532`. The zero vector, NaN, and infinity gave unconverged results with zero steps. $(0, 0, -10^{-320})$ converged in 15 steps |
 | $\tau$ kept for the sphere | 6.2 | The vertices of the spherical domains | The largest ratio was $9.3 \times 10^{-17}$, at `*522`, a margin of 43 of $\tau$. The poles of each lune gave exactly 0 |
-| Termination near a vertex of high order | 6.7, 10 | 2000 points within $10^{-14}$ radians of the vertex of order 1000 of `*(1000)22` and of its antipode, and 508,000 points of `*(999)22` | 213 of 2000 points stayed unconverged at the cap of 1500, and 132 of 2000 at the antipode. At a cap of 100000, 4 points still did not converge. For `*(999)22`, a fold took up to 1389 steps where the longest word of the group is 1000, and 5889 points took more steps than the longest word. The lune `*(1000)(1000)` took at most 1000 steps. `*532` and every $n$ up to 100 never took more steps than the longest word |
-| No bound from the group order in the code | 6.7 | The front hemisphere of the image of each signature, 180,960 samples | The mean and the largest step count were 1.42 and 4 for `*332`, 2.19 and 6 for `*432`, 3.70 and 10 for `*532`, 1.77 and 7 for `*722`, 215.6 and 999 for `*(1000)22`, 0.88 and 2 for `*55`, and 181.7 and 497 for `*(1000)(1000)`, every largest count below the group order and the cap, with no unconverged sample. Over the whole sphere, `*(1000)22` had a mean of 500.5 and a largest count of 1001 |
-| The images of the centre | 8.1 | `*332`, `*432`, `*532`, `*n22`, and `*nn` | The breadth-first enumeration found 24, 48, and 120 elements for `*332`, `*432`, and `*532`, and $2n$ for every `*nn`, equal to the group order. Each image of the centre folded back in exactly its depth, to within $1.8 \times 10^{-15}$ of the centre. The largest depths were 6, 9, and 15 |
+| Termination near a vertex of high order | 6.7, 10 | 2000 points within $10^{-14}$ radians of the vertex of order 1000 of `*(1000)22` and of its antipode, and 508,000 points of `*(999)22` | 213 of 2000 points stayed unconverged at the cap of 1500, and 132 of 2000 at the antipode. The crate measures 135 of 1000 and 140 of 1000 on its own points (Section 6.7). At a cap of 100000, 4 points still did not converge. For `*(999)22`, a fold took up to 1389 steps where the longest word of the group is 1000, and 5889 points took more steps than the longest word. The lune `*(1000)(1000)` took at most 1000 steps. `*532` and every $n$ up to 100 never took more steps than the longest word |
+| No bound from the group order in the code | 6.7 | The front hemisphere of the image of each signature, 180,960 samples | The mean and the largest step count were 1.42 and 4 for `*332`, 2.19 and 6 for `*432`, 3.70 and 10 for `*532`, 1.77 and 7 for `*722`, 215.6 and 999 for `*(1000)22`, 0.88 and 2 for `*55`, and 181.7 and 497 for `*(1000)(1000)`, every largest count below the group order and the cap, with no unconverged sample. Over the whole sphere, `*(1000)22` had a mean of 500.5 and a largest count of 1001. The crate measures a largest count of 1000 for `*(1000)22` and 499 for `*(1000)(1000)` in the image with a 4 by 4 grid (Section 6.7) |
+| The images of the centre | 8.1 | `*332`, `*432`, `*532`, `*n22`, and `*nn` | The breadth-first enumeration found 24, 48, and 120 elements for `*332`, `*432`, and `*532`, and $2n$ for every `*nn`, equal to the group order. Each image of the centre folded back in exactly its depth, to within $1.8 \times 10^{-15}$ of the centre. The largest depths were 6, 9, and 15. The crate measures up to $2.629 \times 10^{-15}$ for $n$ up to 12, and up to $1.100 \times 10^{-13}$ at $n = 1000$ (Section 6.7) |
 | The viewing matrix and its signs | 5.9 | The centroid of the tile of the domain at 256 by 256 pixels, predicted at (128, 128) | Yaw 30 degrees moved it to (186.3, 127.7), predicted (188, 128). Pitch 30 degrees moved it to (128.3, 69.1), predicted (128, 68). Yaw 30 and then roll 90 degrees moved it to (127.7, 69.7). The rotation 20, 35, 0 degrees moved it to (168.3, 64.3), predicted (169.0, 63.3). The determinant of $V$ was 1 within $1.1 \times 10^{-16}$. The yaw and the roll are right-handed about the second and third axes, and the pitch about the negative first axis |
 | Rotation by a group element | 8.1 | `*532` with the default rotation and with 20, 35, 0 degrees, `*55`, and `*722`, with shading on and off | The image with $V g$ equalled the image with $V$ with no differing pixel, for $g$ a product of two pairings and of four pairings. For $g$ one pairing, the parity image equalled the image with the colours exchanged with no differing pixel. The test was not vacuous: the folded points differed by up to $1.56 \times 10^{-15}$, only 1062 of 25,448 were equal bit for bit, and a rotation of $10^{-3}$ radians changed 2069 pixels |
 | The specular term with the factor $(1 - c)$ | 5.10 | The default images, and a white fill | With the clamped form, a channel clips at the half vector when its linear value is above 0.7774, and the default fill `#e9c46a` has red at 0.815. In `*532` 3211 sample channels reached the clamp, and 203 pixels had a channel at 255. `*432`, `*332`, and `*55` gave 6104, 7026, and 7026 sample channels. A white fill clipped 273,921 sample channels, about 3.2 percent of the pixels of the ball, as a flat white patch at the highlight |
@@ -1295,6 +1383,11 @@ No other document dictates these choices:
 | The options of the ball checked for every domain and read only for a spherical one | 4.1 |
 | The range of accuracy of the border estimate on the ball stated by rim band, and a border oracle that does not count leaving the ball as a border and skips the bands closer to the rim than the half width | 6.7, 8.1 |
 | Seven spherical golden images, and the test "Rotation by a group element" within the golden allowance | 8.1, 8.4 |
+| The bins of the test "Ball tangents": the rim bands as lower ends, and one bin below 0.5 pixels | 6.7 |
+| Bounds of their own for the images of the centre at $n = 1000$, and for an $n$ outside the spherical domain set the bound of the next larger $n$ of the set | 6.7 |
+| The test "Brightest point" compares the centroid of the tied brightest pixels, on a black background | 8.1 |
+| The test "Spherical border oracle" renders its border mask with `Shading::Flat` | 8.1 |
+| The accuracy of `fold` for a spherical domain stated only for a vector whose largest absolute coordinate is at least $10^{-300}$ and whose fold converges, with no rescaling of a smaller vector | 2.1, 6.1 |
 
 ### 12.3. Points for the Owner
 
@@ -1307,7 +1400,7 @@ None of these blocks the crate. Each states what the design does until the owner
 5. The appearance near a corner of high order. With a border of 1 pixel, `*(1000)32` shows a solid region of border colour about 110 pixels wide around its corner of order 1000 on the prototype at 512 by 512 pixels. It follows from the definition of a border width in pixels and does not depend on the cap.
 6. The shape of the library. It has no public `View` or model and a public `fold` (Section 3.4), starts no thread (RND-2), and parses no colour text (RND-5).
 7. The `flate2` pin of Section 9. A pin in the lock file is lost on a plain `cargo update`. A `skip` entry for `miniz_oxide` 0.8 in `deny.toml` is durable but is an exception to the policy of Section 8 of `docs/design/tooling.md`.
-8. Golden images and tests. The images are compared in linear light, with an allowance of 16 pixels per image (Section 8.4). The perturbation of one unit in the last place changed no pixel, so 8 times the measured count gives 0, which fails on the first platform difference, and the test "Perturbation" asserts the allowance. 16 pixels cover a difference of the size of the rotation of $10^{-6}$ that changed 4 to 9 pixels on the prototype, and every defect tried that changes an image changes at least 2,503 pixels. The symmetric view uses one fill colour and asserts the same allowance, because its equality with the mirror image, which held with no differing pixel on the measured platform, is not exact in IEEE 754 arithmetic (Section 8.1). The pairing property asserts that the folded points agree within the bound of Section 6.4, that the step counts differ by exactly 1, up or down, and that the parities differ (Section 8.1).
+8. Golden images and tests. The images are compared in linear light, with an allowance of 16 pixels per image (Section 8.4). The perturbation of one unit in the last place changed no pixel, so 8 times the measured count gives 0, which fails on the first platform difference, and the test "Perturbation" asserts the allowance. 16 pixels cover a difference of the size of the rotation of $10^{-6}$ that changed 4 to 9 pixels on the prototype, and every defect tried that changes an image changes at least 1,182 pixels of it. The symmetric view uses one fill colour and asserts the same allowance, because its equality with the mirror image, which held with no differing pixel on the measured platform, is not exact in IEEE 754 arithmetic (Section 8.1). The pairing property asserts that the folded points agree within the bound of Section 6.4, that the step counts differ by exactly 1, up or down, and that the parities differ (Section 8.1).
 9. The range of accuracy ends at $1 - 10^{-6}$, the radius that the plan names, and beyond it the crate promises only a result without a panic (Section 6.4).
 10. The margin of $1/32$, the perceptual rendering intent, the limits of Section 4.1, and the error texts of Section 7.2 are constants with no source. The PNG file has no gAMA or cHRM chunk beside the sRGB chunk, against the recommendation of the PNG specification (Section 5.6).
 11. The count bound. A count measured as $c$ has the bound of the larger of $8c$ and 8, because 8 times a count of 0 is not a usable bound (RND-16). It allows up to 8 differing fold decisions in bands 1 to 5, where none was measured.
@@ -1332,6 +1425,20 @@ None of these blocks the crate. Each states what the design does until the owner
 30. The dark outline at the rim (Section 5.9). The design accepts it and states the range of accuracy of the border estimate by rim band. The alternative is a fade or a cutoff of the border near the rim.
 31. Borders at large $n$ (Section 5.9). At $n = 1000$ the ball is entirely border colour at the default size. The alternatives are a lower limit on $n$, or a warning when every sample is a border sample.
 32. Shading before averaging (Section 5.10). The alternative is shading the averaged pixel, which changed pixels by at most 3 in a byte on the sphere prototype.
+33. The range of accuracy of the border estimate on the ball (Section 6.7). It is defined as the rim bands in which the count bound holds, but each count bound is set from the count measured in its own band, so the definition holds in every band by construction and does not limit the range. The measured shares of differing samples, out of 20,000 per band, are these:
+
+    | Rim distance in pixels | Differing at half width 0.5 | Differing at half width 1.5 |
+    | --- | --- | --- |
+    | 120 | 0 percent | 0.015 percent |
+    | 24 | 0.015 percent | 0.115 percent |
+    | 8 | 0.04 percent | 0.495 percent |
+    | 4 | 0.195 percent | 1.68 percent |
+    | 2 | 0.46 percent | 4.78 percent |
+    | 1 | 1.39 percent | Skipped |
+    | 0.5 | 7.965 percent | Skipped |
+
+    The design keeps the definition until the owner decides. One alternative is a largest share of differing samples, such as 1 percent. With that share, the range would end at 2 pixels from the rim for the half width 0.5, and at 8 pixels for the half width 1.5.
+34. Small vectors on the sphere (Sections 2.1 and 6.1). `fold` states its accuracy for a spherical domain only for a vector whose largest absolute coordinate is at least $10^{-300}$, and folds a smaller vector without rescaling it, so its decisions can differ from those of the same ray at length 1. The renderer passes only points of length about 1. The alternative is to multiply the point and the screen tangents once by $2^{1000}$ before the loop when the point size is below a threshold such as $2^{-900}$. The multiplication is exact and costs one comparison per fold, but `Fold::point` of such an input then returns the rescaled vector.
 
 ## 13. Security Considerations
 
@@ -1430,4 +1537,4 @@ The tags of the mathematical and software sources resolve to the reference secti
 | RND-27 | For a spherical domain, samples, ball positions, the lift, the screen tangents, and the viewing matrix follow the formulas of Section 5.9 | 5.9 |
 | RND-28 | The viewing matrix applies the yaw, the pitch, and the roll in that order about fixed screen axes, with signs defined by the motion on the screen | 5.9 |
 | RND-29 | With `Shading::Phong`, every sample of the ball is shaded by the formula and constants of Section 5.10 before averaging, with the power by squaring, and `Shading::Flat` changes no colour | 5.10 |
-| RND-30 | For a spherical domain, the bounds of Section 6.7 hold inside the rim, the border count bounds hold in the rim bands of the range of accuracy, and closer to the rim only a result without a panic is promised | 6.7 |
+| RND-30 | For a spherical domain, the bounds of Section 6.7 hold for a converged fold of a vector whose largest absolute coordinate is at least $10^{-300}$ and of a ball position inside the rim, the border count bounds hold in the rim bands of the range of accuracy, and closer to the rim only a result without a panic is promised | 6.7 |

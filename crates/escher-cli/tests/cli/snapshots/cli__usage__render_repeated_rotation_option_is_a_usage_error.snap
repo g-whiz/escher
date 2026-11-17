@@ -1,0 +1,13 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*532\", \"-o\", NEVER_WRITTEN, \"--rotation\", \"0,0,0\",\n\"--rotation\", \"1,1,1\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: the argument '--rotation <YAW,PITCH,ROLL>' cannot be used multiple times
+
+Usage: escher render [OPTIONS] --output <FILE> <SIGNATURE>
+
+For more information, try '--help'.
+--- end

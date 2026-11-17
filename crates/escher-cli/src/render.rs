@@ -6,12 +6,12 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use escher_domain::{FundamentalDomain, ShapeParameters};
-use escher_render::{Colour, Fill, RenderOptions, RenderStats, Renderer, encode_png};
-use escher_signature::{Geometry, Signature};
+use escher_render::{Colour, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png};
+use escher_signature::Signature;
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
 use rayon::slice::ParallelSliceMut as _;
 
-use crate::args::{Colouring, RenderArgs, Setting};
+use crate::args::{Colouring, RenderArgs, Setting, ShadingChoice};
 use crate::diagnostic::SignatureError;
 
 const MAX_THREADS: usize = 256;
@@ -60,9 +60,7 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         };
         anyhow::Error::new(error).context(context)
     })?;
-    if !has_view(domain.geometry()) {
-        return Err(cannot_render(&signature, NOT_SUPPORTED));
-    }
+    let [yaw, pitch, roll] = args.rotation;
     let options = RenderOptions::builder(fill)
         .size(args.size.width, args.size.height)
         .samples(args.samples)
@@ -70,6 +68,12 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         .border_colour(border_colour)
         .background(background)
         .max_folds(args.max_folds)
+        .rotation(yaw.to_radians(), pitch.to_radians(), roll.to_radians())
+        .light(args.light.into())
+        .shading(match args.shading {
+            ShadingChoice::Phong => Shading::Phong,
+            ShadingChoice::Flat => Shading::Flat,
+        })
         .build()
         .with_context(|| format!("cannot render {signature}"))?;
     let threads = args.threads.map_or_else(default_threads, usize::from);
@@ -117,13 +121,6 @@ fn shape_parameters(settings: &[Setting]) -> Result<ShapeParameters, String> {
         parameters.set(setting.name.clone(), setting.value);
     }
     Ok(parameters)
-}
-
-const fn has_view(geometry: Geometry) -> bool {
-    match geometry {
-        Geometry::Hyperbolic | Geometry::Euclidean => true,
-        Geometry::Spherical => false,
-    }
 }
 
 fn render_bands(
@@ -279,11 +276,7 @@ mod tests {
 
     use escher_render::{Colour, Fill};
 
-    use escher_signature::Geometry;
-
-    use super::{
-        fill, has_view, parse_colour, shape_parameters, statistics_text, thread_pool_error,
-    };
+    use super::{fill, parse_colour, shape_parameters, statistics_text, thread_pool_error};
     use crate::Status;
     use crate::args::{Colouring, Setting};
     use crate::diagnostic::report;
@@ -437,12 +430,5 @@ mod tests {
         expected.set("aspect", 2.0);
         expected.set("other", 1.0);
         assert_eq!(parameters, expected);
-    }
-
-    #[test]
-    fn has_view_accepts_only_the_hyperbolic_and_the_euclidean_geometry() {
-        assert!(has_view(Geometry::Hyperbolic));
-        assert!(has_view(Geometry::Euclidean));
-        assert!(!has_view(Geometry::Spherical));
     }
 }

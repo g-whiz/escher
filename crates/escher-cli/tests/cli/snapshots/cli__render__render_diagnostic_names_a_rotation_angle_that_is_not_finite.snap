@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"rotation_nan\", &[\"*532\", \"--rotation\", \"nan,0,0\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *532
+  caused by: cannot build render options: the rotation angle NaN is not finite
+--- end

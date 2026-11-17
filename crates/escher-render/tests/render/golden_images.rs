@@ -3,11 +3,13 @@ use escher_signature::Signature;
 use glam::{DMat3, DVec2};
 
 use crate::reference::Reference;
-use crate::{Colour, Fill, RenderOptions};
+use crate::{Colour, Fill, RenderOptions, Shading};
 
 pub(crate) struct GoldenImage {
     pub(crate) signature: &'static str,
     pub(crate) aspect: Option<f64>,
+    pub(crate) rotation: [f64; 3],
+    pub(crate) shading: Shading,
     pub(crate) file: &'static str,
 }
 
@@ -15,43 +17,61 @@ impl GoldenImage {
     pub(crate) fn domain(&self) -> FundamentalDomain {
         domain_with_aspect(self.signature, self.aspect)
     }
+
+    pub(crate) fn options(&self) -> RenderOptions {
+        let [even, odd] =
+            GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+        let [yaw, pitch, roll] = self.rotation.map(f64::to_radians);
+        match RenderOptions::builder(Fill::Parity([even, odd]))
+            .size(GOLDEN_SIZE, GOLDEN_SIZE)
+            .samples(GOLDEN_GRID)
+            .border_width(1.0)
+            .rotation(yaw, pitch, roll)
+            .shading(self.shading)
+            .build()
+        {
+            Ok(options) => options,
+            Err(error) => panic!("the golden options of {} are rejected: {error}", self.file),
+        }
+    }
 }
 
-pub(crate) const GOLDEN_IMAGES: [GoldenImage; 7] = [
+const fn golden(signature: &'static str, aspect: Option<f64>, file: &'static str) -> GoldenImage {
     GoldenImage {
-        signature: "*732",
+        signature,
+        aspect,
+        rotation: [0.0; 3],
+        shading: Shading::Phong,
+        file,
+    }
+}
+
+pub(crate) const GOLDEN_IMAGES: [GoldenImage; 14] = [
+    golden("*732", None, "7-3-2.png"),
+    golden("*542", None, "5-4-2.png"),
+    golden("*433", None, "4-3-3.png"),
+    golden("*632", None, "6-3-2.png"),
+    golden("*442", None, "4-4-2.png"),
+    golden("*333", None, "3-3-3.png"),
+    golden("*2222", Some(1.618), "2-2-2-2.png"),
+    golden("*532", None, "5-3-2.png"),
+    golden("*432", None, "4-3-2.png"),
+    golden("*332", None, "3-3-2.png"),
+    golden("*722", None, "7-2-2.png"),
+    golden("*55", None, "5-5.png"),
+    GoldenImage {
+        signature: "*532",
         aspect: None,
-        file: "7-3-2.png",
+        rotation: [20.0, 35.0, 0.0],
+        shading: Shading::Phong,
+        file: "5-3-2-rotated.png",
     },
     GoldenImage {
-        signature: "*542",
+        signature: "*532",
         aspect: None,
-        file: "5-4-2.png",
-    },
-    GoldenImage {
-        signature: "*433",
-        aspect: None,
-        file: "4-3-3.png",
-    },
-    GoldenImage {
-        signature: "*632",
-        aspect: None,
-        file: "6-3-2.png",
-    },
-    GoldenImage {
-        signature: "*442",
-        aspect: None,
-        file: "4-4-2.png",
-    },
-    GoldenImage {
-        signature: "*333",
-        aspect: None,
-        file: "3-3-3.png",
-    },
-    GoldenImage {
-        signature: "*2222",
-        aspect: Some(1.618),
-        file: "2-2-2-2.png",
+        rotation: [0.0; 3],
+        shading: Shading::Flat,
+        file: "5-3-2-flat.png",
     },
 ];
 
@@ -62,19 +82,6 @@ pub(crate) const GOLDEN_SIZE: u32 = 192;
 pub(crate) const GOLDEN_GRID: u32 = 4;
 
 pub(crate) const ALLOWED_PIXELS: usize = 16;
-
-pub(crate) fn golden_options() -> RenderOptions {
-    let [even, odd] = GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
-    match RenderOptions::builder(Fill::Parity([even, odd]))
-        .size(GOLDEN_SIZE, GOLDEN_SIZE)
-        .samples(GOLDEN_GRID)
-        .border_width(1.0)
-        .build()
-    {
-        Ok(options) => options,
-        Err(error) => panic!("the golden options are rejected: {error}"),
-    }
-}
 
 pub(crate) fn linear_table() -> Vec<f64> {
     let mut reference = Reference::new();

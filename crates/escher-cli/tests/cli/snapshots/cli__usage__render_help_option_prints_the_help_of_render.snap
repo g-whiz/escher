@@ -12,18 +12,21 @@ Arguments:
   <SIGNATURE>  The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'
 
 Options:
-  -o, --output <FILE>           The PNG file to write. An existing file is replaced
-      --size <WIDTHxHEIGHT>     The image size in pixels, as WIDTHxHEIGHT [default: 512x512]
-      --colouring <COLOURING>   One colour for every tile, or two colours by parity [default: parity] [possible values: one, parity]
-      --colours <COLOURS>       The fill colours, separated by commas, each as #rgb or #rrggbb. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'
-      --border-width <PIXELS>   The border width in pixels. 0 draws no border [default: 1]
-      --border-colour <COLOUR>  The border colour, as #rgb or #rrggbb [default: #000000]
-      --samples <N>             The number of samples along each side of a pixel. The pixel averages N by N samples [default: 4]
-      --max-folds <N>           The largest number of folds of one sample. A sample that needs more takes the border colour [default: 1500]
-      --background <COLOUR>     The colour outside the disk of a hyperbolic tiling, as #rgb or #rrggbb [default: #ffffff]
-      --threads <N>             The number of threads, from 1 to 256. The default is the available parallelism, at most 256
-      --stats                   Print statistics of the rendering to standard output
-      --set <NAME=VALUE>        Set a shape parameter, as NAME=VALUE, such as aspect=1.5. The command info lists the parameters of a signature. The option can be given once for each parameter
-  -h, --help                    Print help
+  -o, --output <FILE>              The PNG file to write. An existing file is replaced
+      --size <WIDTHxHEIGHT>        The image size in pixels, as WIDTHxHEIGHT [default: 512x512]
+      --colouring <COLOURING>      One colour for every tile, or two colours by parity [default: parity] [possible values: one, parity]
+      --colours <COLOURS>          The fill colours, separated by commas, each as #rgb or #rrggbb. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'
+      --border-width <PIXELS>      The border width in pixels. 0 draws no border [default: 1]
+      --border-colour <COLOUR>     The border colour, as #rgb or #rrggbb [default: #000000]
+      --samples <N>                The number of samples along each side of a pixel. The pixel averages N by N samples [default: 4]
+      --max-folds <N>              The largest number of folds of one sample. A sample that needs more takes the border colour [default: 1500]
+      --background <COLOUR>        The colour outside the disk of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb [default: #ffffff]
+      --threads <N>                The number of threads, from 1 to 256. The default is the available parallelism, at most 256
+      --stats                      Print statistics of the rendering to standard output
+      --set <NAME=VALUE>           Set a shape parameter, as NAME=VALUE, such as aspect=1.5. The command info lists the parameters of a signature. The option can be given once for each parameter
+      --rotation <YAW,PITCH,ROLL>  The rotation of the ball of a spherical tiling, as three angles in degrees. YAW turns the front of the ball to the right, PITCH turns it up, and ROLL turns the image counterclockwise, in this order [default: 0,0,0]
+      --light <X,Y,Z>              The direction from the ball of a spherical tiling to the light, as X,Y,Z, with X to the right, Y up, and Z toward the viewer. The length is ignored [default: -1,1,2]
+      --shading <SHADING>          Phong shading of the ball of a spherical tiling, or none [default: phong] [possible values: phong, none]
+  -h, --help                       Print help
 --- stderr
 --- end

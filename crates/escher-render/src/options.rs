@@ -1,3 +1,5 @@
+use glam::DVec3;
+
 use crate::colour::{Colour, Fill};
 use crate::error::{Error, Result};
 
@@ -11,9 +13,38 @@ const DEFAULT_SIDE: u32 = 512;
 const DEFAULT_GRID: u32 = 4;
 const DEFAULT_BORDER_WIDTH: f64 = 1.0;
 const DEFAULT_FOLD_CAP: u32 = 1500;
+const DEFAULT_LIGHT: DVec3 = DVec3::new(-1.0, 1.0, 2.0);
+
+/// How the renderer shades the ball of a spherical domain.
+///
+/// Pass it to [`RenderOptionsBuilder::shading`]. The renderer reads it only
+/// for a spherical domain.
+///
+/// # Examples
+///
+/// ```
+/// use escher_render::{Colour, Fill, RenderOptions, Shading};
+///
+/// let options = RenderOptions::builder(Fill::One(Colour::WHITE)).shading(Shading::Flat).build()?;
+/// assert_eq!(options.width(), 512);
+/// # Ok::<(), escher_render::Error>(())
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Shading {
+    /// Shades the colour of each sample of the ball with the Phong reflection
+    /// model, which has one white light that stays fixed to the viewer, an
+    /// ambient term and a diffuse term that scale the colour, and a specular
+    /// highlight, the bright spot on a glossy surface.
+    Phong,
+    /// Leaves the colour of each sample unchanged, so the ball looks like a
+    /// flat disk.
+    Flat,
+}
 
 /// The validated options of a render: the image size, the sample grid, the
-/// border, the colours, and the fold cap.
+/// border, the colours, the fold cap, and the viewing rotation, the light,
+/// and the shading of the ball of a spherical domain.
 ///
 /// Build it with [`RenderOptions::builder`], which starts from the defaults
 /// and checks every limit, so a value of this type always holds options that
@@ -37,6 +68,9 @@ pub struct RenderOptions {
     pub(crate) border_colour: Colour,
     pub(crate) background: Colour,
     pub(crate) max_folds: u32,
+    pub(crate) rotation: [f64; 3],
+    pub(crate) light: DVec3,
+    pub(crate) shading: Shading,
     pub(crate) fill: Fill,
 }
 
@@ -46,8 +80,9 @@ impl RenderOptions {
     ///
     /// The defaults are an image of 512 by 512 pixels, a grid of 4 by 4
     /// samples in each pixel, a border 1 pixel wide in
-    /// [`Colour::BLACK`], a [`Colour::WHITE`] background, and a fold cap of 1500
-    /// steps.
+    /// [`Colour::BLACK`], a [`Colour::WHITE`] background, a fold cap of 1500
+    /// steps, no viewing rotation, a light in the direction `(-1, 1, 2)`, and
+    /// [`Shading::Phong`].
     pub fn builder(fill: Fill) -> RenderOptionsBuilder {
         RenderOptionsBuilder {
             options: Self {
@@ -58,6 +93,9 @@ impl RenderOptions {
                 border_colour: Colour::BLACK,
                 background: Colour::WHITE,
                 max_folds: DEFAULT_FOLD_CAP,
+                rotation: [0.0; 3],
+                light: DEFAULT_LIGHT,
+                shading: Shading::Phong,
                 fill,
             },
         }
@@ -107,7 +145,8 @@ impl RenderOptionsBuilder {
     /// For a hyperbolic domain, the disk is centred in the image and spans the
     /// shorter side of the image apart from a margin of 1/32 of that side at
     /// each end. For a Euclidean domain, the tiling fills the image with no
-    /// margin, and the shorter side spans 8 units of the plane.
+    /// margin, and the shorter side spans 8 units of the plane. For a spherical
+    /// domain, the ball has the size and the place of the disk.
     pub fn size(mut self, width: u32, height: u32) -> Self {
         self.options.width = width;
         self.options.height = height;
@@ -145,8 +184,9 @@ impl RenderOptionsBuilder {
 
     /// Sets the colour of the samples outside the view.
     ///
-    /// For a hyperbolic domain these are the samples outside the disk. A
-    /// Euclidean domain has none.
+    /// For a hyperbolic domain these are the samples outside the disk, and for
+    /// a spherical domain those on or outside the rim of the ball. The
+    /// background is never shaded. A Euclidean domain has no such sample.
     pub fn background(mut self, colour: Colour) -> Self {
         self.options.background = colour;
         self
@@ -163,18 +203,56 @@ impl RenderOptionsBuilder {
         self
     }
 
+    /// Sets the viewing rotation of the ball of a spherical domain, as three
+    /// angles in radians.
+    ///
+    /// The rotation turns the ball, while the viewer and the light stay fixed.
+    /// The yaw turns the front of the ball to the right, then the pitch turns
+    /// it up, and then the roll turns the image counterclockwise, each about a
+    /// fixed axis of the screen. Each angle must be finite. The rotation has no
+    /// effect on a hyperbolic or Euclidean domain.
+    pub fn rotation(mut self, yaw: f64, pitch: f64, roll: f64) -> Self {
+        self.options.rotation = [yaw, pitch, roll];
+        self
+    }
+
+    /// Sets the direction from the ball of a spherical domain to the light.
+    ///
+    /// The direction is in the coordinates of the screen, with the first axis
+    /// to the right, the second axis up, and the third axis toward the viewer.
+    /// Its length has no effect. Each component must be finite, and at least
+    /// one must be other than zero. The light has no effect on a hyperbolic or
+    /// Euclidean domain.
+    pub fn light(mut self, direction: DVec3) -> Self {
+        self.options.light = direction;
+        self
+    }
+
+    /// Sets the shading of the ball of a spherical domain.
+    ///
+    /// The shading applies to every sample of the ball, including the border
+    /// samples, and never to the background. It has no effect on a hyperbolic
+    /// or Euclidean domain.
+    pub fn shading(mut self, shading: Shading) -> Self {
+        self.options.shading = shading;
+        self
+    }
+
     /// Checks the options and returns them.
     ///
     /// The options are checked in the order size, sample grid, border width,
-    /// and fold cap, and the first value outside its accepted range is
-    /// reported.
+    /// fold cap, rotation, and light, and the first value outside its accepted
+    /// range is reported. The rotation and the light are checked for every
+    /// domain, although only a spherical domain reads them.
     ///
     /// # Errors
     ///
     /// Returns an error of kind
     /// [`ErrorKind::InvalidOption`](crate::ErrorKind::InvalidOption) for a
-    /// width or height of 0, a sample grid of 0, or a negative or non-finite
-    /// border width, and of kind
+    /// width or height of 0, a sample grid of 0, a negative or non-finite
+    /// border width, a rotation angle that is not finite, or a light direction
+    /// that is the zero vector or has a component that is not finite, and of
+    /// kind
     /// [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) for a
     /// value above its limit.
     pub fn build(self) -> Result<RenderOptions> {
@@ -205,13 +283,27 @@ impl RenderOptionsBuilder {
         if options.max_folds > LARGEST_FOLD_CAP {
             return Err(Error::large_cap(options.max_folds));
         }
-        Ok(options)
+        if let Some(&angle) = options.rotation.iter().find(|angle| !angle.is_finite()) {
+            return Err(Error::rotation_angle(angle));
+        }
+        let light = options.light;
+        let largest = light.abs().max_element();
+        if !light.is_finite() || largest == 0.0 {
+            return Err(Error::light_direction());
+        }
+        let scaled = light / largest;
+        Ok(RenderOptions {
+            light: scaled / scaled.length(),
+            ..options
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{RenderOptions, RenderOptionsBuilder};
+    use glam::DVec3;
+
+    use super::{RenderOptions, RenderOptionsBuilder, Shading};
     use crate::colour::{Colour, Fill};
     use crate::error::ErrorKind;
 
@@ -245,7 +337,108 @@ mod tests {
         assert_eq!(options.border_colour, Colour::BLACK);
         assert_eq!(options.background, Colour::WHITE);
         assert_eq!(options.max_folds, 1500);
+        assert_eq!(options.rotation, [0.0; 3]);
+        let length = 6.0_f64.sqrt() / 2.0;
+        assert_eq!(options.light, DVec3::new(-0.5, 0.5, 1.0) / length);
+        assert_eq!(options.shading, Shading::Phong);
         assert_eq!(options.fill, Fill::One(Colour::WHITE));
+    }
+
+    #[test]
+    fn rotation_accepts_finite_angles_and_rejects_the_first_angle_that_is_not_finite() {
+        let options = accepted(builder().rotation(-1.0e300, 0.5, 7.0));
+        assert_eq!(options.rotation, [-1.0e300, 0.5, 7.0]);
+        for (value, shown) in [
+            (f64::NAN, "NaN"),
+            (f64::INFINITY, "inf"),
+            (f64::NEG_INFINITY, "-inf"),
+        ] {
+            for slot in 0..3 {
+                let mut angles = [0.25; 3];
+                angles[slot] = value;
+                let [yaw, pitch, roll] = angles;
+                rejected(
+                    builder().rotation(yaw, pitch, roll),
+                    ErrorKind::InvalidOption,
+                    &format!(
+                        "cannot build render options: the rotation angle {shown} is not finite"
+                    ),
+                );
+            }
+        }
+        rejected(
+            builder().rotation(1.0, f64::INFINITY, f64::NAN),
+            ErrorKind::InvalidOption,
+            "cannot build render options: the rotation angle inf is not finite",
+        );
+    }
+
+    #[test]
+    fn light_rejects_a_component_that_is_not_finite_and_the_zero_direction() {
+        let text = "cannot build render options: the light direction is zero or not finite";
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for slot in 0..3 {
+                let mut components = [1.0; 3];
+                components[slot] = value;
+                rejected(
+                    builder().light(DVec3::from_array(components)),
+                    ErrorKind::InvalidOption,
+                    text,
+                );
+            }
+        }
+        rejected(builder().light(DVec3::ZERO), ErrorKind::InvalidOption, text);
+        rejected(
+            builder().light(-DVec3::ZERO),
+            ErrorKind::InvalidOption,
+            text,
+        );
+    }
+
+    #[test]
+    fn light_is_normalized_without_overflow_or_underflow() {
+        const LENGTH_BOUND: f64 = 9e-16;
+        let pairs = [
+            (DVec3::new(1.0e300, 1.0e300, 0.0), DVec3::new(1.0, 1.0, 0.0)),
+            (DVec3::new(1.0e-310, 0.0, 0.0), DVec3::X),
+            (DVec3::new(-4.0, 4.0, 8.0), DVec3::new(-1.0, 1.0, 2.0)),
+        ];
+        let mut largest = (0.0_f64, DVec3::ZERO);
+        for (direction, plain) in pairs {
+            let found = accepted(builder().light(direction)).light;
+            let expected = accepted(builder().light(plain)).light;
+            assert_eq!(
+                found.to_array().map(f64::to_bits),
+                expected.to_array().map(f64::to_bits)
+            );
+            let error = (found.length() - 1.0).abs();
+            if error >= largest.0 {
+                largest = (error, direction);
+            }
+        }
+        println!(
+            "normalized light: largest distance of the length from 1 {:e} for {:?}, bound {LENGTH_BOUND:e}, margin {:.1}",
+            largest.0,
+            largest.1,
+            LENGTH_BOUND / largest.0
+        );
+        assert!(largest.0 <= LENGTH_BOUND, "{largest:?}");
+        assert_eq!(
+            accepted(builder().light(DVec3::new(1.0e-310, 0.0, 0.0))).light,
+            DVec3::X
+        );
+    }
+
+    #[test]
+    fn shading_is_kept() {
+        assert_eq!(
+            accepted(builder().shading(Shading::Flat)).shading,
+            Shading::Flat
+        );
+        assert_eq!(
+            accepted(builder().shading(Shading::Phong)).shading,
+            Shading::Phong
+        );
     }
 
     #[test]
@@ -381,6 +574,19 @@ mod tests {
             builder().border_width(2000.0).max_folds(u32::MAX),
             ErrorKind::LimitExceeded,
             "cannot build render options: the border width 2000 is larger than 1024",
+        );
+        rejected(
+            builder()
+                .max_folds(u32::MAX)
+                .rotation(f64::NAN, 0.0, 0.0)
+                .light(DVec3::ZERO),
+            ErrorKind::LimitExceeded,
+            "cannot build render options: the fold cap 4294967295 is larger than 100000",
+        );
+        rejected(
+            builder().rotation(0.0, 0.0, f64::NAN).light(DVec3::ZERO),
+            ErrorKind::InvalidOption,
+            "cannot build render options: the rotation angle NaN is not finite",
         );
     }
 }

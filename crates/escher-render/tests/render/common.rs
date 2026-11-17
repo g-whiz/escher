@@ -2,9 +2,10 @@ use core::f64::consts::TAU;
 
 use escher_domain::FundamentalDomain;
 use escher_geometry::hyperbolic::from_disk;
+use escher_geometry::spherical;
 use escher_render::{Colour, Fill, RenderOptions, RenderOptionsBuilder};
 use escher_signature::Signature;
-use glam::{DVec2, DVec3};
+use glam::{DMat3, DVec2, DVec3};
 use proptest::test_runner::Config;
 
 use crate::golden_images::domain_with_aspect;
@@ -101,6 +102,40 @@ pub(crate) const REPLAY_BOUNDS: [[f64; 6]; 7] = [
     [5e-13, 9e-11, 8e-9, 2e-6, 2e-4, 2e-2],
 ];
 
+pub(crate) const SPHERICAL_DOMAINS: [&str; 17] = [
+    "*332",
+    "*432",
+    "*532",
+    "*222",
+    "*322",
+    "*522",
+    "*(12)22",
+    "*(100)22",
+    "*(999)22",
+    "*(1000)22",
+    "*22",
+    "*33",
+    "*55",
+    "*(12)(12)",
+    "*(100)(100)",
+    "*(999)(999)",
+    "*(1000)(1000)",
+];
+
+pub(crate) const RIM_DISTANCES: [f64; 7] = [120.0, 24.0, 8.0, 4.0, 2.0, 1.0, 0.5];
+
+pub(crate) const SPHERE_ROTATIONS: [[f64; 3]; 2] = [[0.0; 3], [20.0, 35.0, 0.0]];
+
+pub(crate) const SPHERICAL_REPLAY_BOUNDS: [f64; 17] = [
+    3e-15, 3e-15, 4e-15, 3e-15, 3e-15, 3e-15, 4e-15, 2e-14, 4e-14, 5e-14, 8e-16, 2e-15, 2e-15,
+    3e-15, 9e-15, 3e-14, 3e-14,
+];
+
+pub(crate) const SPHERICAL_IMAGE_BOUNDS: [f64; 2] = [9e-13, 3e-13];
+
+pub(crate) const SPHERICAL_DECISION_COUNTS: [usize; 17] =
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0];
+
 pub(crate) fn proptest_config() -> Config {
     if cfg!(miri) {
         let mut config = Config::with_cases(8);
@@ -183,6 +218,65 @@ pub(crate) fn describe_plane(sample: &PlaneSample) -> String {
         "{} at distance {} at angle {} of {FOLD_ANGLES}",
         euclidean_name(sample.domain),
         EUCLIDEAN_DISTANCES[sample.distance],
+        sample.angle
+    )
+}
+
+pub(crate) struct SphereSample {
+    pub(crate) domain: usize,
+    pub(crate) rotation: usize,
+    pub(crate) band: usize,
+    pub(crate) angle: u32,
+    pub(crate) point: DVec3,
+}
+
+pub(crate) fn spherical_domain(index: usize) -> FundamentalDomain {
+    domain_with_aspect(SPHERICAL_DOMAINS[index], None)
+}
+
+fn viewing_matrix([yaw, pitch, roll]: [f64; 3]) -> DMat3 {
+    let [yaw, pitch, roll] = [yaw, pitch, roll].map(f64::to_radians);
+    let (sin, cos) = pitch.sin_cos();
+    let turn_pitch = DMat3::from_cols(
+        DVec3::X,
+        DVec3::new(0.0, cos, -sin),
+        DVec3::new(0.0, sin, cos),
+    );
+    spherical::rotation(roll) * turn_pitch * spherical::boost(yaw)
+}
+
+pub(crate) fn spherical_fold_set(domain: usize) -> Vec<SphereSample> {
+    let pixel = 2.0 / (15.0 / 16.0 * 512.0);
+    let mut samples = Vec::new();
+    for (rotation, &angles) in SPHERE_ROTATIONS.iter().enumerate() {
+        let inverse = viewing_matrix(angles).transpose();
+        for (band, &distance) in RIM_DISTANCES.iter().enumerate() {
+            for angle in 0..FOLD_ANGLES {
+                let position = on_circle(1.0 - distance * pixel, angle, FOLD_ANGLES);
+                let screen = DVec3::new(
+                    position.x,
+                    position.y,
+                    (1.0 - position.length_squared()).sqrt(),
+                );
+                samples.push(SphereSample {
+                    domain,
+                    rotation,
+                    band,
+                    angle,
+                    point: inverse * screen,
+                });
+            }
+        }
+    }
+    samples
+}
+
+pub(crate) fn describe_sphere(sample: &SphereSample) -> String {
+    format!(
+        "{} with rotation {:?} at {} pixels from the rim at angle {} of {FOLD_ANGLES}",
+        SPHERICAL_DOMAINS[sample.domain],
+        SPHERE_ROTATIONS[sample.rotation],
+        RIM_DISTANCES[sample.band],
         sample.angle
     )
 }

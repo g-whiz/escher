@@ -1,4 +1,5 @@
 use escher_geometry::hyperbolic::from_disk;
+use escher_geometry::spherical;
 use escher_signature::Geometry;
 use glam::{DMat3, DVec2, DVec3};
 
@@ -17,7 +18,17 @@ enum Model {
     Plane {
         pixel: f64,
     },
-    Missing,
+    Ball {
+        pixel: f64,
+        turn: DMat3,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Lift {
+    pub(crate) point: DVec3,
+    pub(crate) tangents: [DVec3; 2],
+    pub(crate) normal: Option<DVec3>,
 }
 
 #[derive(Clone, Debug)]
@@ -31,15 +42,19 @@ pub(crate) struct View {
 impl View {
     pub(crate) fn canonical(options: &RenderOptions, geometry: Geometry) -> Self {
         let shorter = f64::from(options.width.min(options.height));
+        let disk = 2.0 / ((1.0 - 2.0 * MARGIN) * shorter);
         let model = match geometry {
             Geometry::Hyperbolic => Model::Disk {
-                pixel: 2.0 / ((1.0 - 2.0 * MARGIN) * shorter),
+                pixel: disk,
                 placement: None,
             },
             Geometry::Euclidean => Model::Plane {
                 pixel: PLANE_SPAN / shorter,
             },
-            Geometry::Spherical => Model::Missing,
+            Geometry::Spherical => Model::Ball {
+                pixel: disk,
+                turn: viewing_matrix(options.rotation).transpose(),
+            },
         };
         Self::with_model(options, model)
     }
@@ -53,39 +68,75 @@ impl View {
         }
     }
 
-    pub(crate) fn position(&self, column: u32, row: u32, across: u32, down: u32) -> Option<DVec2> {
+    pub(crate) fn position(&self, column: u32, row: u32, across: u32, down: u32) -> DVec2 {
         let pixel = match self.model {
-            Model::Disk { pixel, .. } | Model::Plane { pixel } => pixel,
-            Model::Missing => return None,
+            Model::Disk { pixel, .. } | Model::Plane { pixel } | Model::Ball { pixel, .. } => pixel,
         };
         let first = f64::from(column) + (f64::from(across) + 0.5) / self.grid;
         let second = f64::from(row) + (f64::from(down) + 0.5) / self.grid;
-        Some(DVec2::new(
+        DVec2::new(
             (first - self.width / 2.0) * pixel,
             (self.height / 2.0 - second) * pixel,
-        ))
+        )
     }
 
-    pub(crate) fn point(&self, position: DVec2) -> Option<(DVec3, [DVec3; 2])> {
+    pub(crate) fn point(&self, position: DVec2) -> Option<Lift> {
         match self.model {
             Model::Disk { pixel, placement } => {
                 let point = from_disk(position)?;
                 let carried = tangents(position, pixel);
-                Some(match placement {
+                let (point, tangents) = match placement {
                     None => (point, carried),
                     Some(placement) => (
                         placement * point,
                         carried.map(|tangent| placement * tangent),
                     ),
+                };
+                Some(Lift {
+                    point,
+                    tangents,
+                    normal: None,
                 })
             }
-            Model::Plane { pixel } => Some((
-                DVec3::new(position.x, position.y, 1.0),
-                [DVec3::new(pixel, 0.0, 0.0), DVec3::new(0.0, pixel, 0.0)],
-            )),
-            Model::Missing => None,
+            Model::Plane { pixel } => Some(Lift {
+                point: DVec3::new(position.x, position.y, 1.0),
+                tangents: [DVec3::new(pixel, 0.0, 0.0), DVec3::new(0.0, pixel, 0.0)],
+                normal: None,
+            }),
+            Model::Ball { pixel, turn } => {
+                let (screen, carried) = lift(position, pixel)?;
+                Some(Lift {
+                    point: turn * screen,
+                    tangents: carried.map(|tangent| turn * tangent),
+                    normal: Some(screen),
+                })
+            }
         }
     }
+}
+
+pub(crate) fn viewing_matrix([yaw, pitch, roll]: [f64; 3]) -> DMat3 {
+    let (sin, cos) = pitch.sin_cos();
+    let pitched = DMat3::from_cols(
+        DVec3::X,
+        DVec3::new(0.0, cos, -sin),
+        DVec3::new(0.0, sin, cos),
+    );
+    spherical::rotation(roll) * pitched * spherical::boost(yaw)
+}
+
+pub(crate) fn lift(position: DVec2, pixel: f64) -> Option<(DVec3, [DVec3; 2])> {
+    let d = 1.0 - position.length_squared();
+    (d > 0.0).then(|| {
+        let height = d.sqrt();
+        (
+            DVec3::new(position.x, position.y, height),
+            [
+                DVec3::new(1.0, 0.0, -position.x / height) * pixel,
+                DVec3::new(0.0, 1.0, -position.y / height) * pixel,
+            ],
+        )
+    })
 }
 
 pub(crate) fn tangents(position: DVec2, pixel: f64) -> [DVec3; 2] {
@@ -110,11 +161,18 @@ pub(crate) fn tangents(position: DVec2, pixel: f64) -> [DVec3; 2] {
 
 #[cfg(test)]
 impl View {
-    pub(crate) fn pixel(&self) -> Option<f64> {
+    pub(crate) fn pixel(&self) -> f64 {
         match self.model {
-            Model::Disk { pixel, .. } | Model::Plane { pixel } => Some(pixel),
-            Model::Missing => None,
+            Model::Disk { pixel, .. } | Model::Plane { pixel } | Model::Ball { pixel, .. } => pixel,
         }
+    }
+
+    pub(crate) fn rotated(options: &RenderOptions, viewing: DMat3) -> Self {
+        let mut view = Self::canonical(options, Geometry::Spherical);
+        if let Model::Ball { turn, .. } = &mut view.model {
+            *turn = viewing.transpose();
+        }
+        view
     }
 
     pub(crate) fn symmetric(
@@ -144,13 +202,16 @@ mod tests {
     use escher_signature::{Geometry, Signature};
     use glam::{DVec2, DVec3};
 
-    use super::{Model, View, tangents};
+    use glam::DMat3;
+
+    use super::{Model, View, lift, tangents, viewing_matrix};
     use crate::colour::{Colour, Fill};
     use crate::golden_images::{
         ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_SIZE, TRANSLATION_TOLERANCE, compare,
         domain_with_aspect, linear_table, shifted_pairs, translation,
     };
     use crate::options::RenderOptions;
+    use crate::options::Shading;
     use crate::reference::{Reference, Worst, difference, largest_magnitude, vector};
     use crate::renderer::Renderer;
 
@@ -185,19 +246,13 @@ mod tests {
             Geometry::Hyperbolic,
         );
         let pixel = 2.0 / 30.0;
-        assert_eq!(view.pixel(), Some(pixel));
-        assert_eq!(
-            view.position(0, 0, 0, 0),
-            Some(DVec2::new(-31.75, 15.75) * pixel)
-        );
+        assert_eq!(view.pixel(), pixel);
+        assert_eq!(view.position(0, 0, 0, 0), DVec2::new(-31.75, 15.75) * pixel);
         assert_eq!(
             view.position(63, 31, 1, 1),
-            Some(DVec2::new(31.75, -15.75) * pixel)
+            DVec2::new(31.75, -15.75) * pixel
         );
-        assert_eq!(
-            view.position(32, 15, 0, 1),
-            Some(DVec2::new(0.25, 0.25) * pixel)
-        );
+        assert_eq!(view.position(32, 15, 0, 1), DVec2::new(0.25, 0.25) * pixel);
     }
 
     #[test]
@@ -284,76 +339,53 @@ mod tests {
             ),
             Geometry::Euclidean,
         );
-        assert_eq!(view.pixel(), Some(0.25));
+        assert_eq!(view.pixel(), 0.25);
         let cases = [
             ((0, 0, 0, 0), DVec2::new(-31.75, 15.75)),
             ((63, 31, 1, 1), DVec2::new(31.75, -15.75)),
             ((32, 15, 0, 1), DVec2::new(0.25, 0.25)),
         ];
         for ((column, row, across, down), screen) in cases {
-            let Some(position) = view.position(column, row, across, down) else {
-                panic!("the plane view has no position for {column}, {row}");
-            };
+            let position = view.position(column, row, across, down);
             assert_eq!(position, screen * 0.25);
-            let Some((point, tangents)) = view.point(position) else {
+            let Some(lift) = view.point(position) else {
                 panic!("the plane view has no point at {position:?}");
             };
-            assert_eq!(point, DVec3::new(position.x, position.y, 1.0));
+            assert_eq!(lift.point, DVec3::new(position.x, position.y, 1.0));
             assert_eq!(
-                tangents,
+                lift.tangents,
                 [DVec3::new(0.25, 0.0, 0.0), DVec3::new(0.0, 0.25, 0.0)]
             );
+            assert_eq!(lift.normal, None);
         }
         let far = DVec2::new(1.0e6, -3.0);
         assert_eq!(
-            view.point(far).map(|(point, _)| point),
+            view.point(far).map(|lift| lift.point),
             Some(DVec3::new(1.0e6, -3.0, 1.0))
         );
     }
 
     #[test]
-    fn view_of_each_geometry_is_the_disk_the_plane_or_no_view() {
+    fn view_of_each_geometry_is_the_disk_the_plane_or_the_ball() {
         let options = options(RenderOptions::builder(Fill::One(Colour::WHITE)).size(512, 256));
         let disk = View::canonical(&options, Geometry::Hyperbolic);
+        let pixel = 2.0 / (15.0 / 16.0 * 256.0);
         assert_eq!(
             disk.model,
             Model::Disk {
-                pixel: 2.0 / (15.0 / 16.0 * 256.0),
+                pixel,
                 placement: None
             }
         );
         let plane = View::canonical(&options, Geometry::Euclidean);
         assert_eq!(plane.model, Model::Plane { pixel: 8.0 / 256.0 });
-        let missing = View::canonical(&options, Geometry::Spherical);
-        assert_eq!(missing.model, Model::Missing);
-        assert_eq!(missing.position(0, 0, 0, 0), None);
-        for position in [DVec2::ZERO, DVec2::new(0.5, -0.25), DVec2::new(3.0, 0.0)] {
-            assert!(missing.point(position).is_none(), "{position:?}");
-        }
-    }
-
-    #[test]
-    fn renderer_draws_only_the_background_for_a_geometry_without_a_view() {
-        let background = Colour::from_srgb8(1, 2, 3);
-        let options = options(
-            RenderOptions::builder(Fill::One(Colour::WHITE))
-                .size(4, 4)
-                .samples(2)
-                .background(background),
-        );
-        let view = View::canonical(&options, Geometry::Spherical);
-        let (pixels, stats) = Renderer::new(&domain("*442"), options)
-            .with_view(view)
-            .render();
-        assert_eq!(stats.samples(), 64);
-        assert_eq!(stats.outside(), 64);
-        assert_eq!(stats.folds(), 0);
-        assert!(
-            pixels
-                .as_chunks::<3>()
-                .0
-                .iter()
-                .all(|pixel| *pixel == background.to_srgb8())
+        let ball = View::canonical(&options, Geometry::Spherical);
+        assert_eq!(
+            ball.model,
+            Model::Ball {
+                pixel,
+                turn: viewing_matrix([0.0; 3]).transpose()
+            }
         );
     }
 
@@ -413,5 +445,277 @@ mod tests {
             "*2222 aspect 1.618 in the periodic view, shifted by {columns} pixels along the first axis: {comparison:?}, allowed {ALLOWED_PIXELS} differing pixels"
         );
         assert!(comparison.within_allowance(), "{comparison:?}");
+    }
+
+    const RIM_DISTANCES: [f64; 7] = [120.0, 24.0, 8.0, 4.0, 2.0, 1.0, 0.5];
+
+    const SPHERE_ROTATIONS: [[f64; 3]; 2] = [[0.0; 3], [20.0, 35.0, 0.0]];
+
+    const BALL_TANGENT_BOUNDS: [f64; 8] = [1e-15, 3e-15, 7e-15, 2e-14, 3e-14, 6e-14, 9e-14, 6e-12];
+
+    const LIFT_BOUNDS: [f64; 7] = [2e-15, 2e-15, 3e-15, 4e-15, 4e-15, 6e-15, 9e-15];
+
+    const ORTHOGONALITY_BOUND: f64 = 4e-15;
+
+    const DETERMINANT_BOUND: f64 = 4e-15;
+
+    fn ball_pixel(size: u32) -> f64 {
+        2.0 / (15.0 / 16.0 * f64::from(size))
+    }
+
+    fn radians(degrees: [f64; 3]) -> [f64; 3] {
+        degrees.map(f64::to_radians)
+    }
+
+    #[test]
+    fn ball_view_lifts_the_centre_sample_to_the_pole_and_rejects_the_rim() {
+        let view = View::canonical(
+            &options(
+                RenderOptions::builder(Fill::One(Colour::WHITE))
+                    .size(5, 5)
+                    .samples(1),
+            ),
+            Geometry::Spherical,
+        );
+        let pixel = ball_pixel(5);
+        assert_eq!(view.pixel(), pixel);
+        assert_eq!(view.position(0, 0, 0, 0), DVec2::new(-2.0, 2.0) * pixel);
+        assert_eq!(view.position(4, 1, 0, 0), DVec2::new(2.0, 1.0) * pixel);
+        let centre = view.position(2, 2, 0, 0);
+        assert_eq!(centre, DVec2::ZERO);
+        let Some(lift) = view.point(centre) else {
+            panic!("the centre of the ball has no point");
+        };
+        assert_eq!(lift.point, DVec3::Z);
+        assert_eq!(
+            lift.tangents,
+            [DVec3::new(pixel, 0.0, 0.0), DVec3::new(0.0, pixel, 0.0)]
+        );
+        assert_eq!(lift.normal, Some(DVec3::Z));
+        for position in [
+            DVec2::X,
+            DVec2::NEG_Y,
+            DVec2::new(1.5, 0.0),
+            DVec2::new(f64::NAN, 0.0),
+            DVec2::new(0.0, f64::INFINITY),
+        ] {
+            assert!(view.point(position).is_none(), "{position:?}");
+        }
+        let inside = DVec2::new(1.0_f64.next_down(), 0.0);
+        assert!(view.point(inside).is_some());
+    }
+
+    #[test]
+    fn viewing_matrix_is_a_rotation_with_the_signs_of_the_screen() {
+        let triples = [
+            [0.0, 0.0, 0.0],
+            radians([20.0, 35.0, 0.0]),
+            [1.0, 2.0, 3.0],
+            [-2.5, 0.7, 5.0],
+            [1.0e3, -1.0e3, 0.1],
+            [core::f64::consts::FRAC_PI_2; 3],
+            [-7.0, 100.0, -0.25],
+        ];
+        let mut orthogonality = (0.0_f64, [0.0; 3]);
+        let mut determinant = (0.0_f64, [0.0; 3]);
+        for angles in triples {
+            let viewing = viewing_matrix(angles);
+            let defect = (viewing.transpose() * viewing - DMat3::IDENTITY)
+                .to_cols_array()
+                .iter()
+                .fold(0.0_f64, |largest, entry| largest.max(entry.abs()));
+            if defect >= orthogonality.0 {
+                orthogonality = (defect, angles);
+            }
+            let away = (viewing.determinant() - 1.0).abs();
+            if away >= determinant.0 {
+                determinant = (away, angles);
+            }
+        }
+        println!(
+            "viewing matrix: largest orthogonality defect {:e} at {:?}, bound {ORTHOGONALITY_BOUND:e}; largest determinant defect {:e} at {:?}, bound {DETERMINANT_BOUND:e}",
+            orthogonality.0, orthogonality.1, determinant.0, determinant.1
+        );
+        assert!(orthogonality.0 <= ORTHOGONALITY_BOUND);
+        assert!(determinant.0 <= DETERMINANT_BOUND);
+        let angle = 0.5;
+        assert!((viewing_matrix([angle, 0.0, 0.0]) * DVec3::Z).x > 0.0);
+        assert!((viewing_matrix([0.0, angle, 0.0]) * DVec3::Z).y > 0.0);
+        assert!((viewing_matrix([0.0, 0.0, angle]) * DVec3::X).y > 0.0);
+        let still = viewing_matrix([0.0; 3]);
+        for screen in [
+            DVec3::Z,
+            DVec3::new(0.3, -0.2, 0.9),
+            DVec3::new(-0.75, 0.5, 0.125),
+            DVec3::new(1.0e-300, -3.0, 7.5),
+        ] {
+            assert_eq!(still * screen, screen);
+            assert_eq!(still.transpose() * screen, screen);
+        }
+    }
+
+    fn rim_bin(distance: f64) -> usize {
+        RIM_DISTANCES
+            .iter()
+            .position(|&band| distance >= band)
+            .unwrap_or(RIM_DISTANCES.len())
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+    )]
+    fn ball_tangents_and_lift_agree_with_the_reference_lift() {
+        const POSITIONS: u32 = 2048;
+        const ANGLES: u32 = 512;
+        let mut reference = Reference::new();
+        let pixel = ball_pixel(512);
+        let name = |index: usize| {
+            RIM_DISTANCES.get(index).map_or_else(
+                || "under 0.5 pixels from the rim".to_owned(),
+                |band| format!("at least {band} pixels from the rim"),
+            )
+        };
+        let mut tangent_worst: Vec<Worst> = (0..=RIM_DISTANCES.len())
+            .map(|index| {
+                Worst::new(
+                    format!(
+                        "ball tangent {}, largest coordinate error over the largest coordinate",
+                        name(index)
+                    ),
+                    1,
+                )
+            })
+            .collect();
+        let golden_angle = core::f64::consts::PI * (3.0 - 5.0_f64.sqrt());
+        for index in 0..POSITIONS {
+            let exponent =
+                -2.0 + (2.0 + 240.0_f64.log10()) * f64::from(index) / f64::from(POSITIONS - 1);
+            let distance = 10.0_f64.powf(exponent);
+            let radius = 1.0 - distance * pixel;
+            let angle = golden_angle * f64::from(index);
+            let position = DVec2::new(radius * angle.cos(), radius * angle.sin());
+            let Some((_, computed)) = lift(position, pixel) else {
+                panic!("{position:?} is outside the ball");
+            };
+            let exact = reference.ball_tangents(position.to_array(), pixel);
+            for (computed, exact) in computed.iter().zip(&exact) {
+                let error = largest_magnitude(&difference(&vector(computed.to_array()), exact));
+                tangent_worst[rim_bin(distance)].record(&error, &largest_magnitude(exact), || {
+                    format!("position {position:?}, {distance:.4} pixels from the rim")
+                });
+            }
+        }
+        for (worst, bound) in tangent_worst.iter().zip(BALL_TANGENT_BOUNDS) {
+            worst.assert_at_most(&mut reference, bound);
+        }
+        let mut lift_worst: Vec<Worst> = RIM_DISTANCES
+            .iter()
+            .map(|band| {
+                Worst::new(
+                    format!(
+                        "lifted point, angle from the reference lift, {band} pixels from the rim"
+                    ),
+                    2 * usize::try_from(ANGLES).unwrap_or(usize::MAX),
+                )
+            })
+            .collect();
+        for degrees in SPHERE_ROTATIONS {
+            let angles = radians(degrees);
+            let [yaw, pitch, roll] = angles;
+            let view = View::canonical(
+                &options(
+                    RenderOptions::builder(Fill::One(Colour::WHITE)).rotation(yaw, pitch, roll),
+                ),
+                Geometry::Spherical,
+            );
+            for (worst, distance) in lift_worst.iter_mut().zip(RIM_DISTANCES) {
+                for index in 0..ANGLES {
+                    let angle = core::f64::consts::TAU * f64::from(index) / f64::from(ANGLES);
+                    let radius = 1.0 - distance * pixel;
+                    let position = DVec2::new(radius * angle.cos(), radius * angle.sin());
+                    let Some(lifted) = view.point(position) else {
+                        panic!("{position:?} is outside the ball");
+                    };
+                    let exact = reference.lift(position.to_array(), angles);
+                    let error = reference.angle(&vector(lifted.point.to_array()), &exact);
+                    worst.record(&error, &crate::reference::int(1), || {
+                        format!("rotation {degrees:?} at angle {index} of {ANGLES}")
+                    });
+                }
+            }
+        }
+        for (worst, bound) in lift_worst.iter().zip(LIFT_BOUNDS) {
+            worst.assert_at_most(&mut reference, bound);
+        }
+    }
+
+    const ROTATION_CASES: [(&str, [f64; 3]); 4] = [
+        ("*532", [0.0; 3]),
+        ("*532", [20.0, 35.0, 0.0]),
+        ("*55", [0.0; 3]),
+        ("*722", [0.0; 3]),
+    ];
+
+    fn word_of(domain: &FundamentalDomain, word: &[usize]) -> Vec<usize> {
+        let last = domain.sides().len() - 1;
+        word.iter().map(|&index| index.min(last)).collect()
+    }
+
+    fn word_product(domain: &FundamentalDomain, word: &[usize]) -> DMat3 {
+        word.iter().fold(DMat3::IDENTITY, |product, &index| {
+            product * domain.sides()[index].pairing()
+        })
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "rendering whole images runs loops too long for the interpreter"
+    )]
+    fn turning_the_ball_by_an_element_of_the_group_leaves_the_image_within_the_golden_allowance() {
+        let linear = linear_table();
+        let [first, second] = [
+            Colour::from_srgb8(245, 222, 179),
+            Colour::from_srgb8(70, 130, 180),
+        ];
+        for (text, degrees) in ROTATION_CASES {
+            let domain = domain(text);
+            let [yaw, pitch, roll] = radians(degrees);
+            let viewing = viewing_matrix([yaw, pitch, roll]);
+            for shading in [Shading::Phong, Shading::Flat] {
+                let render = |fill: Fill, viewing: DMat3| {
+                    let options = options(
+                        RenderOptions::builder(fill)
+                            .size(GOLDEN_SIZE, GOLDEN_SIZE)
+                            .samples(GOLDEN_GRID)
+                            .rotation(yaw, pitch, roll)
+                            .shading(shading),
+                    );
+                    let view = View::rotated(&options, viewing);
+                    Renderer::new(&domain, options).with_view(view).render().0
+                };
+                let plain = render(Fill::Parity([first, second]), viewing);
+                let swapped = render(Fill::Parity([second, first]), viewing);
+                for (word, expected) in [
+                    (&[0_usize][..], &swapped),
+                    (&[0, 1][..], &plain),
+                    (&[0, 1, 0, 2][..], &plain),
+                ] {
+                    let word = word_of(&domain, word);
+                    let element = word_product(&domain, &word);
+                    let turned = render(Fill::Parity([first, second]), viewing * element);
+                    let comparison = compare(expected, &turned, GOLDEN_GRID, &linear);
+                    println!(
+                        "{text} rotation {degrees:?} {shading:?}, word {word:?}: {comparison:?}, allowed {ALLOWED_PIXELS} differing pixels"
+                    );
+                    assert!(
+                        comparison.within_allowance(),
+                        "{text} {degrees:?} {shading:?} {word:?}: {comparison:?}"
+                    );
+                }
+            }
+        }
     }
 }

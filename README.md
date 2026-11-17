@@ -4,14 +4,14 @@ Escher is a Rust application for creating symmetry-based graphics, like those in
 
 ## Contents
 
-The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, a crate of hyperbolic, Euclidean, and spherical geometry, a crate that builds the fundamental domain of a hyperbolic, Euclidean, or spherical reflection triangle, of the rectangle, and of the lune, and a crate that renders a hyperbolic or Euclidean domain as a tiling into a PNG image.
+The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, a crate of hyperbolic, Euclidean, and spherical geometry, a crate that builds the fundamental domain of a hyperbolic, Euclidean, or spherical reflection triangle, of the rectangle, and of the lune, and a crate that renders a hyperbolic, Euclidean, or spherical domain as a tiling into a PNG image.
 
 | Crate | Purpose |
 | --- | --- |
-| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, and, with `--check`, verifies that domain, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle or of a Euclidean signature with a fundamental domain to a PNG file. It is not published. |
+| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, and, with `--check`, verifies that domain, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle, or of a Euclidean or spherical signature with a fundamental domain, to a PNG file. It is not published. |
 | `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, of the Euclidean reflection triangles `*632`, `*442`, and `*333`, of the rectangle `*2222`, whose shape parameter `aspect` sets the ratio of its sides, of the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and of the lune `*nn`, with a wall and a reflection for each side. It measures the side lengths, corner angles, and area of the domain, and checks it numerically. It is not published. |
 | `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model, of the Euclidean plane, and of the sphere, over the vector and matrix types of `glam`: points, distances, walls and lines, reflections and other isometries, and the map between the hyperboloid and the Poincare disk. It is not published. |
-| `escher-render` | A library that renders the tiling of a compact hyperbolic reflection triangle in the Poincare disk, or of a Euclidean reflection triangle or rectangle in the plane, with borders and one or two fill colours, averages several samples in each pixel, and encodes the image as a PNG file in memory. It is not published. |
+| `escher-render` | A library that renders the tiling of a compact hyperbolic reflection triangle in the Poincare disk, of a Euclidean reflection triangle or rectangle in the plane, or of a spherical reflection triangle or lune as a ball with a viewing rotation and Phong shading, with borders and one or two fill colours, averages several samples in each pixel, and encodes the image as a PNG file in memory. It is not published. |
 | `escher-signature` | A library that parses an orbifold signature, such as `*632`, into its canonical form, computes its exact Euler characteristic, and classifies it as spherical, Euclidean, or hyperbolic, with its group order, area, and deformation dimension where they apply. It is not published. |
 
 The directory `docs/research/` holds references on the mathematics of orbifolds, geometry models, fundamental domains, rendering, and colourings, and studies of SymmHub and other existing software. It also holds a survey of Rust crates, three surveys of topics beyond the proof of concept, and a list of sources that the research could not read in full. These three surveys cover aperiodic tilings, partial differential equations on orbifolds, and vector export, animation, and shader export.
@@ -103,7 +103,7 @@ A wrong command line, such as an unknown command, gives exit status 2.
 
 ### Rendering a Tiling
 
-`escher render` draws the tiling of a hyperbolic or Euclidean signature whose `Domain` line in `escher info` names a domain, and writes it to a PNG file. It draws a compact hyperbolic reflection triangle, such as `*732`, in the Poincare disk, and the Euclidean signatures `*632`, `*442`, `*333`, and `*2222` in the plane. It gives an error with exit status 1 for any other signature. This command writes a 512 by 512 image to `tiling.png`, and replaces the file if it exists:
+`escher render` draws the tiling of a signature whose `Domain` line in `escher info` names a domain, and writes it to a PNG file. It draws a compact hyperbolic reflection triangle, such as `*732`, in the Poincare disk, the Euclidean signatures `*632`, `*442`, `*333`, and `*2222` in the plane, and the spherical signatures `*332`, `*432`, `*532`, `*n22`, and `*nn` as a lit ball. It gives an error with exit status 1 for any other signature. This command writes a 512 by 512 image to `tiling.png`, and replaces the file if it exists:
 
 ```sh
 escher render '*732' -o tiling.png
@@ -121,7 +121,15 @@ The option `--set` sets a shape parameter, as `NAME=VALUE`. This command draws `
 escher render '*2222' --set aspect=1.618 -o tiling.png
 ```
 
-By default, the tiles alternate between two fill colours by parity, with black borders 1 pixel wide. A hyperbolic tiling has a white background outside the disk. The options `--size`, `--colouring`, `--colours`, `--border-width`, `--border-colour`, `--background`, and `--samples` change the image, and `escher render --help` lists these and the other options.
+This command draws the ball of `*532`, turned 20 degrees to the right and 35 degrees up:
+
+```sh
+escher render '*532' --rotation 20,35,0 -o ball.png
+```
+
+The option `--rotation` turns the ball by three angles in degrees, `YAW,PITCH,ROLL`. The option `--light` sets the direction of the light as `X,Y,Z`, with `X` to the right, `Y` up, and `Z` toward the viewer. The option `--shading` takes `phong`, the default, or `none` for a flat disk. These three options change only a spherical tiling, but `escher render` checks their values for every signature, so a bad value is an error for any tiling.
+
+By default, the tiles alternate between two fill colours by parity, with black borders 1 pixel wide. A hyperbolic or spherical tiling has a white background outside the disk or the ball. The options `--size`, `--colouring`, `--colours`, `--border-width`, `--border-colour`, `--background`, and `--samples` change the image, and `escher render --help` lists these and the other options.
 
 ## Development
 

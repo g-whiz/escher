@@ -5,8 +5,7 @@ use escher_render::{Colour, ErrorKind, Fill, RenderOptions, RenderStats, Rendere
 use crate::common::{decode_png, domain, one_fill, options};
 use crate::golden_images::{
     ALLOWED_PIXELS, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE, GoldenImage,
-    TRANSLATION_TOLERANCE, compare, domain_with_aspect, golden_options, linear_table,
-    shifted_pairs, translation,
+    TRANSLATION_TOLERANCE, compare, domain_with_aspect, linear_table, shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -14,7 +13,7 @@ const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
 const RECIPE: &str = "just update-golden";
 
 fn golden_pixels(image: &GoldenImage) -> Vec<u8> {
-    Renderer::new(&image.domain(), golden_options()).render().0
+    Renderer::new(&image.domain(), image.options()).render().0
 }
 
 fn encoded(pixels: &[u8]) -> Vec<u8> {
@@ -35,7 +34,7 @@ fn check(
     pixels: &[u8],
     linear: &[f64],
 ) -> Option<String> {
-    let name = image.signature;
+    let name = format!("{} in {}", image.signature, image.file);
     let file = match std::fs::read(path) {
         Ok(file) => file,
         Err(error) => {
@@ -128,15 +127,22 @@ fn golden_images_match_the_committed_files() {
     ignore = "rendering whole images runs loops too long for the interpreter"
 )]
 fn render_equals_render_rows_over_any_split_into_bands() {
+    let [yaw, pitch, roll] = [20.0_f64, 35.0, 0.0].map(f64::to_radians);
     let options = options(
         RenderOptions::builder(Fill::Parity([
             Colour::WHITE,
             Colour::from_srgb8(220, 20, 60),
         ]))
         .size(64, 48)
-        .samples(3),
+        .samples(3)
+        .rotation(yaw, pitch, roll),
     );
-    let renderer = Renderer::new(&domain([7, 3, 2]), options);
+    for domain in [domain([7, 3, 2]), domain_with_aspect("*532", None)] {
+        assert_bands_equal_the_whole_image(&Renderer::new(&domain, options.clone()));
+    }
+}
+
+fn assert_bands_equal_the_whole_image(renderer: &Renderer) {
     let (whole, whole_stats) = renderer.render();
     let row = 3 * 64;
     let splits: [&[u32]; 3] = [&[1; 48], &[7, 1, 23, 2, 15], &[48]];
@@ -387,4 +393,68 @@ fn square_tiling_at_one_sample_per_pixel_has_no_border_pixel_and_at_two_by_two_h
     );
     assert_eq!(counts[0], 0);
     assert!(counts[1] > 0);
+}
+
+fn assert_folds_within_the_group_order(text: &str) {
+    let signature: escher_signature::Signature = text
+        .parse()
+        .unwrap_or_else(|error| panic!("{text:?} is rejected: {error}"));
+    let Some(order) = signature.group_order() else {
+        panic!("{text} has no group order");
+    };
+    let options = options(RenderOptions::builder(one_fill()));
+    let (_, stats) = Renderer::new(&domain_with_aspect(text, None), options).render();
+    let inside = stats.samples() - stats.outside();
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the counts are far below 2 to the power 52"
+    )]
+    let mean = stats.folds() as f64 / inside as f64;
+    println!(
+        "{text} at 512 by 512 with 4 by 4 samples: {inside} samples inside the ball, mean steps {mean:.2}, largest {}, group order {order}, {} unconverged",
+        stats.largest_fold(),
+        stats.unconverged()
+    );
+    assert!(u64::from(stats.largest_fold()) < order.get(), "{text}");
+    assert_eq!(stats.unconverged(), 0, "{text}");
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn spherical_golden_domains_fold_every_sample_within_the_group_order() {
+    let mut texts: Vec<&str> = Vec::new();
+    for image in &GOLDEN_IMAGES {
+        let spherical = image.domain().geometry() == escher_signature::Geometry::Spherical;
+        if spherical && !texts.contains(&image.signature) {
+            texts.push(image.signature);
+        }
+    }
+    for text in texts {
+        assert_folds_within_the_group_order(text);
+    }
+    let small = options(RenderOptions::builder(one_fill()).size(4, 4).samples(1));
+    let (_, stats) = Renderer::new(&domain_with_aspect("*532", None), small).render();
+    assert_eq!(stats.samples(), 16);
+    assert_eq!(stats.outside(), 4);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn triangle_of_order_1000_folds_every_sample_within_the_group_order() {
+    assert_folds_within_the_group_order("*(1000)22");
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn lune_of_order_1000_folds_every_sample_within_the_group_order() {
+    assert_folds_within_the_group_order("*(1000)(1000)");
 }
