@@ -1,6 +1,6 @@
 [package]
 name = "escher-geometry"
-description = "Points, walls, isometries, and the Poincare disk map of the hyperbolic plane for Escher."
+description = "Points, walls, and isometries of the hyperbolic and Euclidean planes, and the Poincare disk map, for Escher."
 publish = false
 version.workspace = true
 authors.workspace = true

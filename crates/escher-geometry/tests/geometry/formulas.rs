@@ -1,4 +1,5 @@
 use astro_float_num::BigFloat;
+use escher_geometry::euclidean;
 use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, distance, form, from_disk, inverse, isometry_defect, normalize_point,
     reflection, rotation, side, to_disk, translation, wall_through,
@@ -6,8 +7,8 @@ use escher_geometry::hyperbolic::{
 use glam::{DVec2, DVec3};
 
 use crate::common::{
-    CASES, DOMAIN_TRIPLES, Rng, Triangle, pair, point_off_wall, polar_point, table_points,
-    table_vectors, wall_normal,
+    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, Rng, Triangle, pair, point_off_wall, polar_point,
+    table_points, table_vectors, wall_normal,
 };
 use crate::reference::{
     Reference, Vector, Worst, add, difference, div, epsilon, error, int, max, mul, num, scale,
@@ -19,6 +20,11 @@ const TRANSLATION_COMPOSITION_TOLERANCE: f64 = 16.0;
 const TRANSLATION_INVERSE_TOLERANCE: f64 = 16.0;
 const CLOSE_POINTS_MEASURED_MINIMUM: usize = 95_000;
 const CLOSE_POINTS_MOST_DEGENERATE: usize = 250;
+const EUCLIDEAN_REFLECTION_TOLERANCE: f64 = 16.0;
+const EUCLIDEAN_REFLECTION_DEFECT_TOLERANCE: f64 = 32.0;
+const EUCLIDEAN_ORTHOGONALITY_TOLERANCE: f64 = 8.0;
+const EUCLIDEAN_NORM_TOLERANCE: f64 = 32.0;
+const EUCLIDEAN_DISTANCE_TOLERANCE: f64 = 16.0;
 
 fn big(value: DVec3) -> Vector {
     vector(value.to_array())
@@ -939,4 +945,116 @@ fn reference_arithmetic_reproduces_known_values() {
         println!("{name}: error {shown:e}");
         assert!(size <= tolerance, "{name}: error {shown:e}");
     }
+}
+
+fn euclidean_reflection_reference(c: &Vector, x: &Vector) -> (Vector, Vector) {
+    let offset = c[2].neg();
+    let along = add(&mul(&c[0], &x[0]), &mul(&c[1], &x[1]));
+    let twice = mul(&int(2), &sub(&offset, &along));
+    let image = [
+        add(&x[0], &mul(&twice, &c[0])),
+        add(&x[1], &mul(&twice, &c[1])),
+        x[2].clone(),
+    ];
+    let sum = add(
+        &add(&mul(&c[0], &x[0]).abs(), &mul(&c[1], &x[1]).abs()),
+        &mul(&c[2], &x[2]).abs(),
+    );
+    let u = [c[0].clone(), c[1].clone(), int(0)];
+    let sigma =
+        [0, 1, 2].map(|index| add(&x[index].abs(), &mul(&mul(&int(2), &u[index].abs()), &sum)));
+    (image, sigma)
+}
+
+fn plane_length(x: &Vector) -> BigFloat {
+    sqrt(&add(&mul(&x[0], &x[0]), &mul(&x[1], &x[1])))
+}
+
+fn line_value(c: &Vector, x: &Vector) -> BigFloat {
+    add(
+        &add(&mul(&c[0], &x[0]), &mul(&c[1], &x[1])),
+        &mul(&c[2], &x[2]),
+    )
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn euclidean_reflection_is_within_its_bounds_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut points = Worst::new(
+        "euclidean reflection(c) * x, scaled by eps * sigma_i",
+        3 * CASES,
+    );
+    let mut defects = Worst::new(
+        "euclidean isometry_defect(reflection(c)), scaled by eps",
+        CASES,
+    );
+    let mut rng = Rng::new(21);
+    for index in 0..CASES {
+        let line = rng.line_covector(u32::try_from(index).unwrap_or(0));
+        let x = rng.euclidean_point_within(EUCLIDEAN_RADIUS);
+        let computed = euclidean::reflection(line) * x;
+        let (image, sigma) = euclidean_reflection_reference(&big(line), &big(x));
+        for ((value, exact), sigma) in computed.to_array().into_iter().zip(&image).zip(&sigma) {
+            points.record(&error(value, exact), &mul(&epsilon(), sigma), || {
+                format!("{line:?} {x:?}")
+            });
+        }
+        let defect = euclidean::isometry_defect(euclidean::reflection(line));
+        defects.record(&num(defect), &epsilon(), || format!("{line:?}"));
+    }
+    points.assert_at_most(&mut reference, EUCLIDEAN_REFLECTION_TOLERANCE);
+    defects.assert_at_most(&mut reference, EUCLIDEAN_REFLECTION_DEFECT_TOLERANCE);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn euclidean_wall_through_and_distance_are_within_their_bounds_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut orthogonality = Worst::new(
+        "euclidean wall_through, |c . p| and |c . q|, scaled by eps * (1 + |p| + |q| + |p| |q| / |p - q|)",
+        2 * CASES,
+    );
+    let mut norm = Worst::new(
+        "euclidean wall_through, |c_1^2 + c_2^2 - 1|, scaled by eps",
+        CASES,
+    );
+    let mut distances = Worst::new("euclidean distance, relative error, scaled by eps", CASES);
+    let mut rng = Rng::new(22);
+    for _ in 0..CASES {
+        let (first, second) = rng.euclidean_pair();
+        let (rp, rq) = (big(first), big(second));
+        let apart = plane_length(&difference(&rp, &rq));
+        let (p_length, q_length) = (plane_length(&rp), plane_length(&rq));
+        let scale = mul(
+            &epsilon(),
+            &add(
+                &add(&add(&int(1), &p_length), &q_length),
+                &div(&mul(&p_length, &q_length), &apart),
+            ),
+        );
+        let input = || format!("{first:?} {second:?}");
+        let Ok(line) = euclidean::wall_through(first, second) else {
+            panic!("no line through {first:?} {second:?}");
+        };
+        let rc = big(line);
+        orthogonality.record(&line_value(&rc, &rp).abs(), &scale, input);
+        orthogonality.record(&line_value(&rc, &rq).abs(), &scale, input);
+        let squares = add(&mul(&rc[0], &rc[0]), &mul(&rc[1], &rc[1]));
+        norm.record(&sub(&squares, &int(1)).abs(), &epsilon(), input);
+        distances.record(
+            &error(euclidean::distance(first, second), &apart),
+            &mul(&epsilon(), &apart),
+            input,
+        );
+    }
+    orthogonality.assert_at_most(&mut reference, EUCLIDEAN_ORTHOGONALITY_TOLERANCE);
+    norm.assert_at_most(&mut reference, EUCLIDEAN_NORM_TOLERANCE);
+    distances.assert_at_most(&mut reference, EUCLIDEAN_DISTANCE_TOLERANCE);
 }

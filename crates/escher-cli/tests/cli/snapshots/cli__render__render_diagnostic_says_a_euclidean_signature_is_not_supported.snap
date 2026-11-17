@@ -6,5 +6,4 @@ status: Failure
 --- stdout
 --- stderr
 error: cannot render *632: rendering this signature is not supported
-  caused by: cannot build fundamental domain: the signature *632 is not supported
 --- end

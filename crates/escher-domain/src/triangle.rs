@@ -14,30 +14,51 @@ pub(crate) const LARGEST_ORDER: u32 = 1000;
 const TWO_TO_THE_32: f64 = 4_294_967_296.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Supported {
-    pub(crate) orders: [u32; 3],
-    pub(crate) area: f64,
+pub(crate) enum Supported {
+    HyperbolicTriangle { orders: [u32; 3], area: f64 },
+    EuclideanTriangle { orders: [u32; 3] },
+    Rectangle,
+}
+
+impl Supported {
+    pub(crate) fn orders(self) -> Vec<u32> {
+        match self {
+            Self::HyperbolicTriangle { orders, .. } | Self::EuclideanTriangle { orders } => {
+                orders.to_vec()
+            }
+            Self::Rectangle => vec![2; 4],
+        }
+    }
 }
 
 pub(crate) fn supported(signature: &Signature) -> Option<Supported> {
-    if signature.handles() != 0
-        || signature.crosscaps() != 0
-        || !signature.cone_orders().is_empty()
-        || signature.geometry() != Geometry::Hyperbolic
+    if signature.handles() != 0 || signature.crosscaps() != 0 || !signature.cone_orders().is_empty()
     {
         return None;
     }
     let [boundary] = signature.boundaries() else {
         return None;
     };
-    let [first, second, third] = boundary.corner_orders() else {
-        return None;
-    };
-    let orders = [first.finite()?, second.finite()?, third.finite()?];
-    let area_over_pi = signature.area_over_pi()?;
-    let area = PI * signed_to_f64(area_over_pi.numerator())
-        / unsigned_to_f64(area_over_pi.denominator().get());
-    Some(Supported { orders, area })
+    match (boundary.corner_orders(), signature.geometry()) {
+        ([first, second, third], Geometry::Hyperbolic) => {
+            let orders = [first.finite()?, second.finite()?, third.finite()?];
+            let area_over_pi = signature.area_over_pi()?;
+            let area = PI * signed_to_f64(area_over_pi.numerator())
+                / unsigned_to_f64(area_over_pi.denominator().get());
+            Some(Supported::HyperbolicTriangle { orders, area })
+        }
+        ([first, second, third], Geometry::Euclidean) => {
+            let orders = [first.finite()?, second.finite()?, third.finite()?];
+            Some(Supported::EuclideanTriangle { orders })
+        }
+        ([first, second, third, fourth], Geometry::Euclidean) => {
+            for order in [first, second, third, fourth] {
+                order.finite()?;
+            }
+            Some(Supported::Rectangle)
+        }
+        _ => None,
+    }
 }
 
 fn signed_to_f64(value: i64) -> f64 {
@@ -152,7 +173,7 @@ mod tests {
     fn supported_reads_the_canonical_order_and_the_area() {
         assert_eq!(
             supported(&signature("*237")),
-            Some(Supported {
+            Some(Supported::HyperbolicTriangle {
                 orders: [7, 3, 2],
                 area: PI / 42.0,
             }),
@@ -160,8 +181,17 @@ mod tests {
     }
 
     #[test]
-    fn supported_rejects_a_signature_that_is_not_a_hyperbolic_triangle() {
-        for text in ["*632", "*3333", "732", "*(inf)32"] {
+    fn supported_reads_the_euclidean_triangle_and_the_rectangle() {
+        assert_eq!(
+            supported(&signature("*236")),
+            Some(Supported::EuclideanTriangle { orders: [6, 3, 2] }),
+        );
+        assert_eq!(supported(&signature("*2222")), Some(Supported::Rectangle));
+    }
+
+    #[test]
+    fn supported_rejects_a_signature_without_a_construction() {
+        for text in ["*532", "*3333", "732", "*(inf)32"] {
             assert_eq!(supported(&signature(text)), None, "{text}");
         }
     }

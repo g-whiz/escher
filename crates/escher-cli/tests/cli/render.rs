@@ -41,6 +41,15 @@ fn render_diagnostic_says_a_euclidean_signature_is_not_supported() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn render_diagnostic_says_a_spherical_signature_is_not_supported() {
+    insta::assert_snapshot!(render_snapshot("spherical", &["*532"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn render_diagnostic_says_a_non_compact_signature_is_not_supported() {
     insta::assert_snapshot!(render_snapshot("non_compact", &["3*(inf)"]));
 }
@@ -374,7 +383,13 @@ fn assert_no_file_changes(test: &str, args: &[&str]) {
 #[test]
 #[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_without_a_domain_changes_no_file() {
-    assert_no_file_changes("no_domain_file", &["*632"]);
+    assert_no_file_changes("no_domain_file", &["*532"]);
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
+fn render_of_a_euclidean_domain_changes_no_file() {
+    assert_no_file_changes("euclidean_file", &["*2222"]);
 }
 
 #[test]
@@ -466,10 +481,10 @@ fn first_error_line(args: &[&str]) -> (Status, String) {
 #[test]
 fn render_without_a_domain_returns_failure() {
     assert_eq!(
-        first_error_line(&["*632"]),
+        first_error_line(&["*532"]),
         (
             Status::Failure,
-            "error: cannot render *632: rendering this signature is not supported".to_owned()
+            "error: cannot render *532: rendering this signature is not supported".to_owned()
         )
     );
 }

@@ -1,0 +1,16 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*333\"])"
+---
+status: Success
+--- stdout
+Signature: *333
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Domain: 3 mirror sides
+Corner angles in degrees: 60.000000, 60.000000, 60.000000
+Side lengths: 1.000000, 1.000000, 1.000000
+Domain area: 0.433013
+--- stderr
+--- end

@@ -1,6 +1,6 @@
 [package]
 name = "escher-domain"
-description = "The fundamental domain of an orbifold signature as a verified polygon of the hyperbolic plane for Escher."
+description = "The fundamental domain of an orbifold signature as a verified polygon of the hyperbolic or the Euclidean plane, for Escher."
 publish = false
 version.workspace = true
 authors.workspace = true

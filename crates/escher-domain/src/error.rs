@@ -2,6 +2,7 @@ use core::fmt;
 
 use escher_signature::Signature;
 
+use crate::parameters::Parameter;
 use crate::triangle::LARGEST_ORDER;
 
 /// A specialized [`Result`](core::result::Result) whose error is [`Error`].
@@ -20,12 +21,12 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// use escher_domain::{ErrorKind, FundamentalDomain};
 /// use escher_signature::Signature;
 ///
-/// let signature: Signature = "*632".parse()?;
+/// let signature: Signature = "*532".parse()?;
 /// let error = FundamentalDomain::build(&signature).err();
 /// assert_eq!(error.as_ref().map(|error| error.kind()), Some(ErrorKind::UnsupportedSignature));
 /// assert_eq!(
 ///     error.map(|error| error.to_string()).as_deref(),
-///     Some("cannot build fundamental domain: the signature *632 is not supported"),
+///     Some("cannot build fundamental domain: the signature *532 is not supported"),
 /// );
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -59,6 +60,20 @@ impl Error {
         }
     }
 
+    pub(crate) fn unknown_parameter(signature: &Signature) -> Self {
+        Self {
+            operation: OPERATION,
+            detail: Detail::UnknownParameter(signature.to_string()),
+        }
+    }
+
+    pub(crate) fn parameter_out_of_range(parameter: Parameter) -> Self {
+        Self {
+            operation: OPERATION,
+            detail: Detail::ParameterOutOfRange(parameter),
+        }
+    }
+
     /// Returns the cause of the error as an [`ErrorKind`].
     #[must_use]
     pub fn kind(&self) -> ErrorKind {
@@ -66,6 +81,8 @@ impl Error {
             Detail::UnsupportedSignature(_) => ErrorKind::UnsupportedSignature,
             Detail::LimitExceeded(_) => ErrorKind::LimitExceeded,
             Detail::Numerical(_) => ErrorKind::Numerical,
+            Detail::UnknownParameter(_) => ErrorKind::UnknownParameter,
+            Detail::ParameterOutOfRange(_) => ErrorKind::ParameterOutOfRange,
         }
     }
 }
@@ -82,7 +99,9 @@ impl core::error::Error for Error {
             Detail::Numerical(Some(source)) => Some(source),
             Detail::UnsupportedSignature(_)
             | Detail::LimitExceeded(_)
-            | Detail::Numerical(None) => None,
+            | Detail::Numerical(None)
+            | Detail::UnknownParameter(_)
+            | Detail::ParameterOutOfRange(_) => None,
         }
     }
 }
@@ -107,10 +126,12 @@ impl core::error::Error for Error {
 pub enum ErrorKind {
     /// The crate does not build a fundamental domain for the signature.
     ///
-    /// Only a compact hyperbolic reflection triangle has one. Its signature
-    /// has the form `*pqr` with three finite corner orders whose reciprocals
-    /// sum to less than 1. A corner of order `n` is a corner where two mirrors
-    /// meet at the angle `pi / n`.
+    /// Only a reflection triangle of the hyperbolic or the Euclidean plane and
+    /// the reflection rectangle have one. The signature of a triangle has the
+    /// form `*pqr` with three finite corner orders whose reciprocals sum to
+    /// less than 1, or to exactly 1 for `*632`, `*442`, and `*333`. The
+    /// signature of the rectangle is `*2222`. A corner of order `n` is a
+    /// corner where two mirrors meet at the angle `pi / n`.
     UnsupportedSignature,
     /// A corner order of a supported signature is larger than 1000, the
     /// largest order for which the accuracy of the domain is established.
@@ -121,6 +142,15 @@ pub enum ErrorKind {
     ///
     /// No supported signature is known to produce it.
     Numerical,
+    /// A setting names no shape parameter of the signature.
+    ///
+    /// The names of the parameters are those that
+    /// [`parameters`](crate::parameters()) lists, and a name matches only when
+    /// it is equal byte for byte.
+    UnknownParameter,
+    /// The value of a setting is NaN, infinite, or outside the range of its
+    /// shape parameter.
+    ParameterOutOfRange,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -131,6 +161,15 @@ enum Detail {
     LimitExceeded(u32),
     #[error("the construction is numerically degenerate")]
     Numerical(Option<escher_geometry::Error>),
+    #[error("the signature {0} has no shape parameter with one of the given names")]
+    UnknownParameter(String),
+    #[error(
+        "the parameter {} is outside its range of {} to {}",
+        .0.name(),
+        .0.minimum(),
+        .0.maximum()
+    )]
+    ParameterOutOfRange(Parameter),
 }
 
 #[cfg(test)]
@@ -138,6 +177,7 @@ mod tests {
     use escher_signature::Signature;
 
     use super::{Error, ErrorKind};
+    use crate::parameters::Parameter;
 
     fn signature(text: &str) -> Signature {
         match text.parse() {
@@ -153,12 +193,14 @@ mod tests {
         }
     }
 
-    fn errors() -> [Error; 4] {
+    fn errors() -> [Error; 6] {
         [
-            Error::unsupported(&signature("*236")),
+            Error::unsupported(&signature("*235")),
             Error::limit_exceeded(1001),
             Error::numerical(Some(geometry_error())),
             Error::numerical(None),
+            Error::unknown_parameter(&signature("*236")),
+            Error::parameter_out_of_range(Parameter::Aspect),
         ]
     }
 
@@ -168,7 +210,7 @@ mod tests {
         for error in errors() {
             let text = error.to_string();
             assert!(text.starts_with(prefix), "{text}");
-            let rest = text.replace("*632", "");
+            let rest = text.replace("*532", "").replace("*632", "");
             assert_eq!(rest, rest.to_lowercase(), "{text}");
             assert!(!text.ends_with('.'), "{text}");
         }
@@ -180,10 +222,12 @@ mod tests {
         assert_eq!(
             texts,
             [
-                "cannot build fundamental domain: the signature *632 is not supported",
+                "cannot build fundamental domain: the signature *532 is not supported",
                 "cannot build fundamental domain: order 1001 is larger than 1000",
                 "cannot build fundamental domain: the construction is numerically degenerate",
                 "cannot build fundamental domain: the construction is numerically degenerate",
+                "cannot build fundamental domain: the signature *632 has no shape parameter with one of the given names",
+                "cannot build fundamental domain: the parameter aspect is outside its range of 0.125 to 8",
             ],
         );
     }
@@ -197,16 +241,18 @@ mod tests {
                 ErrorKind::LimitExceeded,
                 ErrorKind::Numerical,
                 ErrorKind::Numerical,
+                ErrorKind::UnknownParameter,
+                ErrorKind::ParameterOutOfRange,
             ],
         );
     }
 
     #[test]
     fn source_is_the_geometry_error_only_for_a_numerical_error_that_one_caused() {
-        let [unsupported, limit, caused, uncaused] = errors();
+        let [unsupported, limit, caused, uncaused, unknown, out_of_range] = errors();
         let source = core::error::Error::source(&caused).map(ToString::to_string);
         assert_eq!(source, Some(geometry_error().to_string()));
-        for error in [unsupported, limit, uncaused] {
+        for error in [unsupported, limit, uncaused, unknown, out_of_range] {
             assert!(core::error::Error::source(&error).is_none(), "{error}");
         }
     }

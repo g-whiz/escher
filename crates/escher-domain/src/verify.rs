@@ -1,11 +1,9 @@
 use core::f64::consts::PI;
 
-use escher_geometry::hyperbolic::{
-    covector, inverse, isometry_defect, reflection, side, translation,
-};
+use escher_geometry::{euclidean, hyperbolic};
 use glam::{DMat3, DVec3};
 
-use crate::domain::{FundamentalDomain, PairingKind};
+use crate::domain::{FundamentalDomain, PairingKind, Plane};
 
 const ISOMETRY_TOLERANCE: f64 = 1e-9;
 const PAIRING_TOLERANCE: f64 = 1e-9;
@@ -74,6 +72,12 @@ impl Check {
 /// and the accessor of each check to report which condition failed and by
 /// how much. Every check is computed, whether or not another one fails.
 ///
+/// The checks of the pairings, the walls, the relators, the angles, and the
+/// area read the vertices, and each requires every vertex to be a point with
+/// finite coordinates and a positive last coordinate. Each also requires the
+/// domain to have as many vertices and corner orders as sides, and at least
+/// one side, and its residual is infinite when a requirement fails.
+///
 /// # Examples
 ///
 /// ```
@@ -134,12 +138,16 @@ impl Verification {
     }
 
     /// Returns the check that each pairing isometry is an isometry, a matrix
-    /// that preserves the Minkowski form of the linear model.
+    /// that preserves the Minkowski form of the linear model in a hyperbolic
+    /// domain, and distances in a Euclidean one.
     ///
     /// The residual is the largest
-    /// [`isometry_defect`](escher_geometry::hyperbolic::isometry_defect) of
-    /// a pairing. It is infinite when an entry of a pairing is not finite, or
-    /// when a pairing maps the hyperboloid onto its other sheet.
+    /// [`hyperbolic::isometry_defect`](escher_geometry::hyperbolic::isometry_defect)
+    /// or
+    /// [`euclidean::isometry_defect`](escher_geometry::euclidean::isometry_defect)
+    /// of a pairing. It is infinite when an entry of a pairing is not finite,
+    /// or, in a hyperbolic domain, when a pairing maps the hyperboloid onto
+    /// its other sheet.
     #[must_use]
     pub fn isometries(&self) -> Check {
         self.isometries
@@ -151,12 +159,12 @@ impl Verification {
     /// coordinates and a positive last coordinate, the partner of each side is
     /// in range, the partner of the partner of each side is the side itself,
     /// the centre is inside every side, each pairing moves the centre outside
-    /// the partner side, and the values below are finite. Otherwise the residual is the larger of two values. The
-    /// first is the largest entry of the product of a pairing and its
-    /// partner's pairing minus the identity. The second is the largest
-    /// coordinate of the difference between an endpoint of a mirror side and
-    /// its image under the pairing, divided by the last coordinate of the
-    /// endpoint.
+    /// the partner side, and the values below are finite. Otherwise the
+    /// residual is the larger of two values. The first is the largest entry of
+    /// the product of a pairing and its partner's pairing minus the identity.
+    /// The second is the largest coordinate of the difference between an
+    /// endpoint of a mirror side and its image under the pairing, divided by
+    /// the last coordinate of the endpoint.
     #[must_use]
     pub fn pairings(&self) -> Check {
         self.pairings
@@ -165,13 +173,18 @@ impl Verification {
     /// Returns the check that each side lies on its wall and that the wall,
     /// its covector, and its pairing agree.
     ///
-    /// The residual is the largest of three values. The first is the absolute
+    /// The residual is the largest of these values. The first is the absolute
     /// value of the side test of an endpoint against its wall, divided by the
-    /// last coordinate of the endpoint. The second is the largest entry of a
-    /// pairing minus the reflection in its normal. The third is the largest
-    /// coordinate of a covector minus the covector of its normal. The residual
-    /// is infinite when a vertex is not a point with finite coordinates and a
-    /// positive last coordinate, or when one of these values is not finite.
+    /// last coordinate of the endpoint. In a hyperbolic domain, the second is
+    /// the largest entry of a pairing minus the reflection in its normal, and
+    /// the third is the largest coordinate of a covector minus the covector of
+    /// its normal. In a Euclidean domain, the second is the largest entry of a
+    /// pairing minus the reflection in its covector, the third is the largest
+    /// coordinate of a normal minus the first two coordinates of its covector,
+    /// and the fourth is how far the sum of the squares of those two
+    /// coordinates is from 1. The residual is infinite when a vertex is not a
+    /// point with finite coordinates and a positive last coordinate, or when
+    /// one of these values is not finite.
     #[must_use]
     pub fn walls(&self) -> Check {
         self.walls
@@ -183,10 +196,11 @@ impl Verification {
     /// At a corner of order `n`, the relator is the product of the pairings
     /// of the two sides that meet there, raised to the power `n`, and it must
     /// be the identity. The residual is the largest entry of the relator minus
-    /// the identity, divided by `n`, computed with the corner moved to the
-    /// centre of the disk. The residual is infinite when a vertex is not a
-    /// point with finite coordinates and a positive last coordinate, or when
-    /// an entry of the relator is not finite. The tolerance is 2e-6.
+    /// the identity, divided by `n`, computed in a hyperbolic domain with the
+    /// corner moved to the centre of the disk. The residual is infinite when a
+    /// vertex is not a point with finite coordinates and a positive last
+    /// coordinate, or when an entry of the relator is not finite. The
+    /// tolerance is 2e-6.
     #[must_use]
     pub fn relators(&self) -> Check {
         self.relators
@@ -197,21 +211,25 @@ impl Verification {
     /// The residual is the largest absolute difference between a measured
     /// angle and `pi / n`. It is infinite when a vertex is not a point with
     /// finite coordinates and a positive last coordinate, when an angle is
-    /// not finite, or when the angles sum to `pi` or more, which no triangle
-    /// of the hyperbolic plane does.
+    /// not finite, or, in a hyperbolic domain, when the angles sum to `pi` or
+    /// more, which no triangle of the hyperbolic plane does.
     #[must_use]
     pub fn angles(&self) -> Check {
         self.angles
     }
 
-    /// Returns the check that the measured area agrees with the area of the
+    /// Returns the check that the domain agrees with the area of the
     /// signature.
     ///
     /// The area of a hyperbolic orbifold is `-2 pi` times its Euler
-    /// characteristic. The residual is the absolute difference between
-    /// [`FundamentalDomain::area`] and that area. It is infinite when a vertex
-    /// is not a point with finite coordinates and a positive last coordinate,
-    /// or when the measured area is not finite.
+    /// characteristic. In a hyperbolic domain, the residual is the absolute
+    /// difference between [`FundamentalDomain::area`] and that area. A
+    /// Euclidean orbifold has the Euler characteristic 0, so the signature
+    /// fixes no area. The residual of a Euclidean domain is instead the
+    /// absolute difference between `(m - 2) pi` and the sum of the corner
+    /// angles of its `m` corners. The residual is infinite when a vertex is
+    /// not a point with finite coordinates and a positive last coordinate, or
+    /// when the measured area or angle sum is not finite.
     #[must_use]
     pub fn area(&self) -> Check {
         self.area
@@ -260,18 +278,37 @@ fn largest_coordinate(vector: DVec3) -> f64 {
 }
 
 fn vertices_are_points(domain: &FundamentalDomain) -> bool {
-    domain
-        .vertices
-        .iter()
-        .all(|vertex| vertex.is_finite() && vertex.z > 0.0)
+    let count = domain.sides.len();
+    count > 0
+        && domain.vertices.len() == count
+        && domain.orders.len() == count
+        && domain
+            .vertices
+            .iter()
+            .all(|vertex| vertex.is_finite() && vertex.z > 0.0)
 }
 
 fn endpoints(domain: &FundamentalDomain, index: usize) -> [DVec3; 2] {
-    [domain.vertices[(index + 2) % 3], domain.vertices[index]]
+    let count = domain.vertices.len();
+    [
+        domain.vertices[(index + count - 1) % count],
+        domain.vertices[index],
+    ]
+}
+
+fn side_value(domain: &FundamentalDomain, covector: DVec3, point: DVec3) -> f64 {
+    match domain.plane {
+        Plane::Hyperbolic { .. } => hyperbolic::side(covector, point),
+        Plane::Euclidean => euclidean::side(covector, point),
+    }
 }
 
 fn isometries(domain: &FundamentalDomain) -> f64 {
-    largest(domain.sides.map(|side| isometry_defect(side.pairing)))
+    let defect = match domain.plane {
+        Plane::Hyperbolic { .. } => hyperbolic::isometry_defect,
+        Plane::Euclidean => euclidean::isometry_defect,
+    };
+    largest(domain.sides.iter().map(|side| defect(side.pairing)))
 }
 
 fn pairings(domain: &FundamentalDomain) -> f64 {
@@ -286,8 +323,8 @@ fn pairings(domain: &FundamentalDomain) -> f64 {
             structural = false;
             continue;
         };
-        let inside = side(current.covector, centre) < 0.0;
-        let across = side(partner.covector, current.pairing * centre) > 0.0;
+        let inside = side_value(domain, current.covector, centre) < 0.0;
+        let across = side_value(domain, partner.covector, current.pairing * centre) > 0.0;
         structural &= partner.partner == index && inside && across;
         numeric.push(largest_entry(
             current.pairing * partner.pairing - DMat3::IDENTITY,
@@ -316,12 +353,26 @@ fn walls(domain: &FundamentalDomain) -> f64 {
     let mut values = Vec::new();
     for (index, current) in domain.sides.iter().enumerate() {
         for endpoint in endpoints(domain, index) {
-            values.push(side(current.covector, endpoint).abs() / endpoint.z);
+            values.push(side_value(domain, current.covector, endpoint).abs() / endpoint.z);
         }
-        values.push(largest_entry(current.pairing - reflection(current.normal)));
-        values.push(largest_coordinate(
-            current.covector - covector(current.normal),
-        ));
+        match domain.plane {
+            Plane::Hyperbolic { .. } => {
+                values.push(largest_entry(
+                    current.pairing - hyperbolic::reflection(current.normal),
+                ));
+                values.push(largest_coordinate(
+                    current.covector - hyperbolic::covector(current.normal),
+                ));
+            }
+            Plane::Euclidean => {
+                let line = current.covector;
+                values.push(largest_entry(current.pairing - euclidean::reflection(line)));
+                values.push(largest_coordinate(
+                    current.normal - DVec3::new(line.x, line.y, 0.0),
+                ));
+                values.push((line.x * line.x + line.y * line.y - 1.0).abs());
+            }
+        }
     }
     largest(values)
 }
@@ -330,18 +381,25 @@ fn relators(domain: &FundamentalDomain) -> f64 {
     if !vertices_are_points(domain) {
         return f64::INFINITY;
     }
-    let orders = domain.orders;
-    largest([0, 1, 2].map(|corner| {
-        let frame = translation(domain.vertices[corner]);
-        let rotation = inverse(frame)
-            * domain.sides[corner].pairing
-            * domain.sides[(corner + 1) % 3].pairing
-            * frame;
+    let count = domain.sides.len();
+    largest((0..count).map(|corner| {
+        let order = domain.orders[corner];
+        let (first, second) = (
+            domain.sides[corner].pairing,
+            domain.sides[(corner + 1) % count].pairing,
+        );
+        let rotation = match domain.plane {
+            Plane::Hyperbolic { .. } => {
+                let frame = hyperbolic::translation(domain.vertices[corner]);
+                hyperbolic::inverse(frame) * first * second * frame
+            }
+            Plane::Euclidean => first * second,
+        };
         let mut power = rotation;
-        for _ in 1..orders[corner] {
+        for _ in 1..order {
             power *= rotation;
         }
-        largest_entry(power - DMat3::IDENTITY) / f64::from(orders[corner])
+        largest_entry(power - DMat3::IDENTITY) / f64::from(order)
     }))
 }
 
@@ -349,29 +407,43 @@ fn angles(domain: &FundamentalDomain) -> f64 {
     if !vertices_are_points(domain) {
         return f64::INFINITY;
     }
-    let orders = domain.orders;
     let measured = domain.angles();
-    let below_pi = measured.iter().sum::<f64>() < PI;
-    if !below_pi {
-        return f64::INFINITY;
+    if let Plane::Hyperbolic { .. } = domain.plane {
+        let below_pi = measured.iter().sum::<f64>() < PI;
+        if !below_pi {
+            return f64::INFINITY;
+        }
     }
-    largest([0, 1, 2].map(|corner| (measured[corner] - PI / f64::from(orders[corner])).abs()))
+    largest(
+        measured
+            .iter()
+            .zip(&domain.orders)
+            .map(|(angle, &order)| (angle - PI / f64::from(order)).abs()),
+    )
 }
 
 fn area(domain: &FundamentalDomain) -> f64 {
     if !vertices_are_points(domain) {
         return f64::INFINITY;
     }
-    (domain.area() - domain.signature_area).abs()
+    match domain.plane {
+        Plane::Hyperbolic { area } => (domain.area() - area).abs(),
+        Plane::Euclidean => {
+            let measured = domain.angles();
+            let corners = u32::try_from(measured.len()).map_or(f64::INFINITY, f64::from);
+            ((corners - 2.0) * PI - measured.iter().sum::<f64>()).abs()
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use escher_geometry::euclidean;
     use escher_geometry::hyperbolic::{covector, reflection, rotation};
     use escher_signature::Signature;
 
     use super::{Check, Verification};
-    use crate::domain::FundamentalDomain;
+    use crate::domain::{FundamentalDomain, Plane};
     use crate::triangle::{Supported, construct, supported};
 
     const BASES: [[u32; 3]; 3] = [[7, 3, 2], [4, 4, 4], [1000, 3, 2]];
@@ -404,25 +476,39 @@ mod tests {
             Ok(signature) => signature,
             Err(error) => panic!("{label:?} is rejected: {error}"),
         };
-        let Some(Supported {
+        let Some(Supported::HyperbolicTriangle {
             orders: label_orders,
             area,
         }) = supported(&signature)
         else {
-            panic!("{signature} is not a supported triangle");
+            panic!("{signature} is not a supported hyperbolic triangle");
         };
         let triangle = match construct(orders) {
             Ok(triangle) => triangle,
             Err(error) => panic!("{orders:?} has no triangle: {error:?}"),
         };
         FundamentalDomain {
-            geometry: signature.geometry(),
-            orders: label_orders,
-            signature_area: area,
-            sides: triangle.sides,
-            vertices: triangle.vertices,
+            plane: Plane::Hyperbolic { area },
+            orders: label_orders.to_vec(),
+            sides: triangle.sides.to_vec(),
+            vertices: triangle.vertices.to_vec(),
             centre: triangle.centre,
         }
+    }
+
+    fn built(text: &str) -> FundamentalDomain {
+        let signature: Signature = match text.parse() {
+            Ok(signature) => signature,
+            Err(error) => panic!("{text:?} is rejected: {error}"),
+        };
+        match FundamentalDomain::build(&signature) {
+            Ok(domain) => domain,
+            Err(error) => panic!("{text} has no domain: {error}"),
+        }
+    }
+
+    fn euclidean_domains() -> [FundamentalDomain; 2] {
+        [built("*632"), built("*2222")]
     }
 
     fn domain(orders: [u32; 3]) -> FundamentalDomain {
@@ -602,8 +688,8 @@ mod tests {
     #[test]
     fn verify_fails_on_a_triangle_labelled_with_euclidean_orders() {
         let mut corrupted = domain([6, 4, 3]);
-        corrupted.orders = [6, 3, 2];
-        corrupted.signature_area = 0.0;
+        corrupted.orders = vec![6, 3, 2];
+        corrupted.plane = Plane::Hyperbolic { area: 0.0 };
         assert_failed(
             &corrupted,
             &["relators", "angles", "area"],
@@ -679,6 +765,124 @@ mod tests {
                 &["pairings", "walls", "relators", "angles", "area"],
                 "vertex 0 negated",
             );
+        }
+    }
+
+    #[test]
+    fn verify_passes_on_built_euclidean_domains() {
+        for domain in euclidean_domains() {
+            let verification = domain.verify();
+            assert!(
+                failed(&verification).is_empty(),
+                "{:?}: {verification:?}",
+                domain.orders
+            );
+            assert!(verification.passed());
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_the_euclidean_triangle_of_442_labelled_632() {
+        let mut corrupted = built("*442");
+        corrupted.orders = vec![6, 3, 2];
+        assert_failed(
+            &corrupted,
+            &["relators", "angles"],
+            "*442 labelled with the orders of *632",
+        );
+    }
+
+    #[test]
+    fn verify_fails_on_a_moved_euclidean_line_without_its_pairing() {
+        for mut corrupted in euclidean_domains() {
+            corrupted.sides[0].covector.z -= 1e-6;
+            assert_failed(&corrupted, &["walls"], "offset moved without its pairing");
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_moved_euclidean_line_with_its_pairing() {
+        for mut corrupted in euclidean_domains() {
+            let side = &mut corrupted.sides[0];
+            side.covector.z -= 1e-6;
+            side.pairing = euclidean::reflection(side.covector);
+            assert_failed(
+                &corrupted,
+                &["pairings", "walls"],
+                "offset moved with its pairing",
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_scaled_euclidean_pairing() {
+        for mut corrupted in euclidean_domains() {
+            corrupted.sides[0].pairing *= 1.0 + 1e-6;
+            assert_failed(
+                &corrupted,
+                &["isometries", "pairings", "walls"],
+                "scaled pairing",
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_wrong_euclidean_partner() {
+        for mut corrupted in euclidean_domains() {
+            corrupted.sides[0].partner = 1;
+            assert_failed(&corrupted, &["pairings"], "wrong partner");
+        }
+    }
+
+    #[test]
+    fn verify_reports_infinite_residuals_for_a_nan_euclidean_vertex() {
+        for mut corrupted in euclidean_domains() {
+            corrupted.vertices[1].x = f64::NAN;
+            assert_infinite_failures(
+                &corrupted,
+                &["pairings", "walls", "relators", "angles", "area"],
+                "NaN vertex",
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_euclidean_pairing_with_a_wrong_last_row() {
+        for mut corrupted in euclidean_domains() {
+            corrupted.sides[0].pairing.x_axis.z = 1e-6;
+            assert_failed(
+                &corrupted,
+                &["isometries", "pairings", "walls"],
+                "last row of the pairing set to (1e-6, 0, 1)",
+            );
+        }
+    }
+
+    const READ_THE_COUNTS: [&str; 5] = ["pairings", "walls", "relators", "angles", "area"];
+
+    #[test]
+    fn verify_fails_on_a_rectangle_labelled_with_three_orders() {
+        let mut corrupted = built("*2222");
+        corrupted.orders = vec![6, 3, 2];
+        assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "rectangle with three orders");
+    }
+
+    #[test]
+    fn verify_fails_on_a_domain_with_a_vertex_removed() {
+        for mut corrupted in euclidean_domains() {
+            corrupted.vertices.pop();
+            assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "vertex removed");
+        }
+        let mut corrupted = domain([7, 3, 2]);
+        corrupted.vertices.pop();
+        assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "vertex removed");
+    }
+
+    #[test]
+    fn verify_fails_on_a_domain_without_vertices() {
+        for mut corrupted in euclidean_domains().into_iter().chain([domain([7, 3, 2])]) {
+            corrupted.vertices.clear();
+            assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "no vertices");
         }
     }
 

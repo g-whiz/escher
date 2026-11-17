@@ -1,5 +1,5 @@
 use astro_float_num::BigFloat;
-use escher_domain::FundamentalDomain;
+use escher_domain::{Check, FundamentalDomain, ShapeParameters};
 use escher_signature::Signature;
 use glam::DVec3;
 use proptest::test_runner::Config;
@@ -126,4 +126,129 @@ pub(crate) fn largest_coordinate_error(value: DVec3, exact: &Vector) -> BigFloat
         largest = crate::reference::max(&largest, &crate::reference::sub(computed, exact).abs());
     }
     largest
+}
+
+struct LargestResidual {
+    name: &'static str,
+    residual: f64,
+    tolerance: f64,
+    input: String,
+    samples: usize,
+}
+
+impl LargestResidual {
+    fn record(&mut self, check: Check, input: &str) {
+        assert!(
+            check.passed(),
+            "{} fails at {input}: residual {:e}, tolerance {:e}",
+            self.name,
+            check.residual(),
+            check.tolerance()
+        );
+        self.samples += 1;
+        self.tolerance = check.tolerance();
+        if check.residual() >= self.residual {
+            self.residual = check.residual();
+            self.input = input.to_owned();
+        }
+    }
+}
+
+pub(crate) struct LargestResiduals {
+    checks: [LargestResidual; 6],
+}
+
+impl LargestResiduals {
+    pub(crate) fn new() -> Self {
+        Self {
+            checks: [
+                "isometries",
+                "pairings",
+                "walls",
+                "relators",
+                "angles",
+                "area",
+            ]
+            .map(|name| LargestResidual {
+                name,
+                residual: 0.0,
+                tolerance: 0.0,
+                input: String::new(),
+                samples: 0,
+            }),
+        }
+    }
+
+    pub(crate) fn record(&mut self, built: &FundamentalDomain, input: &str) {
+        let verification = built.verify();
+        let checks = [
+            verification.isometries(),
+            verification.pairings(),
+            verification.walls(),
+            verification.relators(),
+            verification.angles(),
+            verification.area(),
+        ];
+        for (largest, check) in self.checks.iter_mut().zip(checks) {
+            largest.record(check, input);
+        }
+        assert!(verification.passed(), "{input}: {verification:?}");
+    }
+
+    pub(crate) fn print_and_assert_samples(&self, minimum: usize) {
+        for largest in &self.checks {
+            println!(
+                "{}: largest residual {:.3e}, tolerance {:e}, margin {:.1}, {} samples, at {}",
+                largest.name,
+                largest.residual,
+                largest.tolerance,
+                largest.tolerance / largest.residual,
+                largest.samples,
+                largest.input
+            );
+            assert!(
+                largest.samples >= minimum,
+                "{}: checked {} domains, fewer than {minimum}",
+                largest.name,
+                largest.samples
+            );
+        }
+    }
+}
+
+pub(crate) const EUCLIDEAN_TRIANGLES: [[u32; 3]; 3] = [[6, 3, 2], [4, 4, 2], [3, 3, 3]];
+
+const NAMED_ASPECTS: [f64; 5] = [1.0, 1.618, 4.0, 0.125, 8.0];
+
+const SPACED_ASPECTS: u32 = 64;
+
+pub(crate) fn aspects() -> Vec<f64> {
+    let mut values = NAMED_ASPECTS.to_vec();
+    let last = f64::from(SPACED_ASPECTS - 1);
+    values.extend((0..SPACED_ASPECTS).map(|index| (6.0 * f64::from(index) / last - 3.0).exp2()));
+    values
+}
+
+pub(crate) fn rectangle(aspect: f64) -> FundamentalDomain {
+    let mut settings = ShapeParameters::new();
+    settings.set("aspect", aspect);
+    match FundamentalDomain::build_with(&signature("*2222"), &settings) {
+        Ok(domain) => domain,
+        Err(error) => panic!("*2222 at aspect {aspect} has no domain: {error}"),
+    }
+}
+
+pub(crate) fn assert_same_domain(
+    first: &FundamentalDomain,
+    second: &FundamentalDomain,
+    tolerance: f64,
+    input: &str,
+) {
+    assert_eq!(first.geometry(), second.geometry(), "{input}");
+    assert_eq!(first.sides().len(), second.sides().len(), "{input}");
+    assert_eq!(first.vertices().len(), second.vertices().len(), "{input}");
+    for (one, other) in first.vertices().iter().zip(second.vertices()) {
+        let difference = (*one - *other).abs().max_element();
+        assert!(difference <= tolerance, "{input}: {difference:e}");
+    }
 }

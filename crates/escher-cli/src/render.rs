@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use anyhow::Context as _;
 use escher_domain::FundamentalDomain;
 use escher_render::{Colour, Fill, RenderOptions, RenderStats, Renderer, encode_png};
-use escher_signature::Signature;
+use escher_signature::{Geometry, Signature};
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
 use rayon::slice::ParallelSliceMut as _;
 
@@ -14,6 +14,8 @@ use crate::args::{Colouring, RenderArgs};
 use crate::diagnostic::SignatureError;
 
 const MAX_THREADS: usize = 256;
+
+const NOT_SUPPORTED: &str = "rendering this signature is not supported";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Statistics {
@@ -49,12 +51,15 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
     })?;
     let domain = FundamentalDomain::build(&signature).map_err(|error| {
         let context = if error.kind() == escher_domain::ErrorKind::UnsupportedSignature {
-            format!("cannot render {signature}: rendering this signature is not supported")
+            format!("cannot render {signature}: {NOT_SUPPORTED}")
         } else {
             format!("cannot render {signature}")
         };
         anyhow::Error::new(error).context(context)
     })?;
+    if domain.geometry() != Geometry::Hyperbolic {
+        return Err(cannot_render(&signature, NOT_SUPPORTED));
+    }
     let options = RenderOptions::builder(fill)
         .size(args.size.width, args.size.height)
         .samples(args.samples)

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-16 |
+| Date | 2026-11-17 |
 | Applies to | `crates/escher-domain` |
 
 ## Abstract
@@ -164,7 +164,7 @@ pub struct ShapeParameters { /* private map from name to value */ }
 // derives Clone, Debug, Default, PartialEq
 impl ShapeParameters {
     #[must_use] pub fn new() -> Self;
-    pub fn set(&mut self, name: &str, value: f64) -> Option<f64>;
+    pub fn set(&mut self, name: impl Into<String>, value: f64) -> Option<f64>;
 }
 
 #[non_exhaustive]
@@ -203,7 +203,7 @@ Each item guarantees its invariant by construction, so no caller checks it:
 | `Check::passed` | Whether the residual is within the tolerance | `residual() <= tolerance()`. The residual is never NaN, and an infinite residual fails |
 | `parameters` | The shape parameters of a signature, in a fixed order | Total. One `ParameterSpec` for `*2222`, and an empty list for every other signature, supported or not (Section 6.6) |
 | `ParameterSpec` | The name, range, and default value of one shape parameter | `minimum() <= default_value() <= maximum()`, each finite. The name is the plain name of Section 5.6 of the architecture |
-| `ShapeParameters` | The settings that a caller passes to `build_with` | Holds each name at most once. `new()` equals `Default::default()`, an empty set. `set` stores the value and returns the value that it replaces, if any. It checks nothing, and `build_with` validates (Section 6.6) |
+| `ShapeParameters` | The settings that a caller passes to `build_with` | Holds each name at most once. `new()` equals `Default::default()`, an empty set. `set` stores the name and the value that it is given and returns the value that it replaces, if any. It checks nothing, and `build_with` validates (Section 6.6) |
 | `Error` | Why no domain was built | Section 10 |
 | `ErrorKind` | What a caller matches on | `Copy` and `#[non_exhaustive]` (ERR-1 of the coding standard) |
 
@@ -221,8 +221,8 @@ The crate has these private modules, each a file named after the module:
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
 - `src/domain.rs`: `FundamentalDomain`, `Side`, `PairingKind`, `Orientation`, the accessors, and the measurements of Section 7.
 - `src/triangle.rs`: The supported-signature predicate of Section 4, with a private enum of the three supported classes, and the construction of Section 6.1.
-- `src/euclidean.rs`: The constructions of the Euclidean triangle and the rectangle of Section 6.5.
-- `src/parameters.rs`: `parameters`, `ParameterSpec`, `ShapeParameters`, and the validation of Section 6.6.
+- `src/polygon.rs`: The constructions of the Euclidean triangle and the rectangle of Section 6.5, and the unit test "Exact rectangle" of Section 12.1.
+- `src/parameters.rs`: `parameters`, `ParameterSpec`, `ShapeParameters`, the private enum of the parameters with the name, the range, and the default of each, and the validation of Section 6.6.
 - `src/verify.rs`: `Verification`, `Check`, and the checks of Section 8.
 
 ### 3.4. Items Outside This Surface
@@ -434,6 +434,8 @@ The crate measures each quantity from the stored vertices, so that `verify()` an
 - `corner_angles()` returns, for each vertex $j$, the angle $\theta_j$ in $[0, \pi]$ for which the first law of cosines of Section 10.2 of the geometry reference ([BEA] Section 7.12, p. 148, and [RAT] Theorem 3.5.3, p. 86) holds with the three measured side lengths. With $c$ the length of the side opposite vertex $j$ and $a$ and $b$ the other two, it is $\arccos\big((\cosh a \cosh b - \cosh c) / (\sinh a \sinh b)\big)$, with the argument clamped to $[-1, 1]$.
 - `area()` returns $\pi - \theta_0 - \theta_1 - \theta_2$, the area of a triangle by Section 10.1 of the geometry reference.
 
+`corner_angles()` and `area()` are defined for exactly three vertices. For a hyperbolic domain with any other number of vertices, `corner_angles()` returns NaN for every vertex and `area()` returns NaN.
+
 The angles are measured from distances so that no step uses a relation between normals and angles (DOM-6). The form of the first law solved for the angle is a rearrangement that no source prints, and Section 15.1 records it.
 
 For a Euclidean domain, with $(x_j, y_j)$ the first two coordinates of $V_j$:
@@ -454,7 +456,7 @@ DOM-8. `verify()` MUST be pure, MUST NOT panic for any domain, and MUST NOT reno
 
 ### 8.2. Checks
 
-Every check runs on the stored values of the domain in the final position, unless the check names another frame. Checks 2 to 6 read the vertices, so each first requires every vertex to have finite coordinates and a positive last coordinate, and its residual is infinity when one does not. Check 1 reads only the pairings. A residual that is not finite after the computation of its check is reported as infinity:
+Every check runs on the stored values of the domain in the final position, unless the check names another frame. Checks 2 to 6 read the vertices, so each first requires at least one side, as many vertices and corner orders as sides, and every vertex to have finite coordinates and a positive last coordinate, and its residual is infinity when any of these fails. Check 1 reads only the pairings. A residual that is not finite after the computation of its check is reported as infinity:
 
 1. **Isometries.** For each side, compute `hyperbolic::isometry_defect(pairing)`. The residual is the largest value. Tolerance $10^{-9}$. Condition: Theorem 10.1 of [CFKP] (Section 6.1 of the geometry reference).
 2. **Pairings.** The residual is infinity unless both structural conditions hold, and otherwise the larger of the two numeric parts. Tolerance $10^{-9}$. Conditions: items 1 and 2 of Section 4.8 of the domain reference, and Condition 3.2 (a) to (d) of [EPSTEIN-PETRONIO1994] (Section 4.9 of the domain reference).
@@ -497,7 +499,7 @@ For a Euclidean domain, `verify()` computes the same six checks with the same to
 | 5. Angles | The largest $\lvert \theta_j - \pi/n_j \rvert$, with $\theta_j$ of Section 7. The condition on the angle sum of a hyperbolic triangle does not apply | Every corner has the angle $\pi/n_j$ (item 4 of Section 4.8 of the domain reference) |
 | 6. Area | $\lvert (m - 2)\pi - \sum_j \theta_j \rvert$, against the value $-2\pi\chi = 0$ of a Euclidean signature | A consistency check only, as below |
 
-On a prototype outside the repository, check 6 of a Euclidean domain had the residual 0 on every domain built, and passed on the triangle of `*442` labelled `*632`, where checks 4 and 5 failed (Section 14). The design keeps it so that the six checks exist for every geometry, and Section 15.3 puts that to the owner.
+Check 6 of a Euclidean domain has the residual 0 on every Euclidean domain of Section 9.4 (Section 8.4), and passes on the triangle of `*442` labelled `*632`, where checks 4 and 5 fail (Section 8.3). The design keeps it so that the six checks exist for every geometry, and Section 15.3 puts that to the owner.
 
 ### 8.3. Defects Each Check Detects
 
@@ -519,10 +521,12 @@ The test "Failing domains" of Section 12.1 injects each defect of this table int
 | A NaN in the first coordinate of vertex 1 | 2, 3, 4, 5, and 6, each with an infinite residual |
 | A NaN in the normal of side 1 | 3, with an infinite residual |
 | A NaN in one entry of the pairing of side 2 | 1, 2, 3, and 4, each with an infinite residual |
+| The last vertex removed, on $(7, 3, 2)$ only | 2, 3, 4, 5, and 6, each with an infinite residual |
+| Every vertex removed, on $(7, 3, 2)$ only | 2, 3, 4, 5, and 6, each with an infinite residual |
 
-The test also injects these defects into Euclidean domains: the relabelled triangle is that of `*442`, and the other defects are applied to the domain of `*632` and to the rectangle of `*2222` at `aspect` 1. The checks that fail were measured on Euclidean domains of a prototype outside the repository. They are the expected sets until the test measures the code, which records its sets here (DOM-19):
+The test also injects these defects into Euclidean domains, which pass every check before the defect: the relabelled triangle is that of `*442`, and the other defects are applied to the domain of `*632` and to the rectangle of `*2222` at `aspect` 1. On each domain of its row, exactly the checks of the row fail:
 
-| Defect | Checks that fail on the prototype |
+| Defect | Checks that fail |
 | --- | --- |
 | The triangle of `*442` labelled with the orders of `*632` | 4 and 5. Check 6 passes |
 | The offset $t$ of the covector of side 0 moved by $10^{-6}$, with the pairing left as constructed | 3 |
@@ -531,6 +535,9 @@ The test also injects these defects into Euclidean domains: the relabelled trian
 | The partner of side 0 set to side 1 | 2 |
 | A NaN in the first coordinate of vertex 1 | 2, 3, 4, 5, and 6, each with an infinite residual |
 | The last row of the pairing of side 0 set to $(10^{-6}, 0, 1)$ | 1, 2, and 3 |
+| The rectangle of `*2222` labelled with the three orders $(6, 3, 2)$, on the rectangle only | 2, 3, 4, 5, and 6, each with an infinite residual |
+| The last vertex removed | 2, 3, 4, 5, and 6, each with an infinite residual |
+| Every vertex removed | 2, 3, 4, 5, and 6, each with an infinite residual |
 
 Check 4 passes on the scaled pairing at all three triangles, below its tolerance of $2 \times 10^{-6}$, and checks 1, 2, and 3 catch that defect. The residual of check 4 is $1.000003 \times 10^{-6}$ at $(7, 3, 2)$, a figure that no committed test prints.
 
@@ -570,7 +577,16 @@ The tolerances are choices of this design, and Section 15.3 asks the owner about
 
 The tolerance of check 3 stays at $10^{-9}$, the tolerance of checks 1, 2, 5, and 6. A tolerance of $10^{-12}$ would still leave a margin of 192 and would detect a smaller tilt of a wall. This design keeps $10^{-9}$, because one tolerance for these five checks keeps the output of `escher info --check` uniform, and its margin of $1.92 \times 10^{5}$ already exceeds that of every other check.
 
-A Euclidean domain uses the same tolerances. The largest residual of each check over the Euclidean domains of Section 9.4, with its margin, is to be measured by the test "Euclidean domains" of Section 12.1 and recorded in this section (DOM-19). Section 14 gives the figures of the prototype that support keeping the tolerances.
+A Euclidean domain uses the same tolerances. The test "Euclidean domains" of Section 12.1 prints the largest residual of each check over the 72 Euclidean domains of Section 9.4, and every domain passes every check:
+
+| Check | Tolerance | Largest residual | Where | Margin |
+| --- | --- | --- | --- | --- |
+| 1. Isometries | $10^{-9}$ | $4.441 \times 10^{-16}$ | `*442` | $2.25 \times 10^{6}$ |
+| 2. Pairings | $10^{-9}$ | $4.441 \times 10^{-16}$ | `*442` | $2.25 \times 10^{6}$ |
+| 3. Walls | $10^{-9}$ | $2.220 \times 10^{-16}$ | `*442` | $4.50 \times 10^{6}$ |
+| 4. Relators | $2 \times 10^{-6}$ | $3.146 \times 10^{-16}$ | `*632` | $6.36 \times 10^{9}$ |
+| 5. Angles | $10^{-9}$ | $2.220 \times 10^{-16}$ | `*333` | $4.50 \times 10^{6}$ |
+| 6. Area | $10^{-9}$ | 0 | Every domain | Not applicable |
 
 ## 9. Numerical Robustness
 
@@ -635,17 +651,21 @@ Over the triples of the reference sweep, the vertices of this crate lie up to di
 
 ### 9.4. Accuracy of the Euclidean Domains
 
-The Euclidean domains of the tests are those of `*632`, `*442`, and `*333`, and the rectangle of `*2222` at `aspect` 1, 1.618, 4, 0.125, and 8, and at 64 values spaced logarithmically from 0.125 to 8. Over these domains, the test "Euclidean domains" of Section 12.1 compares each quantity of this table with the reference construction of Section 12.2. Each bound is to be measured:
+The Euclidean domains of the tests are those of `*632`, `*442`, and `*333`, and the rectangle of `*2222` at `aspect` 1, 1.618, 4, 0.125, and 8, and at 64 values spaced logarithmically from 0.125 to 8. Over these domains, the test "Euclidean domains" of Section 12.1 compares each quantity of this table except the last with the reference construction of Section 12.2, asserts each bound, and prints the largest error with its domain and its margin. The 72 domains have 285 sides. The bounds are choices of this design, and every margin is at least 8, as TEST-13 of the coding standard requires:
 
-| Quantity | Measure | Bound |
-| --- | --- | --- |
-| Vertex | Largest coordinate error | To be measured |
-| Covector | Largest coordinate error | To be measured |
-| Pairing | Largest entry error | To be measured |
-| Side length | Absolute error | To be measured |
-| Corner angle | Absolute error | To be measured |
-| Area | Absolute error, against the area of the reference polygon | To be measured |
-| Centre | Largest coordinate distance from `euclidean::ORIGIN` | To be measured |
+| Quantity | Measure | Bound | Largest error | Where | Margin |
+| --- | --- | --- | --- | --- | --- |
+| Vertex | Largest coordinate error | $2 \times 10^{-15}$ | $1.290 \times 10^{-16}$ | `*2222` at `aspect` 0.17388 | 15.5 |
+| Covector | Largest coordinate error | $2 \times 10^{-15}$ | $1.290 \times 10^{-16}$ | `*2222` at `aspect` 0.17388 | 15.5 |
+| Pairing | Largest entry error | $4 \times 10^{-15}$ | $2.581 \times 10^{-16}$ | `*2222` at `aspect` 0.17388 | 15.5 |
+| Side length | Absolute error | $4 \times 10^{-15}$ | $2.581 \times 10^{-16}$ | `*2222` at `aspect` 0.17388 | 15.5 |
+| Corner angle | Absolute error | $2 \times 10^{-15}$ | $1.684 \times 10^{-16}$ | `*632` | 11.9 |
+| Area | Absolute error, against the area of the reference polygon | $2 \times 10^{-15}$ | $1.110 \times 10^{-16}$ | `*2222` at `aspect` 0.15238 | 18.0 |
+| Centre | Largest coordinate distance from `euclidean::ORIGIN` | $10^{-15}$ | $5.551 \times 10^{-17}$ | `*632` | 18.0 |
+| Aspect of the rectangle | Relative error of the length of side 0 divided by that of side 1, against `aspect` | $4 \times 10^{-15}$ | $2.220 \times 10^{-16}$ | `*2222` at `aspect` 1.618 | 18.0 |
+| SymmHub lines | Largest coordinate error of each wall of a triangle against its line of SymmHub, up to sign (Section 12.1) | $2 \times 10^{-15}$ | $1.110 \times 10^{-16}$ | Side 2 of `*333` | 18.0 |
+
+The test "SymmHub lines" measures the last row, and the three lines of SymmHub match sides 0, 2, and 1, in that order, for each of the three triangles.
 
 At `aspect` 1 and 4, every number of the construction of the rectangle is a dyadic rational and every operation is exact in IEEE 754 arithmetic, and the square roots of 1 and 4 are exact. The test "Exact rectangle" therefore asserts exactly that the vertices are $(\pm w/2, \pm h/2, 1)$ and the covectors are $(\pm 1, 0, -w/2)$ and $(0, \pm 1, -h/2)$, as TEST-13 of the coding standard allows.
 
@@ -660,7 +680,7 @@ DOM-12. The crate MUST implement `Error` as ERR-1 of the coding standard require
 `Error` has these private fields:
 
 - `operation`: A `&'static str`, which is `"build fundamental domain"` for every error of this crate.
-- `detail`: A private enum with one variant for each cause, which carries the data that the text of Section 10.2 shows: the canonical string of the signature, the order over the limit, the name and the range of a `ParameterSpec`, or the error of `escher-geometry` that caused a numerical failure.
+- `detail`: A private enum with one variant for each cause, which carries the data that the text of Section 10.2 shows: the canonical string of the signature, the order over the limit, the identity of a parameter from which its name and range derive, or the error of `escher-geometry` that caused a numerical failure.
 
 `kind()` computes the kind from `detail` with a `match` that has no wildcard arm (TYPE-3 and TYPE-7 of the coding standard). `thiserror` derives the `Display` of the private detail. `Display` and `std::error::Error` for `Error` are written by hand, because a derived `source()` can return only a field of `Error`, not the `escher-geometry` error that one variant of the detail holds, and a separate source field beside the detail would hold one fact in two fields. `Display` for `Error` writes `cannot `, the operation, `: `, and the text of the detail. `source()` returns the `escher-geometry` error for a `Numerical` error that one caused, and `None` otherwise. No type from a dependency appears in the public surface of the error (ERR-2).
 
@@ -676,7 +696,7 @@ DOM-13. `Display` for `Error` MUST be `cannot build fundamental domain: ` follow
 | `LimitExceeded` | A corner order of a supported signature exceeds 1000 | The largest corner order | `order 1001 is larger than 1000`, with the largest corner order in place of `1001` |
 | `Numerical` | Step 11 of Section 6.1, or step 7 of Section 6.5 | The `escher-geometry` error, if one caused it | `the construction is numerically degenerate` |
 | `UnknownParameter` | Step 3 of DOM-18 | The canonical string | `the signature *632 has no shape parameter with one of the given names`, with the canonical string of the signature in place of `*632` |
-| `ParameterOutOfRange` | Step 4 of DOM-18 | The name, the minimum, and the maximum of the `ParameterSpec` | `the parameter aspect is outside its range of 0.125 to 8`, with the name, the minimum, and the maximum in place of `aspect`, `0.125`, and `8` |
+| `ParameterOutOfRange` | Step 4 of DOM-18 | The identity of the parameter, a private enum from which the name, the minimum, and the maximum of its `ParameterSpec` derive, so that `Error` keeps `Eq` | `the parameter aspect is outside its range of 0.125 to 8`, with the name, the minimum, and the maximum in place of `aspect`, `0.125`, and `8` |
 
 The texts of `UnknownParameter` and `ParameterOutOfRange` contain no name or value of a setting, because a caller's text may hold any character, and the printed name is that of the `ParameterSpec`. They write each number with the `{}` format of `f64`, which prints the two ends of the range of `aspect` as `0.125` and `8`.
 
@@ -714,7 +734,7 @@ Each test names the item of the field "Tests and acceptance" of Section 5.2 of t
 | Random triples | Properties | `proptest`, `properties` | For orders from 2 to 1000 with $1/p + 1/q + 1/r < 1$, drawn with half of the cases from orders 900 to 1000: `build` succeeds, `verify().passed()`, the vertices are counterclockwise, every vertex is inside or on every side within the tolerance of check 3, and the centre is within $10^{-9}$ of `hyperbolic::ORIGIN` |
 | Relator agreement | Properties | Reference test, `properties` | For the 30 named triples, with the residual of each frame computed in the reference from the exact power of the `f64` matrices and divided by $n_j$: the residual of check 4 is within $10^{-9}$ of the largest residual in the corner frame, and at each corner the residual in either frame is at most 2.0 times the residual in the other frame times 9 times the square of the largest absolute entry of $F$. This tests the assumption on conjugates of Section 15.1. Measured: $1.459 \times 10^{-11}$ against $10^{-9}$, a margin of 68.5, at $(1000, 1000, 2)$, and 0.217 against 2.0, a margin of 9.2, at corner 1 of $(1000, 1000, 2)$ |
 | Relators in the domain frame | None | Reference test, `properties` | The figures of the table of Section 8.2. At $(998, 981, 961)$, the largest exact residual is at least $2 \times 10^{-6}$ in the domain frame and at most $2 \times 10^{-6}$ in the corner frame. At $(1000, 3, 2)$, it is at most $10^{-10}$ in the domain frame and at most $10^{-12}$ in the corner frame. It prints both residuals for both triples |
-| Failing domains | Failure paths | Unit tests in `verify.rs` | The domains of $(7, 3, 2)$, $(4, 4, 4)$, and $(1000, 3, 2)$, built through private access, pass every check. For each defect of Section 8.3, on the domains of its row, exactly the checks of the row fail and `passed()` is false. For a row that names an infinite residual, each failed check has the residual `f64::INFINITY`, and no check has a NaN residual |
+| Failing domains | Failure paths | Unit tests in `verify.rs` | The domains of $(7, 3, 2)$, $(4, 4, 4)$, and $(1000, 3, 2)$, built through private access, pass every check. For each defect of Section 8.3, on the domains of its row, exactly the checks of the row fail and `passed()` is false. For a row that names an infinite residual, each failed check has the residual `f64::INFINITY`, and no check has a NaN residual. The rows with a vertex removed and the relabelled rectangle give domains whose numbers of sides, vertices, and corner orders disagree, and `verify()` returns on them without a panic (DOM-8) |
 | Check results | Failure paths | Unit tests in `verify.rs` | A `Check` built through private access with a NaN residual fails, a residual equal to the tolerance passes, and an infinite residual fails |
 | Unsupported | Failure paths | Table test, `unsupported` | `632`, `*22222`, `*532`, `*3333`, `732`, `4*3`, `*(inf)32`, `*(inf)(inf)`, `(inf)(inf)`, `*22(inf)`, `1`, `*`, `o`, `*732*`, and `x732` return `UnsupportedSignature` with the text of Section 10.2. `*(1001)32` returns `LimitExceeded` with its text, `*(1000)32` builds, and `*(1001)(1001)(1001)(1001)` returns `UnsupportedSignature` |
 | Limit | Failure paths | Unit tests in `domain.rs` | With the private limit constant: `*(1000)32` builds and `*(1001)32` returns `LimitExceeded`, and `*(1001)(1001)` returns `UnsupportedSignature`, because support is checked before the limit |
@@ -724,12 +744,12 @@ Each test names the item of the field "Tests and acceptance" of Section 5.2 of t
 | Numerical | Failure paths | Unit test in `triangle.rs` | The private construction of steps 3 to 11, given the spherical orders $(5, 3, 2)$, fails with the `escher-geometry` error of kind `NotAPoint`, which `build` reports as `Numerical`, because the law of cosines then gives a hyperbolic cosine below 1 |
 | Any signature | Failure paths | `proptest`, `properties` | For any text that parses as a signature, `build` returns without a panic, and a returned domain passes `verify()` |
 | Error text | Failure paths | Unit tests in `error.rs` | The `Display` of every kind starts with `cannot build fundamental domain: `, is in lower case apart from the canonical string, and is the text of Section 10.2. `kind()` matches each cause, and `source()` returns the `escher-geometry` error only for a `Numerical` error that one caused |
-| Euclidean table | Relators, of Section 5.4 of the plan | Table test, `euclidean` | `*632`, `*442`, `*333`, and `*2222` build and pass `verify()`. They have 3, 3, 3, and 4 sides and vertices, each side its own partner, and the corner angles of 30, 60, and 90 degrees, 45, 45, and 90 degrees, 60 degrees three times, and 90 degrees four times, within the bound of Section 9.4. Every spelling of a signature, such as `*236`, builds the domain of its canonical form |
-| Euclidean domains | Relators, of Section 5.4 of the plan | Reference test, `euclidean` | Each quantity of Section 9.4 is within its bound against the reference of Section 12.2, over the Euclidean domains of Section 9.4. Each check passes, and the test prints the largest residual of each check with its margin, which Section 8.4 records (DOM-19) |
-| SymmHub lines | None | Reference test, `euclidean` | For each Euclidean triangle, every wall agrees within a bound to be measured, up to sign, with one of the three lines that SymmHub's code gives for the triangle (Section 4.3 of `docs/research/rendering.md`), $y = 0$, $-x \sin a_0 + y \cos a_0 = 0$, and $x \sin a_1 + y \cos a_1 = e$ with $a_0 = \alpha_2$, $a_1 = \alpha_0$, and $e = \sin\alpha_0$, each moved by the translation of step 4 of Section 6.5. On the prototype, the three lines matched sides 0, 2, and 1 in that order. This tests the candidate vertices of `UNV-28` |
-| Exact rectangle | None | Unit test in `euclidean.rs` | At `aspect` 1 and 4, the vertices and covectors of the rectangle are exactly those of Section 9.4 |
-| Rectangle aspect | Properties | `proptest`, `properties` | For a value of `aspect` within its range, the rectangle passes `verify()`, has four right angles within the bound of Section 9.4, and the length of side 0 divided by that of side 1 is the value within a bound to be measured |
-| Parameters | Range errors, of Section 5.4 of the plan | Table test, `parameters` | `parameters` gives one `ParameterSpec` for `*2222`, with the name `aspect`, the range 0.125 to 8, and the default 1, and an empty list for `*632`, `*442`, `*333`, `*732`, and `*532`. `build_with` returns `ParameterOutOfRange` for `aspect` set to 0.1249, 8.0001, 0, $-1$, NaN, and both infinities, and builds at 0.125 and 8. It returns `UnknownParameter` for the names `Aspect`, `aspect ` with a trailing space, and the empty name on `*2222`, and for `aspect` on `*632` and `*732`. An unsupported signature with a setting returns `UnsupportedSignature`. `build` equals `build_with` with no setting, and `set` returns the value that it replaces. Each error has the text of Section 10.2 |
+| Euclidean table | Relators, of Section 5.4 of the plan | Table test, `euclidean` | `*632`, `*442`, `*333`, and `*2222` build and pass `verify()`. They have 3, 3, 3, and 4 sides and vertices, each side its own partner, and the corner angles of 30, 60, and 90 degrees, 45, 45, and 90 degrees, 60 degrees three times, and 90 degrees four times, within the bound of Section 9.4. Every other spelling of `*632` and `*442`, such as `*236`, builds the domain of its canonical form, with every vertex within twice the vertex bound of Section 9.4 |
+| Euclidean domains | Relators, of Section 5.4 of the plan | Reference test, `euclidean` | Each quantity of Section 9.4 other than the lines of SymmHub is within its bound against the reference of Section 12.2, over the Euclidean domains of Section 9.4. Each check passes, and the test prints the largest residual of each check with its margin, which Section 8.4 records (DOM-19) |
+| SymmHub lines | None | Reference test, `euclidean` | For each Euclidean triangle, every wall agrees within the bound of Section 9.4, up to sign, with one of the three lines that SymmHub's code gives for the triangle (Section 4.3 of `docs/research/rendering.md`), $y = 0$, $-x \sin a_0 + y \cos a_0 = 0$, and $x \sin a_1 + y \cos a_1 = e$ with $a_0 = \alpha_2$, $a_1 = \alpha_0$, and $e = \sin\alpha_0$, each moved by the translation of step 4 of Section 6.5, and each line matches a different side. It prints which line matches each side. This tests the candidate vertices of `UNV-28` |
+| Exact rectangle | None | Unit test in `polygon.rs` | At `aspect` 1 and 4, the vertices and covectors of the rectangle are exactly those of Section 9.4 |
+| Rectangle aspect | Properties | `proptest`, `euclidean` | For a value of `aspect` within its range, the rectangle passes `verify()`, has four right angles within the bound of the corner angle of Section 9.4, and the length of side 0 divided by that of side 1 is the value within the bound of the aspect of Section 9.4 |
+| Parameters | Range errors, of Section 5.4 of the plan | Table test, `parameters` | `parameters` gives one `ParameterSpec` for `*2222`, with the name `aspect`, the range 0.125 to 8, and the default 1, and an empty list for `*632`, `*442`, `*333`, `*732`, and `*532`. `build_with` returns `ParameterOutOfRange` for `aspect` set to 0.1249, 8.0001, 0, $-1$, NaN, and both infinities, and builds at 0.125 and 8. It returns `UnknownParameter` for the names `Aspect`, `aspect ` with a trailing space, and the empty name on `*2222`, and for `aspect` on `*632` and `*732`. An unsupported signature with a setting returns `UnsupportedSignature`. For `*2222` and `*632`, `build` gives the domain of `build_with` with no setting, with every vertex within twice the vertex bound of Section 9.4, and `set` returns the value that it replaces. Each error has the text of Section 10.2 |
 | Reference self-check | None | Reference test, `reference` | The four known values of Section 12.2 |
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type is `Send`, `Sync`, and `'static` (CONC-1 of the coding standard) |
 | Doctests | None | Doctests | The examples of the crate-level and item documentation |
@@ -768,7 +788,7 @@ DOM-15. The reference module MUST share no code with `escher-domain` or `escher-
 
 Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`).
 
-No test asserts a bit-exact result of a transcendental function, because the interpreter need not reproduce the last bits of the host library, and every tolerance of this document leaves room for that.
+No test asserts a bit-exact result of a transcendental function, because the interpreter need not reproduce the last bits of the host library, and every tolerance of this document leaves room for that. For the same reason, the tests "Euclidean table" and "Parameters" compare two builds of one domain within twice the vertex bound of Section 9.4 and not bit for bit: under Miri, two calls of a transcendental function on the same input can round differently, so two builds can differ in the last bits.
 
 DOM-16. The property tests MUST take their configuration from one helper in `common`, with the numbers of cases and the failure persistence that Section 4 of `docs/design/tooling.md` states, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and a full set of cases takes too long in the interpreter.
 
@@ -807,7 +827,7 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | `UNV-10` | Whether the one parameter of `*2222` includes the scale | Fixes the scale by the area 1, asserts no count of parameters, and leaves `deformation_dimension()` as the signature design states (Section 6.6) |
 | None | The line through two vertices as a normalized cross product, item 24 of Section 15.1 of the geometry reference, through `euclidean::wall_through` | Check 3 tests each line against the endpoints of its side, and the test "Euclidean domains" compares every covector with the reference |
 | None | The area of a polygon from its vertices, item 25 of Section 15.1 of the geometry reference, in `area()` of a Euclidean domain (Section 7) | The test "Euclidean domains" compares the area with that of the reference polygon, which uses the same formula, so the test checks the arithmetic and not the formula. No check of `verify()` reads it |
-| None | That the angles of a Euclidean polygon with $m$ vertices sum to $(m - 2)\pi$, which check 6 reads as its residual (Section 8.2). No source read states it for a polygon | Reports the residual as a consistency check only, and records what the prototype measured below. A source or a Lean proof would close it |
+| None | That the angles of a Euclidean polygon with $m$ vertices sum to $(m - 2)\pi$, which check 6 reads as its residual (Section 8.2). No source read states it for a polygon | Reports the residual as a consistency check only. Section 8.4 records its measured residuals, and Section 8.3 the defects that it detects. A source or a Lean proof would close it |
 
 The hyperbolic construction does not rely on `UNV-28`, because it uses SymmHub's triangle neither in the code nor as a test oracle (Section 6.3). `UNV-4` concerns the precision of the disk map near the limit circle, and the crate maps to the disk only in the test "Circumradius of $\{7, 3\}$", at a point near the origin.
 
@@ -819,15 +839,6 @@ These statements of this design rest on figures that no measurement of the code 
 | Repeated multiplication evaluates the relator more accurately than repeated squaring | 8.2 | At corner 0 of $(1000, 3, 2)$, a largest entry of $C^{1000} - I$ of $3.46 \times 10^{-9}$ in the domain frame by repeated multiplication and $7.77 \times 10^{-8}$ by repeated squaring, against $2.33 \times 10^{-11}$ in the corner frame by either method |
 | The residual of check 6 stays close to that of check 5 | 8.2 | Never more than 2.91 times the residual of check 5, over 300 random triples |
 | Renormalizing the vertices after step 8 makes them less accurate (DOM-10) | 9.1 | At $(1000, 1000, 1000)$, renormalization raised the largest relative vertex error from $5.7 \times 10^{-11}$ to $8.9 \times 10^{-6}$ and the angle error from $1.9 \times 10^{-13}$ to $2.8 \times 10^{-8}$ |
-
-These statements rest on a prototype of the Euclidean construction and checks outside the repository, in double precision against 256-bit reference arithmetic. Each supports only the choice that it names, and the tests of Section 12.1 replace each figure with a measurement of the code:
-
-| Statement | Section | Figures of the prototype |
-| --- | --- | --- |
-| The candidate vertices give the required angles | 6.5 | The angles at vertices 0, 1, and 2 are 30, 60, and 90 degrees for `*632`, 45, 45, and 90 for `*442`, and 60 three times for `*333`. The largest error of the cosine of an angle is $1.05 \times 10^{-16}$, and the vertices agree with the 256-bit construction within $1.1 \times 10^{-16}$. The walls agree with SymmHub's lines within $1.7 \times 10^{-16}$, up to sign. The centre lies within $6.7 \times 10^{-17}$ of the origin, and side 0 has length 1 |
-| The tolerances of Section 8.4 serve the Euclidean domains | 8.4 | Over the three triangles and the rectangle at five aspects, the largest residuals of checks 1 to 6 are $4.4 \times 10^{-16}$, $4.4 \times 10^{-16}$, $2.2 \times 10^{-16}$, $3.1 \times 10^{-16}$, $2.2 \times 10^{-16}$, and 0, a margin of at least $2.2 \times 10^{6}$ against $10^{-9}$ and of $6 \times 10^{9}$ for check 4. Over 64 values of `aspect`, the largest residual is $1.1 \times 10^{-16}$ |
-| Check 6 of a Euclidean domain fails for no defect that the other checks miss | 8.2 | On the triangle of `*442` labelled `*632`, checks 4 and 5 fail with the residuals 0.333 and 0.262, and check 6 is 0. Its residual is 0 on all eight domains of the prototype, and infinite only for a NaN vertex |
-| The defects of Section 8.3 fail the checks that its Euclidean table names | 8.3 | As that table states |
 
 ## 15. Assumptions, Choices, and Points for the Owner
 
@@ -862,7 +873,7 @@ No other document dictates these choices:
 | Six checks with one accessor each, including check 3 on the walls | 8.1, 8.2 |
 | Check 6 kept as a consistency check | 8.2 |
 | The relators in the corner frame, by repeated multiplication, with the residual divided by $n_j$ | 8.2 |
-| Every tolerance of Sections 8.4 and 9.3 | 8.4, 9.3 |
+| Every tolerance of Sections 8.4, 9.3, and 9.4 | 8.4, 9.3, 9.4 |
 | 256 bits for the reference arithmetic | 12.2 |
 | The sets of triples of Section 12.1, and the weighting of the test "Random triples" toward large orders | 12.1 |
 | `astro-float-num` in place of `astro-float` | 13 |
@@ -881,7 +892,7 @@ None of these blocks the crate. Each states what the design does until the owner
 7. Units of the Euclidean domains. The triangle has side 0 of length 1, and the rectangle has the area 1 (Section 6.5), so `aspect` and its reciprocal give the same rectangle turned a quarter turn. The alternative for the rectangle is the height 1 and the width `aspect`, which makes the size of a tile depend on `aspect`.
 8. Range and default of `aspect`. The design takes 0.125 to 8 with the default 1, the square (Section 6.6). Any other closed range of positive values that contains 1 is an alternative, and no source gives one.
 9. The area of a Euclidean domain. `area()` uses a formula that no source states (Section 7, item 25 of Section 15.1 of the geometry reference). The alternative is to give no area for a Euclidean domain, which removes the line `Domain area` that `escher info` prints for it.
-10. Check 6 for a Euclidean domain. The design keeps the angle defect, which failed on the prototype only for a NaN vertex, so that the six checks exist for every geometry (Sections 8.2 and 14). The alternative is to compare the measured area with the area that the unit of item 7 implies, which would detect a wrong scale but rests on the area formula of item 9.
+10. Check 6 for a Euclidean domain. The design keeps the angle defect, which fails among the defects of Section 8.3 only for a NaN vertex, so that the six checks exist for every geometry (Section 8.2). The alternative is to compare the measured area with the area that the unit of item 7 implies, which would detect a wrong scale but rests on the area formula of item 9.
 11. `build_with` beside `build`. The design adds a second constructor that takes the settings, so that the callers of `build` do not change (Section 3.4). The alternative is to give `build` a second argument and change every call.
 12. Validation in `escher-domain`. The crate reports an unknown name and a value out of range (DOM-18), and a caller detects only a name set twice, through the return value of `ShapeParameters::set`. The alternative is to validate in `escher-cli`, which would duplicate the ranges.
 

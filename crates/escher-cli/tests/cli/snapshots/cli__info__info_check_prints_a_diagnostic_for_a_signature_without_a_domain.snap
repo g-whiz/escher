@@ -1,15 +1,17 @@
 ---
 source: crates/escher-cli/tests/cli/info.rs
-expression: "snapshot(&[\"info\", \"--check\", \"*632\"])"
+expression: "snapshot(&[\"info\", \"--check\", \"*532\"])"
 ---
 status: Failure
 --- stdout
-Signature: *632
-Geometry: Euclidean
-Euler characteristic: 0
+Signature: *532
+Geometry: spherical
+Euler characteristic: 1/60
 Compact: yes
-Domain: none, cannot build fundamental domain: the signature *632 is not supported
+Group order: 120
+Area: pi/30
+Domain: none, cannot build fundamental domain: the signature *532 is not supported
 --- stderr
 error: cannot verify fundamental domain
-  caused by: cannot build fundamental domain: the signature *632 is not supported
+  caused by: cannot build fundamental domain: the signature *532 is not supported
 --- end

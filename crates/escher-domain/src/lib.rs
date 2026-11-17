@@ -1,21 +1,25 @@
 //! Builds the fundamental domain of an orbifold signature as a polygon of the
-//! hyperbolic plane, and checks it numerically.
+//! hyperbolic or the Euclidean plane, and checks it numerically.
 //!
 //! A fundamental domain of a symmetry group is a polygon whose copies under
 //! the group tile the plane without overlap. This crate turns a
 //! [`Signature`](escher_signature::Signature) of the crate
 //! [`escher_signature`] into a [`FundamentalDomain`]. It computes with the
-//! linear model of the hyperbolic plane of the crate [`escher_geometry`]. A
-//! renderer can use the domain to fold each pixel into one tile.
+//! linear model of the hyperbolic plane and with the Euclidean plane of the
+//! crate [`escher_geometry`]. A renderer can use the domain to fold each pixel
+//! into one tile.
 //!
 //! The crate supports compact hyperbolic signatures of the form `*pqr`, which
-//! have one mirror boundary and three finite corner orders, with no corner
-//! order above 1000. The domain of such a signature is a reflection triangle,
-//! a triangle whose sides are mirrors and whose corners have the angles
-//! `pi / p`, `pi / q`, and `pi / r`. Every other signature gives an [`Error`].
-//! A signature of another form is unsupported, and a corner order above 1000
-//! is over the limit. [`FundamentalDomain::verify`] checks a domain
-//! numerically.
+//! have one mirror boundary and three finite corner orders, none above 1000,
+//! and the Euclidean signatures `*632`, `*442`, `*333`, and `*2222`. The
+//! domain of a signature `*pqr`, including the three Euclidean ones, is a
+//! reflection triangle, a triangle whose sides are mirrors and whose corners
+//! have the angles `pi / p`, `pi / q`, and `pi / r`. The domain of `*2222` is
+//! a rectangle whose sides are mirrors, and its shape parameter `aspect`,
+//! which [`parameters`](parameters()) lists, sets the ratio of its sides.
+//! Every other signature gives an [`Error`]. A signature of another form is
+//! unsupported, and a corner order above 1000 is over the limit.
+//! [`FundamentalDomain::verify`] checks a domain numerically.
 //!
 //! ```
 //! use escher_domain::FundamentalDomain;
@@ -42,17 +46,21 @@
 
 mod domain;
 mod error;
+mod parameters;
+mod polygon;
 mod triangle;
 mod verify;
 
 pub use domain::{FundamentalDomain, Orientation, PairingKind, Side};
 pub use error::{Error, ErrorKind, Result};
+pub use parameters::{ParameterSpec, ShapeParameters, parameters};
 pub use verify::{Check, Verification};
 
 #[cfg(test)]
 mod tests {
     use super::{
-        Check, Error, ErrorKind, FundamentalDomain, Orientation, PairingKind, Side, Verification,
+        Check, Error, ErrorKind, FundamentalDomain, Orientation, PairingKind, ParameterSpec,
+        ShapeParameters, Side, Verification,
     };
 
     fn assert_auto_traits<T: Send + Sync + 'static>() {}
@@ -67,5 +75,7 @@ mod tests {
         assert_auto_traits::<Check>();
         assert_auto_traits::<Error>();
         assert_auto_traits::<ErrorKind>();
+        assert_auto_traits::<ParameterSpec>();
+        assert_auto_traits::<ShapeParameters>();
     }
 }

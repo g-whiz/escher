@@ -247,6 +247,106 @@ impl Reference {
     }
 }
 
+pub(crate) struct Polygon {
+    pub(crate) vertices: Vec<Vector>,
+    pub(crate) covectors: Vec<Vector>,
+    pub(crate) pairings: Vec<Matrix>,
+    pub(crate) lengths: Vec<BigFloat>,
+    pub(crate) angles: Vec<BigFloat>,
+    pub(crate) area: BigFloat,
+    pub(crate) mean: [BigFloat; 2],
+}
+
+impl Reference {
+    pub(crate) fn euclidean_triangle(&mut self, orders: [u32; 3]) -> Polygon {
+        let pi = self.pi();
+        let angles = orders.map(|order| div(&pi, &int(order)));
+        let length = div(&self.sin(&angles[0]), &self.sin(&angles[1]));
+        let placed = vec![
+            [int(1), int(0)],
+            [
+                mul(&length, &self.cos(&angles[2])),
+                mul(&length, &self.sin(&angles[2])),
+            ],
+            [int(0), int(0)],
+        ];
+        polygon(&placed, angles.to_vec())
+    }
+
+    pub(crate) fn rectangle(&mut self, aspect: f64) -> Polygon {
+        let width = sqrt(&num(aspect));
+        let height = div(&int(1), &width);
+        let (x, y) = (div(&width, &int(2)), div(&height, &int(2)));
+        let placed = vec![
+            [x.clone(), y.neg()],
+            [x.clone(), y.clone()],
+            [x.neg(), y.clone()],
+            [x.neg(), y.neg()],
+        ];
+        let right = div(&self.pi(), &int(2));
+        polygon(&placed, vec![right; 4])
+    }
+}
+
+fn polygon(placed: &[[BigFloat; 2]], angles: Vec<BigFloat>) -> Polygon {
+    let count = int(u32::try_from(placed.len()).unwrap_or(0));
+    let mut sum = [int(0), int(0)];
+    for vertex in placed {
+        sum = [add(&sum[0], &vertex[0]), add(&sum[1], &vertex[1])];
+    }
+    let mean = [div(&sum[0], &count), div(&sum[1], &count)];
+    let vertices: Vec<Vector> = placed
+        .iter()
+        .map(|vertex| [sub(&vertex[0], &mean[0]), sub(&vertex[1], &mean[1]), int(1)])
+        .collect();
+    let total = vertices.len();
+    let mut covectors = Vec::new();
+    let mut pairings = Vec::new();
+    let mut lengths = Vec::new();
+    let mut twice_area = int(0);
+    for index in 0..total {
+        let (start, end) = (&vertices[(index + total - 1) % total], &vertices[index]);
+        let along = [sub(&end[0], &start[0]), sub(&end[1], &start[1])];
+        let length = sqrt(&add(&mul(&along[0], &along[0]), &mul(&along[1], &along[1])));
+        let mut normal = [div(&along[1], &length), div(&along[0], &length).neg()];
+        let mut offset = add(&mul(&normal[0], &end[0]), &mul(&normal[1], &end[1]));
+        if offset.is_negative() {
+            normal = [normal[0].neg(), normal[1].neg()];
+            offset = offset.neg();
+        }
+        let entry = |row: usize, column: usize| {
+            let identity = int(u32::from(row == column));
+            match column {
+                2 => add(&identity, &mul(&mul(&int(2), &offset), &normal[row])),
+                _ => sub(
+                    &identity,
+                    &mul(&mul(&int(2), &normal[row]), &normal[column]),
+                ),
+            }
+        };
+        pairings.push([
+            [entry(0, 0), entry(0, 1), entry(0, 2)],
+            [entry(1, 0), entry(1, 1), entry(1, 2)],
+            [int(0), int(0), int(1)],
+        ]);
+        covectors.push([normal[0].clone(), normal[1].clone(), offset.neg()]);
+        lengths.push(length);
+        twice_area = add(
+            &twice_area,
+            &sub(&mul(&start[0], &end[1]), &mul(&end[0], &start[1])),
+        );
+    }
+    Polygon {
+        vertices,
+        covectors,
+        pairings,
+        lengths,
+        angles,
+        area: div(&twice_area, &int(2)).abs(),
+        mean,
+    }
+}
+
 pub(crate) struct Triangle {
     pub(crate) vertices: [Vector; 3],
     pub(crate) normals: [Vector; 3],

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-16 |
+| Date | 2026-11-17 |
 | Applies to | `crates/escher-geometry` |
 
 ## Abstract
@@ -162,7 +162,7 @@ Section 3.2 and `DEC-4` of the architecture decide that a point, a unit normal, 
 | `euclidean::rotation` | The rotation about `euclidean::ORIGIN` by the angle in radians | Any finite angle | A Euclidean isometry, the same matrix as `hyperbolic::rotation` (Section 6.6) |
 | `euclidean::translation` | The translation that maps `euclidean::ORIGIN` to $(t_1, t_2, 1)$ | Any finite target. Its last coordinate is not read | A Euclidean isometry (Section 6.6) |
 | `euclidean::distance` | The Euclidean distance $d_E$ | Two Euclidean points. The last coordinates are not read | Total. At least 0, or NaN (Section 5.4) |
-| `euclidean::isometry_defect` | How far a matrix is from a Euclidean isometry | Any matrix | Total. 0 for an exact Euclidean isometry, and `f64::INFINITY` when the result is not a number (Section 6.6) |
+| `euclidean::isometry_defect` | How far a matrix is from a Euclidean isometry | Any matrix | Total. 0 for an exact Euclidean isometry, and `f64::INFINITY` when an entry is not finite or the result is not a number (Section 6.6) |
 | `Error` | Why a vector is not a point, or two points span no wall | Not applicable | Holds no `glam` type (ERR-2 of the coding standard) |
 | `ErrorKind` | What a caller matches on | Not applicable | `Copy` and `#[non_exhaustive]` (ERR-1 of the coding standard) |
 
@@ -302,11 +302,11 @@ The crate states no orientation for $u$. Swapping the arguments negates $u$, whi
 
 $$c \cdot p = 0, \qquad c \cdot q = 0, \qquad c_1^2 + c_2^2 = 1$$
 
-It computes $w = p \times q$, which is `p.cross(q)`, and $n = w_1^2 + w_2^2$, and returns $w / \sqrt{n}$ when $n$ is positive and finite, and `DegenerateWall` otherwise. Two equal points give $w = 0$ and this error, and a NaN or infinite coordinate gives a non-finite $n$ and this error. The function returns the covector and not a unit normal, as `hyperbolic::wall_through` does, because the offset $t$ of the line is not a function of its normal.
+It computes $w = p \times q$, which is `p.cross(q)`, and $n = w_1^2 + w_2^2$, and returns $w / \sqrt{n}$ when $n$ is positive and finite and that result is finite, and `DegenerateWall` otherwise. Two equal points give $w = 0$ and this error, and so does a NaN or infinite coordinate. The squares are not scaled, so two distinct, finite points also give this error when $n$ underflows to 0, such as points about $10^{-170}$ apart, when $n$ overflows, such as points about $10^{200}$ apart, and when their coordinates are so large that the cross product overflows. The function returns the covector and not a unit normal, as `hyperbolic::wall_through` does, because the offset $t$ of the line is not a function of its normal.
 
 No source states the formula (item 24 of Section 15.1 of the reference). As for `UNV-26` in Section 5.3, the formula only computes a candidate, and the tests check the three properties on the result (tests G22 and G23 of Section 10.1). The function states no orientation. Swapping the arguments negates the result exactly, and a caller orients it with `euclidean::side`.
 
-GEO-21. `euclidean::wall_through` MUST return either a finite vector or `DegenerateWall`, and on the range of its rows of Section 8.5 the vector MUST have the three properties of this section within those rows, because a caller builds a pairing from the result with `euclidean::reflection`, and a covector whose direction part is not a unit vector gives a matrix that is not an isometry.
+GEO-21. `euclidean::wall_through` MUST return either a finite vector or `DegenerateWall` for every input, and on the range of its rows of Section 8.5 the vector MUST have the three properties of this section within those rows, because a caller builds a pairing from the result with `euclidean::reflection`, and a covector whose direction part is not a unit vector gives a matrix that is not an isometry. Outside that range the function has no stated accuracy and may return `DegenerateWall` for two distinct points.
 
 ## 6. Isometries
 
@@ -367,7 +367,7 @@ Section 5.2 of the architecture adopts this form. The research does not record t
 
 ### 6.6. Euclidean Isometries
 
-The functions of this section return the Euclidean isometries of Section 4.5. Each is exact or has the accuracy of its row of Section 8.5:
+The functions of this section return the Euclidean isometries of Section 4.5. Each is exact or has the accuracy of a row of Section 8.4 or 8.5:
 
 | Function | Matrix, as its columns | Source |
 | --- | --- | --- |
@@ -375,11 +375,11 @@ The functions of this section return the Euclidean isometries of Section 4.5. Ea
 | `euclidean::rotation(angle)` | $(\cos\alpha, \sin\alpha, 0)$, $(-\sin\alpha, \cos\alpha, 0)$, and $(0, 0, 1)$, from one call of `sin_cos`, the expression of `hyperbolic::rotation` (Section 6.3) | [RAT], Theorem 1.3.5, with $b = 0$ and an orthogonal $A$, and the block form of [W-AFFINE] |
 | `euclidean::translation(t)` | $(1, 0, 0)$, $(0, 1, 0)$, and $(t_1, t_2, 1)$. It does not read $t_3$ | [RAT], Theorem 1.3.5, with $A = I$, and the block form of [W-AFFINE] |
 
-`euclidean::rotation` turns $e_1$ towards $e_2$, which is counterclockwise for a positive angle. `euclidean::translation` copies its target, so `euclidean::translation(t) * euclidean::ORIGIN` is $(t_1, t_2, 1)$ exactly. `euclidean::reflection` does not check that $c$ is a line covector. For a vector that is not one, the result is not a reflection, and for a finite $c$ its last row is still $(0, 0, 1)$ exactly, because $u_3 = 0$ (GEO-20).
+`euclidean::rotation` turns $e_1$ towards $e_2$, which is counterclockwise for a positive angle. `euclidean::translation` copies its target, so `euclidean::translation(t) * euclidean::ORIGIN` is $(t_1, t_2, 1)$ exactly. `euclidean::reflection` does not check that $c$ is a line covector. For a vector that is not one, the result is not a reflection, and for a finite $c$ its last row is still $(0, 0, 1)$ exactly (GEO-20). The function computes column $j$ as $e_j - (c_1 \cdot 2c_j, \ c_2 \cdot 2c_j, \ 0)$, with a literal 0 as the last entry and not the product $u_3 \cdot 2c_j$, because $2c_j$ overflows to infinity for a large finite $c_j$, and $0 \cdot \infty$ is NaN.
 
-`euclidean::isometry_defect(m)` measures how far $m$ is from a Euclidean isometry. With $A$ the upper-left $2 \times 2$ block of $m$, it returns the largest of the absolute entries of $A^t A - I$ with $i \le j$, and of $\lvert m_{31} \rvert$, $\lvert m_{32} \rvert$, and $\lvert m_{33} - 1 \rvert$ for the last row. The orthogonality of $A$ is the condition of [RAT], Theorem 1.3.5, and the last row is the block form of Section 4.5. The function applies no tolerance.
+`euclidean::isometry_defect(m)` measures how far $m$ is from a Euclidean isometry. With $A$ the upper-left $2 \times 2$ block of $m$, it returns the largest of the absolute entries of $A^t A - I$ with $i \le j$, and of $\lvert m_{31} \rvert$, $\lvert m_{32} \rvert$, and $\lvert m_{33} - 1 \rvert$ for the last row. The orthogonality of $A$ is the condition of [RAT], Theorem 1.3.5, and the last row is the block form of Section 4.5. It returns `f64::INFINITY` for a matrix with an entry that is not finite, including the two entries of the translation part, $m_{13}$ and $m_{23}$, which the maximum does not read. The function applies no tolerance.
 
-GEO-22. `euclidean::isometry_defect` MUST return `f64::INFINITY` when the result is NaN, because a NaN compares false with every tolerance and would pass a check written as "defect greater than tolerance fails", as GEO-8 states for `hyperbolic::isometry_defect`.
+GEO-22. `euclidean::isometry_defect` MUST return `f64::INFINITY` when an entry of the matrix is not finite or the result is NaN, because a NaN compares false with every tolerance and would pass a check written as "defect greater than tolerance fails", as GEO-8 states for `hyperbolic::isometry_defect`, and a non-finite translation entry would otherwise pass a matrix that maps every point to a non-finite one.
 
 ## 7. Disk Map
 
@@ -435,7 +435,7 @@ Every function is total (GEO-2). Only `normalize_point`, `wall_through`, and `fr
 | `inverse` | A matrix that is not an isometry | $J M^t J$ |
 | `translation` | A target off the hyperboloid | The isometry of its spatial coordinates |
 | `boost`, `rotation`, `translation` | A non-finite parameter or target | Infinite or NaN entries |
-| `euclidean::wall_through` | Equal points, or a pair whose $w_1^2 + w_2^2$ is not positive and finite, which includes every NaN or infinite coordinate | `DegenerateWall` |
+| `euclidean::wall_through` | Equal points, a pair whose $w_1^2 + w_2^2$ is not positive and finite, or a pair whose result is not finite, which includes every NaN or infinite coordinate | `DegenerateWall` |
 | `euclidean::side`, `euclidean::distance` | A vector that is not a Euclidean point, or a covector that is not a line covector | The formula, possibly infinite or NaN |
 | `euclidean::reflection` | A covector that is not a line covector | A matrix that is not a reflection, with the last row $(0, 0, 1)$ for a finite covector |
 | `euclidean::rotation`, `euclidean::translation` | A non-finite angle or target | Infinite or NaN entries |
@@ -522,15 +522,15 @@ The tests do not measure `normalize_point` on the sums of vertices of that const
 
 ### 8.5. Accuracy of the Module `euclidean`
 
-The bounds of this table are to be measured. The change that adds test G22 sets each bound, its largest error, and its margin as GEO-19 requires, over the range that the row states, and GEO-12 then applies to each row as it applies to Section 8.4. A point "within 64" is a Euclidean point at a distance of at most 64 from `euclidean::ORIGIN`, and each quantity is a reference value from the exact `f64` values of the inputs and the result:
+Test G22 measures each row of this table as Section 8.4 states, over 100,000 cases, and GEO-12 applies to each row as it applies to Section 8.4. A point "within 64" is a Euclidean point at a distance of at most 64 from `euclidean::ORIGIN`, and each quantity is a reference value from the exact `f64` values of the inputs and the result. Every figure in the column "Largest error" is over four samples, and the worst input is the one on the sample of the seed of the test. In the row of orthogonality, $\lvert p \rvert$ and $\lvert q \rvert$ are the lengths of the first two coordinates of the points:
 
-| Function | Range of inputs | Quantity | Bound |
-| --- | --- | --- | --- |
-| `euclidean::reflection` | Line covectors at 64 angles of the normal and offsets $t$ with $\lvert t \rvert \le 64$, and points within 64 | Each coordinate of `euclidean::reflection(c) * x` against $\rho$ of [RAT] (4.1.1), in units of $\varepsilon \sigma_i$ of Section 2.1 with $u = (c_1, c_2, 0)$ | To be measured |
-| `euclidean::reflection`, isometry | The covectors of the row above | `euclidean::isometry_defect(euclidean::reflection(c))` | To be measured |
-| `euclidean::wall_through`, orthogonality | Pairs of points within 64, from $0.1$ to 128 apart | $\lvert c \cdot p \rvert$ and $\lvert c \cdot q \rvert$ | To be measured |
-| `euclidean::wall_through`, norm | The pairs of the row above | $\lvert c_1^2 + c_2^2 - 1 \rvert$ | To be measured |
-| `euclidean::distance` | The pairs of the row above | The relative error against $\lvert p - q \rvert$ | To be measured |
+| Function | Range of inputs | Accuracy | Largest error | Margin |
+| --- | --- | --- | --- | --- |
+| `euclidean::reflection` | Line covectors $(\cos\theta, \sin\theta, -t)$ at 64 angles $\theta$ and offsets with $\lvert t \rvert \le 64$, and points within 64 | Each coordinate of `euclidean::reflection(c) * x` within $16\varepsilon \sigma_i$ of $\rho$ of [RAT] (4.1.1), with $\sigma_i$ of Section 2.1 and $u = (c_1, c_2, 0)$ | $1.290\varepsilon \sigma_i$, at $c = (0.3827, -0.9239, 1.7128)$ and $x = (-52.38, -0.457, 1)$ | 12.4 |
+| `euclidean::reflection`, isometry | The covectors of the row above | `euclidean::isometry_defect(euclidean::reflection(c))` at most $32\varepsilon$ | $2.000\varepsilon$, at $c = (0.9952, 0.0980, -19.34)$ | 16.0 |
+| `euclidean::wall_through`, orthogonality | Pairs of points within 64, from 0.1 to 128 apart, log-uniform | $\lvert c \cdot p \rvert$ and $\lvert c \cdot q \rvert$ each at most $8\varepsilon (1 + \lvert p \rvert + \lvert q \rvert + \lvert p \rvert \lvert q \rvert / \lvert p - q \rvert)$ | $0.5456\varepsilon (1 + \lvert p \rvert + \lvert q \rvert + \lvert p \rvert \lvert q \rvert / \lvert p - q \rvert)$, at $(3.889, -1.314)$ and $(42.97, 33.22)$ | 14.7 |
+| `euclidean::wall_through`, norm | The pairs of the row above | $\lvert c_1^2 + c_2^2 - 1 \rvert$ at most $32\varepsilon$ | $2.188\varepsilon$, at $(-35.66, 40.13)$ and $(-30.89, 33.18)$ | 14.6 |
+| `euclidean::distance` | The pairs of the row above | A relative error of at most $16\varepsilon$ against $\lvert p - q \rvert$ | $0.9793\varepsilon$, at $(-8.05, 2.24)$ and $(-8.17, 10.39)$ | 16.3 |
 
 `euclidean::rotation` runs the same operations as `hyperbolic::rotation` on the same input, so the row `rotation` of Section 8.4 states its accuracy, and a unit test of G21 asserts that the two matrices are equal bit for bit. `euclidean::translation` is exact (Section 6.6).
 
@@ -568,7 +568,7 @@ The unit tests sit beside the code (TEST-1 of the coding standard). The integrat
 
 The tests of the module `euclidean` are G21 to G24, and G13 also covers its functions. `common` holds the shared helpers. A reference test or sweep that draws random inputs takes them from a SplitMix64 generator with a fixed seed of its own, so every run draws the same cases. A helper that redraws an input until it meets a condition, such as two points at least 0.1 apart, stops after 1,000 attempts with a panic, so a defect that rejects every input fails the test instead of hanging it. The table of G1 holds the points at distances 0, 0.1, 1, 5, 10, and 20 from `ORIGIN`, each at eight angles, and its vectors are those points multiplied by 0.5, 1, and 2.
 
-Each reference test and sweep that asserts a bound of Section 8.4 or Section 10.3 prints its largest error, in the form of the bound, with its margin and the input that gave it. The test harness captures that output for a test that passes.
+Each reference test and sweep that asserts a bound of Section 8.4, 8.5, or 10.3 prints its largest error, in the form of the bound, with its margin and the input that gave it. The test harness captures that output for a test that passes.
 
 Each test below names the item of the field "Tests and acceptance" of Section 5.2 of the plan that it serves, or of Section 5.4 of the plan where the item says so. The item "Reference arithmetic" names the triangle of `docs/design/domain.md`. These tests serve it by checking each function that the triangle uses, and `docs/design/domain.md` checks the triangle itself. The item "Numeric checks for $\{7, 3\}$" belongs entirely to `docs/design/domain.md`. A test that serves a rule of the coding standard and no plan item names that rule:
 
@@ -586,7 +586,7 @@ Each test below names the item of the field "Tests and acceptance" of Section 5.
 | G10 Reflection and distance | Properties | `proptest` and sweeps, `properties` | The reflection in a wall of G7 is an involution and fixes the points of its wall, which are the two points that define the wall and the normalized sum of the two. An isometry that is a product of factors of G7, or of three boosts of length up to 2, half of them with rotations between the boosts, preserves `form` and `distance` for points within distance 3 of `ORIGIN` and at least 0.1 apart. `distance(ORIGIN, boost(l) * ORIGIN)` is $\lvert l \rvert$ for $\lvert l \rvert \le 20$. For points within distance 3 of `ORIGIN`, `distance` agrees with the disk formula $\cosh d = 1 + 2\lvert u - v \rvert^2 / ((1 - \lvert u \rvert^2)(1 - \lvert v \rvert^2))$ of [RAT], Theorem 4.5.1 (Section 3.2 of the reference), evaluated in `f64` on `to_disk` of both points. Each within its row of Section 10.3 | Sections 5.2 and 6.5 |
 | G11 Failure paths | None, TEST-6 | Unit tests in `hyperbolic.rs`, and one reference test in `formulas` | `NotAPoint` for a spacelike, a null, a negative-time, an underflowing, an overflowing, a NaN, and an infinite vector. `DegenerateWall` for two equal points, and for a NaN or infinite coordinate in either argument. The results of Sections 6.3 and 8.1 for non-finite input: `distance` is NaN for a NaN in either point, `boost` of $\pm 711$ has infinite entries and `boost` of NaN has NaN entries, `rotation` of NaN and of $\pm\infty$ has NaN entries, `translation` of a NaN or infinite target has a non-finite entry, `to_disk((inf, 0, inf))` has a NaN first coordinate, `to_disk` of a vector with last coordinate $-1$ is not finite, and `from_disk` of a position with an infinite coordinate is `None`. The rows of the table of Section 7.3 whose value does not depend on a transcendental function, exactly: `None` for the positions $(1, 0)$, $(2, 0)$, and NaN, `Some(ORIGIN)` for `from_disk((0, 0))`, `Some` with a finite last coordinate between $8.9 \times 10^{15}$ and $9.1 \times 10^{15}$ for the largest `f64` below 1, and `(0, 0)` for `to_disk(ORIGIN)`. The radius of `to_disk` at distances 37 and 38.2 within $4\varepsilon$ of the values of Section 7.3, and in the reference test within $4\varepsilon$ of its reference value | Sections 5.1, 5.3, 6.3, 7.1, 7.3, and 8.1 |
 | G12 Error text | None, TEST-6 | Unit test in `error.rs` | The `Display` of each kind is the text of Section 9.2 | Section 9.2 |
-| G13 Any input | None, TEST-6 | `proptest`, `properties` | No function panics for any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value in any argument. Also: `distance` is NaN or at least 0, `isometry_defect` is at least 0, `inverse(inverse(m))` is bit for bit $m$, `covector` negates the last coordinate exactly, a point from `normalize_point` is finite with a positive last coordinate, a normal from `wall_through` is finite, and a point from `from_disk` is finite with a last coordinate of at least 1. For the module `euclidean`: `distance` is NaN or at least 0, `isometry_defect` is at least 0, `reflection` of a finite covector has the last row $(0, 0, 1)$ exactly, and a covector from `wall_through` is finite | GEO-2, GEO-20 |
+| G13 Any input | None, TEST-6 | `proptest`, `properties` | No function panics for any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value in any argument. Also: `distance` is NaN or at least 0, `isometry_defect` is at least 0, `inverse(inverse(m))` is bit for bit $m$, `covector` negates the last coordinate exactly, a point from `normalize_point` is finite with a positive last coordinate, a normal from `wall_through` is finite, and a point from `from_disk` is finite with a last coordinate of at least 1. For the module `euclidean`: `distance` is NaN or at least 0, `isometry_defect` is at least 0, `reflection` of a finite covector has the last row $(0, 0, 1)$ exactly, and `wall_through` returns a finite covector or `DegenerateWall` for any pair, for the pair multiplied by $10^{-170}$, $10^{145}$, $10^{160}$, or $10^{200}$, and for the points $(s, s, 1)$ and $(s, s + t, 1)$ with any $s$ and $t$ | GEO-2, GEO-20, GEO-21 |
 | G14 Reference self-check | None | Reference, `formulas` | The reference arithmetic itself: $\pi$ against a literal with 80 digits after the decimal point, $\cos(\pi/3) = 1/2$, $\cosh(\operatorname{arcosh} 2) = 2$, and $\sqrt{2}^2 = 2$, each to $10^{-70}$ | Section 10.2 |
 | G15 Auto traits | None, CONC-1 | Compile-time assertion in a unit test in `lib.rs` | `Error` and `ErrorKind` are `Send`, `Sync`, and `'static` | Section 3.2 |
 | G16 Doctests | None | Doctests | The examples of the crate-level and item documentation | Sections 7.4 and 7.5 of `docs/writing-documentation.md` |
@@ -594,9 +594,9 @@ Each test below names the item of the field "Tests and acceptance" of Section 5.
 | G18 Beyond the range of normalization | None, TEST-6 | Plain test, `properties` | For 256 vectors at distances from 15 to 20 from `ORIGIN`, multiplied by a factor in $[0.5, 2]$: each `NotAPoint` comes with a computed $q$ and a last coordinate that fail the conditions of Section 5.1, and each accepted result is finite with a positive last coordinate | Sections 5.1 and 8.4 |
 | G19 Wall below the separation floor | None, TEST-6 | `proptest` and a sweep, `properties` | For $a$ within distance 10 of `ORIGIN` and $b$ at a distance from $10^{-9}$ to $10^{-5}$ from $a$: each result is a finite vector or `DegenerateWall`, with no bound on its accuracy | Sections 5.3 and 8.4 |
 | G20 Isometry defect | None, TEST-6 | Unit tests in `hyperbolic.rs` | Six matrices each break one of the six equations $\langle m_i, m_j \rangle = J_{ij}$ with $i \le j$ of condition 1 alone, and `isometry_defect` is within $10^{-12}$ of the expected value for each. The matrices are the identity with one diagonal entry set to 2, which gives 3 each, the identity with the second column $(0.6, 0.8, 0)$, which gives 0.6, and the identity with the third column $(0.75, 0, 1.25)$ or $(0, 0.75, 1.25)$, which give 0.75 each. The identity gives exactly 0. The identity with a NaN in any one of its nine entries, or with a last entry of 0, $-0$, or $-1$, gives `f64::INFINITY` | Section 6.2 |
-| G21 Euclidean exact cases | None, TEST-6 | Unit tests in `euclidean.rs` | The reflection in the line $x = 0.5$, of covector $(1, 0, -0.5)$, maps dyadic points $(x, y, 1)$ to $(1 - x, y, 1)$ exactly. `translation(t) * ORIGIN` is $(t_1, t_2, 1)$ exactly. The last row of `reflection` is $(0, 0, 1)$ exactly for finite covectors. `rotation(angle)` equals `hyperbolic::rotation(angle)` bit for bit. `wall_through` gives `DegenerateWall` for two equal points and for a NaN or infinite coordinate in either argument, and swapping its arguments negates its result exactly. `isometry_defect` is exactly 0 for the identity and `f64::INFINITY` for a matrix with a NaN entry | Sections 5.4 and 6.6, GEO-20, GEO-21, GEO-22 |
+| G21 Euclidean exact cases | None, TEST-6 | Unit tests in `euclidean.rs` | The reflection in the line $x = 0.5$, of covector $(1, 0, -0.5)$, maps dyadic points $(x, y, 1)$ to $(1 - x, y, 1)$ exactly. `translation(t) * ORIGIN` is $(t_1, t_2, 1)$ exactly. The last row of `reflection` is $(0, 0, 1)$ exactly for finite covectors. `rotation(angle)` equals `hyperbolic::rotation(angle)` bit for bit. `wall_through` gives `DegenerateWall` for two equal points, for a NaN or infinite coordinate in either argument, for $(10^{160}, 10^{160}, 1)$ and $(10^{160}, 10^{160} + 10^{145}, 1)$, whose cross product overflows, for $(0, 0, 1)$ and $(10^{-170}, 0, 1)$, whose $n$ underflows, and for $(10^{200}, 0, 1)$ and $(-10^{200}, 5, 1)$, whose $n$ overflows, and swapping its arguments negates its result exactly. `isometry_defect` is exactly 0 for the identity and `f64::INFINITY` for a matrix with a NaN entry | Sections 5.4 and 6.6, GEO-20, GEO-21, GEO-22 |
 | G22 Euclidean reference | None | Reference, `formulas` | Each row of Section 8.5 against the reference arithmetic, on the inputs of the row and within its bound | Sections 5.4, 6.6, and 8.5 |
-| G23 Euclidean properties | Relators, of Section 5.4 of the plan | `proptest`, `properties` | A reflection in a line of the range of Section 8.5 is an involution, fixes the points of its line, and has an `isometry_defect` within the bound of its row. The product of the reflections in two lines through one point at the angle $\pi/n$, for $n$ from 2 to 6, raised to the power $n$ by repeated multiplication, is the identity within a tolerance to be measured. `wall_through` of two points within 64 and at least 0.1 apart has the three properties of Section 5.4 within the bounds of its rows | Sections 5.4 and 6.6 |
+| G23 Euclidean properties | Relators, of Section 5.4 of the plan | `proptest` and a sweep, `properties` | A reflection in a line of the range of Section 8.5 is an involution, fixes the points of its line, and has an `isometry_defect` within the bound of its row. The product of the reflections in two lines through one point within 64 at the angle $\pi/n$, for $n$ from 2 to 6, raised to the power $n$ by repeated multiplication, is the identity. Each within its row of Section 10.3. `wall_through` of two points within 64 and at least 0.1 apart has the three properties of Section 5.4 within the bounds of its rows | Sections 5.4 and 6.6 |
 | G24 Euclidean wrong isometries | None, TEST-6 | Unit tests in `euclidean.rs` | `isometry_defect` exceeds $10^{-9}$, the tolerance of check 1 of `docs/design/domain.md`, for a reflection scaled by $1 + 10^{-6}$ and for a reflection whose last row is set to $(0, 10^{-6}, 1)$ | Section 6.6 |
 
 The property tests commit their regression files (TEST-9 of the coding standard). G14 guards against a wrong precision or rounding argument and does not test correct rounding, which Section 12 treats under `UNV-25`.
@@ -649,8 +649,11 @@ Each test compares with the tolerance of this table, with the scales of Section 
 | The radius of `to_disk` at distances 37 and 38.2 from `ORIGIN` | G11 | $4\varepsilon$ absolute, against the values of Section 7.3 in the unit tests and against the reference value in the reference test | $0.2315\varepsilon$ against the reference value | 17.3 |
 | `isometry_defect` of the six matrices of G20 against 3, 3, 3, 0.6, 0.75, and 0.75, and of the identity against 0 | G20 | $10^{-12}$ absolute for the six matrices, and exact equality for the identity | 0 | Not applicable |
 | The four values of G14 against their exact values | G14 | $10^{-70}$, as G14 states | 0 for $\pi$, $8.64 \times 10^{-78}$ for $\cos(\pi/3)$, 0 for $\cosh(\operatorname{arcosh} 2)$, and $1.73 \times 10^{-77}$ for $\sqrt{2}^2$ | At least $5.8 \times 10^{6}$ |
-| The quantities of the module `euclidean` | G22, G23 | The rows of Section 8.5 | To be measured | To be measured |
-| Each entry of $(P_0 P_1)^n - I$ for two reflections in lines through one point at the angle $\pi/n$, $n$ from 2 to 6 | G23 | To be measured | To be measured | To be measured |
+| The quantities of the module `euclidean` | G22, G23 | The rows of Section 8.5 | As those rows | As those rows |
+| Each entry of a Euclidean reflection applied twice, against the identity, for 100,000 line covectors of the range of Section 8.5 | G23 | $32\varepsilon \mu^2$, with $\mu$ of the reflection | $2.000\varepsilon \mu^2$, at $c = (0.2903, 0.9569, 0.3586)$ | 16.0 |
+| Each coordinate of a Euclidean reflection applied to a point of its line, at a parameter from $-64$ to 64 along the line, for the lines of the row above | G23 | $16\varepsilon \sigma_i$, with $\sigma_i$ computed in `f64` | $1.037\varepsilon \sigma_i$, at $c = (0.0980, 0.9952, -49.13)$ and the parameter $-37.83$ | 15.4 |
+| Each entry of $(P_0 P_1)^n - I$ for the reflections $P_0$ and $P_1$ in two lines through a point $X$ within 64 at the angle $\pi/n$, $n$ from 2 to 6, for 100,000 cases | G23 | $256\varepsilon (1 + \lvert X \rvert)$, with $\lvert X \rvert$ the length of the first two coordinates of $X$ | $16.63\varepsilon (1 + \lvert X \rvert)$, at $X = (-56.25, 7.34)$ and $n = 6$ | 15.4 |
+| $\lvert c \cdot p \rvert$ and $\lvert c \cdot q \rvert$ for `euclidean::wall_through`, computed in `f64` with `euclidean::side`, for 100,000 pairs of the range of Section 8.5 | G23 | The bound of the row `euclidean::wall_through`, orthogonality, of Section 8.5, with its scale computed in `f64` | $0.5821$ times the scale, at $(-0.695, -2.189)$ and $(-12.38, -13.29)$ | 13.7 |
 | The exact cases of G21 | G21 | Exact equality, which TEST-13 of the coding standard allows because each case is exact in IEEE 754 arithmetic: dyadic sums, copies, negations, and the same operations on the same inputs | 0 | Not applicable |
 
 The two rows of preserved quantities cover 100,000 products of one to three factors of G7, and 100,000 products of three boosts of length up to 2, half of them with rotations between the boosts, with points within distance 3 of `ORIGIN` and at least 0.1 apart. The test computes both sides of each comparison with the crate in double precision, the form or distance of the mapped points against that of the original points. $2^{14} \varepsilon$ is about $3.6 \times 10^{-12}$.
@@ -672,10 +675,11 @@ TEST-13 of the coding standard states the general rule that GEO-15, GEO-16, and 
 | Tests | Under Miri | Attribute or configuration |
 | --- | --- | --- |
 | The reference tests of G1 to G6, G17, and G22 | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
-| The sweeps of G3, G7, G9, G10, and G19 | Ignored | `#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]` |
+| The sweeps of G3, G7, G9, G10, G19, and G23 | Ignored | `#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]` |
 | The property tests of G7 to G10, G13, G19, and G23 | Run with 8 cases and no failure persistence | The helper of GEO-17 |
 | G14, the reference test of G11, and G18 | Run unchanged | None |
-| The unit tests of G11, G12, G15, G20, G21, and G24 | Run unchanged | None |
+| The unit test of G21 that compares `euclidean::rotation` with `hyperbolic::rotation` bit for bit | Ignored, because Miri rounds the result of each call of `sin_cos` differently, so the two calls give different matrices | `#[cfg_attr(miri, ignore = "the interpreter rounds the sine and cosine of each call differently")]` |
+| The other unit tests of G21, and the unit tests of G11, G12, G15, G20, and G24 | Run unchanged | None |
 | G16 | Not run, because Miri runs the tests through nextest, which runs no doctest | None |
 
 Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`). The property tests and the unit tests run the arithmetic of `glam` under Miri, which Section 11 records as supported.
@@ -755,7 +759,8 @@ No other document dictates these choices:
 | `translation` is public, reads no last coordinate, and is defined by its product and its image of `ORIGIN` | 6.4 |
 | `isometry_defect` returns a number, with infinity for a failed condition, instead of a verdict against a tolerance | 6.2 |
 | No function except `normalize_point` and `wall_through` renormalizes, and no function renormalizes a matrix | 8.3 |
-| Every accuracy bound and tolerance of Sections 8.4 and 10.3, with its range of inputs | 8.4, 10.3 |
+| Every accuracy bound and tolerance of Sections 8.4, 8.5, and 10.3, with its range of inputs, including the scale of the orthogonality of `euclidean::wall_through` | 8.4, 8.5, 10.3 |
+| `euclidean::isometry_defect` returns `f64::INFINITY` for every matrix with an entry that is not finite | 6.6 |
 | No stated accuracy of `wall_through` for points less than $10^{-5}$ apart, or of `normalize_point` beyond distance 15 | 8.4 |
 | The term $d$ in the first form of the bound of `distance` | 8.4 |
 | The term in $K$ in the tolerance for a point of a wall, and the points of a wall that the tests use: the two points that define it and their normalized sum | 10.3 |
@@ -862,5 +867,5 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-18 | `glam` and `thiserror` are the only normal dependencies, and `glam` is not re-exported | 11 |
 | GEO-19 | A test of a quantity without a measured bound here sets and records its tolerance as TEST-13 requires, in the same change | 10.3 |
 | GEO-20 | Every Euclidean isometry of the module `euclidean` has the last row $(0, 0, 1)$ exactly | 4.5 |
-| GEO-21 | `euclidean::wall_through` returns a finite vector or `DegenerateWall`, and on the range of Section 8.5 a line covector through both points | 5.4 |
-| GEO-22 | `euclidean::isometry_defect` returns infinity when the result is NaN | 6.6 |
+| GEO-21 | `euclidean::wall_through` returns a finite vector or `DegenerateWall` for every input, and on the range of Section 8.5 a line covector through both points | 5.4 |
+| GEO-22 | `euclidean::isometry_defect` returns infinity when an entry is not finite or the result is NaN | 6.6 |

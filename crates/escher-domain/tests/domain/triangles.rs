@@ -1,8 +1,9 @@
-use escher_domain::{Check, FundamentalDomain};
+use escher_domain::FundamentalDomain;
 use escher_geometry::hyperbolic::ORIGIN;
 
 use crate::common::{
-    all_triangles, big, domain, is_small, largest_coordinate_error, small_triangles, text,
+    LargestResiduals, all_triangles, big, domain, is_small, largest_coordinate_error,
+    small_triangles, text,
 };
 use crate::reference::{Reference, Triangle, Worst, error, int, largest_magnitude, sub};
 
@@ -146,84 +147,15 @@ fn third_side_matches_the_law_of_cosines() {
     supported.assert_at_most(&mut reference, SUPPORTED_BOUNDS[2]);
 }
 
-struct LargestResidual {
-    name: &'static str,
-    residual: f64,
-    tolerance: f64,
-    input: String,
-    samples: usize,
-}
-
-impl LargestResidual {
-    fn record(&mut self, check: Check, input: &str) {
-        assert!(
-            check.passed(),
-            "{} fails at {input}: residual {:e}, tolerance {:e}",
-            self.name,
-            check.residual(),
-            check.tolerance()
-        );
-        self.samples += 1;
-        self.tolerance = check.tolerance();
-        if check.residual() >= self.residual {
-            self.residual = check.residual();
-            self.input = input.to_owned();
-        }
-    }
-}
-
 #[test]
 #[cfg_attr(
     miri,
     ignore = "the checks of the largest orders run loops too long for the interpreter"
 )]
 fn checks_pass_at_the_worst_cases() {
-    let mut largest = [
-        "isometries",
-        "pairings",
-        "walls",
-        "relators",
-        "angles",
-        "area",
-    ]
-    .map(|name| LargestResidual {
-        name,
-        residual: 0.0,
-        tolerance: 0.0,
-        input: String::new(),
-        samples: 0,
-    });
+    let mut largest = LargestResiduals::new();
     for orders in all_triangles() {
-        let verification = domain(orders).verify();
-        let input = text(orders);
-        let checks = [
-            verification.isometries(),
-            verification.pairings(),
-            verification.walls(),
-            verification.relators(),
-            verification.angles(),
-            verification.area(),
-        ];
-        for (largest, check) in largest.iter_mut().zip(checks) {
-            largest.record(check, &input);
-        }
-        assert!(verification.passed(), "{input}: {verification:?}");
+        largest.record(&domain(orders), &text(orders));
     }
-    for largest in &largest {
-        println!(
-            "{}: largest residual {:.3e}, tolerance {:e}, margin {:.1}, {} samples, at {}",
-            largest.name,
-            largest.residual,
-            largest.tolerance,
-            largest.tolerance / largest.residual,
-            largest.samples,
-            largest.input
-        );
-        assert!(
-            largest.samples >= CHECKED_MINIMUM,
-            "{}: checked {} triples, fewer than {CHECKED_MINIMUM}",
-            largest.name,
-            largest.samples
-        );
-    }
+    largest.print_and_assert_samples(CHECKED_MINIMUM);
 }

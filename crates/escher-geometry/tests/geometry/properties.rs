@@ -1,17 +1,18 @@
 use core::f64::consts::PI;
 use core::hint::black_box;
 
-use escher_geometry::ErrorKind;
 use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, distance, form, from_disk, inverse, isometry_defect, normalize_point,
     reflection, rotation, side, to_disk, translation, wall_through,
 };
+use escher_geometry::{ErrorKind, euclidean};
 use glam::{DMat3, DVec2, DVec3};
 use proptest::collection::vec;
 use proptest::prelude::{Just, Strategy, any, prop_assert, prop_assert_eq, prop_oneof, proptest};
 
 use crate::common::{
-    CASES, Factor, Product, Rng, Wall, largest_entry, pair, polar_point, proptest_config,
+    CASES, EUCLIDEAN_RADIUS, Factor, Product, Rng, Wall, euclidean_point, largest_entry,
+    line_covector, pair, polar_point, proptest_config,
 };
 use crate::reference::{Reference, Worst, error, num};
 
@@ -22,6 +23,13 @@ const TWICE_REFLECTED_TOLERANCE: f64 = 128.0;
 const FIXED_WALL_POINT_TOLERANCE: f64 = 16.0;
 const BOOST_DISTANCE_TOLERANCE: f64 = 16.0;
 const DISK_DISTANCE_TOLERANCE: f64 = 512.0;
+const EUCLIDEAN_TWICE_REFLECTED_TOLERANCE: f64 = 32.0;
+const EUCLIDEAN_FIXED_POINT_TOLERANCE: f64 = 16.0;
+const EUCLIDEAN_RELATOR_TOLERANCE: f64 = 256.0;
+const EUCLIDEAN_REFLECTION_DEFECT_TOLERANCE: f64 = 32.0;
+const EUCLIDEAN_ORTHOGONALITY_TOLERANCE: f64 = 8.0;
+const EUCLIDEAN_NORM_TOLERANCE: f64 = 32.0;
+const LARGEST_CORNER_ORDER: u32 = 6;
 
 fn point_within(radius: f64) -> impl Strategy<Value = DVec3> {
     (0.0..radius, -PI..PI).prop_map(|(distance, angle)| polar_point(distance, angle))
@@ -77,6 +85,73 @@ fn any_vector() -> impl Strategy<Value = DVec3> {
 fn any_matrix() -> impl Strategy<Value = DMat3> {
     (any_vector(), any_vector(), any_vector())
         .prop_map(|(first, second, third)| DMat3::from_cols(first, second, third))
+}
+
+fn euclidean_point_within(radius: f64) -> impl Strategy<Value = DVec3> {
+    (0.0..radius, -PI..PI).prop_map(|(distance, angle)| euclidean_point(distance, angle))
+}
+
+fn euclidean_line() -> impl Strategy<Value = DVec3> {
+    (-PI..PI, -EUCLIDEAN_RADIUS..EUCLIDEAN_RADIUS)
+        .prop_map(|(angle, offset)| line_covector(angle, offset))
+}
+
+fn separated_euclidean_points() -> impl Strategy<Value = (DVec3, DVec3)> {
+    (
+        euclidean_point_within(EUCLIDEAN_RADIUS),
+        euclidean_point_within(EUCLIDEAN_RADIUS),
+    )
+        .prop_filter("the points are at least 0.1 apart", |&(first, second)| {
+            euclidean::distance(first, second) >= 0.1
+        })
+}
+
+fn euclidean_line_point(line: DVec3, along: f64) -> DVec3 {
+    DVec3::new(
+        -line.z * line.x - along * line.y,
+        -line.z * line.y + along * line.x,
+        1.0,
+    )
+}
+
+fn euclidean_fixed_point_scale(line: DVec3, point: DVec3) -> DVec3 {
+    let terms = (line * point).abs().element_sum();
+    let u = DVec3::new(line.x, line.y, 0.0);
+    f64::EPSILON * (point.abs() + 2.0 * u.abs() * terms)
+}
+
+fn euclidean_twice_reflected_error(line: DVec3) -> f64 {
+    let matrix = euclidean::reflection(line);
+    let mu = largest_entry(matrix);
+    identity_error(matrix * matrix) / (f64::EPSILON * mu * mu)
+}
+
+fn euclidean_fixed_point_error(line: DVec3, along: f64) -> f64 {
+    let point = euclidean_line_point(line, along);
+    let error = (euclidean::reflection(line) * point - point).abs();
+    (error / euclidean_fixed_point_scale(line, point))
+        .to_array()
+        .into_iter()
+        .filter(|ratio| !ratio.is_nan())
+        .fold(0.0, f64::max)
+}
+
+fn euclidean_relator_error(centre: DVec3, angle: f64, order: u32) -> f64 {
+    let lines = [angle, angle + PI / f64::from(order)].map(|direction| {
+        let normal = DVec3::new(direction.cos(), direction.sin(), 0.0);
+        line_covector(direction, normal.dot(centre - DVec3::Z))
+    });
+    let rotation = euclidean::reflection(lines[0]) * euclidean::reflection(lines[1]);
+    let mut power = rotation;
+    for _ in 1..order {
+        power *= rotation;
+    }
+    identity_error(power) / (f64::EPSILON * (1.0 + centre.x.hypot(centre.y)))
+}
+
+fn euclidean_orthogonality_scale(first: DVec3, second: DVec3) -> f64 {
+    let (p, q) = (first.x.hypot(first.y), second.x.hypot(second.y));
+    f64::EPSILON * (1.0 + p + q + p * q / euclidean::distance(first, second))
 }
 
 fn identity_error(matrix: DMat3) -> f64 {
@@ -251,6 +326,75 @@ proptest! {
     }
 
     #[test]
+    fn euclidean_reflection_is_an_involution_that_fixes_its_line(
+        line in euclidean_line(),
+        along in -EUCLIDEAN_RADIUS..EUCLIDEAN_RADIUS,
+    ) {
+        let twice = euclidean_twice_reflected_error(line);
+        prop_assert!(twice <= EUCLIDEAN_TWICE_REFLECTED_TOLERANCE, "{twice} for {line:?}");
+        let fixed = euclidean_fixed_point_error(line, along);
+        prop_assert!(fixed <= EUCLIDEAN_FIXED_POINT_TOLERANCE, "{fixed} for {line:?} {along}");
+        let defect = euclidean::isometry_defect(euclidean::reflection(line));
+        prop_assert!(
+            defect <= EUCLIDEAN_REFLECTION_DEFECT_TOLERANCE * f64::EPSILON,
+            "{defect} for {line:?}"
+        );
+    }
+
+    #[test]
+    fn euclidean_reflections_in_lines_at_pi_over_n_close_up_after_n_turns(
+        centre in euclidean_point_within(EUCLIDEAN_RADIUS),
+        angle in -PI..PI,
+        order in 2..=LARGEST_CORNER_ORDER,
+    ) {
+        let error = euclidean_relator_error(centre, angle, order);
+        prop_assert!(
+            error <= EUCLIDEAN_RELATOR_TOLERANCE,
+            "{error} for {centre:?} {angle} {order}"
+        );
+    }
+
+    #[test]
+    fn euclidean_wall_through_is_orthogonal_unit_and_negated_by_a_swap(
+        points in separated_euclidean_points(),
+    ) {
+        let (first, second) = points;
+        let line = euclidean::wall_through(first, second);
+        let swapped = euclidean::wall_through(second, first);
+        prop_assert!(line.is_ok() && swapped.is_ok(), "{first:?} {second:?}");
+        if let (Ok(line), Ok(swapped)) = (line, swapped) {
+            let orthogonality =
+                EUCLIDEAN_ORTHOGONALITY_TOLERANCE * euclidean_orthogonality_scale(first, second);
+            prop_assert!(euclidean::side(line, first).abs() <= orthogonality);
+            prop_assert!(euclidean::side(line, second).abs() <= orthogonality);
+            let norm = (line.x * line.x + line.y * line.y - 1.0).abs();
+            prop_assert!(norm <= EUCLIDEAN_NORM_TOLERANCE * f64::EPSILON);
+            prop_assert_eq!(swapped, -line);
+        }
+    }
+
+    #[test]
+    fn euclidean_wall_through_is_finite_or_degenerate_for_any_pair(
+        first in any_vector(),
+        second in any_vector(),
+        scale in prop_oneof![Just(1.0), Just(1e-170), Just(1e145), Just(1e160), Just(1e200)],
+    ) {
+        let near = DVec3::new(first.x, first.x, 1.0);
+        let pairs = [
+            (first, second),
+            (first * scale, second * scale),
+            (DVec3::new(first.x, first.y, 1.0) * scale, DVec3::new(second.x, second.y, 1.0)),
+            (near, near + DVec3::new(0.0, second.x, 0.0)),
+        ];
+        for (one, other) in pairs {
+            match euclidean::wall_through(one, other) {
+                Ok(line) => prop_assert!(line.is_finite(), "{line:?} for {one:?} {other:?}"),
+                Err(error) => prop_assert_eq!(error.kind(), ErrorKind::DegenerateWall),
+            }
+        }
+    }
+
+    #[test]
     fn every_function_returns_for_any_input(
         x in any_vector(),
         y in any_vector(),
@@ -281,6 +425,21 @@ proptest! {
         }
         if let Some(point) = from_disk(position) {
             prop_assert!(point.is_finite() && point.z >= 1.0, "{point:?}");
+        }
+        black_box(euclidean::side(x, y));
+        black_box(euclidean::rotation(scalar));
+        black_box(euclidean::translation(x));
+        let plane_distance = euclidean::distance(x, y);
+        prop_assert!(plane_distance.is_nan() || plane_distance >= 0.0, "{plane_distance}");
+        let plane_defect = euclidean::isometry_defect(matrix);
+        prop_assert!(plane_defect >= 0.0, "{plane_defect}");
+        let mirror = euclidean::reflection(x);
+        if x.is_finite() {
+            let last_row = [mirror.x_axis.z, mirror.y_axis.z, mirror.z_axis.z];
+            prop_assert_eq!(last_row.map(f64::to_bits), [0.0, 0.0, 1.0].map(f64::to_bits));
+        }
+        if let Ok(line) = euclidean::wall_through(x, y) {
+            prop_assert!(line.is_finite(), "{line:?}");
         }
     }
 }
@@ -502,4 +661,63 @@ fn wall_through_sweep_of_points_closer_than_1e_minus_5_gives_finite_normals_or_d
     println!(
         "wall_through below a separation of 1e-5: {degenerate} of {CASES} were DegenerateWall"
     );
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
+fn euclidean_reflections_and_relators_are_within_their_bounds() {
+    let mut largest: [(f64, String); 4] = Default::default();
+    let mut record = |slot: usize, value: f64, input: &dyn Fn() -> String| {
+        assert!(!value.is_nan(), "NaN for {}", input());
+        if value > largest[slot].0 {
+            largest[slot] = (value, input());
+        }
+    };
+    let mut rng = Rng::new(23);
+    for index in 0..CASES {
+        let line = rng.line_covector(u32::try_from(index).unwrap_or(0));
+        let along = rng.uniform(-EUCLIDEAN_RADIUS, EUCLIDEAN_RADIUS);
+        record(0, euclidean_twice_reflected_error(line), &|| {
+            format!("{line:?}")
+        });
+        record(1, euclidean_fixed_point_error(line, along), &|| {
+            format!("{line:?} {along}")
+        });
+        let centre = rng.euclidean_point_within(EUCLIDEAN_RADIUS);
+        let angle = rng.angle();
+        let order = 2 + u32::try_from(rng.choice(5)).unwrap_or(0);
+        record(2, euclidean_relator_error(centre, angle, order), &|| {
+            format!("{centre:?} {angle} {order}")
+        });
+        let (first, second) = rng.euclidean_pair();
+        if let Ok(line) = euclidean::wall_through(first, second) {
+            let scale = euclidean_orthogonality_scale(first, second);
+            let value = euclidean::side(line, first)
+                .abs()
+                .max(euclidean::side(line, second).abs());
+            record(3, value / scale, &|| format!("{first:?} {second:?}"));
+        }
+    }
+    let names = [
+        "euclidean reflection applied twice, scaled by eps * mu^2",
+        "euclidean reflection of a point of its line, scaled by eps * sigma_i",
+        "euclidean relator of two lines at pi / n, scaled by eps * (1 + |X|)",
+        "euclidean wall_through orthogonality in f64, scaled by eps * (1 + |p| + |q| + |p| |q| / |p - q|)",
+    ];
+    let bounds = [
+        EUCLIDEAN_TWICE_REFLECTED_TOLERANCE,
+        EUCLIDEAN_FIXED_POINT_TOLERANCE,
+        EUCLIDEAN_RELATOR_TOLERANCE,
+        EUCLIDEAN_ORTHOGONALITY_TOLERANCE,
+    ];
+    for ((name, bound), (value, input)) in names.into_iter().zip(bounds).zip(&largest) {
+        println!(
+            "{name}: largest error {value:.3e} of the scale, bound {bound:e}, margin {:.1}, {CASES} samples, at {input}",
+            bound / value
+        );
+        assert!(
+            *value <= bound,
+            "{name}: {value} exceeds {bound} at {input}"
+        );
+    }
 }

@@ -1,12 +1,15 @@
 //! Computes with points, walls, and isometries of the hyperbolic plane in its
-//! linear model, and maps points to and from the Poincare disk.
+//! linear model and of the Euclidean plane, and maps points of the hyperbolic
+//! plane to and from the Poincare disk.
 //!
 //! The crate is the one place in Escher where the conventions of the linear
 //! model become code, and it depends on no other crate of the workspace. In
 //! the linear model, also called the hyperboloid model, a point of the
 //! hyperbolic plane is a vector on a sheet of a hyperboloid, a surface in
-//! three dimensions. The functions are in the module [`hyperbolic`], which
-//! states every convention. They take and return the types [`glam::DVec3`],
+//! three dimensions. The functions of the hyperbolic plane are in the module
+//! [`hyperbolic`], and those of the Euclidean plane, whose points have the
+//! last coordinate 1, in the module [`euclidean`]. Each module states its
+//! conventions. The functions take and return the types [`glam::DVec3`],
 //! [`glam::DMat3`], and [`glam::DVec2`], and the crate defines no vector or
 //! matrix type of its own.
 //!
@@ -33,6 +36,7 @@
 //! from the platform's mathematical library and can differ between platforms.
 
 mod error;
+pub mod euclidean;
 pub mod hyperbolic;
 
 pub use error::{Error, ErrorKind, Result};

@@ -8,6 +8,9 @@ Signature: *632
 Geometry: Euclidean
 Euler characteristic: 0
 Compact: yes
-Domain: none, cannot build fundamental domain: the signature *632 is not supported
+Domain: 3 mirror sides
+Corner angles in degrees: 30.000000, 60.000000, 90.000000
+Side lengths: 1.000000, 1.154701, 0.577350
+Domain area: 0.288675
 --- stderr
 --- end

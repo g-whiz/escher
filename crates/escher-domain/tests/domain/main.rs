@@ -3,6 +3,10 @@
 #[cfg(test)]
 mod common;
 #[cfg(test)]
+mod euclidean;
+#[cfg(test)]
+mod parameters;
+#[cfg(test)]
 mod properties;
 #[cfg(test)]
 mod reference;

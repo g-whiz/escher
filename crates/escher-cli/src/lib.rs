@@ -26,21 +26,22 @@
 //! hyperbolic plane inside a disk. It draws on a pool of threads that it builds
 //! for the call. It writes the PNG file only after the rendering and the
 //! encoding succeed, and it replaces a file that exists. It fails for a
-//! signature without a domain. It prints nothing on standard output unless
-//! the option `--stats` is given, which prints statistics of the rendering
-//! after the file is written.
+//! signature without a domain and for a domain that is not hyperbolic. It
+//! prints nothing on standard output unless the option `--stats` is given,
+//! which prints statistics of the rendering after the file is written.
 //!
 //! ```
 //! use escher_cli::{Status, run};
 //!
 //! let mut stdout = Vec::new();
 //! let mut stderr = Vec::new();
-//! let status = run(["escher", "info", "*236"], &mut stdout, &mut stderr);
+//! let status = run(["escher", "info", "*235"], &mut stdout, &mut stderr);
 //! assert_eq!(status, Status::Success);
 //! assert_eq!(
 //!     String::from_utf8(stdout)?,
-//!     "Signature: *632\nGeometry: Euclidean\nEuler characteristic: 0\nCompact: yes\n\
-//!      Domain: none, cannot build fundamental domain: the signature *632 is not supported\n",
+//!     "Signature: *532\nGeometry: spherical\nEuler characteristic: 1/60\nCompact: yes\n\
+//!      Group order: 120\nArea: pi/30\n\
+//!      Domain: none, cannot build fundamental domain: the signature *532 is not supported\n",
 //! );
 //! assert!(stderr.is_empty());
 //! # Ok::<(), Box<dyn std::error::Error>>(())

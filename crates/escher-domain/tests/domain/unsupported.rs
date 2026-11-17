@@ -2,8 +2,9 @@ use escher_domain::{ErrorKind, FundamentalDomain};
 
 use crate::common::signature;
 
-const UNSUPPORTED: [&str; 14] = [
-    "*632",
+const UNSUPPORTED: [&str; 15] = [
+    "632",
+    "*22222",
     "*532",
     "*3333",
     "732",

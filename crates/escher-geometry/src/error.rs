@@ -81,9 +81,11 @@ pub enum ErrorKind {
     NotAPoint,
     /// The two points span no wall, such as two equal points.
     ///
-    /// This kind also covers two points so close that rounding leaves the
-    /// normal found from them with a form with itself that is not positive
-    /// and finite, and a NaN or infinite coordinate.
+    /// The Euclidean plane and the hyperbolic plane both report this kind.
+    /// It also covers two points so close that rounding leaves the squared
+    /// length of the normal found from them not positive and finite, and a
+    /// NaN or infinite coordinate. In the hyperbolic plane that squared length
+    /// is the form of the normal with itself.
     DegenerateWall,
 }
 

@@ -1,0 +1,23 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--check\", \"*2222\"])"
+---
+status: Success
+--- stdout
+Signature: *2222
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Domain: 4 mirror sides
+Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000
+Side lengths: 1.000000, 1.000000, 1.000000, 1.000000
+Domain area: 1.000000
+Check isometries: passed, residual <residual>, tolerance 1.0e-9
+Check pairings: passed, residual <residual>, tolerance 1.0e-9
+Check walls: passed, residual <residual>, tolerance 1.0e-9
+Check relators: passed, residual <residual>, tolerance 2.0e-6
+Check angles: passed, residual <residual>, tolerance 1.0e-9
+Check area: passed, residual <residual>, tolerance 1.0e-9
+Verification: passed
+--- stderr
+--- end

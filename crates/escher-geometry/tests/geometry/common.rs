@@ -9,6 +9,14 @@ use proptest::test_runner::Config;
 
 pub(crate) const CASES: usize = 100_000;
 
+pub(crate) const EUCLIDEAN_RADIUS: f64 = 64.0;
+
+const LINE_ANGLES: u32 = 64;
+
+const SMALLEST_SEPARATION: f64 = 0.1;
+
+const LARGEST_SEPARATION: f64 = 128.0;
+
 const ATTEMPTS: usize = 1000;
 
 pub(crate) const DOMAIN_TRIPLES: [[u32; 3]; 10] = [
@@ -110,6 +118,31 @@ impl Rng {
         panic!("no two points span a wall after {ATTEMPTS} attempts");
     }
 
+    pub(crate) fn euclidean_point_within(&mut self, radius: f64) -> DVec3 {
+        let distance = self.uniform(0.0, radius);
+        let angle = self.angle();
+        euclidean_point(distance, angle)
+    }
+
+    pub(crate) fn line_covector(&mut self, index: u32) -> DVec3 {
+        let angle = 2.0 * PI * f64::from(index % LINE_ANGLES) / f64::from(LINE_ANGLES);
+        let offset = self.uniform(-EUCLIDEAN_RADIUS, EUCLIDEAN_RADIUS);
+        line_covector(angle, offset)
+    }
+
+    pub(crate) fn euclidean_pair(&mut self) -> (DVec3, DVec3) {
+        for _ in 0..ATTEMPTS {
+            let first = self.euclidean_point_within(EUCLIDEAN_RADIUS);
+            let separation = self.log_uniform(SMALLEST_SEPARATION, LARGEST_SEPARATION);
+            let direction = self.angle();
+            let second = first + euclidean_point(separation, direction) - DVec3::Z;
+            if second.x.hypot(second.y) <= EUCLIDEAN_RADIUS {
+                return (first, second);
+            }
+        }
+        panic!("no second point lies within {EUCLIDEAN_RADIUS} after {ATTEMPTS} attempts");
+    }
+
     pub(crate) fn separated_pair(&mut self) -> (DVec3, DVec3) {
         for _ in 0..ATTEMPTS {
             let (first, second) = (self.point_within(3.0), self.point_within(3.0));
@@ -127,6 +160,14 @@ pub(crate) fn polar_point(distance: f64, angle: f64) -> DVec3 {
         angle.sin() * distance.sinh(),
         distance.cosh(),
     )
+}
+
+pub(crate) fn euclidean_point(distance: f64, angle: f64) -> DVec3 {
+    DVec3::new(distance * angle.cos(), distance * angle.sin(), 1.0)
+}
+
+pub(crate) fn line_covector(angle: f64, offset: f64) -> DVec3 {
+    DVec3::new(angle.cos(), angle.sin(), -offset)
 }
 
 pub(crate) fn boost_map(length: f64, x: DVec3) -> DVec3 {
