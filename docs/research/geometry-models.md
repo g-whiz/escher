@@ -984,12 +984,16 @@ The Blinn-Phong model replaces the reflection vector with the half vector $H = (
 
 ## 12. The Euclidean Plane
 
+[RAT], Section 1.3, p. 14, defines the Euclidean angle $\theta(x, y)$ in $[0, \pi]$ between nonzero vectors $x$ and $y$ by $x \cdot y = \lvert x \rvert \lvert y \rvert \cos\theta(x, y)$, equation (1.3.3), and the Euclidean distance by $d_E(x, y) = \lvert x - y \rvert$, equation (1.3.4) (P). [RAT], Theorem 1.3.5, p. 19, states that for a function $\phi : E^n \to E^n$ these are equivalent: $\phi$ is an isometry, $\phi$ preserves distances, and $\phi$ "is of the form $\phi(x) = a + Ax$, where A is an orthogonal matrix and $a = \phi(0)$" (P).
+
 Section 7.4 gives the reflection in a line [DAVIS], equation 6.3 (P). [RAT], equation (4.1.1), p. 105, writes the reflection in the plane $P(a, t) = \lbrace x : a \cdot x = t \rbrace$, with $a$ a unit vector, as $\rho(x) = x + 2(t - a \cdot x) a$ (P). The other isometries of the Euclidean plane take these forms (S):
 
 - In complex form, $z \mapsto a + \omega z$ or $z \mapsto a + \omega \bar z$ with $\lvert \omega \rvert = 1$. The rotation about $p$ is $z \mapsto \omega(z - p) + p$ [W-EUCLISO].
 - There are "four types": translation, rotation, reflection, and glide reflection [W-EUCLISO].
 - A glide reflection is the "composition of a reflection across a line and a translation parallel to the line". Reflections and glide reflections are "the only two kinds of indirect" isometries [W-GLIDE].
 - In homogeneous coordinates, an isometry is the $3 \times 3$ matrix $\begin{pmatrix} A & b \\ 0 & 1 \end{pmatrix}$ [W-AFFINE].
+
+No primary source read states the reflection of (4.1.1) as a matrix on the plane $x_3 = 1$, the line through two points of that plane, the vertices of a Euclidean triangle with given angles, or the area of a polygon from its vertices. Section 15.1, items 24 to 26, records the last three as candidates.
 
 ## 13. Unified Treatments of the Three Geometries
 
@@ -1119,6 +1123,9 @@ Each open item is a candidate statement that no cited source states. It needs a 
 21. The map of [KC19], p. 92, from the disk to the half-plane, and the conclusion of the research report that it is a typo (Section 14).
 22. The inverse of each of Bulatov's models other than the band (Section 5.4).
 23. The value $h = 1.090550$ that Table 2 of [HT] prints as the edge length of $\{7, 3\}$, against equation 29 of [HT] (Section 14). The value 1.090550 must not serve as a test value for $\{7, 3\}$, the tiling for which the table prints it, until a source settles which quantity it is. A research agent computed that the column $h^{(p,q)}$ of Table 2 equals equation 29 evaluated at $(q, p)$ for $\{7, 3\}$, $\{3, 7\}$, $\{6, 4\}$, $\{5, 4\}$, and $\{4, 5\}$, and that $1.090550 = 2 \operatorname{arcosh}(\cos\frac{\pi}{3} / \sin\frac{\pi}{7})$, which is equation 29 for $\{3, 7\}$. The same agent computed $h_r = 0.6206717$ for $\{7, 3\}$, against the printed 0.620673. These are computations, not source statements.
+24. The line through two points of the plane $x_3 = 1$: for $p = (p_1, p_2, 1)$ and $q = (q_1, q_2, 1)$ with $p \ne q$, the cross product $w = p \times q$ divided by $\sqrt{w_1^2 + w_2^2}$ is $(a_1, a_2, -t)$ for a unit vector $a$ and a number $t$ with $p$ and $q$ on $P(a, t)$ of Section 12. No source read states it. [RAT] states cross products only on the sphere, Section 2.1, pp. 36 to 37, and in Lorentzian space, Section 3.2, p. 64. A source or a Lean proof would close it.
+25. The area of a polygon with the vertices $(x_j, y_j)$, $j = 0, \dots, n - 1$, in order around its boundary, as $\frac{1}{2} \left\lvert \sum_j (x_j y_{j+1} - x_{j+1} y_j) \right\rvert$ with indexes modulo $n$. No source read states it, and a search of the text layer of [RAT] found no area of a polygon from its vertices. A source or a Lean proof would close it.
+26. The vertices of a Euclidean triangle with the angles $\alpha_0$, $\alpha_1$, and $\alpha_2$ that sum to $\pi$: $W_2 = (0, 0)$, $W_0 = (1, 0)$, and $W_1 = l (\cos\alpha_2, \sin\alpha_2)$ with $l = \sin\alpha_0 / \sin\alpha_1$, so that the angle at $W_j$ is $\alpha_j$. It rests on a Euclidean law of sines, which no source read states. [RAT] states the law of sines for the sphere, Theorem 2.5.2, p. 50, and for the hyperbolic plane, Theorem 3.5.2, p. 86, and its notes on p. 104 mention a form of Bolyai's that holds in all three geometries without printing it. The Euclidean case of item 5 is the same triangle in another placement. A source that states the Euclidean law of sines, or a Lean proof, would close it.
 
 ### 15.2. Claims That Rest on Summaries or Secondary Sources
 
@@ -1174,7 +1181,7 @@ These sources were not read in full, and `docs/research/source-requests.md` reco
 - [HT] Schrauth, M., Thurn, Y., Goth, F., Portela, J. S. E., Herdt, D., and F. Dusel, "HYPERTILING - a high performance Python library for the generation and visualization of hyperbolic lattices", arXiv:2309.10844v3, 2024-06-26, <https://arxiv.org/abs/2309.10844>. Equation numbers are those of the PDF of version 3.
 - [KC19] Kopczynski, E. and D. Celinska-Kopczynska, "Conformal Mappings of the Hyperbolic Plane to Arbitrary Shapes", Bridges 2019, pp. 91-98, <https://archive.bridgesmathart.org/2019/bridges2019-91.pdf>.
 - [KC24] Celinska-Kopczynska, D. and E. Kopczynski, "Numerical Aspects of Hyperbolic Geometry", arXiv:2404.09039v1, 2024-04-13, <https://arxiv.org/abs/2404.09039>.
-- [RAT] Ratcliffe, J. G., Foundations of Hyperbolic Manifolds, Springer Graduate Texts in Mathematics 149, first edition, 1994. Locators are the numbering and printed page numbers of the first edition. The PDF page is the printed page plus 11. Read in part: the passages that this document and `docs/research/fundamental-domains.md` cite, in Chapters 2, 3, 4, 6, 7, 9, 11, and 13, with a search of the text of the whole book.
+- [RAT] Ratcliffe, J. G., Foundations of Hyperbolic Manifolds, Springer Graduate Texts in Mathematics 149, first edition, 1994. Locators are the numbering and printed page numbers of the first edition. The PDF page is the printed page plus 11. Read in part: the passages that this document and `docs/research/fundamental-domains.md` cite, in Chapters 1, 2, 3, 4, 6, 7, 9, 11, and 13, with a search of the text of the whole book.
 - [SYMMHUB] SymmHub source code, commit f2d19cb. File paths are relative to the root of the repository.
 - [VGRG] von Gagern, M. and J. Richter-Gebert, "Hyperbolization of Euclidean Ornaments", Electronic Journal of Combinatorics 16(2), #R12, 2009.
 

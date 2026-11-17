@@ -110,7 +110,7 @@ Each list below is the public surface of one crate as this document designs it, 
 
 `escher-domain`: `FundamentalDomain`, built from a signature, which holds its geometry, its sides, its vertices, and a centre, and `verify()`, which evaluates numerically the items of the checklist of Section 4.8 of `docs/research/fundamental-domains.md` that apply to the domain. Each side holds its unit normal, its covector, its pairing isometry, its partner side, its pairing kind, and its orientation. Section 3 of `docs/design/domain.md` specifies the public surface. These parts of the design belong to the same crate, and `docs/design/domain.md` specifies each one in the change that adds the first signature that needs it:
 
-- `ParameterSpec`, with a name, a kind, a range, a default, and a unit, `ShapeParameters`, `parameters(&Signature)`, and the form of `build` that takes the shape parameters.
+- `ParameterSpec`, with a name, a range, and a default, and with a kind and a unit from the first parameter that needs them, `ShapeParameters`, `parameters(&Signature)`, and `build_with`, the form of `build` that takes the shape parameters.
 - Ideal vertices.
 - `side_presentation()`, the presentation that the sides give.
 
@@ -172,7 +172,7 @@ Averaging in linear light is a project convention that no research source backs.
 
 ### 4.2. To the Information Output
 
-The command `info` runs steps 1 to 4 of Section 4.1 and renders no pixels. Section 5 of `docs/design/cli.md` specifies the exact lines that it prints for each kind of signature, and which items arrive with later milestones. Its output holds these items:
+The command `info` runs steps 1 to 4 of Section 4.1 and renders no pixels. It takes no settings, so step 2 gives the defaults, and its summary of the domain describes the default shape. Section 5 of `docs/design/cli.md` specifies the exact lines that it prints for each kind of signature, and which items arrive with later milestones. Its output holds these items:
 
 - The canonical signature.
 - The geometry, the Euler characteristic, compactness, and whether the signature is a frieze.
@@ -207,7 +207,7 @@ Formulas from the time-first sources [W-HYPERBOLOID], equation 1 of [HT], and [O
 
 ### 5.2. Walls, Normals, and the Side Test
 
-A wall is a unit normal $u$, spacelike in the hyperbolic case, stored with its covector. A point $x$ is inside the domain where the covector of every side gives $\langle x, u \rangle \le 0$. Normals therefore point outward, and a positive value means that the point is outside that side. Section 9 adds the tolerance.
+A wall is a unit normal $u$, spacelike in the hyperbolic case, stored with its covector. A point $x$ is inside the domain where the covector of every side gives $\langle x, u \rangle \le 0$. In the Euclidean plane a normal cannot carry the offset of its line, so the covector of the line $a_1 x_1 + a_2 x_2 = t$ with $a_1^2 + a_2^2 = 1$ is $(a_1, a_2, -t)$, its normal is $(a_1, a_2, 0)$, and the side test is the dot product of the covector with the point $(x_1, x_2, 1)$, with the same sign rule. Normals therefore point outward, and a positive value means that the point is outside that side. Section 9 adds the tolerance.
 
 The reflection in the wall of $u$ is $x - 2 \langle x, u \rangle u$ in the spherical and hyperbolic cases, from equations (6.4) and (6.6) of [DAVIS] (Section 7.4 of `docs/research/geometry-models.md`). The Euclidean form, equation (6.3) of [DAVIS], uses a point $x_0$ of the wall. Its form as a matrix on the plane $x_3 = 1$ is part of `UNV-26`.
 
@@ -443,12 +443,12 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-9` | Canonical form | The feature order of [CH], cone orders descending with an infinite order above every finite order, each boundary at its largest rotation, boundaries descending, and every handle turned into two crosscaps when a crosscap is present, so `oox` becomes `xxxxx`. Parentheses from order 10, and `(inf)` in output. Section 7 of `docs/design/signature.md` states the algorithm, including the reversal of boundaries | No primary source defines a canonical form (`UNV-20`) |
 | `DEC-10` | Signatures with infinity | Hyperbolic when $\chi < 0$, a frieze when $\chi = 0$, and rejected when $\chi > 0$ | Recorded as `UNV-21` |
 | `DEC-11` | Domain drawn for general signatures | The assembled polygon, with a Dirichlet domain only if `M17` needs one. The design document of `escher-domain` fixes which wall the rotation subgroups double | The assembled polygon is what the port of SymmHub produces |
-| `DEC-12` | Canonical view | The centre is the normalized sum of the finite vertices. The whole disk or ball shows, with a small margin on the shorter side. The Euclidean window is fixed relative to the size of the domain | The owner decided on one canonical view centred on the domain. The centre rule and the margin are choices of this proposal |
+| `DEC-12` | Canonical view | The centre is the normalized sum of the finite vertices. The whole disk or ball shows, with a small margin on the shorter side. In the Euclidean plane the tiling fills the image with no margin, the centre of the domain is at the centre of the image, and the shorter side of the image spans 8 units of `DEC-17` (Section 5.8 of `docs/design/render.md`) | The owner decided on one canonical view centred on the domain. The centre rule, the margin, and the Euclidean span are choices of this proposal. A span that is a power of two makes the pixel size exact at power-of-two image sizes |
 | `DEC-13` | Default shapes | Regular where the orders allow. Otherwise SymmHub's initial length 2 (Section 8.13 of `docs/research/fundamental-domains.md`) without its jitter, and twist 0 | Determinism (Section 5.9). The default twist 0 is a choice of this proposal, which no source gives |
-| `DEC-14` | Parameters | Names as Section 5.6. Every twist is a fraction of its length in $[-0.5, 0.5]$. Length ranges start from SymmHub's 0.3 to 4 | Section 8.13 of `docs/research/fundamental-domains.md` gives SymmHub's ranges and its inconsistent twist units (`UNV-9`) |
+| `DEC-14` | Parameters | Names as Section 5.6. Every twist is a fraction of its length in $[-0.5, 0.5]$. Length ranges start from SymmHub's 0.3 to 4. The parameter `aspect` of `*2222`, the length of side 0 over the length of side 1, has the range 0.125 to 8 and the default 1. `render` takes settings and `info` does not | Section 8.13 of `docs/research/fundamental-domains.md` gives SymmHub's ranges and its inconsistent twist units (`UNV-9`). The range of `aspect` is a choice of this proposal with no source, and its ends are exact in `f64` |
 | `DEC-15` | Colourings | One entry per conjugacy class, a budget on search work with truncation reported, and ids as Section 5.7 | The time of GAP's low-index search grows exponentially with the index (Section 7.7 of `docs/research/colourings.md`) |
 | `DEC-16` | Sphere | The rotation is three angles in degrees. One directional light from the upper left front. Borders are shaded like fills. The pixel width uses the same estimate as elsewhere | The renderer keeps one border estimate in every model. The light direction is a choice of this proposal |
-| `DEC-17` | Euclidean intrinsic unit | The normalization length of the domain, stated per signature | An intrinsic width needs a unit. This unit is a project convention |
+| `DEC-17` | Euclidean intrinsic unit | The normalization length of the domain, stated per signature: side 0 of a reflection triangle has length 1, and the rectangle of `*2222` has area 1 | An intrinsic width and the Euclidean view need a unit. This unit is a project convention. With area 1, `aspect` and its reciprocal give the same picture turned a quarter turn, and the number of tiles in the view does not depend on `aspect` |
 | `DEC-18` | MIT notice | Decided by the owner: a notices file and a section in the crate-level documentation, from the first change that ports SymmHub code | Section 10.1 |
 | `DEC-19` | Completion and the general non-compact signatures | Decided by the owner: the general non-compact signatures move to the roadmap | Section 10.1 |
 | `DEC-20` | Other notations in `info` | Omitted until a primary source is read | Tables A.1 and A.2 of [CBG] give primary names for the 17 plane groups and the spherical groups. The frieze names, the order of the numbers in five Coxeter symbols, and the Thurston column have no primary source (item 11 of Section 12 of `docs/research/orbifold-notation.md`) |

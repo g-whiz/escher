@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the crate `escher-render`, which turns the fundamental domain of a compact hyperbolic reflection triangle into the pixels of an image in the Poincare disk and encodes them as a PNG file in memory. For every sample of a regular grid in each pixel, the crate maps the sample to a point of the linear model, folds the point into the domain, decides whether the sample lies on a border of a tile, and chooses a fill, border, or background colour. It then averages the samples of each pixel in linear light and stores the pixel as 8-bit sRGB. The document defines the public types and operations, the steps of the fold and of the border estimate with the source or the unverified status of each formula, the behaviour of the fold for points on walls, near the limit circle, and with non-finite coordinates, the range over which the crate states its accuracy, the error type, the limits on the options, the tests with the golden images and the reference arithmetic, and the dependencies. It also lists the unverified statements that the code relies on, the evidence behind the choices of this design, the assumptions, and the points that the owner decides.
+This document specifies the crate `escher-render`, which turns the fundamental domain of a compact hyperbolic reflection triangle into the pixels of an image in the Poincare disk, and the fundamental domain of a Euclidean reflection triangle or rectangle into the pixels of an image of the Euclidean plane, and encodes them as a PNG file in memory. For every sample of a regular grid in each pixel, the crate maps the sample to a point of the linear model, folds the point into the domain, decides whether the sample lies on a border of a tile, and chooses a fill, border, or background colour. It then averages the samples of each pixel in linear light and stores the pixel as 8-bit sRGB. The document defines the public types and operations, the steps of the fold and of the border estimate with the source or the unverified status of each formula, the behaviour of the fold for points on walls, near the limit circle, and with non-finite coordinates, the range over which the crate states its accuracy, the error type, the limits on the options, the tests with the golden images and the reference arithmetic, and the dependencies. It also lists the unverified statements that the code relies on, the evidence behind the choices of this design, the assumptions, and the points that the owner decides.
 
 ## 1. Introduction
 
@@ -28,7 +28,7 @@ The primary readers are the agent that implements the crate and the reviewer who
 
 This document covers the public surface of the crate, the options with their defaults and limits, the map from a sample to the disk and to the hyperboloid, the fold, the border estimate, the colour of a sample and of a pixel, PNG encoding, the numerical behaviour, the error type, the tests, and the dependencies.
 
-The crate renders every domain that `FundamentalDomain::build` returns, which is the compact hyperbolic `*pqr` with corner orders up to 1000 (Section 4 of the domain design), in the canonical view of the Poincare disk.
+The crate renders every domain that `FundamentalDomain::build` and `FundamentalDomain::build_with` return. These are the compact hyperbolic `*pqr` with corner orders up to 1000, in the canonical view of the Poincare disk, and the Euclidean `*632`, `*442`, `*333`, and `*2222`, the last with any value of its shape parameter, in the canonical view of the Euclidean plane (Section 5.8). Section 4 of the domain design lists them.
 
 ### 1.5. Non-Goals
 
@@ -40,7 +40,8 @@ These topics are owned elsewhere or come later:
 - Models other than the Poincare disk, a public `View`, and borders of intrinsic width come with the milestones of Sections 5.12 and 5.13 of the plan.
 - Analytic antialiasing and the fade of tiles smaller than a pixel come with the milestone of Section 5.14 of the plan.
 - Colourings by cosets and generated palettes need `escher-group` and come with the milestone of Section 5.8 of the plan.
-- A transparent background and the spherical and Euclidean geometries are outside this design.
+- The shape parameters of a domain, their names, ranges, and defaults, belong to `escher-domain` and are specified in the domain design.
+- A transparent background and the spherical geometry are outside this design.
 
 ## 2. Requirements Language
 
@@ -61,6 +62,7 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md`, 
 | `docs/design/cli.md` | the command-line design |
 | `docs/research/rendering.md` | the rendering reference |
 | `docs/research/geometry-models.md` | the geometry reference |
+| `docs/research/fundamental-domains.md` | the domain reference |
 | `docs/research/rust-ecosystem.md` | the ecosystem survey |
 | `docs/rust-coding-standards.md` | the coding standard |
 
@@ -73,6 +75,8 @@ It adds these terms:
 - sample weight: The weight $1/n^2$ of one sample in the mean of its pixel.
 - margin: The fraction $m$ of the shorter side of the image that the disk leaves free on each side (Section 5.1).
 - disk scale: The length $h$ in disk units of one pixel (Section 5.1).
+- plane scale: The length $g$ in plane units of one pixel of the view of a Euclidean domain (Section 5.8).
+- plane position: The position $z$ in the Euclidean plane of a sample of the view of a Euclidean domain (Section 5.8).
 - screen tangents: The two vectors $T_1$ and $T_2$ that the crate carries through the fold with the point. Each is the change of the point of the linear model for a step of one pixel along one axis of the screen (Section 5.2).
 - tolerance scale: The sum $\sigma_i$ of the absolute values of the components of the covector of side $i$ (Section 5.3).
 - side value: The value $f_i$ of `hyperbolic::side` for the covector of side $i$ at the folded point.
@@ -84,18 +88,21 @@ It adds these terms:
 - converged: The result of a fold that stopped at a finite point with a positive last coordinate that violates no side (Section 5.3).
 - unconverged: The result of every other fold, which reached the fold cap, met a coordinate that is not finite, met a last coordinate that is not positive, or met a side value that is NaN.
 - border sample: A converged sample that the border estimate of Section 5.4 places on a border.
-- outside sample: A sample whose disk position `hyperbolic::from_disk` rejects.
+- outside sample: A sample whose disk position `hyperbolic::from_disk` rejects, or any sample of a domain whose geometry has no view (Section 5.8).
 - tolerance constant: The constant $\tau$ of the side test of the fold (Section 6.2).
 - radius band $k$: The disk positions $z$ with $\lvert z \rvert = 1 - 10^{-k}$, for an integer $k$ from 1 to 6.
-- range of accuracy: The disk positions with $\lvert z \rvert \le 1 - 10^{-6}$ (Section 6.4).
+- range of accuracy: For a hyperbolic domain, the disk positions with $\lvert z \rvert \le 1 - 10^{-6}$ (Section 6.4). For a Euclidean domain, the plane positions within distance 65 of the centre of the image (Section 6.6).
 - linear light: Colour values proportional to light intensity, in which the crate averages samples.
 - 8-bit sRGB: Colour values encoded by the sRGB transfer function and stored as one byte per channel.
 - band: A run of whole rows of the image, which `render_rows` fills.
-- canonical view: The view of the whole disk with the centre of the domain at the centre of the image (`DEC-12`).
+- canonical view: For a hyperbolic domain, the view of the whole disk with the centre of the domain at the centre of the image. For a Euclidean domain, the view of Section 5.8 (`DEC-12`).
 - symmetric view: A view available only to the unit tests, which places vertex 2 of the domain at the centre of the image and vertex 0 on the positive first axis (Section 8.1).
+- periodic view: A view available only to the unit tests, which is the view of Section 5.8 with another plane scale (Section 8.1).
 - allowance: The two limits of a golden-image comparison, the largest difference of a pixel and the number of pixels that may differ (Section 8.4).
 - count bound: The bound on a count that a test measures as $c$, which is the larger of $8c$ and 8 (RND-16).
 - prototype: An implementation of Sections 5 and 6 with a 256-bit reference, written outside the repository to test this design. Section 11 states what it measured.
+- Euclidean prototype: A copy of the crate outside the repository whose private view gained the plane view of Section 5.8, with private test code that implements the Euclidean domains and their checks, and a 256-bit reference. Section 11 states what it measured.
+- Euclidean domain set: The domains of `*632`, `*442`, and `*333`, and of `*2222` with `aspect` 1, 1.618, 0.125, and 8.
 
 ## 3. Public Surface
 
@@ -206,12 +213,12 @@ Each item guarantees its invariant by construction, so no caller checks it:
 | `RenderOptions` | Validated options | Built only by `build`, which checks every limit of Section 4.1 |
 | `RenderOptions::builder` | Starts from the defaults of Section 4.1 with the given fill | Infallible |
 | `build` | Validates the options | Returns `InvalidOption` or `LimitExceeded` as Section 7.2 states. Never panics |
-| `Renderer::new` | Copies the covectors, pairings, and orientations of the sides of the domain and computes the disk scale and the tolerance scale of each side | Infallible, because the domain and the options are valid by construction. The renderer keeps no reference to the domain |
+| `Renderer::new` | Copies the covectors, pairings, and orientations of the sides of the domain, chooses the view from `geometry()` of the domain (RND-23), and computes the disk scale or the plane scale and the tolerance scale of each side | Infallible, because the domain and the options are valid by construction. The renderer keeps no reference to the domain |
 | `render_rows` | Renders the rows from `first_row` into the caller's buffer | The buffer holds 8-bit sRGB, 3 bytes per pixel, red first, the top row first. Its length MUST be a positive multiple of $3W$, and the band MUST lie inside the image, else `InvalidBuffer`. It starts no thread (RND-2) |
 | `render` | The whole image on the calling thread | Equal, byte for byte, to the concatenation of `render_rows` over any split into bands (RND-3) |
 | `RenderStats` | Counts over the samples of a band or an image | Integer counts only, so no value is NaN |
 | `samples()` | The number of samples, including outside samples | $W n^2$ times the number of rows of the band |
-| `outside()` | The number of outside samples | At most `samples()` |
+| `outside()` | The number of outside samples | At most `samples()`. 0 for a Euclidean domain |
 | `folds()` | The sum of the steps of the folds of every sample that is not an outside sample | Saturates at `u64::MAX` |
 | `largest_fold()` | The largest number of steps of one fold | At most the fold cap |
 | `unconverged()` | The number of unconverged samples | At most `samples() - outside()` |
@@ -240,7 +247,7 @@ The crate has these private modules, each a file named after the module:
 - `src/colour.rs`: `Colour`, `Fill`, and the sRGB transfer function.
 - `src/options.rs`: `RenderOptions`, `RenderOptionsBuilder`, the defaults, and the limits.
 - `src/fold.rs`: `Fold`, `fold`, the private fold that carries the screen tangents, and the tolerance constant.
-- `src/view.rs`: The private view, which maps a sample to a disk position and a point of the linear model with its screen tangents, and the symmetric view of the unit tests.
+- `src/view.rs`: The private view, which maps a sample to a disk position or a plane position and a point of the linear model with its screen tangents, by the geometry of the domain, and the symmetric view and the periodic view of the unit tests.
 - `src/renderer.rs`: `Renderer`, `RenderStats`, the border estimate, and the colour of a sample and of a pixel.
 - `src/encode.rs`: `encode_png`.
 
@@ -248,7 +255,7 @@ The crate has these private modules, each a file named after the module:
 
 Section 3.2 of the architecture lists items that this surface does not have, and Section 3.2 of the architecture lets the crate design refine the names and signatures:
 
-- A public `View` with the model, the placement, and the sphere rotation. One view exists in this design, and SIMP-1 of the coding standard forbids an abstraction before a second case. A private view holds the placement isometry, which is the identity for the canonical view. The change that adds the first option that changes the view makes it public.
+- A public `View` with the model, the placement, and the sphere rotation. Each geometry has one canonical view in this design, which the renderer chooses from the domain, and no option changes it, so a public `View` would give a caller nothing to choose, and SIMP-1 of the coding standard removes an abstraction that gives no benefit now. A private view holds the placement isometry, which is the identity for the canonical view. The change that adds the first option that changes the view makes it public.
 - A colouring identifier with a list of colours. `Fill` carries its colours until `escher-group` exists.
 - The light of the sphere, which belongs to the spherical geometry.
 
@@ -282,7 +289,7 @@ RND-5. The crate MUST take every colour as 8-bit sRGB through `Colour::from_srgb
 
 ## 5. Rendering a Sample
 
-The crate computes the colour of a pixel in the order of Section 4.1 of the architecture. Sections 5.1 to 5.6 state each part, and Section 5.7 gives the source of each step.
+The crate computes the colour of a pixel in the order of Section 4.1 of the architecture. Sections 5.1 to 5.6 state each part, and Section 5.7 gives the source of each step. Section 5.8 states how each step reads for a Euclidean domain, and where it differs it replaces Sections 5.1 and 5.2.
 
 ### 5.1. Screen to Disk
 
@@ -333,7 +340,7 @@ RND-8. The fold MUST NOT renormalize the point or the screen tangents, at any st
 
 `hyperbolic::side` applies no tolerance (Section 4.2 of the geometry design), so the tolerance of step 3 belongs to this crate, as Section 9.2 of the architecture requires. Section 6.2 states the constant $\tau$.
 
-The domain built by `escher-domain` has three sides of kind `Mirror`, each its own partner, so the fold applies a reflection at every step and the parity equals the step count modulo 2. The fold reads the orientation of each side rather than assuming a mirror, so that the classes of signature with rotations and glide reflections need no change to the loop.
+Every domain built by `escher-domain` has three or four sides of kind `Mirror`, each its own partner, so the fold applies a reflection at every step and the parity equals the step count modulo 2. The fold reads the orientation of each side rather than assuming a mirror, so that the classes of signature with rotations and glide reflections need no change to the loop.
 
 ### 5.4. Border
 
@@ -398,6 +405,44 @@ RND-12. `encode_png` MUST write an RGB image of bit depth 8 with the sRGB chunk 
 | 5.6 | Averaging in linear light | None | A choice of the plan |
 | 5.6 | The sRGB chunk through `set_source_srgb` | Section 4 of the ecosystem survey | The API of `png` |
 
+### 5.8. Euclidean Domains
+
+RND-23. `Renderer::new` MUST choose the view from `geometry()` of the domain, the disk view of Sections 5.1 and 5.2 for `Hyperbolic` and the plane view of this section for `Euclidean`, and for a geometry that has no view in this design MUST make every sample an outside sample, because the fold and the border estimate accept the walls of any domain, and a domain drawn through the view of another geometry gives a plausible but wrong image without an error, as the Euclidean prototype showed for `*632` in the disk (Section 11).
+
+The choice is a `match` on `Geometry` with no wildcard arm (TYPE-7 of the coding standard), so the arm `Spherical` is written out. No domain that `escher-domain` builds is spherical, so that arm draws only the background. `escher-cli` refuses such a domain before it renders (Section 4.5 of the command-line design). `Renderer::new` stays infallible.
+
+For a Euclidean domain, a point is $(x_1, x_2, 1)$ in the affine plane of Section 5.1 of the architecture, or a positive multiple of it. The covector of side $i$ is $c_i = (a_1, a_2, -t)$ for the wall $a_1 x_1 + a_2 x_2 = t$ with $a_1^2 + a_2^2 = 1$, and each pairing is a matrix whose last row is $(0, 0, 1)$ (Section 6.6 of the geometry design). The domain design places the centre of the domain at the origin $(0, 0, 1)$ (Section 6.5 of the domain design).
+
+The plane scale and the plane position of a sample at the screen position $p$ of Section 5.1 are
+
+$$g = \frac{S}{\min(W, H)}, \qquad z = \left(\left(p_1 - \frac{W}{2}\right) g, \ \left(\frac{H}{2} - p_2\right) g\right)$$
+
+with $S = 8$. The point is $x = (z_1, z_2, 1)$, and the screen tangents are $T_1 = (g, 0, 0)$ and $T_2 = (0, g, 0)$, the change of $x$ for a step of one pixel along each axis of the screen. The view applies no isometry. So the centre of the domain lies at the centre of the image, the shorter side of the image spans 8 units of the plane, and the tiling fills the image with no margin. With the units of `DEC-17`, in which side 0 of a triangle has length 1 and the rectangle of `*2222` has area 1, a tile of `*2222` with `aspect` 1 is 64 pixels square in a 512 by 512 image.
+
+RND-24. For a Euclidean domain, the renderer MUST place the samples by Section 5.1 and compute the plane position, the point, and the screen tangents by the formulas of this section with $S = 8$, because the golden images, the periodicity tests, and the snapshots of `escher-cli` fix the position of every sample, and another placement changes every image. $S$ is a power of two, so that the plane scale is exact for an image whose shorter side is a power of two (Section 6.6).
+
+The other steps read as this table states:
+
+| Step | Reading for a Euclidean domain |
+| --- | --- |
+| 5.2 | Does not run. The point and the screen tangents are those of this section |
+| 5.3 | Unchanged. Step 3 computes the same dot product $c_i \cdot x$, so the one private fold of RND-7 serves both geometries. The last coordinate of the point stays 1 at every step (Section 6.6), so the threshold of the side test is $\tau \sigma_i$ |
+| 5.4 | Unchanged (RND-9). The pairings move the screen tangents with the point, so $\lvert f_i \rvert / g_i$ reads as the distance in pixels from the sample to the wall of side $i$ in its tile, as Section 12.1 records |
+| 5.5 | Unchanged. No sample is an outside sample, so the background colour does not appear and `outside()` is 0 |
+| 5.6 | Unchanged |
+
+A sample whose side value equals the half width times the gradient size is not a border sample, because the comparison of RND-9 then holds. For `*2222` with `aspect` 1 or 4 in a 512 by 512 image with one sample per pixel, every wall lies on a boundary between pixels, so every sample lies exactly half a pixel from the nearest wall. At a border width of 1, no sample is then a border sample and the image shows no border. With a grid of 2 or more samples per pixel the borders show. This is a property of point sampling in this view, and the test "Half-pixel tie" of Section 8.1 records it.
+
+The Euclidean steps rest on these statements:
+
+| Step | Statement used | Source | Status |
+| --- | --- | --- | --- |
+| 5.8 | The plane position, the point, and the screen tangents | The affine plane of Section 5.1 of the architecture | A project convention. $S$ is a choice of this design |
+| 5.3 | The fold loop | Section 4.1 of the rendering reference, as in Section 5.7 | Sourced loop. Sections 4.5 and 4.7 of the rendering reference give no termination result for the fold of an infinite Euclidean group, so termination and the step count are `UNV-1` |
+| 5.3 | The reflection triangles and the rectangle are strict fundamental domains of the groups of their reflections | Theorem 6.4.3 of [DAVIS], which covers the reflection groups of convex polytopes in all three geometries (Section 4.5 of the domain reference) | Sourced |
+| 5.4 | The border estimate | SymmHub's tiling overlay, which divides the Euclidean distance to each side by the pixel size (Section 6.1 of the rendering reference), and the gradient form of Section 5.7 | Sourced precedent for the distance. The estimate through a chain of folds is `UNV-15` |
+| 5.5 | The parity colouring | Section 4.6 of the rendering reference | `UNV-18` |
+
 ## 6. Numerical Behaviour
 
 ### 6.1. Scale and Renormalization
@@ -419,6 +464,9 @@ $\tau$ is $4 \times 10^{-15}$, a choice of this design. The test "Vertices" of S
 | Input set | Largest ratio | Where | Margin of $\tau$ |
 | --- | --- | --- | --- |
 | The vertices of the 7 triples of the fold set (Section 6.4) and of the 25 vertex triples of Section 8.1 | $3.047 \times 10^{-16}$ | Vertex 1, side 2, of $(923, 6, 5)$ | 13.1 |
+| The vertices of the Euclidean domain set, of `*2222` with `aspect` 4, and of `*2222` at 64 values of `aspect` evenly spaced in its logarithm over its range | To be measured | To be measured | To be measured |
+
+$\tau$ keeps its value for the Euclidean domains, because another value moves the decisions of the hyperbolic fold and changes the committed golden images. If 8 times the largest ratio of the Euclidean row exceeds $\tau$, the change that adds the row stops and reports to the owner instead of changing $\tau$.
 
 With $\tau = 0$ the test "Vertices" fails, because a vertex then takes steps. Over the fold set alone the largest ratio is $7.2 \times 10^{-17}$, and over all 10,622 hyperbolic triples with orders up to 40 and the fold set it is $1.85 \times 10^{-16}$, at vertex 2, side 2, of $(38, 20, 4)$. Those two sweeps ran outside the repository, and the vertex triples include the triple at which each has its largest ratio.
 
@@ -445,9 +493,9 @@ RND-14. `fold` and the renderer MUST NOT panic for any input, including any `f64
 
 ### 6.4. Range of Accuracy
 
-The crate states its accuracy for disk positions up to the radius $1 - 10^{-6}$, the radius band 6. That radius corresponds to a hyperbolic distance of about 14.5 from the centre by the relation of [CFKP], Fact 5 (Section 4.7 of the rendering reference). Beyond it, the prototype measured that the fold in double precision applies a different side than a 256-bit fold, and that `from_disk` returns vectors that are not points from $1 - 10^{-8}$ outward, which never converge (Section 11).
+For a hyperbolic domain, the crate states its accuracy for disk positions up to the radius $1 - 10^{-6}$, the radius band 6. That radius corresponds to a hyperbolic distance of about 14.5 from the centre by the relation of [CFKP], Fact 5 (Section 4.7 of the rendering reference). Beyond it, the prototype measured that the fold in double precision applies a different side than a 256-bit fold, and that `from_disk` returns vectors that are not points from $1 - 10^{-8}$ outward, which never converge (Section 11). Section 6.6 states the range of accuracy for a Euclidean domain.
 
-RND-15. The renderer and `fold` MUST meet the bounds of the tables of this section in each radius band from 1 to 6, and for a disk position beyond the range of accuracy MUST only return without a panic and report the fold as converged or unconverged, because the bounds are measured only up to that radius, and a promise beyond it would be false for many samples.
+RND-15. For a hyperbolic domain, the renderer and `fold` MUST meet the bounds of the tables of this section in each radius band from 1 to 6, and for a disk position beyond the range of accuracy MUST only return without a panic and report the fold as converged or unconverged, because the bounds are measured only up to that radius, and a promise beyond it would be false for many samples.
 
 The fold calls `hyperbolic::side` and `hyperbolic::reflection` outside the ranges of their rows in Section 8.4 of the geometry design, which cover distance 10 for `side` and distance 3 for the points of `reflection`. This crate relies on its own end-to-end measurements, as Section 9.3 of the domain design does for its construction.
 
@@ -519,11 +567,36 @@ Beyond the range of accuracy, the test "Rim" of Section 8.1 asserts no bound. It
 
 ### 6.5. Measured Figures
 
-RND-16. A test that asserts a quantity for which this document states no measured bound MUST set its bound and record it in this document as TEST-13 of the coding standard requires, over an input set that this document states, in the same change as the test, and a bound on a count MUST be the count bound of the measured count, because Sections 6.2, 6.4, and 8.4 are the one record of the bounds of this crate, a bound outside them has no measurement for a reviewer to check, and 8 times a count of 0 is a bound of 0, which fails on the first decision that differs on another platform.
+RND-16. A test that asserts a quantity for which this document states no measured bound MUST set its bound and record it in this document as TEST-13 of the coding standard requires, over an input set that this document states, in the same change as the test, and a bound on a count MUST be the count bound of the measured count, because Sections 6.2, 6.4, 6.6, and 8.4 are the one record of the bounds of this crate, a bound outside them has no measurement for a reviewer to check, and 8 times a count of 0 is a bound of 0, which fails on the first decision that differs on another platform.
 
 The count bound is a choice of this design. Each bound of a floating-point quantity is at least 8 times its largest value, as TEST-13 requires. The tests print each largest value with its input and its margin, and the Validating Changes section of `AGENTS.md` gives the command that shows that output.
 
-The figures of Sections 6.2, 6.4, and 8.4 were measured on Linux x86-64 with the code of the crate. The figures of Section 11 come from the prototype. Where the two differ, the figures of the crate are the fact, and those of the prototype remain only as the evidence that motivated a choice. No bound takes a figure from the prototype, except the golden-image allowance, which Section 8.4 explains.
+The figures of Sections 6.2, 6.4, and 8.4 were measured on Linux x86-64 with the code of the crate. A cell marked "To be measured" is set by the change that adds its test, as this requirement states. The figures of Section 11 come from the prototype and the Euclidean prototype. Where the two differ, the figures of the crate are the fact, and those of a prototype remain only as the evidence that motivated a choice. No bound takes a figure from a prototype, except the golden-image allowance, which Section 8.4 explains.
+
+### 6.6. Euclidean Domains
+
+For a Euclidean domain, precision is lost in these places:
+
+- The sines and cosines of the construction come from the platform mathematics library, as for a hyperbolic domain.
+- Each step of the fold rounds with an absolute error that grows with the coordinates of the point, and the step count grows with the distance from the centre, so the error of the folded point grows faster than linearly in that distance (Section 11).
+- The side test compares $c_i \cdot x$ with $\tau \sigma_i$, a threshold that does not grow with the coordinates of the point. Section 6.2 measures the ratio at the vertices of the domain.
+
+The last coordinate does not drift. The last row of every Euclidean pairing is exactly $(0, 0, 1)$, so a step on a finite point with last coordinate 1 returns a point with last coordinate exactly 1 in IEEE 754 arithmetic. The test "Euclidean fold properties" of Section 8.1 asserts this exactly.
+
+For `*2222` with `aspect` 1 or 4, an image whose sides are powers of two, and a sample grid of 1, 2, 4, 8, or 16, every value of the construction, of the view, of the fold, and of the border estimate is a dyadic rational that `f64` holds exactly, and every square root that runs has an exact result. IEEE 754 arithmetic then rounds no operation, so the image does not depend on the platform. The test "Periodicity" of Section 8.1 asserts exact equality for these cases only (TEST-13 of the coding standard), and Section 12.1 records the reading.
+
+RND-25. For a Euclidean domain, the renderer and `fold` MUST meet the bounds of the table of this section for plane positions within distance 65 of the centre of the image, and for a plane position beyond that distance MUST only return without a panic and report the fold as converged or unconverged, because the bounds are measured only up to that distance, and a promise beyond it would be false for samples that reach the fold cap.
+
+The canonical view of an image whose longer side is at most 16 times its shorter side lies within the range of accuracy, because the corner sample of such an image lies less than 65 from the centre. In a more elongated image, such as 16384 by 1 pixels, samples lie far beyond the range, many of them reach the fold cap, and they take the border colour (`DEC-7`). The rows of Section 6.3 apply unchanged.
+
+The Euclidean fold set is the Euclidean domain set at plane positions at 512 evenly spaced angles at each distance 1, 4, 16, and 65 from the centre. The fold cap, the tolerance constant, and the golden allowance keep their values. Each bound is set as RND-16 states, against the reference arithmetic of Section 8.3, and the change that adds the test records it here:
+
+| Quantity | Measure | Measured against | Input set | Largest value and bound |
+| --- | --- | --- | --- | --- |
+| Folded point | The distance in the plane between the folded point and the result of the reference replay, for each domain and distance | The replay of the side sequence of the fold in the reference arithmetic | The Euclidean fold set. Every fold of the set converges | To be measured |
+| Fold decisions | The number of folds whose side sequence differs from that of an independent 256-bit fold, for each distance | The 256-bit fold with $\tau = 0$ | The Euclidean fold set | To be measured |
+| Border estimate | The number of samples that the gradient form and the Euclidean distance form of Section 8.1 classify differently, at half widths 0.5 and 1.5 pixels | The Euclidean distance form in the reference | The Euclidean fold set, keeping the samples whose distance form is under 4 pixels, with $g$ of a 512 by 512 image | To be measured |
+| Fold count | The mean and the largest number of steps at each distance | None | The Euclidean fold set, and the samples of the canonical image of each domain of the Euclidean domain set at 512 by 512 pixels with a 4 by 4 grid | To be measured |
 
 ## 7. Errors
 
@@ -577,12 +650,13 @@ The module `common` defines a copy of the tolerance constant $\tau$, the bounds 
 - The fold set of Section 6.4: the plan triples and $(1000, 1000, 1000)$, at 512 evenly spaced angles in each radius band from 1 to 6.
 - The rim set: the plan triples and $(1000, 1000, 1000)$, at 64 evenly spaced angles at each radius $1 - 10^{-k}$ for $k$ from 7 to 15, and at the largest `f64` below 1 on each axis, which gives 578 positions.
 - The 25 vertex triples: $(38, 20, 4)$, which has the largest ratio of Section 6.2 among the hyperbolic triples with orders up to 40, and the 24 worst cases of Section 12.1 of the domain design.
+- The Euclidean domain set of Section 2.1 and the Euclidean fold set of Section 6.6.
 
 The module `reference` defines the count bound once, and both the unit tests and the integration tests take it from there.
 
-The module `golden_images`, in `tests/render/golden_images.rs`, defines once the golden configuration of Section 8.4, with the signatures and their file names, the fill colours, the size, the sample grid, and the options, the allowance of 16 pixels, the linear-light table of RND-20, and the comparison. The tests "Golden images", "Perturbation", and "Symmetric view" take them from there.
+The module `golden_images`, in `tests/render/golden_images.rs`, defines once the golden configuration of Section 8.4, with the signatures, their shape parameters, and their file names, the fill colours, the size, the sample grid, and the options, the allowance of 16 pixels, the linear-light table of RND-20, and the comparison. The tests "Golden images", "Perturbation", and "Symmetric view" take them from there.
 
-Each test names the item of the field "Tests and acceptance" of Section 5.3 of the plan that it serves. The reference tests print each largest value with its input and its margin, and assert the smallest number of samples that they measure. The test harness captures that output for a test that passes:
+Each test names the item of the field "Tests and acceptance" of Section 5.3 or 5.4 of the plan that it serves. The reference tests print each largest value with its input and its margin, and assert the smallest number of samples that they measure. The test harness captures that output for a test that passes:
 
 | Test | Plan item | Kind and place | Asserts |
 | --- | --- | --- | --- |
@@ -599,7 +673,7 @@ Each test names the item of the field "Tests and acceptance" of Section 5.3 of t
 | Pairing | Fold properties | `proptest`, `properties` | For a point $x$ in the range of accuracy and a side $i$ with $P_i x$ also in the range of accuracy, let $b$ be the bound of the folded point of Section 6.4 for the triple and the outer of the bands of $x$ and $P_i x$. When the folded point lies, in the reference, at a hyperbolic distance of at least the larger of $10^{-6}$ and $2b$ from every wall of the domain: their folded points are within $b$ of each other in the reference, their step counts differ by exactly 1, and their parities differ. Other cases are discarded |
 | Scale | Fold properties | `proptest`, `properties` | For a point in the range of accuracy and each $k$ from $-40$ to 40, the fold of $2^k x$ visits the same sides, takes the same steps and reversals, and has the same `converged()`, and its point is exactly $2^k$ times the folded point. The comparison is exact for the reason of Section 6.1. The test builds $2^k$ by $\lvert k \rvert$ exact doublings or halvings of 1 (Section 8.5) |
 | Any input | Fold properties | `proptest`, `properties` | For any three `f64` bit patterns as the point and any cap up to 2000, `fold` returns, `steps()` is at most the cap, `reversals()` is at most `steps()`, a converged result has a finite point with a positive last coordinate, and a point whose last coordinate is not positive gives an unconverged result with zero steps |
-| Vertices | Fold properties | Integration test, `folds` | Every vertex of the domain of each triple of the fold set and of the 25 vertex triples folds converged with zero steps and returns its input, and 8 times the largest ratio of Section 6.2 is at most $\tau$. It prints that ratio with its vertex, side, and margin |
+| Vertices | Fold properties | Integration test, `folds` | Every vertex of the domain of each triple of the fold set, of the 25 vertex triples, and of the Euclidean domains of Section 6.2 folds converged with zero steps and returns its input, and 8 times the largest ratio of Section 6.2 is at most $\tau$. It prints that ratio with its vertex, side, and margin |
 | Wrong inputs | Failure paths | Integration tests in `folds`, `images`, and `encoding`, and unit tests | The rows of Section 8.2 |
 | Rim | Precision at the limit circle | Integration test, `folds` | For the rim set, `fold` returns without a panic, and a converged result has a finite point and finite side values. The test then finds the rows of an image of `*732` at 4096 by 4096 pixels with one sample that hold a sample beyond the range of accuracy, asserts that there is at least one, and renders only those rows with `render_rows`. Every pixel is the fill colour, `Colour::BLACK`, or `Colour::WHITE`. No bound |
 | Cap | Termination | Reference test, `folds` | Every fold of the fold set and every sample of the canonical image of `*(1000)32` at 512 by 512 pixels with a 4 by 4 grid within the range of accuracy converges within the default cap of 1500. It prints the mean and the largest step count of each band, which Section 6.4 records |
@@ -607,7 +681,7 @@ Each test names the item of the field "Tests and acceptance" of Section 5.3 of t
 | Bands | None | Integration test, `images` | For `*732` at 64 by 48 pixels with a 3 by 3 grid and `Fill::Parity`, `render` equals, byte for byte, the concatenation of `render_rows` over a split into bands of one row, the uneven split into 7, 1, 23, 2, and 15 rows, and one band, and the merged statistics equal those of `render`. The comparison is exact, because each sample is computed by the same instructions whatever the band (RND-3) |
 | Symmetric view | Symmetric view | Unit test in `view.rs` | For each plan triple at 192 by 192 pixels, a 4 by 4 grid, and `Fill::One`, the top 96 rows of the image of the symmetric view match the bottom 96 rows mirrored in the first axis, row $j$ against row $H - 1 - j$, within the allowance of Section 8.4: at most 16 differing pixels, each within the limit of RND-20 in each channel |
 | Golden images | Golden images | Integration test, `images` | Section 8.4 |
-| Perturbation | Golden images | Unit test in `renderer.rs` | For the three golden images, adding one unit in the last place to every component of every normal copied into the renderer changes each image within the allowance of Section 8.4: at most 16 differing pixels, each within the limit of RND-20 in each channel |
+| Perturbation | Golden images | Unit test in `renderer.rs` | For the seven golden images, adding one unit in the last place to every component of every normal copied into the renderer for a hyperbolic domain, and of every covector for a Euclidean domain, changes each image within the allowance of Section 8.4: at most 16 differing pixels, each within the limit of RND-20 in each channel |
 | PNG size | PNG decodes to the requested size | Integration test, `encoding` | `encode_png` of a 16 by 32 image decodes with `png` to 16 by 32 pixels, RGB, bit depth 8, with the sRGB chunk and the same bytes |
 | Sample position | None | Unit tests in `view.rs` | The position of each sample follows the grid and the margin of Section 5.1, and a sample outside the disk has no point |
 | Fold steps | None | Unit tests in `fold.rs` | The private fold carries the screen tangents through each pairing, and counts as reversals only the steps whose pairing reverses orientation |
@@ -616,6 +690,15 @@ Each test names the item of the field "Tests and acceptance" of Section 5.3 of t
 | Statistics | None | Unit tests in `renderer.rs` | `merged` adds the counts, saturates at `u64::MAX`, and takes the larger `largest_fold()`. For a 4 by 4 image with one sample of `*732`, `samples()` is 16 and `outside()` counts the corners of the image outside the disk |
 | Error text | Failure paths | Unit tests in `error.rs` | The `Display` of every row of Section 7.2, in lower case apart from `PNG` and without trailing punctuation, `kind()` for each cause, and `source()` only for `Encoding` |
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type is `Send`, `Sync`, and `'static` (CONC-1 of the coding standard) |
+| Plane view | None | Unit tests in `view.rs` | The plane position, the point, and the screen tangents of a sample of a Euclidean domain follow Section 5.8, the view of each value of `Geometry` is the one that RND-23 names, and every sample of the arm `Spherical` is an outside sample. `render` of `*442` at 4 by 4 pixels with one sample counts no outside sample |
+| Euclidean fold properties | Fold properties | `proptest`, `properties` | "Inside", "Idempotent", "Scale", and "Any input" for each domain of the Euclidean domain set, with points drawn within the Euclidean range of accuracy, and a converged fold of such a point has a last coordinate of exactly 1. The comparison is exact for the reason of Section 6.6 |
+| Euclidean pairing | Fold properties | `proptest`, `properties` | "Pairing" for each domain of the Euclidean domain set, with the distance in the plane and the bound of the folded point of Section 6.6 at the outer distance of $x$ and $P_i x$ in place of the hyperbolic distance and the band |
+| Euclidean fold replay | Reference arithmetic | Reference test, `folds` | For the Euclidean fold set, the folded point lies within the bound of Section 6.6 of the reference replay, the number of differing fold decisions is within its count bound of Section 6.6, and every fold converges within the default cap of 1500. It prints the mean and the largest step count at each distance, which Section 6.6 records |
+| Euclidean border forms | Border oracle | Reference test, unit test in `renderer.rs` | As "Border forms", for the Euclidean fold set, against the Euclidean distance form, within the count bounds of Section 6.6. The Euclidean distance form marks a border sample when $\lvert \hat{f}_i \rvert < g w$ for some side $i$, with $\hat{f}_i$ the side value at the folded point divided by its last coordinate, $g$ the plane scale, and $w$ the half width |
+| Euclidean border oracle | Border oracle | Integration test, `borders` | As "Border oracle", for each domain of the Euclidean domain set at 192 by 192 pixels with one sample per pixel, over every pixel whose 3 by 3 neighbourhood lies inside the image |
+| Rectangle grid | Border oracle | Integration test, `borders` | For `*2222` with `aspect` 1, 4, 1.618, 0.125, 8, and 0.3, at 512 by 512 pixels with one sample per pixel and border widths 1, 1.5, and 3, the number of pixels that differ from the image of an oracle that runs no fold is within the count bound of the number measured by the change that adds the test. With $w$ and $h$ the lengths of sides 0 and 1, and $z$ the plane position of the pixel centre, the oracle gives the parity $(i + j) \bmod 2$ with $i = \lfloor (z_1 + w/2)/w \rfloor$ and $j = \lfloor (z_2 + h/2)/h \rfloor$, and marks a border pixel when the distance from $z$ to the nearest line $z_1 = w/2 + kw$ or $z_2 = h/2 + kh$, for an integer $k$, is less than $g$ times the half width |
+| Periodicity | Periodicity | Integration test, `images`, for the canonical view, and unit test in `view.rs` for the periodic view | The cases of the table below this one |
+| Half-pixel tie | None | Integration test, `images` | `*2222` with `aspect` 1 at 512 by 512 pixels, with one sample per pixel and a border width of 1, has no border pixel, and with a 2 by 2 grid it has border pixels. The assertion of no border pixel is exact for the reason of Section 6.6. Section 5.8 explains the case |
 | Doctests | None | Doctests | The examples of the crate-level and item documentation |
 
 The tests "Tangents", "Border forms", "Colour", "Thresholds", "Colour constants", "Perturbation", and "Symmetric view" read private items, such as the screen tangents, the linear value of a `Colour`, and the walls inside the renderer, so they are unit tests. `src/lib.rs` loads `tests/render/reference.rs` and `tests/render/golden_images.rs` under `#[cfg(test)]` through `#[path]`, so the unit tests and the integration tests use the same reference module, which shares no code with the crate (RND-19), and the same golden configuration, allowance, and comparison. The module `reference` carries `#![expect(dead_code, reason = "the unit tests of the crate and the integration tests each use a different part of this module")]`, because each test binary uses a different part of it, and its self-check runs in both binaries.
@@ -636,6 +719,19 @@ The test "Pairing" keeps a clearance from the walls of at least twice the bound 
 The test "Rim" renders only some rows, because at 512, 768, 1024, 1536, and 2048 pixels with one sample no sample lies beyond $1 - 10^{-6}$, the closest being $3.8 \times 10^{-6}$ at 2048. At 4096 pixels, 16 samples do, in rows 163, 588, 800, 1680, 2415, 3295, 3507, and 3932.
 
 The symmetric view maps a point $x$ of the screen to $Q x$ before the fold, and the tangents to $Q T_1$ and $Q T_2$. $Q$ is the isometry that maps `hyperbolic::ORIGIN` to vertex 2 of the domain and the positive first axis to the geodesic ray from vertex 2 through vertex 0, built from `hyperbolic::translation`, `hyperbolic::inverse`, and `hyperbolic::rotation`. The wall of side 0 then lies on the first axis. The test uses `Fill::One`, because a mirror of the group swaps the two parity colours (Section 11). It uses an even image size, so that no sample lies on the first axis. The wall of side 0 after $Q$ is not exactly the first axis in `f64`, so the equality of the two halves is not a property of IEEE 754 arithmetic, and the test asserts the golden allowance rather than no differing pixel, because a bound of 0 pixels fails on the first platform that moves one sample across a border (Section 8.4). Each of the six images matched its mirror with no differing pixel.
+
+The test "Periodicity" renders each case of this table at 512 by 512 pixels with a 4 by 4 grid and `Fill::Parity`. For each word, it multiplies the pairings in `f64`, asserts that the product is a translation along one axis of the plane, with a linear part and an off-axis component within a tolerance that the change that adds the test measures, and asserts that the translation divided by the plane scale rounds to the shift of the table. It then compares pixel $(i, j)$ with the pixel shifted by that many pixels along that axis, for every pair inside the image:
+
+| Domain | View | Word along the first axis | Word along the second axis | Shift in pixels | Assertion |
+| --- | --- | --- | --- | --- | --- |
+| `*2222`, `aspect` 1 | Canonical | $P_1 P_3$ | $P_0 P_2$ | 128 and 128 | Equal byte for byte |
+| `*2222`, `aspect` 4 | Canonical | $P_1 P_3$ | $P_0 P_2$ | 256 and 64 | Equal byte for byte |
+| `*442` | Canonical | $P_2 P_1 P_0 P_1$ | $P_0 P_1 P_2 P_1$ | 128 and 128 | Within the golden allowance |
+| `*632` | Canonical | $P_2 P_1 P_0 P_1 P_0 P_1$ | None | 128 | Within the golden allowance |
+| `*333` | Canonical | $P_2 P_0 P_1 P_2 P_0 P_1$ | None | 192 | Within the golden allowance |
+| `*2222`, `aspect` 1.618 | Periodic, with the plane scale $2w/128$ | $P_1 P_3$ | None | 128 | Within the golden allowance |
+
+The exact rows rest on the reason of Section 6.6, which holds only for those two values of `aspect`. The other rows involve sines, cosines, or square roots that round, so IEEE 754 arithmetic does not guarantee equality (TEST-13 of the coding standard), and they assert the allowance of Section 8.4: at most 16 differing pixels, each within the limit of RND-20 in each channel. The test prints the count of each row, and the change that adds it records the counts in this section. In the canonical view the period of `*2222` with `aspect` 1.618 is about 162.8 pixels, which is not whole, so that row uses the periodic view, a view available only to the unit tests that differs from the canonical view only in its plane scale. The test asserts numerically that each word is a translation, so it relies on no statement about the group.
 
 The property tests commit their regression files (TEST-9 of the coding standard).
 
@@ -668,13 +764,13 @@ RND-19. The reference module MUST share no code with `escher-render`, `escher-do
 
 ### 8.4. Golden Images
 
-The golden images are `*732`, `*542`, and `*433` in the canonical view at 192 by 192 pixels, with a 4 by 4 grid, a border width of 1 pixel, `Fill::Parity` with the sRGB colours $(245, 222, 179)$ for an even parity and $(70, 130, 180)$ for an odd parity, and the default border colour, background, and cap. They are committed as `7-3-2.png`, `5-4-2.png`, and `4-3-3.png` under `crates/escher-render/tests/render/golden/`, as Section 7.2 of the architecture and TEST-14 of the coding standard state.
+The golden images are `*732`, `*542`, and `*433` in the canonical view at 192 by 192 pixels, with a 4 by 4 grid, a border width of 1 pixel, `Fill::Parity` with the sRGB colours $(245, 222, 179)$ for an even parity and $(70, 130, 180)$ for an odd parity, and the default border colour, background, and cap. They are committed as `7-3-2.png`, `5-4-2.png`, and `4-3-3.png` under `crates/escher-render/tests/render/golden/`, as Section 7.2 of the architecture and TEST-14 of the coding standard state. The Euclidean golden images are `*632`, `*442`, `*333`, and `*2222` with `aspect` 1.618, with the same options in the canonical view of Section 5.8, committed in the same directory as `6-3-2.png`, `4-4-2.png`, `3-3-3.png`, and `2-2-2-2.png`.
 
 RND-20. The golden-image test MUST decode the committed file with `png`, convert both images to linear light through a table of the 256 byte values that the reference transfer function of Section 8.3 gives, and pass only when at most the allowed number of pixels differ and each differing pixel differs in each channel by at most one sample weight plus the linear-light size of one 8-bit step at the larger of the two stored values of that channel, because samples are averaged in linear light and stored as 8-bit sRGB, so a sample that changes colour moves the stored value by an amount that depends on the colours, a limit in stored units would be too loose for dark values and too tight for bright ones, and an integration test cannot read the linear value of a `Colour`.
 
 The allowed number of pixels is 16 for each image, a choice of this design. The evidence for it is:
 
-- The test "Perturbation" of Section 8.1 applies `f64::next_up` to every component of every normal copied into the renderer and rebuilds the covector and the reflection of each side from the moved normal. That perturbation is the size of a difference in the platform mathematics library, which the plan names as a risk. It changed no pixel of the three images, and the test asserts the allowance.
+- The test "Perturbation" of Section 8.1 applies `f64::next_up` to every component of every normal copied into the renderer and rebuilds the covector and the reflection of each side from the moved normal. That perturbation is the size of a difference in the platform mathematics library, which the plan names as a risk. It changed no pixel of the three hyperbolic images, and the test asserts the allowance. For the four Euclidean images it moves every covector instead, because the normal of a Euclidean wall does not carry its offset, and rebuilds the reflection of each side from the moved covector. The change that adds those images records how many pixels it changes.
 - The committed images match a fresh rendering with no differing pixel.
 - On the prototype, a rotation of $10^{-6}$ changed 4 to 9 pixels by at most one sample each (Section 11). 16 pixels admit a difference between platforms of that size.
 - Every defect tried that changes an image changes thousands of pixels, so 16 pixels hide none of them.
@@ -691,6 +787,8 @@ Each defect of this table was applied alone to the crate, the tests of the crate
 | Offset 0.056 in the transfer function | 3,341 | 2,961 | 2,503 | "Golden images", "Colour", and "Colour constants" |
 | Exponent 2.2 in the transfer function | 12,718 | 10,988 | 9,648 | "Golden images" and "Colour" |
 
+The change that adds the Euclidean golden images applies to them the defects "No parity flip" and "Tangent not carried", and also a plane scale $S$ of 7 in place of 8 and a swap of the two axes of the plane position, and records in a table of the same form the pixels that each defect changes and the tests that fail.
+
 These defects change no pixel of the golden images, and another test fails for each:
 
 | Defect | Test that failed |
@@ -703,7 +801,7 @@ These defects change no pixel of the golden images, and another test fails for e
 
 The golden-image test reads the environment variable `ESCHER_UPDATE_GOLDEN`. With exactly the value `1`, it writes each rendered image over its committed file and does not compare. With any other value, or unset, it compares. A committed file that cannot be read or decoded, or whose width, height, colour type, bit depth, or buffer length differs from the rendered image, fails that image with a message that names the recipe `update-golden`, and such a file never reaches the comparison or the encoder. Section 14.9 of the tooling design gives the procedure.
 
-When an image differs beyond the allowance, the test writes `actual-<name>.png`, the rendered image, and `difference-<name>.png`, the absolute difference of each byte, under the directory that `CARGO_TARGET_TMPDIR` names, where `<name>` is the name of the golden file without `.png`. It checks all three images before it fails, prints the number of differing pixels of each image that it compares, and reports every image that failed.
+When an image differs beyond the allowance, the test writes `actual-<name>.png`, the rendered image, and `difference-<name>.png`, the absolute difference of each byte, under the directory that `CARGO_TARGET_TMPDIR` names, where `<name>` is the name of the golden file without `.png`. It checks every golden image before it fails, prints the number of differing pixels of each image that it compares, and reports every image that failed.
 
 ### 8.5. Tests Under Miri
 
@@ -711,11 +809,11 @@ When an image differs beyond the allowance, the test writes `actual-<name>.png`,
 
 | Tests | Under Miri | Attribute or configuration |
 | --- | --- | --- |
-| "Fold replay", "Fold decisions", "Cap", "Tangents", "Border forms", "Colour", "Thresholds", "Reference self-check" in both binaries, and "Pairing" | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
-| "Rim", "Border oracle", "Bands", "Symmetric view", and "Perturbation" | Ignored | `#[cfg_attr(miri, ignore = "rendering whole images runs loops too long for the interpreter")]` |
+| "Fold replay", "Fold decisions", "Cap", "Tangents", "Border forms", "Colour", "Thresholds", "Reference self-check" in both binaries, "Pairing", "Euclidean pairing", "Euclidean fold replay", and "Euclidean border forms" | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
+| "Rim", "Border oracle", "Bands", "Symmetric view", "Perturbation", "Euclidean border oracle", "Rectangle grid", "Periodicity", and "Half-pixel tie" | Ignored | `#[cfg_attr(miri, ignore = "rendering whole images runs loops too long for the interpreter")]` |
 | "Golden images" | Ignored | `#[cfg_attr(miri, ignore = "rendering whole images runs loops too long for the interpreter, and the test reads files")]` |
-| "Inside", "Idempotent", "Scale", and "Any input" | Run with 8 cases and no failure persistence | The helper of RND-21 |
-| "Vertices", "Wrong inputs", "Sample position", "Fold steps", "NaN border", "Colour constants", "Options", "Statistics", "Error text", "Auto traits", and "PNG size" | Run unchanged | None |
+| "Inside", "Idempotent", "Scale", "Any input", and "Euclidean fold properties" | Run with 8 cases and no failure persistence | The helper of RND-21 |
+| "Vertices", "Wrong inputs", "Sample position", "Fold steps", "NaN border", "Colour constants", "Options", "Statistics", "Error text", "Auto traits", "PNG size", and "Plane view" | Run unchanged | None |
 | The doctests | Not run, because Miri runs the tests through nextest, which runs no doctest | None |
 
 Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`).
@@ -764,15 +862,18 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 
 | Label | What the code relies on | What the code does |
 | --- | --- | --- |
-| `UNV-1` | The fold terminates for a compact reflection triangle, with a step count that grows toward the limit circle | Stops at the fold cap and reports the sample as unconverged. The default cap comes from the prototype (Section 11), and the test "Cap" measures the step counts and that every fold of its set converges within the cap (Section 6.4) |
+| `UNV-1` | The fold terminates for a compact hyperbolic reflection triangle, with a step count that grows toward the limit circle, and for a Euclidean reflection triangle or rectangle, with a step count that grows with the distance from the centre | Stops at the fold cap and reports the sample as unconverged. The default cap comes from the prototype (Section 11), and the tests "Cap" and "Euclidean fold replay" measure the step counts and that every fold of their sets converges within the cap (Sections 6.4 and 6.6) |
 | `UNV-3` | The behaviour of a point on or near a wall | Uses the tolerance constant of Section 6.2. The tests "Vertices" and "Wrong inputs" cover the vertices of the domain, and the test "Pairing" keeps its points at a clearance from the walls that grows with the error of the fold |
 | `UNV-4` | The growth of the fold count and the limits of precision near the limit circle | States accuracy only in the range of accuracy (RND-15). The tests "Fold replay", "Fold decisions", "Cap", and "Rim" measure each band |
 | `UNV-14` | The unit-normal form $\sinh d = \lvert \langle x, u \rangle \rvert$, in the distance form of the tests only | Compares the gradient form with it in the test "Border forms". The code of the crate does not use it |
-| `UNV-15` | The gradient form of the border estimate through a chain of folds in the linear model | Tests it against the distance form in the test "Border forms" and against tile identity in the test "Border oracle". The comparison with the distance form tells the two forms apart only in bands 1 and 2, because in bands 3 to 6 every sample of its set lies within 0.13 pixels of a wall (Section 6.4), so no test compares the forms beyond band 2 |
+| `UNV-15` | The gradient form of the border estimate through a chain of folds in the linear model | Tests it against the distance form in the tests "Border forms" and "Euclidean border forms", against tile identity in the tests "Border oracle" and "Euclidean border oracle", and against the grid of the rectangle in the test "Rectangle grid". The comparison with the distance form tells the two forms apart only in bands 1 and 2, because in bands 3 to 6 every sample of its set lies within 0.13 pixels of a wall (Section 6.4), so no test compares the forms beyond band 2 |
 | `UNV-18` | The parity colouring as the colouring by the two cosets of the orientation-preserving subgroup | Colours by the parity of the reversals. The test "Pairing" checks that a pairing changes the parity, and the golden images fix the result |
 | `UNV-25` | The correct rounding of the reference crate, in tests only | Uses 256 bits and the self-check of Section 8.3 |
-| This design | The bounds of Sections 6.2 and 6.4 and the allowance of Section 8.4 hold on platforms other than Linux x86-64, where they were measured | Sets each bound with a margin of at least 8 and the allowance of 16 pixels for a difference between platforms. CI runs the tests on Linux x86-64 only |
+| This design | The bounds of Sections 6.2, 6.4, and 6.6 and the allowance of Section 8.4 hold on platforms other than Linux x86-64, where they were measured | Sets each bound with a margin of at least 8 and the allowance of 16 pixels for a difference between platforms. CI runs the tests on Linux x86-64 only |
 | This design | The screen tangents of Section 5.2 are the partial derivatives of the map of Section 7.2 of the geometry design, times $h$ | The test "Tangents" compares them with central differences of the reference map |
+| This design | For a Euclidean domain, the side value at a point with last coordinate 1 is the distance from the point to the wall, in the tests only | The Euclidean distance form of the test "Euclidean border forms" uses it. The code of the crate does not use it |
+| This design | The mirrors of `*2222` are the lines of the grid of its rectangle, in the tests only | The oracle of the test "Rectangle grid" uses it. The test "Euclidean border oracle" checks the borders of the rectangle against tile identity without it |
+| `UNV-26`, `UNV-28` | The Euclidean reflection as a matrix, and the vertex coordinates of the Euclidean triangle, through the domain that `escher-domain` builds | Renders the walls and pairings that the domain gives. The domain design states which checks and tests cover them, and the tests "Periodicity" and "Euclidean border oracle" check the tiling that results |
 | Rendering reference | The constants of the sRGB transfer function, which rest on secondary sources until the standard is read (items 22 and 25 of Section 13.1 of the rendering reference) | Takes them from Section 7.5 of the rendering reference only (RND-11). The tests "Colour" and "Thresholds" compare the crate with the reference transfer function |
 | Rendering reference | Rounding to the nearest integer, after clamping to the range 0 to 1, when encoding an 8-bit sample (item 23 of Section 13.1 of the rendering reference) | Rounds as Section 5.6 states. The test "Colour" checks the round trip of every byte |
 
@@ -799,6 +900,21 @@ The prototype implemented Sections 5.1 to 5.5 in Rust on Linux x86-64 with a 256
 | The golden-image allowance | 8.4 | The images of `*732`, `*542`, and `*433` at 192 by 192, with a 4 by 4 grid and a 1-pixel border | Adding one unit in the last place to every component of every normal changed no pixel. A rotation of $10^{-6}$ changed 4, 9, and 9 pixels, by up to one sample, and a rotation of $10^{-3}$ changed more than 5000 |
 | `png` with `flate2` at 1.1.9 | 9 | The dependencies of `png`, `rayon`, and a reduced `csscolorparser` in a project outside the repository | The newest resolution failed the duplicate check with `miniz_oxide` 0.8.9 and 0.9.1. With `flate2` at 1.1.9, the checks of bans and licences passed, and encoding and decoding a 4 by 4 image passed Miri |
 
+The Euclidean prototype changed only the private view of a copy of the crate, which gained the plane view of Section 5.8 with $S = 8$. The fold, the border estimate, the colour of a sample, and the encoding were the code of the crate, unchanged. It built the Euclidean domains with the candidate corners and the rectangle that the domain design specifies, as private test code, and ran in release mode on Linux x86-64. Unless a row states otherwise, it used a 512 by 512 view with a 4 by 4 grid and the eight domains `*632`, `*442`, `*333`, and `*2222` with `aspect` 1, 1.618, 0.125, 8, and 4:
+
+| Choice | Section | Input set | Figures of the Euclidean prototype |
+| --- | --- | --- | --- |
+| The fold and the border estimate unchanged | 5.8 | The eight domains | No outside and no unconverged sample. The largest fold was 18 steps for `*632`, 13 for `*442` and `*333`, 12 for `*2222` with `aspect` 0.125 and 8, 10 with 4, and 8 with 1 and 1.618, and the mean was 9.22 steps for `*632`. The last coordinate of every folded point stayed exactly 1, and that of both tangents exactly 0, over the 4,194,304 samples of each domain. In the images, colours alternate across every edge and the borders are thin and even |
+| The span $S = 8$ with the units of `DEC-17` | 5.8 | The eight domains | Side 0 of each triangle had length 1, and the corner angles were 30, 60, and 90 degrees for `*632`, 45, 45, and 90 for `*442`, and 60 for each corner of `*333`. The areas from the vertices were 0.288675135, 0.5, and 0.433012702 for the three triangles and 1 for every `aspect`. The window of 8 by 8 units held about 221.7, 128.0, 147.8, and 64.0 tiles of `*632`, `*442`, `*333`, and `*2222`. At the ends of the range of `aspect`, a tile was 181.0 by 22.6 pixels |
+| The view chosen from the geometry (RND-23) | 5.8 | `*632` and `*2222` with `aspect` 1 drawn through the unchanged disk view | No error. For `*632`, 1,298,980 samples were outside the disk and none was unconverged, and the image was a disk with a plausible but wrong curved pattern |
+| $\tau$ kept for the Euclidean domains | 6.2 | The vertices of the eight domains and of `*2222` at 64 values of `aspect` evenly spaced in its logarithm | No vertex took a step. The largest ratio was $4.16 \times 10^{-17}$, for `*632`, 12 times under $\tau / 8$ |
+| The range of accuracy of 65, and the cap of 1500 | 6.6 | 512 angles at the distances 1, 4, 16, and 64, and 64 angles for the distance at which the cap is first reached | At distance 64, the mean and the largest step count were 192.8 and 197 for `*632`, 139.1 and 145 for `*442`, 141.2 and 149 for `*333`, 81.5 and 91 for `*2222` with `aspect` 1, 83.8 and 96 with 1.618, and 129.6 and 183 with 0.125 and 8. No fold was unconverged up to distance 256. The cap was first reached at distance 490.7 for `*632`, 526.4 for `*2222` with `aspect` 0.125 and 8, 649.6 for `*333`, 671.1 for `*442`, 728.0 for `*2222` with 4, 1003.2 with 1.618, and 1061.6 with 1. The corner sample of an image of 8192 by 512 pixels lies at distance 64.12. An image of 16384 by 1 pixels reached distance 65532, with 16258 of 16384 samples unconverged |
+| Accuracy of the fold | 6.6 | 64 points at each distance and domain | No fold decision differed from a 256-bit fold. The largest distance of the folded point from the 256-bit replay was $1.5 \times 10^{-16}$ at distance 1, about $10^{-15}$ at 4, about $10^{-14}$ at 16, and $2.2 \times 10^{-13}$ at 64, and exactly 0 for `*2222` with `aspect` 1 and 4. Scaling a point by $2^{-40}$, $2^{-3}$, $2^{5}$, or $2^{40}$ changed no decision. $(10^{300}, 0, 1)$ stopped at the cap with finite coordinates, and $(f_{\max}, 0, 1)$ became non-finite after 5 steps for `*632` |
+| Periodicity in the canonical view | 8.1 | The rows of the periodicity table | No differing pixel in any row. In the canonical view, `*2222` with `aspect` 1.618 shifted by 163 pixels gave 4064 differing pixels, with a largest difference of 131 in one byte |
+| The words of the periodicity table | 8.1 | Words of 2 to 6 pairings | $P_2 P_1 P_0 P_1$ of `*442` was the translation $(-2, 5.6 \times 10^{-17})$, with a linear part within $4.4 \times 10^{-16}$ of the identity. $P_1 P_3$ of `*2222` was exactly the translation $(2w, 0)$. For `*632`, no word of 2 to 5 pairings was a translation along an axis, and $P_2 P_1 P_0 P_1 P_0 P_1$ was $(-2, 0)$. The shortest translation of `*333` along the first axis was 3, by $P_2 P_0 P_1 P_2 P_0 P_1$ |
+| The rectangle grid oracle | 8.1 | `*2222` with `aspect` 1, 4, 1.618, 0.125, 8, and 0.3, at border widths 1, 1.5, and 3, with one sample per pixel | No differing pixel of 262,144 in any of the 18 cases |
+| The half-pixel tie | 5.8 | `*2222` with `aspect` 1 and 4, border width 1 | With one sample per pixel, no border pixel, and the grid oracle agreed. With 2, 3, or 4 samples per pixel, 16,128 pixels were not a pure fill colour |
+
 ## 12. Assumptions, Choices, and Points for the Owner
 
 ### 12.1. Assumptions
@@ -810,6 +926,9 @@ These readings of this design rest on no sentence of a source. Each names what c
 - The tile of a sample is identified by the image of the domain centre under the inverse of the pairings that the fold applied. The test "Border oracle" relies on it and checks it together with the border estimate.
 - The symmetric view has a mirror of the group in the first axis, because the wall of side 0 passes through vertex 2 and vertex 0. The test "Symmetric view" checks it.
 - The bounds and the allowance measured on Linux x86-64 hold on the other platforms of the project. Section 10 lists it as an unverified statement.
+- For a Euclidean domain, $\lvert f_i \rvert / g_i$ is the distance in pixels from the sample to the wall of side $i$ in its tile, up to rounding (Section 5.8). The tests "Euclidean border forms", "Euclidean border oracle", and "Rectangle grid" check it.
+- The mirrors of `*2222` are the lines of the grid of its rectangle. The test "Rectangle grid" relies on it, and Section 10 lists it.
+- For `*2222` with `aspect` 1 or 4, a power-of-two image size, and a grid of 1, 2, 4, 8, or 16, no operation of the construction, the view, the fold, or the border estimate rounds (Section 6.6). The exact rows of the test "Periodicity" and the test "Half-pixel tie" rely on it.
 
 These readings are confirmed by the crate:
 
@@ -847,6 +966,14 @@ No other document dictates these choices:
 | Unit tests for the quantities that only private items expose, with one reference module loaded through `#[path]` | 8.1 |
 | The test "Rim" renders only the rows that hold a sample beyond the range of accuracy | 8.1 |
 | `png` as the one new dependency, with `flate2` held at 1.1.9 in the lock file | 9 |
+| The affine plane over the same types, so that the fold and the border estimate serve a Euclidean domain unchanged | 5.8 |
+| The Euclidean view: no margin, the centre of the domain at the centre of the image, and $S = 8$ units across the shorter side | 5.8 |
+| `Renderer::new` stays infallible and chooses the view from the geometry, and a geometry without a view gives only outside samples | 5.8 |
+| No border at a tie of exactly the half width, so `*2222` with `aspect` 1 or 4 at one sample per pixel shows no border | 5.8 |
+| The range of accuracy for a Euclidean domain ends at distance 65 from the centre | 6.6 |
+| The tolerance constant, the fold cap, and the golden allowance keep their values for a Euclidean domain | 6.2, 6.6, 8.4 |
+| The periodicity tests in the canonical view, exact only for `*2222` with `aspect` 1 and 4, and a periodic view only for `aspect` 1.618 | 8.1 |
+| Four Euclidean golden images, and the oracle of the rectangle grid | 8.1, 8.4 |
 
 ### 12.3. Points for the Owner
 
@@ -864,10 +991,16 @@ None of these blocks the crate. Each states what the design does until the owner
 10. The margin of $1/32$, the perceptual rendering intent, the limits of Section 4.1, and the error texts of Section 7.2 are constants with no source. The PNG file has no gAMA or cHRM chunk beside the sRGB chunk, against the recommendation of the PNG specification (Section 5.6).
 11. The count bound. A count measured as $c$ has the bound of the larger of $8c$ and 8, because 8 times a count of 0 is not a usable bound (RND-16). It allows up to 8 differing fold decisions in bands 1 to 5, where none was measured.
 12. The clearance of the pairing property. The test keeps only points whose distance from every wall is at least the larger of $10^{-6}$ and twice the bound of the folded point of the outer band, because near the rim the error of the fold exceeds a clearance of $10^{-6}$ (Section 8.1). The property is then not tested for points close to a wall in bands 5 and 6.
+13. The Euclidean view (Section 5.8, `DEC-12`). The tiling fills the image with no margin, the centre of the domain is at the centre of the image, and the shorter side spans 8 units. The alternatives are another span, such as one that shows a fixed number of tiles, or a window that depends on the size of the domain.
+14. A geometry without a view (RND-23). `Renderer::new` stays infallible, and a spherical domain, which `escher-domain` does not build in this design, gives only outside samples, while `escher-cli` refuses it. The sounder alternative is a fallible `Renderer::new`, which changes every call site.
+15. The range of accuracy for a Euclidean domain ends at distance 65, which covers the canonical view of an image whose sides are in a ratio of at most 16 to 1 (Section 6.6). The alternative is 64 along the longer axis, which leaves the corners of such an image outside the range.
+16. The constants kept. The tolerance constant, the fold cap, and the golden allowance keep the values measured for hyperbolic domains, and each Euclidean figure is measured by the change that adds its test (RND-16).
+17. Periodicity (Section 8.1). Only `*2222` with `aspect` 1 and 4 asserts exact equality, and the triangles assert the golden allowance, because IEEE 754 arithmetic does not guarantee their equality.
+18. No border at one sample per pixel for `*2222` with `aspect` 1 or 4 (Section 5.8). The design records it as a property of point sampling. The alternative is a span $S$ that keeps the walls off the pixel centres, which loses the exact periodicity of these two cases.
 
 ## 13. Security Considerations
 
-The threat model is a caller that passes options and a domain derived from untrusted text to the crate, such as `escher-cli` with the arguments of a user. `escher-signature` has bounded the signature, and `escher-domain` has rejected every signature without a domain and every corner order above 1000 (Section 16 of the domain design). The attacker can choose any domain that `build` returns and any value of each option. The attacker cannot change the crate, its dependencies, or the caller.
+The threat model is a caller that passes options and a domain derived from untrusted text to the crate, such as `escher-cli` with the arguments of a user. `escher-signature` has bounded the signature, and `escher-domain` has rejected every signature without a domain, every corner order above 1000, and every value of a shape parameter outside its range (Section 16 of the domain design). The attacker can choose any domain that `build` returns and any value of each option. The attacker cannot change the crate, its dependencies, or the caller.
 
 The attacks in scope are exhaustion of memory through a large image, exhaustion of time through a large image, a fine sample grid, and a high fold cap, a panic that stops the caller, and an image that the caller trusts as correct although it is wrong. The crate counters them with the limits of this section, which RND-4 requires, the rule that it never panics (RND-14), and the tests of Section 8:
 
@@ -881,7 +1014,7 @@ The attacks in scope are exhaustion of memory through a large image, exhaustion 
 
 The limits bound memory. They do not bound time usefully when every option is at its limit together: $2^{26}$ pixels, 256 samples per pixel, and a cap of 100000 allow about $1.7 \times 10^{15}$ steps for an image whose samples do not converge. This is a residual risk. A caller that renders untrusted input with a deadline applies its own limits on top of these.
 
-The crate allocates the buffer of `render` and nothing that depends on the domain beyond its three sides. `render_rows` writes only into the buffer of the caller.
+The crate allocates the buffer of `render` and nothing that depends on the domain beyond its three or four sides. `render_rows` writes only into the buffer of the caller.
 
 The other topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -904,7 +1037,7 @@ The crate declares no Cargo feature and has no build script. The golden-image te
 | An option above its limit | `LimitExceeded` | Use a value within the limit |
 | A buffer or band that does not fit the image | `InvalidBuffer` | None. It is a defect of the caller |
 | `png` fails to encode | `Encoding`, with the `png` error as `source()` | None. It is a defect of the crate or of `png` |
-| A sample that does not converge | `Fold::converged` is false, the sample takes the border colour, and `RenderStats::unconverged` counts it | Raise the fold cap, or accept the border colour near the limit circle |
+| A sample that does not converge | `Fold::converged` is false, the sample takes the border colour, and `RenderStats::unconverged` counts it | Raise the fold cap, or accept the border colour near the limit circle or far from the centre of a very elongated Euclidean image |
 | A sample outside the disk | The background colour, counted by `RenderStats::outside` | None needed |
 
 ## 15. References
@@ -953,3 +1086,6 @@ The tags of the mathematical and software sources resolve to the reference secti
 | RND-20 | Golden images are compared in linear light, through a table from the reference transfer function, with the allowance of Section 8.4 | 8.4 |
 | RND-21 | Property tests take their configuration from one helper that is Miri-aware | 8.5 |
 | RND-22 | The crate declares only the dependencies of Section 9, each from the workspace table | 9 |
+| RND-23 | `Renderer::new` chooses the view from the geometry of the domain, and a geometry without a view gives only outside samples | 5.8 |
+| RND-24 | For a Euclidean domain, samples, plane positions, points, and screen tangents follow the formulas of Section 5.8 with $S = 8$ | 5.8 |
+| RND-25 | For a Euclidean domain, the bounds of Section 6.6 hold within distance 65 of the centre, and beyond it only a result without a panic is promised | 6.6 |

@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the crate `escher-geometry`, which holds the linear model of the hyperbolic plane: points on the hyperboloid, walls as unit normals, and isometries as 3x3 matrices, over the double-precision vector and matrix types of `glam`. It defines the public functions and their domains, the formula behind each function with the convention of its source, the numerical form that each function uses and its behaviour at the edge of its domain, the map between the hyperboloid and the Poincare disk in both directions, the error type, the accuracy that the crate guarantees, and the tests with their tolerances, including the tests against high-precision reference arithmetic. It also states the dependencies, the unverified statements that the code relies on, the assumptions and choices of this design, and the points that the owner decides.
+This document specifies the crate `escher-geometry`, which holds the linear model of the hyperbolic plane, with points on the hyperboloid, walls as unit normals, and isometries as 3x3 matrices, and the affine model of the Euclidean plane, with points on the plane of last coordinate 1, lines as covectors, and isometries as 3x3 matrices, over the double-precision vector and matrix types of `glam`. It defines the public functions and their domains, the formula behind each function with the convention of its source, the numerical form that each function uses and its behaviour at the edge of its domain, the map between the hyperboloid and the Poincare disk in both directions, the error type, the accuracy that the crate guarantees, and the tests with their tolerances, including the tests against high-precision reference arithmetic. It also states the dependencies, the unverified statements that the code relies on, the assumptions and choices of this design, and the points that the owner decides.
 
 ## 1. Introduction
 
@@ -18,15 +18,15 @@ Every later crate computes with points, walls, and isometries of a geometry. The
 
 ### 1.2. Purpose
 
-`escher-geometry` is the one place where the conventions of Section 5 of the architecture become code. It exposes the bilinear form, the side test, point normalization, distance, the wall through two points, the basic isometries, the inverse, an isometry check, and the disk map, each as a free function over `glam` types. Each function evaluates a formula in a numerical form chosen for its domain. A formula that the reference does not state in the project's convention is flagged as unverified or as an assumption, and a test covers it. Section 3 of the architecture places the crate in the workspace as a root with no internal dependency.
+`escher-geometry` is the one place where the conventions of Section 5 of the architecture become code. It exposes the bilinear form, the side test, point normalization, distance, the wall through two points, the basic isometries, the inverse, an isometry check, and the disk map, each as a free function over `glam` types. Its module `euclidean` exposes the side test, the distance, the line through two points, the reflection, the rotation, the translation, and an isometry check of the Euclidean plane. Each function evaluates a formula in a numerical form chosen for its domain. A formula that the reference does not state in the project's convention is flagged as unverified or as an assumption, and a test covers it. Section 3 of the architecture places the crate in the workspace as a root with no internal dependency.
 
 ### 1.3. Audience
 
-The primary readers are the agent that implements the crate and the reviewer who checks it against this document. The secondary readers are the authors of the design documents of `escher-domain` and `escher-render`, which call the crate, and the authors of the later changes that add the Euclidean and spherical modules and further model maps.
+The primary readers are the agent that implements the crate and the reviewer who checks it against this document. The secondary readers are the authors of the design documents of `escher-domain` and `escher-render`, which call the crate, and the authors of the later changes that add the spherical module and further model maps.
 
 ### 1.4. Scope
 
-This document covers the module `hyperbolic`, the crate root with its error type, the disk map in both directions, the numerical robustness of each function, the tests, and the dependencies. It states how the Euclidean and spherical modules sit beside `hyperbolic` (Section 3.4) without designing them.
+This document covers the modules `hyperbolic` and `euclidean`, the crate root with its error type, the disk map in both directions, the numerical robustness of each function, the tests, and the dependencies. It states how the spherical module sits beside them (Section 3.4) without designing it.
 
 ### 1.5. Non-Goals
 
@@ -34,7 +34,8 @@ These topics are owned elsewhere or come later:
 
 - The fundamental domain, its construction, its verification, and every tolerance of that verification are specified in `docs/design/domain.md`.
 - The fold, its wall tolerance, and its normalization policy belong to `escher-render` (Sections 9.2 and 9.3 of the architecture).
-- The Euclidean module and the spherical module are added by the milestones of Sections 5.4 and 5.5 of the plan, each with its own section in this document.
+- The spherical module is added by the milestone of Section 5.5 of the plan.
+- The Euclidean functions that no caller needs, such as a form, an inverse, and a point normalization, are not part of the module `euclidean` (Section 3.4).
 - The Klein, half-plane, and band maps and the Jacobians of the model maps are added by the milestone of Section 5.12 of the plan. That change also records the image of the disk centre under the map to the half-plane and tests its round trip, as the row "Disk and half-plane" of Section 5.10 of the architecture requires.
 - A distance form that is accurate for close points is not part of this design (Section 5.2).
 - The command line and its text are specified in `docs/design/cli.md`.
@@ -58,6 +59,9 @@ It adds these terms:
 - unit normal: A `DVec3` $u$ with $\langle u, u \rangle = 1$ up to rounding, which represents the wall $\lbrace x : \langle x, u \rangle = 0 \rbrace$.
 - isometry: A `DMat3` that meets the two conditions of Section 6.2, up to rounding.
 - disk position: A `DVec2` in the open unit disk, a point of the Poincare disk model.
+- Euclidean point: A `DVec3` $(x, y, 1)$, a point of the Euclidean plane as the affine plane $x_3 = 1$ of Section 5.1 of the architecture.
+- line covector: A `DVec3` $(a_1, a_2, -t)$ with $a_1^2 + a_2^2 = 1$ up to rounding, which represents the line $P(a, t) = \lbrace p : a \cdot p = t \rbrace$ of Section 12 of the reference.
+- Euclidean isometry: A `DMat3` whose last row is $(0, 0, 1)$ and whose upper-left $2 \times 2$ block is orthogonal, up to rounding.
 - $J$: The matrix $\operatorname{diag}(1, 1, -1)$ of the form, as Section 2.2 of the reference defines it.
 - $\varepsilon$: The machine epsilon of `f64`, `f64::EPSILON`, which is $2^{-52}$.
 - reference value: A value computed in the reference arithmetic of Section 10.2 from the exact `f64` values of the inputs, and of the result where the quantity names it.
@@ -79,6 +83,7 @@ This listing shows each public item with its signature. Bodies are omitted:
 
 ```rust
 // crate root: escher_geometry
+pub mod euclidean;
 pub mod hyperbolic;
 
 pub struct Error { /* private */ }
@@ -112,9 +117,22 @@ pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3>;
 #[must_use] pub fn isometry_defect(matrix: DMat3) -> f64;
 #[must_use] pub fn to_disk(point: DVec3) -> DVec2;
 #[must_use] pub fn from_disk(position: DVec2) -> Option<DVec3>;
+
+// escher_geometry::euclidean
+use glam::{DMat3, DVec3};
+
+pub const ORIGIN: DVec3;
+
+#[must_use] pub fn side(covector: DVec3, point: DVec3) -> f64;
+pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3>;
+#[must_use] pub fn reflection(covector: DVec3) -> DMat3;
+#[must_use] pub fn rotation(angle: f64) -> DMat3;
+#[must_use] pub fn translation(target: DVec3) -> DMat3;
+#[must_use] pub fn distance(first: DVec3, second: DVec3) -> f64;
+#[must_use] pub fn isometry_defect(matrix: DMat3) -> f64;
 ```
 
-The module `hyperbolic` has one constant and 14 functions. The crate root re-exports `Error`, `ErrorKind`, and `Result` from the private module `error`, and nothing else.
+The module `hyperbolic` has one constant and 14 functions, and the module `euclidean` has one constant and 7 functions. The crate root re-exports `Error`, `ErrorKind`, and `Result` from the private module `error`, and nothing else.
 
 ### 3.2. Meaning and Invariants
 
@@ -137,6 +155,14 @@ Section 3.2 and `DEC-4` of the architecture decide that a point, a unit normal, 
 | `isometry_defect` | How far a matrix is from an isometry | Any matrix | Total. 0 for an exact isometry, and `f64::INFINITY` when the second condition of Section 6.2 fails or the result is not a number |
 | `to_disk` | The Poincare disk position of a point | A point | Total |
 | `from_disk` | The point of a disk position | Any position | `Some` point inside the disk, and `None` on and outside the unit circle (Section 7.2) |
+| `euclidean::ORIGIN` | The point $(0, 0, 1)$ | Not applicable | Exact |
+| `euclidean::side` | The side value $c \cdot x = a \cdot p - t$ of the point $p$ of $x$ for the line covector $c$ | A line covector and a Euclidean point | Total. Positive means outside a line whose covector is oriented outward (Section 5.2 of the architecture) |
+| `euclidean::wall_through` | A line covector of the line through both points | Two distinct Euclidean points | A line covector, or `DegenerateWall` (Section 5.4) |
+| `euclidean::reflection` | The reflection in the line of a covector | A line covector. It is not checked | A Euclidean isometry of determinant $-1$ when the covector is a line covector (Section 6.6) |
+| `euclidean::rotation` | The rotation about `euclidean::ORIGIN` by the angle in radians | Any finite angle | A Euclidean isometry, the same matrix as `hyperbolic::rotation` (Section 6.6) |
+| `euclidean::translation` | The translation that maps `euclidean::ORIGIN` to $(t_1, t_2, 1)$ | Any finite target. Its last coordinate is not read | A Euclidean isometry (Section 6.6) |
+| `euclidean::distance` | The Euclidean distance $d_E$ | Two Euclidean points. The last coordinates are not read | Total. At least 0, or NaN (Section 5.4) |
+| `euclidean::isometry_defect` | How far a matrix is from a Euclidean isometry | Any matrix | Total. 0 for an exact Euclidean isometry, and `f64::INFINITY` when the result is not a number (Section 6.6) |
 | `Error` | Why a vector is not a point, or two points span no wall | Not applicable | Holds no `glam` type (ERR-2 of the coding standard) |
 | `ErrorKind` | What a caller matches on | Not applicable | `Copy` and `#[non_exhaustive]` (ERR-1 of the coding standard) |
 
@@ -148,13 +174,14 @@ Every public type is `Send`, `Sync`, and `'static`, and a compile-time assertion
 
 The crate has these modules, each a file named after the module:
 
-- `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, `pub mod hyperbolic;`, the re-exports of `Error`, `ErrorKind`, and `Result`, and the unit test "Auto traits" of Section 10.1.
+- `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, `pub mod euclidean;`, `pub mod hyperbolic;`, the re-exports of `Error`, `ErrorKind`, and `Result`, and the unit test "Auto traits" of Section 10.1.
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
 - `src/hyperbolic.rs`: The constant, the 14 functions, and their unit tests. The file form, not `hyperbolic/mod.rs`, is what the workspace lint `mod_module_files` requires.
+- `src/euclidean.rs`: The constant, the 7 functions of the module `euclidean`, and their unit tests.
 
-### 3.4. Modules of the Other Geometries
+### 3.4. Modules of the Geometries
 
-The Euclidean and spherical modules sit beside `hyperbolic` as `src/euclidean.rs` and `src/spherical.rs`. Each uses the same function name where the operation exists in its geometry, such as `form`, `reflection`, `rotation`, `translation`, `distance`, and `inverse`, so that a caller changes only the module path. The crate has no trait over the three modules and no `Geometry` enum, because the enum lives in `escher-signature` (Section 3.4 of the architecture, `DEC-26`) and a trait before a second implementation is a generic that SIMP-1 of the coding standard forbids.
+Each geometry has one module: `hyperbolic`, `euclidean`, and later `spherical` as `src/spherical.rs`. A module uses the name of `hyperbolic` for the same operation, such as `side`, `reflection`, `rotation`, `translation`, `distance`, and `isometry_defect`, so that a caller changes only the module path. A module holds only the functions that a caller needs, so `euclidean` has no `form`, `covector`, `normalize_point`, `inverse`, `boost`, or model map. The crate has no trait over the modules and no `Geometry` enum, because the enum lives in `escher-signature` (Section 3.4 of the architecture, `DEC-26`), and no caller is generic over the geometry: the fold of `escher-render` uses only dot products and matrix products of the `glam` types, which serve both modules, and SIMP-1 of the coding standard forbids an abstraction that gives no benefit now.
 
 Model maps are free functions named `to_<model>` and `from_<model>` in the module of their geometry, such as `to_disk` and `from_disk` in `hyperbolic`. A further map, such as one to the Klein model, is a new pair of functions in the same module.
 
@@ -162,11 +189,11 @@ Model maps are free functions named `to_<model>` and `from_<model>` in the modul
 
 ### 4.1. Types and Storage
 
-- A point, a unit normal, and a covector are a `DVec3` with the time coordinate as `.z`. An isometry is a `DMat3`. A disk position is a `DVec2`.
+- A point, a unit normal, and a covector are a `DVec3` with the time coordinate as `.z`, or in the module `euclidean` the last coordinate of Section 4.5. An isometry is a `DMat3`. A disk position is a `DVec2`.
 - Vectors are columns. `matrix * vector` applies the isometry to the vector. `DMat3` is column-major, so `DMat3::from_cols(c0, c1, c2)` takes the images of the three basis vectors.
 - Composition is the `glam` product `a * b`, which applies `b` first. The reference states that composition of isometries of the hyperboloid is the matrix product (Section 6.1 of the reference, [CFKP] Theorem 10.2).
 
-GEO-3. The crate MUST evaluate every formula in the conventions of Sections 5.1 and 5.2 of the architecture, with the time coordinate last, the form of Section 2.1, and outward normals, and MUST NOT expose a function in another convention, because a caller cannot see the convention of a `DVec3`, and a value in the wrong convention gives a wrong image without any error.
+GEO-3. The crate MUST evaluate every formula in the conventions of Sections 5.1 and 5.2 of the architecture, with the time coordinate last, the form of Section 2.1, and outward normals in the module `hyperbolic`, and the conventions of Section 4.5 in the module `euclidean`, and MUST NOT expose a function in another convention, because a caller cannot see the convention of a `DVec3`, and a value in the wrong convention gives a wrong image without any error.
 
 ### 4.2. Bilinear Form, Covector, and Side Test
 
@@ -182,17 +209,32 @@ The covector of a wall is the linear form $x \mapsto \langle x, u \rangle$ (Sect
 
 ### 4.3. Units
 
-A length parameter is the full hyperbolic distance in the metric of curvature $-1$, and an angle is in radians (Section 5.5 of the architecture). Section 2.4 of the reference records that Lorentz matrices take the full distance, while $SL(2, \mathbb{R})$ and $SU(1,1)$ matrices take half of it. No function of this crate uses the half distance.
+A length parameter is the full hyperbolic distance in the metric of curvature $-1$, and an angle is in radians (Section 5.5 of the architecture). Section 2.4 of the reference records that Lorentz matrices take the full distance, while $SL(2, \mathbb{R})$ and $SU(1,1)$ matrices take half of it. No function of this crate uses the half distance. In the module `euclidean`, a length is in the unit of the coordinates of the caller.
 
 ### 4.4. Sources and Their Conventions
 
-Section 2.4 of the reference gives every formula in the convention of its source and converts none. This crate uses a formula in one of three ways:
+Section 2.4 of the reference gives every formula in the convention of its source and converts none. This section concerns the module `hyperbolic`, and Sections 5.4 and 6.6 give the source of each function of the module `euclidean`. This crate uses a formula in one of three ways:
 
 1. The source states it with the time coordinate last, as the project does. The crate evaluates it as printed. This covers the form, `ORIGIN`, the distance, the normalization (except the sign rule of Section 5.1, which is a choice), the boost, the rotation, the inverse, the isometry conditions, and both disk maps. The covector and the side test are definitions of Sections 2.1 and 5.2 of the architecture with $J$ of the reference, and they use no source formula.
 2. The source states it with the form only, so the expression does not mention the position of the time coordinate. The crate evaluates it with the project's form. This covers the reflection (Section 6.5) and rests on an assumption (Section 13.1).
 3. The source states it only with the time coordinate first, or not at all on the hyperboloid. The step rests on an unverified statement of Section 12 and a test of Section 10 covers the property that the code relies on. This covers the wall through two points (Section 5.3) and the translation (Section 6.4).
 
 [RAT] states one transfer rule between its conventions, at the start of its Section 4.5: "All the results of Chapter 3 remain true after one reverses the order of the coordinates of $\mathbb{R}^{n+1}$" (Section 2.4 of the reference). The reference restates no single result of that chapter in the time-last form, so this design applies the rule to no formula.
+
+### 4.5. The Euclidean Plane
+
+The module `euclidean` represents the Euclidean plane as the affine plane $x_3 = 1$ of Section 5.1 of the architecture, over the same `glam` types:
+
+- A point is the Euclidean point $(x, y, 1)$.
+- A line is the line covector $c = (a_1, a_2, -t)$ of $P(a, t)$, with the unit normal $a$ of [RAT], Section 4.1, p. 105 (Section 12 of the reference). For a Euclidean point $x$ of $p$, $c \cdot x = a \cdot p - t$, and the line is oriented outward when that value is positive outside, as Section 5.2 of the architecture requires.
+- A tangent vector is $(v_1, v_2, 0)$.
+- An isometry is a Euclidean isometry, the block matrix $\begin{pmatrix} A & b \\ 0 & 1 \end{pmatrix}$ with $A$ orthogonal, which maps $(p, 1)$ to $(Ap + b, 1)$. [RAT], Theorem 1.3.5, p. 19, states that the isometries of the plane are the maps $p \mapsto b + Ap$ with $A$ orthogonal, and the block form rests on [W-AFFINE], a secondary source (Section 12 of the reference).
+
+The representation is a choice of this design (Section 13.3). With it, the fold and the border test of `escher-render` run unchanged, because they use only dot products, matrix products, and the sign of the last coordinate.
+
+GEO-20. Every Euclidean isometry that the module `euclidean` returns MUST have the last row $(0, 0, 1)$ exactly, because the fold of `escher-render` keeps the last coordinate of a Euclidean point at exactly 1 only when every pairing has that row, and a drifting last coordinate changes the side value of every later step.
+
+For a finite point $(x, y, 1)$, a matrix with the last row $(0, 0, 1)$ gives the last coordinate $0 \cdot x + 0 \cdot y + 1 \cdot 1$, which is exactly 1 in IEEE 754 arithmetic.
 
 ## 5. Points and Walls
 
@@ -249,6 +291,22 @@ The function returns `DegenerateWall` unless $\langle w, w \rangle > 0$ and $\la
 GEO-6. `wall_through` MUST return either a finite vector or `DegenerateWall`, and on the ranges of its rows of Section 8.4 the vector MUST have the three properties of this section within those rows, because a caller builds a pairing isometry from the result, and a vector that is not a unit normal gives a matrix that is not an isometry.
 
 The crate states no orientation for $u$. Swapping the arguments negates $u$, which test G9 checks. A caller orients the result with `side`, such as by negating $u$ when a point known to lie inside gives a positive value, as Section 5.2 of the architecture requires of outward normals.
+
+### 5.4. Euclidean Points and Lines
+
+`euclidean::side(c, x)` is `c.dot(x)`, the side value of Section 4.5. It applies no tolerance.
+
+`euclidean::distance(p, q)` computes `(p.x - q.x).hypot(p.y - q.y)`, the distance $d_E(x, y) = \lvert x - y \rvert$ of [RAT], equation (1.3.4), p. 14 (Section 12 of the reference), and does not read the last coordinates. `hypot` neither overflows nor underflows in the squares, and it returns infinity when one difference is infinite.
+
+`euclidean::wall_through(p, q)` returns a line covector $c$ of the line through $p$ and $q$, with these three properties:
+
+$$c \cdot p = 0, \qquad c \cdot q = 0, \qquad c_1^2 + c_2^2 = 1$$
+
+It computes $w = p \times q$, which is `p.cross(q)`, and $n = w_1^2 + w_2^2$, and returns $w / \sqrt{n}$ when $n$ is positive and finite, and `DegenerateWall` otherwise. Two equal points give $w = 0$ and this error, and a NaN or infinite coordinate gives a non-finite $n$ and this error. The function returns the covector and not a unit normal, as `hyperbolic::wall_through` does, because the offset $t$ of the line is not a function of its normal.
+
+No source states the formula (item 24 of Section 15.1 of the reference). As for `UNV-26` in Section 5.3, the formula only computes a candidate, and the tests check the three properties on the result (tests G22 and G23 of Section 10.1). The function states no orientation. Swapping the arguments negates the result exactly, and a caller orients it with `euclidean::side`.
+
+GEO-21. `euclidean::wall_through` MUST return either a finite vector or `DegenerateWall`, and on the range of its rows of Section 8.5 the vector MUST have the three properties of this section within those rows, because a caller builds a pairing from the result with `euclidean::reflection`, and a covector whose direction part is not a unit vector gives a matrix that is not an isometry.
 
 ## 6. Isometries
 
@@ -307,6 +365,22 @@ Section 5.2 of the architecture adopts this form. The research does not record t
 
 `reflection(u)` returns the matrix whose column $j$ is $e_j - 2 c_j u$, where $c$ is `covector(u)`, because $\langle u, e_j \rangle = c_j$. The function does not check that $u$ is a unit normal. For a vector that is not one, the result is not a reflection.
 
+### 6.6. Euclidean Isometries
+
+The functions of this section return the Euclidean isometries of Section 4.5. Each is exact or has the accuracy of its row of Section 8.5:
+
+| Function | Matrix, as its columns | Source |
+| --- | --- | --- |
+| `euclidean::reflection(c)` | Column $j$ is $e_j - 2 c_j u$ with $u = (c_1, c_2, 0)$, the matrix of $x \mapsto x - 2 (c \cdot x) u$ | The reflection $\rho(x) = x + 2(t - a \cdot x) a$ in $P(a, t)$ of [RAT], equation (4.1.1), p. 105, and equation 6.3 of [DAVIS] (Sections 7.4 and 12 of the reference). Its form as a matrix on the plane $x_3 = 1$ is part of `UNV-26` (Section 12) |
+| `euclidean::rotation(angle)` | $(\cos\alpha, \sin\alpha, 0)$, $(-\sin\alpha, \cos\alpha, 0)$, and $(0, 0, 1)$, from one call of `sin_cos`, the expression of `hyperbolic::rotation` (Section 6.3) | [RAT], Theorem 1.3.5, with $b = 0$ and an orthogonal $A$, and the block form of [W-AFFINE] |
+| `euclidean::translation(t)` | $(1, 0, 0)$, $(0, 1, 0)$, and $(t_1, t_2, 1)$. It does not read $t_3$ | [RAT], Theorem 1.3.5, with $A = I$, and the block form of [W-AFFINE] |
+
+`euclidean::rotation` turns $e_1$ towards $e_2$, which is counterclockwise for a positive angle. `euclidean::translation` copies its target, so `euclidean::translation(t) * euclidean::ORIGIN` is $(t_1, t_2, 1)$ exactly. `euclidean::reflection` does not check that $c$ is a line covector. For a vector that is not one, the result is not a reflection, and for a finite $c$ its last row is still $(0, 0, 1)$ exactly, because $u_3 = 0$ (GEO-20).
+
+`euclidean::isometry_defect(m)` measures how far $m$ is from a Euclidean isometry. With $A$ the upper-left $2 \times 2$ block of $m$, it returns the largest of the absolute entries of $A^t A - I$ with $i \le j$, and of $\lvert m_{31} \rvert$, $\lvert m_{32} \rvert$, and $\lvert m_{33} - 1 \rvert$ for the last row. The orthogonality of $A$ is the condition of [RAT], Theorem 1.3.5, and the last row is the block form of Section 4.5. The function applies no tolerance.
+
+GEO-22. `euclidean::isometry_defect` MUST return `f64::INFINITY` when the result is NaN, because a NaN compares false with every tolerance and would pass a check written as "defect greater than tolerance fails", as GEO-8 states for `hyperbolic::isometry_defect`.
+
 ## 7. Disk Map
 
 ### 7.1. Hyperboloid to Disk
@@ -361,6 +435,10 @@ Every function is total (GEO-2). Only `normalize_point`, `wall_through`, and `fr
 | `inverse` | A matrix that is not an isometry | $J M^t J$ |
 | `translation` | A target off the hyperboloid | The isometry of its spatial coordinates |
 | `boost`, `rotation`, `translation` | A non-finite parameter or target | Infinite or NaN entries |
+| `euclidean::wall_through` | Equal points, or a pair whose $w_1^2 + w_2^2$ is not positive and finite, which includes every NaN or infinite coordinate | `DegenerateWall` |
+| `euclidean::side`, `euclidean::distance` | A vector that is not a Euclidean point, or a covector that is not a line covector | The formula, possibly infinite or NaN |
+| `euclidean::reflection` | A covector that is not a line covector | A matrix that is not a reflection, with the last row $(0, 0, 1)$ for a finite covector |
+| `euclidean::rotation`, `euclidean::translation` | A non-finite angle or target | Infinite or NaN entries |
 
 ### 8.2. Forms That Avoid Cancellation
 
@@ -376,9 +454,9 @@ GEO-10. `translation` MUST compute the polar radius as $\operatorname{arsinh}$ o
 
 ### 8.3. Normalization Policy
 
-GEO-11. Every function other than `normalize_point` and `wall_through` MUST NOT divide its result by a norm, because where and how often a point or matrix is renormalized is the caller's policy, such as the fold, which renormalizes nothing (Section 9.3 of the architecture), and a hidden renormalization moves a point that the caller relies on, such as a vertex of a domain.
+GEO-11. Every function other than `hyperbolic::normalize_point` and the two functions `wall_through` MUST NOT divide its result by a norm, because where and how often a point or matrix is renormalized is the caller's policy, such as the fold, which renormalizes nothing (Section 9.3 of the architecture), and a hidden renormalization moves a point that the caller relies on, such as a vertex of a domain.
 
-`wall_through` divides by $\sqrt{\langle w, w \rangle}$ because its contract is a unit normal. The crate has no function that renormalizes a matrix, such as the Gram-Schmidt process of `fixmatrix` in [HR] (Section 8.4 of the reference). A later change adds one when a caller needs it.
+`hyperbolic::wall_through` divides by $\sqrt{\langle w, w \rangle}$ because its contract is a unit normal, and `euclidean::wall_through` divides by $\sqrt{w_1^2 + w_2^2}$ because its contract is a line covector. The crate has no function that renormalizes a matrix, such as the Gram-Schmidt process of `fixmatrix` in [HR] (Section 8.4 of the reference). A later change adds one when a caller needs it.
 
 ### 8.4. Accuracy
 
@@ -442,6 +520,20 @@ The bound of `isometry_defect` and of `inverse(m) * m` in $\mu^2$ holds only for
 
 The tests do not measure `normalize_point` on the sums of vertices of that construction, or `isometry_defect` on its pairings.
 
+### 8.5. Accuracy of the Module `euclidean`
+
+The bounds of this table are to be measured. The change that adds test G22 sets each bound, its largest error, and its margin as GEO-19 requires, over the range that the row states, and GEO-12 then applies to each row as it applies to Section 8.4. A point "within 64" is a Euclidean point at a distance of at most 64 from `euclidean::ORIGIN`, and each quantity is a reference value from the exact `f64` values of the inputs and the result:
+
+| Function | Range of inputs | Quantity | Bound |
+| --- | --- | --- | --- |
+| `euclidean::reflection` | Line covectors at 64 angles of the normal and offsets $t$ with $\lvert t \rvert \le 64$, and points within 64 | Each coordinate of `euclidean::reflection(c) * x` against $\rho$ of [RAT] (4.1.1), in units of $\varepsilon \sigma_i$ of Section 2.1 with $u = (c_1, c_2, 0)$ | To be measured |
+| `euclidean::reflection`, isometry | The covectors of the row above | `euclidean::isometry_defect(euclidean::reflection(c))` | To be measured |
+| `euclidean::wall_through`, orthogonality | Pairs of points within 64, from $0.1$ to 128 apart | $\lvert c \cdot p \rvert$ and $\lvert c \cdot q \rvert$ | To be measured |
+| `euclidean::wall_through`, norm | The pairs of the row above | $\lvert c_1^2 + c_2^2 - 1 \rvert$ | To be measured |
+| `euclidean::distance` | The pairs of the row above | The relative error against $\lvert p - q \rvert$ | To be measured |
+
+`euclidean::rotation` runs the same operations as `hyperbolic::rotation` on the same input, so the row `rotation` of Section 8.4 states its accuracy, and a unit test of G21 asserts that the two matrices are equal bit for bit. `euclidean::translation` is exact (Section 6.6).
+
 ## 9. Errors
 
 ### 9.1. Structure
@@ -464,7 +556,7 @@ GEO-14. `Display` for `Error` MUST be `cannot `, the operation, `: `, and the te
 | Kind | Returned by | `Display` text |
 | --- | --- | --- |
 | `NotAPoint` | `normalize_point` | `cannot normalize point: the vector is not timelike with a positive last coordinate` |
-| `DegenerateWall` | `wall_through` | `cannot find wall through two points: the points do not span a wall` |
+| `DegenerateWall` | `hyperbolic::wall_through` and `euclidean::wall_through` | `cannot find wall through two points: the points do not span a wall` |
 
 Each text is in lower case and has no trailing punctuation (ERR-4 of the coding standard).
 
@@ -474,11 +566,11 @@ Each text is in lower case and has no trailing punctuation (ERR-4 of the coding 
 
 The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-geometry/tests/geometry/main.rs`, with the modules `common`, `reference`, `formulas`, and `properties` (TEST-10). Its root has a `//!` line, because `missing_docs` covers test roots. `reference` holds the high-precision implementation of Section 10.2. `formulas` holds the tests that compare the crate with it. `properties` holds the property tests, and the deterministic sweeps that measure the rows of Section 10.3 over 100,000 cases.
 
-`common` holds the shared helpers. A reference test or sweep that draws random inputs takes them from a SplitMix64 generator with a fixed seed of its own, so every run draws the same cases. A helper that redraws an input until it meets a condition, such as two points at least 0.1 apart, stops after 1,000 attempts with a panic, so a defect that rejects every input fails the test instead of hanging it. The table of G1 holds the points at distances 0, 0.1, 1, 5, 10, and 20 from `ORIGIN`, each at eight angles, and its vectors are those points multiplied by 0.5, 1, and 2.
+The tests of the module `euclidean` are G21 to G24, and G13 also covers its functions. `common` holds the shared helpers. A reference test or sweep that draws random inputs takes them from a SplitMix64 generator with a fixed seed of its own, so every run draws the same cases. A helper that redraws an input until it meets a condition, such as two points at least 0.1 apart, stops after 1,000 attempts with a panic, so a defect that rejects every input fails the test instead of hanging it. The table of G1 holds the points at distances 0, 0.1, 1, 5, 10, and 20 from `ORIGIN`, each at eight angles, and its vectors are those points multiplied by 0.5, 1, and 2.
 
 Each reference test and sweep that asserts a bound of Section 8.4 or Section 10.3 prints its largest error, in the form of the bound, with its margin and the input that gave it. The test harness captures that output for a test that passes.
 
-Each test below names the item of the field "Tests and acceptance" of Section 5.2 of the plan that it serves. The item "Reference arithmetic" names the triangle of `docs/design/domain.md`. These tests serve it by checking each function that the triangle uses, and `docs/design/domain.md` checks the triangle itself. The item "Numeric checks for $\{7, 3\}$" belongs entirely to `docs/design/domain.md`. A test that serves a rule of the coding standard and no plan item names that rule:
+Each test below names the item of the field "Tests and acceptance" of Section 5.2 of the plan that it serves, or of Section 5.4 of the plan where the item says so. The item "Reference arithmetic" names the triangle of `docs/design/domain.md`. These tests serve it by checking each function that the triangle uses, and `docs/design/domain.md` checks the triangle itself. The item "Numeric checks for $\{7, 3\}$" belongs entirely to `docs/design/domain.md`. A test that serves a rule of the coding standard and no plan item names that rule:
 
 | Test | Plan item | Kind and place | Asserts | Source |
 | --- | --- | --- | --- | --- |
@@ -494,7 +586,7 @@ Each test below names the item of the field "Tests and acceptance" of Section 5.
 | G10 Reflection and distance | Properties | `proptest` and sweeps, `properties` | The reflection in a wall of G7 is an involution and fixes the points of its wall, which are the two points that define the wall and the normalized sum of the two. An isometry that is a product of factors of G7, or of three boosts of length up to 2, half of them with rotations between the boosts, preserves `form` and `distance` for points within distance 3 of `ORIGIN` and at least 0.1 apart. `distance(ORIGIN, boost(l) * ORIGIN)` is $\lvert l \rvert$ for $\lvert l \rvert \le 20$. For points within distance 3 of `ORIGIN`, `distance` agrees with the disk formula $\cosh d = 1 + 2\lvert u - v \rvert^2 / ((1 - \lvert u \rvert^2)(1 - \lvert v \rvert^2))$ of [RAT], Theorem 4.5.1 (Section 3.2 of the reference), evaluated in `f64` on `to_disk` of both points. Each within its row of Section 10.3 | Sections 5.2 and 6.5 |
 | G11 Failure paths | None, TEST-6 | Unit tests in `hyperbolic.rs`, and one reference test in `formulas` | `NotAPoint` for a spacelike, a null, a negative-time, an underflowing, an overflowing, a NaN, and an infinite vector. `DegenerateWall` for two equal points, and for a NaN or infinite coordinate in either argument. The results of Sections 6.3 and 8.1 for non-finite input: `distance` is NaN for a NaN in either point, `boost` of $\pm 711$ has infinite entries and `boost` of NaN has NaN entries, `rotation` of NaN and of $\pm\infty$ has NaN entries, `translation` of a NaN or infinite target has a non-finite entry, `to_disk((inf, 0, inf))` has a NaN first coordinate, `to_disk` of a vector with last coordinate $-1$ is not finite, and `from_disk` of a position with an infinite coordinate is `None`. The rows of the table of Section 7.3 whose value does not depend on a transcendental function, exactly: `None` for the positions $(1, 0)$, $(2, 0)$, and NaN, `Some(ORIGIN)` for `from_disk((0, 0))`, `Some` with a finite last coordinate between $8.9 \times 10^{15}$ and $9.1 \times 10^{15}$ for the largest `f64` below 1, and `(0, 0)` for `to_disk(ORIGIN)`. The radius of `to_disk` at distances 37 and 38.2 within $4\varepsilon$ of the values of Section 7.3, and in the reference test within $4\varepsilon$ of its reference value | Sections 5.1, 5.3, 6.3, 7.1, 7.3, and 8.1 |
 | G12 Error text | None, TEST-6 | Unit test in `error.rs` | The `Display` of each kind is the text of Section 9.2 | Section 9.2 |
-| G13 Any input | None, TEST-6 | `proptest`, `properties` | No function panics for any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value in any argument. Also: `distance` is NaN or at least 0, `isometry_defect` is at least 0, `inverse(inverse(m))` is bit for bit $m$, `covector` negates the last coordinate exactly, a point from `normalize_point` is finite with a positive last coordinate, a normal from `wall_through` is finite, and a point from `from_disk` is finite with a last coordinate of at least 1 | GEO-2 |
+| G13 Any input | None, TEST-6 | `proptest`, `properties` | No function panics for any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value in any argument. Also: `distance` is NaN or at least 0, `isometry_defect` is at least 0, `inverse(inverse(m))` is bit for bit $m$, `covector` negates the last coordinate exactly, a point from `normalize_point` is finite with a positive last coordinate, a normal from `wall_through` is finite, and a point from `from_disk` is finite with a last coordinate of at least 1. For the module `euclidean`: `distance` is NaN or at least 0, `isometry_defect` is at least 0, `reflection` of a finite covector has the last row $(0, 0, 1)$ exactly, and a covector from `wall_through` is finite | GEO-2, GEO-20 |
 | G14 Reference self-check | None | Reference, `formulas` | The reference arithmetic itself: $\pi$ against a literal with 80 digits after the decimal point, $\cos(\pi/3) = 1/2$, $\cosh(\operatorname{arcosh} 2) = 2$, and $\sqrt{2}^2 = 2$, each to $10^{-70}$ | Section 10.2 |
 | G15 Auto traits | None, CONC-1 | Compile-time assertion in a unit test in `lib.rs` | `Error` and `ErrorKind` are `Send`, `Sync`, and `'static` | Section 3.2 |
 | G16 Doctests | None | Doctests | The examples of the crate-level and item documentation | Sections 7.4 and 7.5 of `docs/writing-documentation.md` |
@@ -502,6 +594,10 @@ Each test below names the item of the field "Tests and acceptance" of Section 5.
 | G18 Beyond the range of normalization | None, TEST-6 | Plain test, `properties` | For 256 vectors at distances from 15 to 20 from `ORIGIN`, multiplied by a factor in $[0.5, 2]$: each `NotAPoint` comes with a computed $q$ and a last coordinate that fail the conditions of Section 5.1, and each accepted result is finite with a positive last coordinate | Sections 5.1 and 8.4 |
 | G19 Wall below the separation floor | None, TEST-6 | `proptest` and a sweep, `properties` | For $a$ within distance 10 of `ORIGIN` and $b$ at a distance from $10^{-9}$ to $10^{-5}$ from $a$: each result is a finite vector or `DegenerateWall`, with no bound on its accuracy | Sections 5.3 and 8.4 |
 | G20 Isometry defect | None, TEST-6 | Unit tests in `hyperbolic.rs` | Six matrices each break one of the six equations $\langle m_i, m_j \rangle = J_{ij}$ with $i \le j$ of condition 1 alone, and `isometry_defect` is within $10^{-12}$ of the expected value for each. The matrices are the identity with one diagonal entry set to 2, which gives 3 each, the identity with the second column $(0.6, 0.8, 0)$, which gives 0.6, and the identity with the third column $(0.75, 0, 1.25)$ or $(0, 0.75, 1.25)$, which give 0.75 each. The identity gives exactly 0. The identity with a NaN in any one of its nine entries, or with a last entry of 0, $-0$, or $-1$, gives `f64::INFINITY` | Section 6.2 |
+| G21 Euclidean exact cases | None, TEST-6 | Unit tests in `euclidean.rs` | The reflection in the line $x = 0.5$, of covector $(1, 0, -0.5)$, maps dyadic points $(x, y, 1)$ to $(1 - x, y, 1)$ exactly. `translation(t) * ORIGIN` is $(t_1, t_2, 1)$ exactly. The last row of `reflection` is $(0, 0, 1)$ exactly for finite covectors. `rotation(angle)` equals `hyperbolic::rotation(angle)` bit for bit. `wall_through` gives `DegenerateWall` for two equal points and for a NaN or infinite coordinate in either argument, and swapping its arguments negates its result exactly. `isometry_defect` is exactly 0 for the identity and `f64::INFINITY` for a matrix with a NaN entry | Sections 5.4 and 6.6, GEO-20, GEO-21, GEO-22 |
+| G22 Euclidean reference | None | Reference, `formulas` | Each row of Section 8.5 against the reference arithmetic, on the inputs of the row and within its bound | Sections 5.4, 6.6, and 8.5 |
+| G23 Euclidean properties | Relators, of Section 5.4 of the plan | `proptest`, `properties` | A reflection in a line of the range of Section 8.5 is an involution, fixes the points of its line, and has an `isometry_defect` within the bound of its row. The product of the reflections in two lines through one point at the angle $\pi/n$, for $n$ from 2 to 6, raised to the power $n$ by repeated multiplication, is the identity within a tolerance to be measured. `wall_through` of two points within 64 and at least 0.1 apart has the three properties of Section 5.4 within the bounds of its rows | Sections 5.4 and 6.6 |
+| G24 Euclidean wrong isometries | None, TEST-6 | Unit tests in `euclidean.rs` | `isometry_defect` exceeds $10^{-9}$, the tolerance of check 1 of `docs/design/domain.md`, for a reflection scaled by $1 + 10^{-6}$ and for a reflection whose last row is set to $(0, 10^{-6}, 1)$ | Section 6.6 |
 
 The property tests commit their regression files (TEST-9 of the coding standard). G14 guards against a wrong precision or rounding argument and does not test correct rounding, which Section 12 treats under `UNV-25`.
 
@@ -553,6 +649,9 @@ Each test compares with the tolerance of this table, with the scales of Section 
 | The radius of `to_disk` at distances 37 and 38.2 from `ORIGIN` | G11 | $4\varepsilon$ absolute, against the values of Section 7.3 in the unit tests and against the reference value in the reference test | $0.2315\varepsilon$ against the reference value | 17.3 |
 | `isometry_defect` of the six matrices of G20 against 3, 3, 3, 0.6, 0.75, and 0.75, and of the identity against 0 | G20 | $10^{-12}$ absolute for the six matrices, and exact equality for the identity | 0 | Not applicable |
 | The four values of G14 against their exact values | G14 | $10^{-70}$, as G14 states | 0 for $\pi$, $8.64 \times 10^{-78}$ for $\cos(\pi/3)$, 0 for $\cosh(\operatorname{arcosh} 2)$, and $1.73 \times 10^{-77}$ for $\sqrt{2}^2$ | At least $5.8 \times 10^{6}$ |
+| The quantities of the module `euclidean` | G22, G23 | The rows of Section 8.5 | To be measured | To be measured |
+| Each entry of $(P_0 P_1)^n - I$ for two reflections in lines through one point at the angle $\pi/n$, $n$ from 2 to 6 | G23 | To be measured | To be measured | To be measured |
+| The exact cases of G21 | G21 | Exact equality, which TEST-13 of the coding standard allows because each case is exact in IEEE 754 arithmetic: dyadic sums, copies, negations, and the same operations on the same inputs | 0 | Not applicable |
 
 The two rows of preserved quantities cover 100,000 products of one to three factors of G7, and 100,000 products of three boosts of length up to 2, half of them with rotations between the boosts, with points within distance 3 of `ORIGIN` and at least 0.1 apart. The test computes both sides of each comparison with the crate in double precision, the form or distance of the mapped points against that of the original points. $2^{14} \varepsilon$ is about $3.6 \times 10^{-12}$.
 
@@ -572,11 +671,11 @@ TEST-13 of the coding standard states the general rule that GEO-15, GEO-16, and 
 
 | Tests | Under Miri | Attribute or configuration |
 | --- | --- | --- |
-| The reference tests of G1 to G6 and G17 | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
+| The reference tests of G1 to G6, G17, and G22 | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
 | The sweeps of G3, G7, G9, G10, and G19 | Ignored | `#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]` |
-| The property tests of G7 to G10, G13, and G19 | Run with 8 cases and no failure persistence | The helper of GEO-17 |
+| The property tests of G7 to G10, G13, G19, and G23 | Run with 8 cases and no failure persistence | The helper of GEO-17 |
 | G14, the reference test of G11, and G18 | Run unchanged | None |
-| The unit tests of G11, G12, G15, and G20 | Run unchanged | None |
+| The unit tests of G11, G12, G15, G20, G21, and G24 | Run unchanged | None |
 | G16 | Not run, because Miri runs the tests through nextest, which runs no doctest | None |
 
 Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`). The property tests and the unit tests run the arithmetic of `glam` under Miri, which Section 11 records as supported.
@@ -617,11 +716,13 @@ The root `Cargo.toml` optimizes `astro-float-num` alone in the `dev` profile, wi
 
 ## 12. Unverified Statements
 
-PLAN-3 of the plan requires this list. Each row names an unverified statement of Section 7 of the plan that the code relies on, and what the code does about it:
+PLAN-3 of the plan requires this list. Each row names an unverified statement of Section 7 of the plan that the code relies on, or a candidate statement of the reference without a label there, and what the code does about it:
 
 | Label | What the code relies on | What the code does |
 | --- | --- | --- |
 | `UNV-26` | The normal through two points with the time coordinate last, $w = J(a \times b)$ with $J = \operatorname{diag}(1, 1, -1)$. [RAT] states the Lorentzian cross product with the time coordinate first (Section 7.4 of the reference), and the reference states no time-last form | Uses the formula only to compute a candidate, checks only that the form of the candidate is positive and finite, and normalizes it. Tests G5 and G9 check the three properties of Section 5.3 on the result, which are what callers rely on, and which do not depend on how the vector was found. The second part of `UNV-26`, the relation between normals and the corner angle, is not used by this crate |
+| `UNV-26` | The Euclidean reflection of [RAT] (4.1.1) as the matrix of `euclidean::reflection` on the plane $x_3 = 1$ (Section 6.6) | Test G22 compares the matrix applied to points with (4.1.1) in the reference arithmetic, and G23 checks that it is an involution that fixes the points of its line |
+| None | The line through two points as a normalized cross product, item 24 of Section 15.1 of the reference (Section 5.4) | Uses the formula only to compute a candidate. Tests G22 and G23 check the three properties of Section 5.4 on the result |
 | `UNV-25` | Correct rounding of the reference-arithmetic crate, in tests only | Works at 256 bits against tolerances of a few multiples of $\varepsilon$ at the tightest, so a wrong last bit of the reference cannot change a verdict. G14 checks the precision and rounding arguments. The comparison with MPFR below covers six values |
 | `UNV-4` | The precision of the disk map near the limit circle | States the loss of `from_disk` and the distance beyond which the radius of `to_disk` is within rounding of 1 (Section 7.3), and tests both against the reference arithmetic at radius up to $1 - 10^{-12}$. The effect on an image is measured by the renderer |
 
@@ -664,6 +765,7 @@ No other document dictates these choices:
 | `astro-float-num` instead of `astro-float`, at 256 bits | 10.2, 11 |
 | `glam` without its default features, and caret requirements at the patch level for `glam` and `astro-float-num` | 11 |
 | `opt-level = 3` for `astro-float-num` in the `dev` profile | 11 |
+| The representation of the Euclidean plane, the items of the module `euclidean`, and the formula of `euclidean::wall_through`, which Section 13.3 puts to the owner | 3.4, 4.5, 5.4 |
 
 ### 13.3. Points for the Owner
 
@@ -674,6 +776,9 @@ None of these blocks the crate. Each states what the design does until the owner
 3. A gradient through the disk map. The renderer draws borders from a distance estimate that needs the derivative of the disk map (`DEC-28`), while the plan adds Jacobians to this crate only with the further model maps of Section 5.12 of the plan. This design adds none. The design of the renderer holds the derivative as a private function of `escher-render`, which Section 5.4 of `docs/design/render.md` specifies, until a later milestone moves it to this crate with the other Jacobians.
 4. The separation floor of `wall_through`. The crate states no accuracy for two points less than $10^{-5}$ apart (Section 8.4), and Section 1.5 excludes a distance form for close points. The design keeps the floor and the one formula of Section 5.3. The alternative is a form for close points in a later change, if a caller needs walls through such points.
 5. The `dev` profile of `astro-float-num`. The root `Cargo.toml` optimizes that dev-dependency alone (Section 11). The design keeps it, because the reference tests run about seven times faster with it. The alternative is to run them unoptimized.
+6. The representation of the Euclidean plane. The design uses the affine plane $x_3 = 1$ over the `glam` types of the hyperbolic module (Section 4.5), so that the fold and the border test of `escher-render` run unchanged. On a prototype outside the repository, the unchanged fold and border test rendered the three Euclidean triangles and the rectangle at five aspects correctly, and the last coordinate stayed exactly 1 over each of the 4,194,304 samples of every image. The alternative is a `DVec2` point with a `DMat2` and `DVec2` pair for an isometry, which needs a second fold, a second side type, and a second border test.
+7. The items of the module `euclidean`. The design exports the constant and the seven functions of Section 3.1, with no `form`, `inverse`, or `normalize_point`, because no caller needs them (Section 3.4). The alternative is every name of `hyperbolic` that has a Euclidean counterpart. A later change adds `inverse` when a pairing is not an involution.
+8. The line through two points. No source states the cross-product formula of `euclidean::wall_through` (Section 5.4). The design uses it to compute a candidate and tests the three properties on the result, as it does for `UNV-26` in Section 5.3. The alternative is to wait for a source or a Lean proof, which would block the Euclidean domains of `docs/design/domain.md`.
 
 ## 14. Security Considerations
 
@@ -682,7 +787,7 @@ The threat model is a caller that passes values derived from untrusted input to 
 The attacks in scope are a panic that stops the caller, and a non-finite value that propagates into a stored result. The crate counters them with these measures:
 
 - No function panics for any input (GEO-2), and test G13 checks every function with arbitrary bit patterns.
-- The three functions whose result a caller stores and builds on, `normalize_point`, `wall_through`, and `from_disk`, reject every input outside their domain, including NaN and infinities (GEO-4, GEO-6, GEO-9).
+- The four functions whose result a caller stores and builds on, `normalize_point`, the two functions `wall_through`, and `from_disk`, reject every input outside their domain, including NaN and infinities (GEO-4, GEO-6, GEO-9, GEO-21).
 - Every function runs in constant time and allocates nothing, so no input exhausts memory or time. The crate therefore needs no limit of its own. The limits on the orders of a signature, which bound the values that reach this crate, are stated in the Security Considerations of `docs/design/domain.md`.
 
 The other topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
@@ -730,6 +835,7 @@ The tags of the mathematical sources and source code resolve to the reference se
 - [HT] Section 16.1 of `docs/research/geometry-models.md`.
 - [KC24] Section 16.1 of `docs/research/geometry-models.md`.
 - [RAT] Section 16.1 of `docs/research/geometry-models.md`.
+- [W-AFFINE] Section 16.3 of `docs/research/geometry-models.md`.
 - [W-HYPERBOLOID] Section 16.3 of `docs/research/geometry-models.md`.
 
 ## Appendix A. Requirement Summary
@@ -746,7 +852,7 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-8 | `isometry_defect` returns infinity when the second condition fails or the result is NaN | 6.2 |
 | GEO-9 | `from_disk` returns `None` exactly when the computed $1 - \lvert z \rvert^2$ is not positive | 7.2 |
 | GEO-10 | `translation` computes the polar radius with `hypot` and $\operatorname{arsinh}$, and reads no last coordinate | 8.2 |
-| GEO-11 | Only `normalize_point` and `wall_through` divide by a norm | 8.3 |
+| GEO-11 | Only `hyperbolic::normalize_point` and the two functions `wall_through` divide by a norm | 8.3 |
 | GEO-12 | Each function meets the accuracy of Section 8.4 | 8.4 |
 | GEO-13 | `Error` follows ERR-1, with the operation that failed | 9.1 |
 | GEO-14 | The `Display` text of each kind is the one stated | 9.2 |
@@ -755,3 +861,6 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-17 | Property tests take their configuration from one helper that is Miri-aware | 10.4 |
 | GEO-18 | `glam` and `thiserror` are the only normal dependencies, and `glam` is not re-exported | 11 |
 | GEO-19 | A test of a quantity without a measured bound here sets and records its tolerance as TEST-13 requires, in the same change | 10.3 |
+| GEO-20 | Every Euclidean isometry of the module `euclidean` has the last row $(0, 0, 1)$ exactly | 4.5 |
+| GEO-21 | `euclidean::wall_through` returns a finite vector or `DegenerateWall`, and on the range of Section 8.5 a line covector through both points | 5.4 |
+| GEO-22 | `euclidean::isometry_defect` returns infinity when the result is NaN | 6.6 |

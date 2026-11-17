@@ -357,22 +357,37 @@ escher info '*2222'
 escher render '*2222' --set aspect=1.618 -o r.png
 ```
 
-- `escher info '*2222'` lists one parameter with its name, range, and default.
-- `--set` takes a `name=value` setting.
+- `escher info '*2222'` lists one parameter with its name, range, and default, and `info` prints a domain summary, and with `--check` the checks, for the four signatures. `info` takes no setting, so it describes the default shape.
+- `render --set` takes a `name=value` setting, once for each parameter. `info` has no `--set`.
 
-**Scope.** A Euclidean module in `escher-geometry`, with the affine plane, line covectors, reflection, translation, and rotation. The Euclidean triangle and rectangle in `escher-domain`. A canonical Euclidean view (`DEC-12`). `ParameterSpec` and `--set`.
+Sections 4.5, 4.6, 5, and 6.8 of `docs/design/cli.md` define the exact option, lines, and diagnostics.
 
-**Design documents.** Extensions of `geometry.md`, `domain.md`, `render.md`, and `cli.md`.
+**Scope.** A Euclidean module in `escher-geometry` over the affine plane, with line covectors, the side test, the wall through two points, reflection, rotation, translation, distance, and an isometry check. It has no inverse, no bilinear form, and no point normalization, because no caller of this milestone needs them, so the special inverses that `geometry-models.md` 13.6 records do not arise. The Euclidean triangle and rectangle in `escher-domain`, with `ParameterSpec`, `ShapeParameters`, `parameters`, and a second constructor that takes the settings. A canonical Euclidean view in `escher-render` (`DEC-12`), through the unchanged fold and border estimate. `--set` on `render` and the `Parameter` line of `info` in `escher-cli`.
+
+**Design documents.** Extensions of `geometry.md`, `domain.md`, `render.md`, and `cli.md`, and the changes to `docs/design/architecture.md` and to this plan that the design makes.
 
 **Sources.** Section 6.3, Theorem 6.4.3, and Example 6.5.2 of [DAVIS] (`fundamental-domains.md` 9.1). The rectangle: Example 13.1.3 of [TH] (`orbifold-notation.md` 9.4). The rectangle family: pp. 7 and 14 of [VONGAGERN2009] (`fundamental-domains.md` 9.5).
 
-**Unverified statements relied on.** `UNV-10`, because no source states whether the one parameter of `*2222` includes the scale (gap G7). `UNV-26` for the Euclidean reflection as a matrix.
+**Unverified statements relied on.** `UNV-10`, because no source states whether the one parameter of `*2222` includes the scale (gap G7). `UNV-26` for the Euclidean reflection as a matrix. `UNV-28` for the vertex coordinates of the Euclidean triangle, which the construction uses. `UNV-1`, `UNV-15`, and `UNV-18` for the fold, the border estimate, and the parity colouring in the Euclidean plane.
 
-**Tests and acceptance.** Relators. Fold properties. Exact periodicity of the image when the view makes a translation a whole number of pixels. Golden images. A snapshot of the parameter listing. Range errors.
+**Tests and acceptance.**
+
+- Relators, and the checks of `verify()` for the four signatures.
+- Fold properties on the Euclidean domains, and the fold against reference arithmetic.
+- Border oracle, and the oracle of the grid of the rectangle.
+- Periodicity: the image shifted by a translation of the group that is a whole number of pixels equals itself. The test runs in the canonical view for the three triangles and for `*2222` with `aspect` 1 and 4, and in a view available only to tests for `*2222` with `aspect` 1.618. It asserts equality byte for byte only for `*2222` with `aspect` 1 and 4, whose values are all exact in `f64`, and the golden allowance otherwise (Section 8.1 of `docs/design/render.md`).
+- Golden images of `*632`, `*442`, `*333`, and `*2222` with `aspect` 1.618.
+- A snapshot of the parameter listing. Range errors and unknown names.
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Small. The Euclidean form is degenerate, which `geometry-models.md` 13.6 records as needing special inverses.
+**Risks.** Small. The unchanged renderer draws a Euclidean domain through the disk map without an error, as a prototype showed, so the split adds a guard to `escher render` (item 2 of the split). `*2222` with `aspect` 1 or 4 at one sample per pixel shows no border, because every pixel centre lies exactly half a pixel from a wall (Section 5.8 of `docs/design/render.md`).
+
+**Split.** Three branches, in this order:
+
+1. The design branch `feature/euclidean-design`, with the documents of the field "Design documents" and every bound that a test sets stated as to be measured.
+2. The branch of the module `euclidean` of `escher-geometry` and the Euclidean domains and shape parameters of `escher-domain`, with their tests and measured figures. It also updates the snapshots of `escher info` that change, and adds a guard to step 3 of `render` (Section 4.5 of `docs/design/cli.md`), in the module `render` of `escher-cli`. The guard refuses a domain whose geometry is not hyperbolic with the diagnostic of an unsupported signature, because otherwise the unchanged renderer draws a Euclidean domain through the disk map without an error.
+3. The branch of the Euclidean view of `escher-render`, with its tests, golden images, and measured figures, together with `--set` and the `Parameter` line in `escher-cli`. It narrows the guard to the rule of CLI-30 of `docs/design/cli.md`, which refuses only a domain that is neither hyperbolic nor Euclidean.
 
 ### 5.5. M5: The Sphere
 
@@ -863,7 +878,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-25 | Correct rounding of the reference-arithmetic crate | `rust-ecosystem.md` 21 item 5 | M2 on | One comparison with MPFR |
 | UNV-26 | Statements on the linear model in the conventions of Sections 5.1 and 5.2 of `docs/design/architecture.md`, with the time coordinate last and outward normals: the normal through two points, normals and the corner angle, a disk circle to a normal, and the Euclidean reflection as a matrix. [RATCLIFFE] states the cross product with the time coordinate first, the relation between normals and the angle with inward normals, and the Euclidean reflection as a map (`geometry-models.md` 2.4, 7.4, and 12) | `geometry-models.md` 2.4, 7.4, and 12 | M2, M4, M15, M18 | A source in these conventions, or Lean |
 | UNV-27 | Coordinates for the family, ranges, and default shape of polygons with prescribed angles. Existence, the admissible angles, and one polygon for each set of angles are sourced (`geometry-models.md` 10.1, `fundamental-domains.md` 9.4) | `geometry-models.md` 15.1 item 14, `fundamental-domains.md` 9.4 | M9 | A detailed reading of the proof in [TH], [BUSER] |
-| UNV-28 | Properties of SymmHub's disk triangle, if it is used as an oracle | `geometry-models.md` 15.1 item 5 | M2 tests | Tests only |
+| UNV-28 | Properties of SymmHub's triangle: of its disk triangle, if it is used as an oracle, and in the Euclidean case the vertex coordinates of the triangle that `escher-domain` builds | `geometry-models.md` 15.1 item 5 | M2 tests, M4 | Tests only for the disk triangle. A source or Lean for the Euclidean coordinates |
 
 ## 8. Security Considerations
 
