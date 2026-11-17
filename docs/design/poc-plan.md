@@ -32,7 +32,7 @@ This document covers the workflow of a milestone, the owner's staging, the resea
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the proposed defaults `DEC-1` to `DEC-31`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the proposed defaults `DEC-1` to `DEC-32`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -53,7 +53,7 @@ This document uses the terms that Section 2.2 of `docs/writing-documentation.md`
 - design branch: A branch named `feature/<name>-design` that changes only documents. It writes or extends the design documents of a milestone, and the research documents where a research prerequisite applies.
 - code branch: A branch in its own worktree that changes code together with its tests and the document updates that Hard Rule 1 of `AGENTS.md` requires.
 - research prerequisite: A design branch, labelled `RP-1` to `RP-5`, that adds to a research document what a milestone needs before its code can start (Section 4).
-- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-29` (Section 7).
+- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-31` (Section 7).
 - stage: One of the three stages of the owner's staging (Section 3.2).
 - proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`. Section 10.1 of that document states the defaults that the owner has decided, which keep their labels.
 - reference arithmetic: The independent high-precision implementation of a few formulas inside a test suite, which Section 7 of `docs/design/architecture.md` defines.
@@ -457,7 +457,7 @@ escher render 532 -o i.png
 
 **Scope.** The domain is the double of the reflection domain across one wall, with products of two reflections as pairings. The fold runs with general pairings.
 
-**Design documents.** Extensions of `domain.md` and `render.md`. `domain.md` states which wall is doubled, and that a side fixed by a half-turn is split at the fixed point. Item 2 of `fundamental-domains.md` 4.8 permits this split and does not require it, so the split is a choice of this plan.
+**Design documents.** Extensions of `domain.md`, `render.md`, and `cli.md`, and the changes to `docs/design/architecture.md`, to this plan, and to `fundamental-domains.md` that the design makes. `domain.md` states that the wall of side 1 of the reflection domain is doubled, and that a side fixed by a half-turn is split at the fixed point. Item 2 of `fundamental-domains.md` 4.8 permits this split and does not require it, so the split is a choice of this plan. `render.md` states the bounds of the fold of a rotation domain, and `cli.md` the lines of `info` and the default colouring of `render`.
 
 **Sources.**
 
@@ -470,12 +470,21 @@ escher render 532 -o i.png
 
 - `UNV-2`: the greedy fold with general pairings.
 - `UNV-22`: the signature of the rotation subgroup in orbifold notation (gap G10).
+- `UNV-30`: the lune double of `nn` as a fundamental domain of the cyclic group.
+- `UNV-31`: the convexity and the vertex cycles of the double.
+- `UNV-1`, `UNV-15`, and `UNV-18` for the fold, the border estimate, and the parity colouring of the reflection domains that the tests compare with.
 
-**Tests and acceptance.** The items of the checklist of `fundamental-domains.md` 4.8 that apply to a compact polygon, as `verify()`. Cycle relators. Spherical orders. Fold properties. Every border pixel of the `pqr` image is a border pixel of the `*pqr` image in the same view. Golden images.
+**Tests and acceptance.** The items of the checklist of `fundamental-domains.md` 4.8 that apply to a compact polygon, as `verify()`. Cycle relators. Spherical orders. Fold properties, with the fold of each rotation domain against reference arithmetic within bounds of its own (Section 6.8 of `docs/design/render.md`). Every border pixel of the `pqr` image is a border pixel of the `*pqr` image in the same view. Golden images, with every existing golden image unchanged. Snapshots of the `Side pairs` and `Parity colouring` lines of `info` and of the diagnostic of `--colouring parity` for a rotation domain.
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** The order of the sides and the split at a half-turn. The first exposure to `UNV-2`.
+**Risks.** The order of the sides and the split at a half-turn. The first exposure to `UNV-2`: the pairings are products of two reflections, and on a prototype outside the repository a fold of `(1000)32` with plain `f64` products drifted off the hyperboloid and did not converge, so the domain design requires accurately rounded products and the rotation domains have bounds of their own (Section 6.8 of `docs/design/render.md`). The vertices of the doubles meet the tolerance constant of the fold with a margin of only 3.27 over all hyperbolic triples on that prototype (Section 6.2 of `docs/design/render.md`).
+
+**Split.** Three branches, in this order:
+
+1. The design branch `feature/rotation-design`, with the documents of the field "Design documents" and every bound that a test sets stated as to be measured.
+2. The branch of the rotation domains of `escher-domain`, with their tests and measured figures. It also updates the snapshots of `escher info` that change, replaces `532` with `3*2` as the example of a signature without a domain, and adds the interim rule CLI-36 of `docs/design/cli.md` to `escher render`, which refuses a domain with a side that is not a mirror, because the renderer has no measured accuracy for such a domain until the next branch.
+3. The branch of the tests, bounds, and golden images of the rotation domains in `escher-render`, whose fold code does not change but whose API documentation of `fold` states the accuracy for a rotation domain, together with the default colouring and the diagnostic of `--colouring parity` in `escher render`. It withdraws CLI-36.
 
 ### 5.7. M7: Presentations and Coset Enumeration
 
@@ -865,7 +874,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | Id | Statement relied on | Research location | Milestones that use it | What closes it |
 | --- | --- | --- | --- | --- |
 | UNV-1 | The first-violated-wall fold terminates for compact reflection polygons, in a number of steps equal to the word length. On the sphere, a prototype found points within $10^{-14}$ radians of a vertex of order 1000 whose fold did not stop even at a cap of 100000, and points that took more steps than the longest word of the group (Section 6.7 of `docs/design/render.md`), so the design relies on it only for the samples of the images that the tests render and the images of the centre | `rendering.md` 4.7 and 13.1 item 1, gap G5, `fundamental-domains.md` 13.3 item 6 | M3 on | Sections 1.6, 1.7, and 5.4 of [HUMPHREYS], or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
-| UNV-2 | The same fold terminates for general side pairings and domains that are not convex | `rendering.md` 4.7 and 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M15 to M17 | A source, a change to Voight's rule, or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
+| UNV-2 | The same fold terminates for general side pairings and domains that are not convex. For the rotation domains of M6, a prototype outside the repository found that a fold with pairings that are plain `f64` products of two reflections can drift off the hyperboloid and fail to converge, as one fold of `(1000)32` did in the radius band $1 - 10^{-6}$, and that near the vertices of a cycle of two vertices of order near 1000 more folds of the double than of its reflection domain stay unconverged: 12 of its probes against 0 for `(998)(981)(961)`, and 1434 against 770 for `(1000)(1000)(1000)`. So the design relies on it only for the samples of the images that the tests render and the images of the centre, with accurately rounded products as pairings (Section 6.8 of `docs/design/render.md`) | `rendering.md` 4.7 and 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M15 to M17 | A source, a change to Voight's rule, or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
 | UNV-3 | Behaviour on or near a wall | `rendering.md` 13.1 item 2 | M3 on | Tests. No source is known |
 | UNV-4 | Growth of the fold count, the reading of the exponents, and the limits of precision | `rendering.md` 13.1 items 5 and 6, `geometry-models.md` 15.1 item 10 | M3 defaults | The body of [FWW], and measurement |
 | UNV-5 | The open points of the polygon theorem at ideal points: the test where a mirror ends at a cusp, the reading that two sides that meet only at an ideal vertex have the dihedral angle 0 and give no relator, and the element that fixes an ideal vertex. The four cases with reflections, glide cycles, mirror corners beside paired sides, and ideal reflection polygons are sourced in `fundamental-domains.md` 4.7, and the Euclidean plane and the sphere in its Sections 4.9 and 4.10, all under the hypotheses of those sections | `fundamental-domains.md` 4.7, 4.9, 4.10, 12, and 13.3 items 7 and 8, gap G1 | M18 | A source or Lean for each open point of gap G1 |
@@ -893,6 +902,8 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-27 | Coordinates for the family, ranges, and default shape of polygons with prescribed angles. Existence, the admissible angles, and one polygon for each set of angles are sourced (`geometry-models.md` 10.1, `fundamental-domains.md` 9.4) | `geometry-models.md` 15.1 item 14, `fundamental-domains.md` 9.4 | M9 | A detailed reading of the proof in [TH], [BUSER] |
 | UNV-28 | Properties of SymmHub's triangle: of its disk triangle, if it is used as an oracle, and in the Euclidean case the vertex coordinates of the triangle that `escher-domain` builds | `geometry-models.md` 15.1 item 5 | M2 tests, M4 | Tests only for the disk triangle. A source or Lean for the Euclidean coordinates |
 | UNV-29 | The lune of `*nn`, the intersection of two hemispheres whose walls meet at the angle $\pi/n$, is a strict fundamental domain of the group of its two reflections. Theorem 6.4.3 of [DAVIS] covers convex polytopes, and a lune is not one in the sense of p. 75 of [DAVIS] | `fundamental-domains.md` 13.3 item 9 | M5 | A source that proves it, or Lean |
+| UNV-30 | The lune of the angle $2\pi/n$ with its one rotation pairing, including the hemisphere of `22`, is a fundamental domain of the cyclic group of order $n$. The lune of `*nn` is already `UNV-29` | `fundamental-domains.md` 13.3 item 10 | M6 | A source whose polygon theorem admits a lune, or Lean. The exhaustive certificates of `docs/design/domain.md` check each build numerically |
+| UNV-31 | The double of a convex reflection polygon across one wall is convex, and its vertex cycles are the vertex of each end of the doubled side alone and each other vertex with its image, with the corner orders of the reflection polygon | `fundamental-domains.md` 13.3 item 11 | M6 | A source, or Lean. Checks 3, 4, and 5 of `verify()` test each build |
 
 ## 8. Security Considerations
 

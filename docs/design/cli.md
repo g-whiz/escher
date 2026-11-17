@@ -60,9 +60,12 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md` a
 - shape parameter: A named number that changes the shape of the domain of a signature, which `parameters` of `escher-domain` lists with its range and its default, such as `aspect` of `*2222`.
 - setting: One value of the option `--set` of `render`, a parameter name and a number joined by `=` (Section 4.6).
 - parameter lines: The lines of the information text that list the shape parameters, row 10 of Section 5.1.
-- domain summary: The lines of the information text that describe the domain, rows 11 to 14 of Section 5.1 (Section 5.5).
+- domain summary: The lines of the information text that describe the domain, rows 11 to 16 of Section 5.1 (Section 5.5).
 - check: One numeric condition that `verify()` of `escher-domain` evaluates, with a residual and a tolerance (Section 2.1 of `docs/design/domain.md`).
-- verification lines: The lines of the information text that `--check` adds, rows 15 to 21 of Section 5.1 (Section 5.6).
+- verification lines: The lines of the information text that `--check` adds, rows 17 to 23 of Section 5.1 (Section 5.6).
+- reversing side: A side of the domain whose `orientation()` is `Orientation::Reversing`. A domain has a reversing side exactly when its `reverses_orientation()` is true, which is the one call that `info` and `render` make to decide (Sections 3.1 and 3.2 of `docs/design/domain.md`).
+- reflection domain: A domain whose every side has the kind `Mirror`, as Section 2.1 of `docs/design/render.md` defines it.
+- rotation domain: A domain with no side of the kind `Mirror`, which `escher-domain` builds for a signature without reflections, such as `732`, as Section 2.1 of `docs/design/render.md` defines it.
 - output file: The file that the option `--output` of `render` names (Section 4.7).
 - colour: A value of the form `#rgb` or `#rrggbb` that `render` reads for a fill, the border, or the background (Section 4.6).
 - thread pool: The `rayon` thread pool that `render` builds for one call of `run` (Section 4.5).
@@ -196,7 +199,7 @@ The help text has these summaries, and no other text beyond what `clap` generate
 | `render` | `Render the tiling of a signature in orbifold notation and write it to a PNG file` |
 | `--output` | `The PNG file to write. An existing file is replaced` |
 | `--size` | `The image size in pixels, as WIDTHxHEIGHT` |
-| `--colouring` | `One colour for every tile, or two colours by parity` |
+| `--colouring` | `One colour for every tile, or two colours by parity. The default is parity when a side pairing of the domain reverses orientation, and one otherwise` |
 | `--colours` | `The fill colours, separated by commas, each as #rgb or #rrggbb. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'` |
 | `--border-width` | `The border width in pixels. 0 draws no border` |
 | `--border-colour` | `The border colour, as #rgb or #rrggbb` |
@@ -210,7 +213,7 @@ The help text has these summaries, and no other text beyond what `clap` generate
 | `--light` | `The direction from the ball of a spherical tiling to the light, as X,Y,Z, with X to the right, Y up, and Z toward the viewer. The length is ignored` |
 | `--shading` | `Phong shading of the ball of a spherical tiling, or none` |
 
-The help of `render` uses the summary of `SIGNATURE` above. It also shows `[default: <value>]` for each option with a fixed default in the table of Section 4.6, and `[possible values: one, parity]` for `--colouring` and `[possible values: phong, none]` for `--shading`, which `clap` generates (Section 11.1). The argument struct declares `--rotation`, `--light`, and `--shading` after `--set`, so they come last in the help.
+The help of `render` uses the summary of `SIGNATURE` above. It also shows `[default: <value>]` for each option with a fixed default in the table of Section 4.6, which excludes `--colouring` and `--colours`, whose defaults depend on the domain, and `[possible values: one, parity]` for `--colouring` and `[possible values: phong, none]` for `--shading`, which `clap` generates (Section 11.1). The argument struct declares `--rotation`, `--light`, and `--shading` after `--set`, so they come last in the help.
 
 CLI-4. `escher --version` and `escher -V` MUST write the package name, one space, the package version, and a newline to standard output, which is `escher-cli 0.1.0` for version 0.1.0, and return `Success`, because Section 5.1 of `docs/design/poc-plan.md` keeps this output, and a script may read it.
 
@@ -261,20 +264,25 @@ escher render '*532' --rotation 20,35,0 -o ball.png
 `render` runs these steps in this order. It stops at the first step that fails and writes the diagnostic of Section 6.8, except at step 1, whose diagnostic is that of Section 6.1:
 
 1. Parse the signature with the `FromStr` implementation of `Signature` (CLI-5).
-2. Read the fill colours, the border colour, and the background colour (Section 4.6).
+2. Read the border colour and the background colour (Section 4.6).
 3. Put the settings into a `ShapeParameters` of `escher-domain` in the order given, and stop at the first setting whose name an earlier setting already gave. Build the domain with `FundamentalDomain::build_with` and those settings, which checks each name and value.
-4. Build the render options of `escher-render` from the size, the sample grid, the fill colours, the border width, the border colour, the background colour, the fold cap, the viewing rotation in radians, the light direction, and the shading. `escher-render` checks every value, for every geometry.
-5. Build a thread pool with the number of threads of `--threads`, or with the default of Section 4.6, which this step computes.
-6. Render the image on the thread pool, in bands of one row, each with the band operation of `escher-render`, and merge the statistics of the bands. The time of this step is the time of the statistics lines.
-7. Encode the image as PNG with `escher-render`.
-8. Write the PNG bytes to the output file (Section 4.7).
-9. With `--stats`, write the statistics lines to standard output (Section 4.7).
+4. Choose the colouring: the value of `--colouring`, or the default of CLI-34. Stop when the colouring is `parity` and the domain has no reversing side (CLI-35). Then read the fill colours for that colouring (Section 4.6).
+5. Build the render options of `escher-render` from the size, the sample grid, the fill colours, the border width, the border colour, the background colour, the fold cap, the viewing rotation in radians, the light direction, and the shading. `escher-render` checks every value, for every geometry.
+6. Build a thread pool with the number of threads of `--threads`, or with the default of Section 4.6, which this step computes.
+7. Render the image on the thread pool, in bands of one row, each with the band operation of `escher-render`, and merge the statistics of the bands. The time of this step is the time of the statistics lines.
+8. Encode the image as PNG with `escher-render`.
+9. Write the PNG bytes to the output file (Section 4.7).
+10. With `--stats`, write the statistics lines to standard output (Section 4.7).
 
-Section 3 of `docs/design/render.md` names the operations of steps 4, 6, and 7 and the statistics that step 6 merges.
+Section 3 of `docs/design/render.md` names the operations of steps 5, 7, and 8 and the statistics that step 7 merges.
+
+The colouring depends on the domain, so step 4 comes after the domain is built in step 3. A command with a bad value of `--colours` and a bad setting therefore reports the setting, and a command with a bad `--border-colour` and a bad setting reports the colour.
+
+CLI-35. When the colouring is `parity` and the domain has no reversing side, `render` MUST stop at step 4 with the diagnostic of Section 6.8 and write no file, because the group of such a domain has no subgroup of index 2 that preserves orientation, so the parity colouring does not exist for it (Section 5.7 of `docs/design/architecture.md`), and an image in one colour would hide that the requested colouring was not drawn (`DEC-32`).
 
 CLI-21. `render` MUST NOT create, truncate, or otherwise change the output file before rendering and encoding have succeeded, because a failed `render` then leaves an existing file as it was and creates no empty file that a reader could take for an image.
 
-CLI-22. `render` MUST build its own thread pool for each call, with exactly the number of threads of step 5, and MUST NOT use the global pool of `rayon`, because the global pool is shared by the whole process and is configured once, so two calls of `run` in one test process could not choose their own numbers, and the size of the pool would come from the environment instead of the option.
+CLI-22. `render` MUST build its own thread pool for each call, with exactly the number of threads of step 6, and MUST NOT use the global pool of `rayon`, because the global pool is shared by the whole process and is configured once, so two calls of `run` in one test process could not choose their own numbers, and the size of the pool would come from the environment instead of the option.
 
 CLI-23. The bytes of the output file MUST NOT depend on the number of threads, because a user who changes `--threads` for speed expects the same image, and a difference reveals a defect in the split into bands. Section 3.2 of `docs/design/render.md` states that a band renders the same bytes as the same rows of the whole image.
 
@@ -282,17 +290,21 @@ CLI-29. `render` MUST pass every setting to `escher-domain` through `Fundamental
 
 CLI-30. Withdrawn on 2026-11-17.
 
+CLI-36. Until `escher-render` renders a rotation domain with the bounds of Section 6.8 of `docs/design/render.md`, `render` MUST refuse a domain that has a side whose kind is not `Mirror`, at step 3 once the domain is built, with the diagnostic of Section 6.8 for such a domain, because the fold of a rotation domain has no measured accuracy until then, so an image would look plausible without any test behind it.
+
+While CLI-36 holds, every `render` of a rotation signature stops before step 4, so no test reaches the default colouring of CLI-34 or the diagnostic of CLI-35 for a rotation signature. The change that withdraws CLI-36 adds those snapshots and status tests. The change that adds the rotation domains to `escher-domain` adds CLI-36, and the change that adds their tests and bounds to `escher-render` withdraws it, as Section 5.6 of `docs/design/poc-plan.md` states.
+
 The `clap` argument struct holds `--stats` as a `bool`, which `render` converts at once into a private enum with two variants, as `info` does for `--check` (Section 4.3).
 
 ### 4.6. Option Values
 
-`clap` checks the syntax of every option value, and a malformed value is a usage error (Section 6.5). `render` reads the colours itself in step 2, `escher-domain` checks the settings in step 3, and `escher-render` checks the other values in step 4. This table gives the value syntax and the default of each option of `render`:
+`clap` checks the syntax of every option value, and a malformed value is a usage error (Section 6.5). `render` reads the border colour and the background colour itself in step 2, `escher-domain` checks the settings in step 3, `render` chooses the colouring and reads the fill colours in step 4, and `escher-render` checks the other values in step 5. This table gives the value syntax and the default of each option of `render`:
 
 | Option | Value | Default |
 | --- | --- | --- |
 | `-o`, `--output <FILE>` | Any path | None. The option is required (`DEC-7`) |
 | `--size <WIDTHxHEIGHT>` | Two decimal integers joined by a lower-case `x`, such as `1024x768`. Each integer has only the digits `0` to `9` and fits a `u32` | `512x512` |
-| `--colouring <COLOURING>` | `one` or `parity` | `parity` (`DEC-7`) |
+| `--colouring <COLOURING>` | `one` or `parity` | `parity` when the domain has a reversing side, and `one` otherwise (CLI-34, `DEC-7`) |
 | `--colours <COLOURS>` | Colours separated by commas, as many as the colouring needs: one for `one` and two for `parity` | `#e9c46a` for `one`, and `#e9c46a,#2a9d8f` for `parity` (`DEC-7`) |
 | `--border-width <PIXELS>` | A number in a form that the `FromStr` implementation of `f64` reads, such as `1.5`. The value `0` draws no border | `1` (`DEC-7`) |
 | `--border-colour <COLOUR>` | One colour | `#000000` (`DEC-7`) |
@@ -318,7 +330,13 @@ CLI-31. `--rotation` and `--light` MUST accept a value that starts with `-`, bec
 
 A colour is `#` followed by exactly three or exactly six hexadecimal digits. The digits are ASCII `0` to `9` and `a` to `f` in either case. In the form `#rrggbb`, each pair of digits is one 8-bit sRGB channel, in the order red, green, and blue. In the form `#rgb`, each digit stands for the channel whose two digits both equal it, so `#e9c` is `#ee99cc`. Nothing is trimmed, so a colour with a space before or after it is not a colour. Every colour is opaque, and `render` has no transparent background (`DEC-7`). The colours are read by a private parser in the module `render`, with no dependency (`DEC-29`).
 
-Step 2 splits the value of `--colours` at each comma. It first compares the number of items with the number that the colouring needs, and then reads each item as a colour, in order. An empty item, such as the one that a trailing comma gives, is not a colour. It then reads `--border-colour` and `--background`.
+Step 2 reads `--border-colour` and then `--background`. Step 4 splits the value of `--colours` at each comma. It first compares the number of items with the number that the colouring needs, and then reads each item as a colour, in order. An empty item, such as the one that a trailing comma gives, is not a colour.
+
+The `clap` argument struct holds `--colouring` as an `Option`, with no default of `clap`, and step 4 chooses the colouring when the option is absent.
+
+CLI-34. Without `--colouring`, `render` MUST use the colouring `parity` when the domain has a reversing side, and `one` otherwise, because `DEC-7` makes the first two-colour colouring the default when one exists, and the parity colouring exists only when some pairing reverses orientation (Section 5.7 of `docs/design/architecture.md`).
+
+So `escher render 732 -o rot.png` draws every tile in `#e9c46a`, and `escher render '*732' -o tiling.png` draws two colours. The number of fill colours follows the colouring, so `escher render 732 --colours '#e9c46a,#2a9d8f' -o rot.png` fails at step 4, because the default colouring of `732` is `one`, which needs 1 colour.
 
 `escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, and returns an error kind for a value outside its limits, such as a width of 0, a grid of 0, a border width that is negative or not finite, a rotation angle that is not finite, or a light direction that is zero or not finite. Section 4.1 of `docs/design/render.md` states each limit and the error kind for a value outside it. `render` reports such an error as Section 6.8 states.
 
@@ -328,9 +346,9 @@ The limit of 256 threads is this crate's own, because the thread pool belongs to
 
 ### 4.7. Output of `render`
 
-The output file holds the PNG bytes that `escher-render` encodes in step 7, with the size of `--size`. Section 5.6 of `docs/design/render.md` states the colour type, the bit depth, and the chunks. Step 8 writes the bytes with `std::fs::write`, which creates the file when it does not exist and truncates and replaces it when it does. `render` replaces an existing file without asking and has no option to refuse it (`DEC-30`). It creates no directory.
+The output file holds the PNG bytes that `escher-render` encodes in step 8, with the size of `--size`. Section 5.6 of `docs/design/render.md` states the colour type, the bit depth, and the chunks. Step 9 writes the bytes with `std::fs::write`, which creates the file when it does not exist and truncates and replaces it when it does. `render` replaces an existing file without asking and has no option to refuse it (`DEC-30`). It creates no directory.
 
-Without `--stats`, a successful `render` writes nothing to standard output or standard error. With `--stats`, step 9 writes the lines of this table, in this order, through the helper of Section 3.2. Each line is the label, a colon, one space, and the value, followed by a line feed, as in Section 5.1. Every count is an integer of the statistics of `escher-render`, which Section 3.2 of `docs/design/render.md` states, and is written in decimal:
+Without `--stats`, a successful `render` writes nothing to standard output or standard error. With `--stats`, step 10 writes the lines of this table, in this order, through the helper of Section 3.2. Each line is the label, a colon, one space, and the value, followed by a line feed, as in Section 5.1. Every count is an integer of the statistics of `escher-render`, which Section 3.2 of `docs/design/render.md` states, and is written in decimal:
 
 | Order | Label | Value |
 | --- | --- | --- |
@@ -338,7 +356,7 @@ Without `--stats`, a successful `render` writes nothing to standard output or st
 | 2 | `Mean folds` | The total number of folds divided by the number of inside samples, which are the samples that are not outside samples, rounded down to two digits after the point, or `0.00` when every sample is an outside sample |
 | 3 | `Maximum folds` | The largest number of folds of one sample |
 | 4 | `Unconverged samples` | The number of samples that reached the fold cap or met a value that is not finite |
-| 5 | `Time` | The wall-clock time of step 6 in seconds, measured with `std::time::Instant`, in fixed notation with three digits after the point, `{:.3}`, followed by one space and `s` |
+| 5 | `Time` | The wall-clock time of step 7 in seconds, measured with `std::time::Instant`, in fixed notation with three digits after the point, `{:.3}`, followed by one space and `s` |
 
 `Mean folds` is computed in `u128` arithmetic, so it cannot overflow. The quotient $q$ of 100 times the folds by the inside samples, rounded down, is written as the integer part of $q/100$, a point, and the remainder of $q$ by 100 in two digits. For example, 1001 folds over 100 inside samples give `10.01`.
 
@@ -364,7 +382,7 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 
 ### 5.1. Lines
 
-`info` writes the lines of this table, in this order. Each line is the label, a colon, one space, and the value, followed by a line feed. No other line, blank line, or trailing space appears. The accessors of rows 1 to 9 are those of `Signature` (Sections 3.1 and 9.1 of `docs/design/signature.md`). Row 10 takes its values from `parameters` and `ParameterSpec`, and rows 11 to 21 from `FundamentalDomain`, `Verification`, and `Check` (Section 3.1 of `docs/design/domain.md`), and "a domain is built" means that `FundamentalDomain::build` returned `Ok`.
+`info` writes the lines of this table, in this order. Each line is the label, a colon, one space, and the value, followed by a line feed. No other line, blank line, or trailing space appears. The accessors of rows 1 to 9 are those of `Signature` (Sections 3.1 and 9.1 of `docs/design/signature.md`). Row 10 takes its values from `parameters` and `ParameterSpec`, and rows 11 to 23 from `FundamentalDomain`, `Side`, `Verification`, and `Check` (Section 3.1 of `docs/design/domain.md`), and "a domain is built" means that `FundamentalDomain::build` returned `Ok`.
 
 | Order | Label | Printed when | Value |
 | --- | --- | --- | --- |
@@ -378,21 +396,23 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 | 8 | `Area` | `area_over_pi()` returns a value, which it does for a spherical or hyperbolic signature | The form of Section 5.2 |
 | 9 | `Deformation dimension` | `deformation_dimension()` returns a value, which it does for a compact hyperbolic signature | The integer in decimal |
 | 10 | `Parameter` | Once for each item that `parameters` returns for the signature, in its order | The name, `, range `, the minimum, ` to `, the maximum, `, default `, and the default value, with the numbers in the form of Section 5.2, such as `aspect, range 0.125 to 8, default 1` |
-| 11 | `Domain` | Always | `<n> mirror sides` when a domain is built, and otherwise `none, ` followed by the `Display` text of the error (Section 5.5) |
-| 12 | `Corner angles in degrees` | A domain is built | Each value of `corner_angles()` in degrees, in corner order, in the form of Section 5.2 |
-| 13 | `Side lengths` | A domain is built | Each value of `side_lengths()`, in side order, in the form of Section 5.2 |
-| 14 | `Domain area` | A domain is built | `area()`, in the form of Section 5.2 |
-| 15 | `Check isometries` | `--check` is given and a domain is built | The result of `isometries()`, in the form of Section 5.6 |
-| 16 | `Check pairings` | As row 15 | The result of `pairings()` |
-| 17 | `Check walls` | As row 15 | The result of `walls()` |
-| 18 | `Check relators` | As row 15 | The result of `relators()` |
-| 19 | `Check angles` | As row 15 | The result of `angles()` |
-| 20 | `Check area` | As row 15 | The result of `area()` of `Verification` |
-| 21 | `Verification` | As row 15 | `passed` when `Verification::passed()` is true, and otherwise `failed` |
+| 11 | `Domain` | Always | `<n> mirror sides` for a reflection domain, `<n> sides in <k> pairs` for a rotation domain, with `pair` when $k = 1$, as in `2 sides in 1 pair`, and `none, ` followed by the `Display` text of the error when no domain is built (Section 5.5) |
+| 12 | `Side pairs` | A rotation domain is built | Each pair of partner sides once, in the form of Section 5.5, such as `0 and 1 by rotation, 2 and 3 by rotation` |
+| 13 | `Parity colouring` | A domain is built and it has no reversing side | `none, every side pairing preserves orientation` |
+| 14 | `Corner angles in degrees` | A domain is built | Each value of `corner_angles()` in degrees, in corner order, in the form of Section 5.2 |
+| 15 | `Side lengths` | A domain is built | Each value of `side_lengths()`, in side order, in the form of Section 5.2 |
+| 16 | `Domain area` | A domain is built | `area()`, in the form of Section 5.2 |
+| 17 | `Check isometries` | `--check` is given and a domain is built | The result of `isometries()`, in the form of Section 5.6 |
+| 18 | `Check pairings` | As row 17 | The result of `pairings()` |
+| 19 | `Check walls` | As row 17 | The result of `walls()` |
+| 20 | `Check relators` | As row 17 | The result of `relators()` |
+| 21 | `Check angles` | As row 17 | The result of `angles()` |
+| 22 | `Check area` | As row 17 | The result of `area()` of `Verification` |
+| 23 | `Verification` | As row 17 | `passed` when `Verification::passed()` is true, and otherwise `failed` |
 
 CLI-6. `info` MUST print exactly the lines of this table, in this order and under these conditions, because the snapshots of Section 8 and every reader of the text rely on one layout, and an extra or missing line changes what a reader concludes about the signature. The table has no name of the group in another notation, such as an IUC or Schoenflies name, because `DEC-20` omits them until a primary source is read.
 
-So a signature without a domain gets the lines of rows 1 to 10 that apply to it and then exactly one more line, the `Domain` line of row 11, with or without `--check`. Rows 15 to 21 follow the order of the checks of Section 8.2 of `docs/design/domain.md`.
+So a signature without a domain gets the lines of rows 1 to 10 that apply to it and then exactly one more line, the `Domain` line of row 11, with or without `--check`. Rows 17 to 23 follow the order of the checks of Section 8.2 of `docs/design/domain.md`.
 
 ### 5.2. Number Formats
 
@@ -414,12 +434,12 @@ The floating-point values of the domain summary and the verification lines have 
 | Value | Rows | Form | Example |
 | --- | --- | --- | --- |
 | Minimum, maximum, and default of a parameter | 10 | The `Display` text of `f64`, `{}`, which writes the shortest decimal that reads back as the same value, with no exponent | `0.125`, `8`, `1` |
-| Corner angle | 12 | The value of `corner_angles()` in radians converted with `f64::to_degrees`, then written in fixed notation with six digits after the point, `{:.6}` | `25.714286` |
-| Side length | 13 | Fixed notation with six digits after the point, `{:.6}` | `0.545275` |
-| Domain area | 14 | Fixed notation with six digits after the point, `{:.6}` | `0.074800` |
-| Residual and tolerance | 15 to 20 | Scientific notation with one digit after the point, `{:.1e}` of Rust, which writes an infinite value as `inf` | `2.5e-3`, `1.0e-9` |
+| Corner angle | 14 | The value of `corner_angles()` in radians converted with `f64::to_degrees`, then written in fixed notation with six digits after the point, `{:.6}` | `25.714286` |
+| Side length | 15 | Fixed notation with six digits after the point, `{:.6}` | `0.545275` |
+| Domain area | 16 | Fixed notation with six digits after the point, `{:.6}` | `0.074800` |
+| Residual and tolerance | 17 to 22 | Scientific notation with one digit after the point, `{:.1e}` of Rust, which writes an infinite value as `inf` | `2.5e-3`, `1.0e-9` |
 
-Rows 12 and 13 separate the values with a comma and one space. Angles are in degrees on the command line, as Section 5.5 of `docs/design/architecture.md` states.
+Rows 14 and 15 separate the values with a comma and one space. Angles are in degrees on the command line, as Section 5.5 of `docs/design/architecture.md` states.
 
 ### 5.3. Examples
 
@@ -467,23 +487,46 @@ Domain area: 0.104720
 
 ON 6.4 gives the Euler characteristic $1/60$ and the order 120, which the table of ON 8.2 lists. The area comes from ON 7.3. The domain is the spherical triangle with the angles $\pi/5$, $\pi/3$, and $\pi/2$, in the corner order of the domain design. A 256-bit computation of the exact triangle on a prototype outside the repository gave the side lengths 0.5535743589, 0.6523581398, and 0.3648638281, in side order, and the area $\pi/30 = 0.1047197551$, so the printed values are correct to the digits shown. The snapshot of Section 8.1 fixes every printed value of the other spherical inputs. A spherical signature has no `Deformation dimension` line, and no `Parameter` line, because no spherical signature has a shape parameter.
 
-This example shows a spherical signature without a domain:
+This example shows a hyperbolic signature without reflections, whose domain is a rotation domain:
 
 ```sh
-escher info 532
+escher info 732
 ```
 
 ```text
-Signature: 532
-Geometry: spherical
-Euler characteristic: 1/30
+Signature: 732
+Geometry: hyperbolic
+Euler characteristic: -1/42
 Compact: yes
-Group order: 60
-Area: pi/15
-Domain: none, cannot build fundamental domain: the signature 532 is not supported
+Area: pi/21
+Deformation dimension: 0
+Domain: 4 sides in 2 pairs
+Side pairs: 0 and 1 by rotation, 2 and 3 by rotation
+Parity colouring: none, every side pairing preserves orientation
+Corner angles in degrees: 51.428571, 90.000000, 120.000000, 90.000000
+Side lengths: 0.545275, 0.545275, 0.283128, 0.283128
+Domain area: 0.149600
 ```
 
-ON 6.4 gives the Euler characteristic $1/30$, and the order 60 is $2/\chi$ (ON 7.3), which also gives the area. The signature needs no quotes, because it holds none of the special characters of Section 4.4.
+The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. The domain is the double of the triangle of `*732` across its side 1, as Section 6.8 of `docs/design/domain.md` states (DOM-23 to DOM-26). Its corners at the corners of order 7 and 3 of the triangle have twice their angles, $360/7$ and 120 degrees, and its sides are two copies of sides 0 and 2 of the triangle, whose lengths the example of `*732` gives. The domain area is twice that of `*732`. The snapshot of Section 8.1 fixes every printed value. The signature needs no quotes, because it holds none of the special characters of Section 4.4.
+
+This example shows a spherical signature without a domain:
+
+```sh
+escher info '3*2'
+```
+
+```text
+Signature: 3*2
+Geometry: spherical
+Euler characteristic: 1/12
+Compact: yes
+Group order: 24
+Area: pi/6
+Domain: none, cannot build fundamental domain: the signature 3*2 is not supported
+```
+
+The table of ON 8.2 gives the order 24, and the Euler characteristic $2/24 = 1/12$ and the area come from ON 7.3.
 
 This example shows a hyperbolic signature with a cone point and a corner:
 
@@ -667,26 +710,26 @@ Standard error is empty and the status is `Success`. The tolerances are those of
 With `--check`, a signature without a domain prints the same information text as without it, and then the diagnostic of Section 6.7:
 
 ```sh
-escher info --check 532
+escher info --check '3*2'
 ```
 
 Standard output:
 
 ```text
-Signature: 532
+Signature: 3*2
 Geometry: spherical
-Euler characteristic: 1/30
+Euler characteristic: 1/12
 Compact: yes
-Group order: 60
-Area: pi/15
-Domain: none, cannot build fundamental domain: the signature 532 is not supported
+Group order: 24
+Area: pi/6
+Domain: none, cannot build fundamental domain: the signature 3*2 is not supported
 ```
 
 Standard error:
 
 ```text
 error: cannot verify fundamental domain
-  caused by: cannot build fundamental domain: the signature 532 is not supported
+  caused by: cannot build fundamental domain: the signature 3*2 is not supported
 ```
 
 The status is `Failure`, so the exit status is 1.
@@ -697,27 +740,33 @@ The information text is not a stable interface, and a machine-readable form is a
 
 CLI-7. A change that alters the information text MUST update its snapshots in the same change, because the snapshot test fails otherwise, and the snapshot diff is how a reviewer sees each change to the text (`DEC-23`, rule TEST-2 of `docs/rust-coding-standards.md`).
 
-`info` prints no line about presentations, colourings, polygons, or colours, and no placeholder for them. Each needs a crate or a part of a crate that a later milestone adds. Section 3.4 of `docs/design/poc-plan.md` places them: the presentation in M7 (Section 5.7), and the list of colourings with their colour counts in M8 (Section 5.8). The owner's goal that `info` reports how many polygons the representative set has, and so which colour counts are possible, is met by that list in M8. The domain summary covers exactly the signatures that `escher-domain` constructs (Section 4 of `docs/design/domain.md`).
+`info` prints no line about presentations, colourings, polygons, or colours, and no placeholder for them, apart from the `Parity colouring` line of CLI-33, which states only that the parity colouring does not exist. Each needs a crate or a part of a crate that a later milestone adds. Section 3.4 of `docs/design/poc-plan.md` places them: the presentation in M7 (Section 5.7), and the list of colourings with their colour counts in M8 (Section 5.8). The owner's goal that `info` reports how many polygons the representative set has, and so which colour counts are possible, is met by that list in M8. The domain summary covers exactly the signatures that `escher-domain` constructs (Section 4 of `docs/design/domain.md`).
 
 ### 5.5. Domain Summary
 
-For every valid signature, `info` calls `parameters` once and prints the parameter lines of row 10, then calls `FundamentalDomain::build` once and prints the `Domain` line of row 11. Rows 12 to 14 follow only when a domain is built.
+For every valid signature, `info` calls `parameters` once and prints the parameter lines of row 10, then calls `FundamentalDomain::build` once and prints the `Domain` line of row 11. Rows 12 to 16 follow only when a domain is built, rows 12 and 13 only under their conditions.
 
-When a domain is built, the value of the `Domain` line is the number of `sides()` in decimal, one space, and `mirror sides`. Every side of a domain that `escher-domain` builds has the kind `Mirror` (Section 3.2 of `docs/design/domain.md`).
+When a reflection domain is built, the value of the `Domain` line is the number of `sides()` in decimal, one space, and `mirror sides`. When a rotation domain is built, the value is the number of `sides()`, ` sides in `, the number of pairs, and ` pairs` (` pair` when the number of pairs is 1), with both numbers in decimal, such as `4 sides in 2 pairs`. Every side of a rotation domain has a partner other than itself, so the number of pairs is half the number of sides, and the lune doubles of `22` and `nn` read `2 sides in 1 pair`. Every domain that `escher-domain` builds is a reflection domain or a rotation domain, and a domain with both mirrors and paired sides is outside this design.
 
-When `build` returns an error, the value is `none, ` followed by the `Display` text of that error, for every error kind. The `Display` text starts with `cannot build fundamental domain: ` (Section 10.2 of `docs/design/domain.md`), so the line reads, for example, `Domain: none, cannot build fundamental domain: the signature 532 is not supported`. The line holds only the `Display` text of the top error and no text of its source. The text holds the canonical signature or a number, both in printable ASCII, so it needs no replacement of characters.
+CLI-32. For a rotation domain, `info` MUST print the `Domain` line with the number of sides and of pairs, and one `Side pairs` line that names each pair of partner sides once, because a reader of `<n> mirror sides` for such a domain would take its sides for mirrors, and the pairs and their kinds are what tell the rotation subgroup from its reflection group.
 
-CLI-16. `info` MUST take the values of rows 10 to 21 from `escher-domain` unchanged, except for the conversion of the angles to degrees and the formats of Section 5.2, and MUST NOT measure or check the domain itself, because a second computation in this crate can differ from what `verify()` checks, and the printed values would then describe another domain than the one that passed.
+The value of the `Side pairs` line lists one item for each side $i$ whose `partner()` $j$ is larger than $i$, in increasing order of $i$, separated by a comma and one space. An item is $i$ in decimal, ` and `, $j$ in decimal, ` by `, and the word for `kind()` of side $i$: `rotation` for `PairingKind::Rotation` and `translation` for `PairingKind::Translation`, the kinds that Sections 3.1 and 3.2 of `docs/design/domain.md` define (DOM-27). For `732` the value is `0 and 1 by rotation, 2 and 3 by rotation`, and for `2222` it is `0 and 1 by rotation, 2 and 5 by translation, 3 and 4 by rotation`.
+
+CLI-33. `info` MUST print the line `Parity colouring: none, every side pairing preserves orientation` exactly when a domain is built and it has no reversing side, because the parity colouring is the default of `render` whenever it exists (CLI-34), so a reader needs to learn from `info` when it does not exist, and printing the line only then leaves the text of every reflection domain unchanged.
+
+When `build` returns an error, the value is `none, ` followed by the `Display` text of that error, for every error kind. The `Display` text starts with `cannot build fundamental domain: ` (Section 10.2 of `docs/design/domain.md`), so the line reads, for example, `Domain: none, cannot build fundamental domain: the signature 3*2 is not supported`. The line holds only the `Display` text of the top error and no text of its source. The text holds the canonical signature or a number, both in printable ASCII, so it needs no replacement of characters.
+
+CLI-16. `info` MUST take the values of rows 10 to 23 from `escher-domain` unchanged, except for the conversion of the angles to degrees and the formats of Section 5.2, and MUST NOT measure or check the domain itself, because a second computation in this crate can differ from what `verify()` checks, and the printed values would then describe another domain than the one that passed.
 
 CLI-17. Without `--check`, `info` MUST print the `Domain` line with `none` and return `Success` for a valid signature for which `build` returns an error, because the signature is still parsed, valid, and classified, and a non-zero status would tell a script that the signature itself is invalid.
 
-The values of rows 12 to 14 are rounded to six digits after the point. Sections 9.3, 9.4, and 9.5 of `docs/design/domain.md` bound the error of each value that `build` returns. A printed digit can therefore differ between two correct builds, such as builds on two platforms, only when the exact value lies within that bound of a rounding boundary of the sixth digit. Section 8.1 states how the snapshot inputs avoid that case.
+The values of rows 14 to 16 are rounded to six digits after the point. Sections 9.3 to 9.6 of `docs/design/domain.md` bound the error of each value that `build` returns. A printed digit can therefore differ between two correct builds, such as builds on two platforms, only when the exact value lies within that bound of a rounding boundary of the sixth digit. Section 8.1 states how the snapshot inputs avoid that case.
 
 ### 5.6. Verification Lines
 
-With `--check`, when a domain is built, `info` calls `verify()` once and prints rows 15 to 21 after the domain summary. The information text and the verification lines form one text, which `info` writes in one write.
+With `--check`, when a domain is built, `info` calls `verify()` once and prints rows 17 to 23 after the domain summary. The information text and the verification lines form one text, which `info` writes in one write.
 
-The value of each of rows 15 to 20 has this form, where the result is `passed` when `Check::passed()` is true and `failed` otherwise, and the residual and the tolerance have the form of Section 5.2:
+The value of each of rows 17 to 22 has this form, where the result is `passed` when `Check::passed()` is true and `failed` otherwise, and the residual and the tolerance have the form of Section 5.2:
 
 ```text
 <result>, residual <residual>, tolerance <tolerance>
@@ -725,7 +774,7 @@ The value of each of rows 15 to 20 has this form, where the result is `passed` w
 
 For example, a failed relator check prints `Check relators: failed, residual 2.5e-3, tolerance 2.0e-6`. A residual of infinity, which marks a failed structural condition or a computation that gave no finite number (Section 8.1 of `docs/design/domain.md`), prints as `inf`. No residual is NaN.
 
-Row 21 gives the overall result, `Verification: passed` or `Verification: failed`, from `Verification::passed()`.
+Row 23 gives the overall result, `Verification: passed` or `Verification: failed`, from `Verification::passed()`.
 
 CLI-18. With `--check`, `info` MUST print one line for each check that `Verification` reports, with its result, its residual, and its tolerance, in the order of Section 8.2 of `docs/design/domain.md`, and then the overall result, because a reader who sees only the overall result cannot tell which condition failed or by how much, and a line that omits the tolerance cannot be read without the design document.
 
@@ -873,17 +922,19 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 
 | Case | Step | Diagnostic |
 | --- | --- | --- |
-| `--colours` has the wrong number of items | 2 | `error: cannot render *732: the colouring parity needs 2 colours, and 3 were given`, with the colouring, the number it needs, and the number of items. The words are `1 colour` and `1 was given` for the number 1 |
-| An item of `--colours` is not a colour | 2 | `error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb`, with the position of the first such item, counted from 1 |
 | `--border-colour` is not a colour | 2 | `error: cannot render *732: --border-colour is not of the form #rgb or #rrggbb` |
 | `--background` is not a colour | 2 | `error: cannot render *732: --background is not of the form #rgb or #rrggbb` |
 | Two settings give the same name | 3 | `error: cannot render *2222: setting 2 of --set names the same parameter as setting 1`, with the position of the first setting whose name an earlier setting gave, and the position of that earlier setting, counted from 1 |
-| `build_with` returns `UnsupportedSignature` | 3 | `error: cannot render 532: rendering this signature is not supported`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
+| `build_with` returns `UnsupportedSignature` | 3 | `error: cannot render 3*2: rendering this signature is not supported`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
 | `build_with` returns any other error kind, such as an unknown parameter name or a value outside the range of its parameter | 3 | `error: cannot render *(1001)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
-| `escher-render` rejects an option, including a rotation angle or a light direction | 4 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
-| The thread pool cannot be built | 5 | `error: cannot render *732`, then `  caused by: cannot start the thread pool`, then `  caused by: ` and the `Display` text of the error of `rayon`. That text appears once, because the diagnostic takes it without the source of the error |
-| `escher-render` returns an error while rendering or encoding | 6, 7 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
-| The output file cannot be written | 8 | `error: cannot write the output file`, then `  caused by: ` and the `Display` text of the `std::io::Error` |
+| The domain has a side whose kind is not `Mirror`, while the interim rule CLI-36 holds | 3 | `error: cannot render 732: rendering this signature is not supported`, with no `caused by` line |
+| The colouring is `parity` and the domain has no reversing side (CLI-35) | 4 | `error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation` |
+| `--colours` has the wrong number of items | 4 | `error: cannot render *732: the colouring parity needs 2 colours, and 3 were given`, with the colouring, the number it needs, and the number of items. The words are `1 colour` and `1 was given` for the number 1 |
+| An item of `--colours` is not a colour | 4 | `error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb`, with the position of the first such item, counted from 1 |
+| `escher-render` rejects an option, including a rotation angle or a light direction | 5 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
+| The thread pool cannot be built | 6 | `error: cannot render *732`, then `  caused by: cannot start the thread pool`, then `  caused by: ` and the `Display` text of the error of `rayon`. That text appears once, because the diagnostic takes it without the source of the error |
+| `escher-render` returns an error while rendering or encoding | 7, 8 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
+| The output file cannot be written | 9 | `error: cannot write the output file`, then `  caused by: ` and the `Display` text of the `std::io::Error` |
 
 Section 7.2 of `docs/design/render.md` fixes the `Display` text of each error of `escher-render`, and Section 10.2 of `docs/design/domain.md` that of `escher-domain`. No render error has an echo line or a caret line.
 
@@ -894,13 +945,25 @@ CLI-26. A diagnostic of `render` MUST NOT repeat the value of an option or the o
 This example shows a signature without a domain:
 
 ```sh
-escher render 532 -o tiling.png
+escher render '3*2' -o tiling.png
 ```
 
 ```text
-error: cannot render 532: rendering this signature is not supported
-  caused by: cannot build fundamental domain: the signature 532 is not supported
+error: cannot render 3*2: rendering this signature is not supported
+  caused by: cannot build fundamental domain: the signature 3*2 is not supported
 ```
+
+This example shows the colouring `parity` for a signature whose domain has no reversing side:
+
+```sh
+escher render 732 --colouring parity -o rot.png
+```
+
+```text
+error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation
+```
+
+The text holds the canonical signature and fixed words only (CLI-26).
 
 This example shows a rotation angle that is not finite. `--rotation` reads `nan` as a number, and `escher-render` rejects it, for a signature of any geometry:
 
@@ -1002,7 +1065,7 @@ error: cannot write the output file
   caused by: No such file or directory (os error 2)
 ```
 
-Each of these diagnostics gives the status `Failure`. A failure before step 8 creates and changes no file (CLI-21). A write that fails after `std::fs::write` has opened the file can leave it truncated or partly written (Section 12). When `--stats` is given and the write of the statistics lines fails, Section 6.6 applies, and the output file stays written.
+Each of these diagnostics gives the status `Failure`. A failure before step 9 creates and changes no file (CLI-21). A write that fails after `std::fs::write` has opened the file can leave it truncated or partly written (Section 12). When `--stats` is given and the write of the statistics lines fails, Section 6.6 applies, and the output file stays written.
 
 ## 7. Streams and Exit Status
 
@@ -1011,7 +1074,7 @@ Each of these diagnostics gives the status `Failure`. A failure before step 8 cr
 | Status | When |
 | --- | --- |
 | `Success` | `info` without `--check` wrote its text, whether or not the signature has a domain. `info --check` wrote its text, and every check passed. `render` wrote the output file, and with `--stats` the statistics lines. `--help` or `--version` wrote the help or the version text |
-| `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`). A write to standard output failed (Section 6.6). With `--check`, a check failed or the signature has no domain (Section 6.7). `render` met a render error (Section 6.8), including a signature without a domain and a bad setting |
+| `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`). A write to standard output failed (Section 6.6). With `--check`, a check failed or the signature has no domain (Section 6.7). `render` met a render error (Section 6.8), including a signature without a domain, a bad setting, and the colouring `parity` for a domain without a reversing side |
 | `Usage` | `clap` reports a usage error (Section 6.5) |
 
 CLI-11. `run` MUST return `Failure` for every signature error, including a bad orbifold, because a caller that gets 0 for an invalid signature treats the missing information as valid (`DEC-24`). A caller that needs the error kind uses `escher-signature` directly.
@@ -1026,33 +1089,33 @@ The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main
 
 A test that can write the output file gets a path from a helper in `common`, in a directory of its own, `CARGO_TARGET_TMPDIR/escher-cli/<test>`. The helper empties that directory first, so a file from an earlier run cannot satisfy a test. The render usage snapshots and the render status tests fail before any file access and pass the fixed path `CARGO_TARGET_TMPDIR/escher-cli/never-written.png`, which a constant in `common` holds and no test creates.
 
-The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1, 5.3, 5.4, or 5.5 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2, 5.3, 5.4, or 5.5. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`. The fold properties, the reference tests, the border oracle, the symmetric view, the golden images, and the decoding of the pixels of the PNG file of Section 5.3 belong to `escher-render`.
+The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1, 5.3, 5.4, 5.5, or 5.6 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2, 5.3, 5.4, 5.5, or 5.6. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`. The fold properties, the reference tests, the border oracle, the symmetric view, the golden images, and the decoding of the pixels of the PNG file of Section 5.3 belong to `escher-render`.
 
 | Test | Plan item | Kind and module | Asserts | Under Miri |
 | --- | --- | --- | --- | --- |
-| Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `532`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself. Each text includes its `Domain` line, and the texts of `*732`, `*532`, `*632`, and `*236` their domain summaries | Ignored |
-| Domain snapshots | Command line of Sections 5.2, 5.4, and 5.5 of the plan, and a snapshot of the parameter listing | `insta`, `info` | The text and status for `info '*542'`, `info '*433'`, `info '*(1001)32'`, `info '*442'`, `info '*333'`, `info '*2222'`, `info '*332'`, `info '*722'`, `info '*55'`, `info '*22'`, `info --check '*732'`, `info --check 532`, `info --check '*(1000)32'`, `info --check '*2222'`, `info --check '*532'`, `info --check '*55'`, `info --check '*(1000)22'`, and `info --check '*(1001)(1001)'`, which is over the limit of `escher-domain`. The text of `*2222` holds its `Parameter` line. The plan writes the triangle $(3, 3, 4)$, whose canonical signature is `*433` | Ignored |
+| Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `3*2`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself. Each text includes its `Domain` line, and the texts of `*732`, `*532`, `*632`, and `*236` their domain summaries | Ignored |
+| Domain snapshots | Command line of Sections 5.2, 5.4, and 5.5 of the plan, and a snapshot of the parameter listing | `insta`, `info` | The text and status for `info '*542'`, `info '*433'`, `info '*(1001)32'`, `info '*442'`, `info '*333'`, `info '*2222'`, `info '*332'`, `info '*722'`, `info '*55'`, `info '*22'`, `info --check '*732'`, `info --check '3*2'`, `info --check '*(1000)32'`, `info --check '*2222'`, `info --check '*532'`, `info --check '*55'`, `info --check '*(1000)22'`, and `info --check '*(1001)(1001)'`, which is over the limit of `escher-domain`, and for the rotation domains `info 732`, `info --check 732`, `info 442`, `info 2222`, `info 532`, `info '(12)22'`, `info 55`, and `info 22`. The texts of `*2222` and `2222` hold their `Parameter` lines, and the texts of the rotation domains their `Side pairs` and `Parity colouring` lines. The plan writes the triangle $(3, 3, 4)$, whose canonical signature is `*433` | Ignored |
 | Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Section 12.1 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, a span after the infinity sign, and a span that is the infinity sign, under one caret | Ignored |
 | Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, a missing signature, and a repeated `--check`. The help of `info` shows `--check` | Ignored |
 | Version tests | None | Plain tests, `usage` | `--version` and `-V` give `Success`, empty standard error, and standard output equal to the package name, one space, the package version, and a line feed. Each test takes the name and the version from the package when it compiles, so a new version needs no change to the tests | Runs |
 | Echo limit tests | Failure paths | Plain tests, `diagnostics` | The status and the exact diagnostic for a signature of exactly 120 characters, which gets the echo line and the caret line, for one of 121 characters, which gets the byte span, and for one of 42 characters and 124 bytes, built with the infinity sign, which gets the echo line and the caret line because the limit counts characters | Runs |
 | Status tests | Failure paths | Plain tests, `main.rs`, `usage`, and `info` | `Success` for `*732`, `Failure` for `23`, `Usage` for an unknown subcommand and for an argument that is not UTF-8, each with the start of the standard output or standard error that it writes, equal output for `*22(inf)` and the same signature with the infinity sign, and the exit statuses 0, 1, and 2 of the three values of `Status` | Runs |
-| Verification status tests | Command line of Section 5.2 of the plan, failure paths | Plain tests, `info` | `Success`, empty standard error, and a standard output that ends with `Verification: passed` and a line feed for `info --check '*732'`, and the same with `--check` after the signature. `Failure`, the diagnostic of Section 6.7, and a standard output that ends with the `Domain` line for `info --check 532`. `Success` and empty standard error for `info 532` | Runs |
+| Verification status tests | Command line of Section 5.2 of the plan, failure paths | Plain tests, `info` | `Success`, empty standard error, and a standard output that ends with `Verification: passed` and a line feed for `info --check '*732'`, and the same with `--check` after the signature. `Failure`, the diagnostic of Section 6.7, and a standard output that ends with the `Domain` line for `info --check '3*2'`. `Success` and empty standard error for `info '3*2'` | Runs |
 | Failed check text | Failure paths | Unit tests in `info.rs` | The private formatter, given a failed check as plain numbers, writes `failed, residual 2.5e-3, tolerance 1.0e-6`, writes `inf` for an infinite residual, and writes `NaN` when given a NaN, which no residual of `escher-domain` is, and the private function that writes the diagnostic of Section 6.7 writes `2 of 6 checks failed` for two failed checks. Given rows of label, verdict, residual, and tolerance with one failed check of six, the private function that builds the verification lines adds the six check lines and `Verification: failed` and returns an error. The private function that writes the text writes those lines first and then returns that error, whose diagnostic is `error: cannot verify fundamental domain: 1 of 6 checks failed` | Runs |
 | Residual labels | Command line of Section 5.2 of the plan | Plain test, `info` | `Success` for `info --check '*(11)(10)5'`, and each line that starts with `Check ` equals the line that the format of Section 5.6 gives for the residual and the tolerance of the matching accessor of `Verification`, computed in the same process for the same signature | Ignored |
-| Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info`, for `info --check`, and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. For `info --check 532`, the failed write gives only that diagnostic and no verification diagnostic. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
+| Output error tests | Failure paths | Plain tests, `info` and `usage` | A writer that fails with a broken pipe gives `Failure` and empty standard error, for `info`, for `info --check`, and for `--version`. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6, and so does a writer whose flush fails. For `info --check '3*2'`, the failed write gives only that diagnostic and no verification diagnostic. A failing standard error keeps `Failure` after a signature error and `Usage` after a usage error | Runs |
 | Control characters | Failure paths | Plain test, `usage` | A usage error for an argument with control characters writes `?` in place of each of them (CLI-15) | Runs |
 | Auto traits | None | Plain test, `main.rs` | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`). The test calls a generic function whose type parameter is bounded by `Send + Sync`, so it fails to compile if `Status` loses either trait | Runs |
-| Render usage snapshots | Command line of Section 5.3 of the plan, failure paths | `insta`, `usage` | `render --help`, and for `render`: a missing signature, a missing `--output`, `--size 512`, `--size 512x`, `--samples x`, `--colouring three`, `--threads 0`, `--threads 257`, a repeated `--stats`, a repeated `--size`, `--set aspect`, `--set =2`, `--rotation 1,2`, `--rotation a,b,c`, `--rotation 1,2,3,4`, `--light 1,,2`, `--shading gouraud`, a repeated `--rotation`, and `--rotation --stats`. Each of these that gives `--output` gives the fixed path that no test creates. The snapshot of `--help` shows `render` among the commands, and the snapshot of `render --help` shows the usage line, the defaults, the possible values of `--colouring` and `--shading`, `--set`, `--rotation`, and `--light` | Ignored |
-| Render diagnostic snapshots | Command line of Sections 5.3 and 5.5 of the plan, failure paths | `insta`, `render` | The diagnostic and status of `render 23`, `render 532`, `render '*532' --set aspect=2`, `--rotation nan,0,0`, `--light 0,0,0`, and `--light inf,0,0` for `*532`, `render '3*(inf)'`, `render '*(1001)32'`, the three examples of settings of Section 6.8, three colours and one colour for `parity`, `--colours '#e9c46a,red'`, `--border-colour red`, `--background '#ffff'`, `--size 0x0`, a size over the limit, `--samples 0`, a sample grid over the limit, `--border-width=-1`, and an output path in a directory that does not exist. `--border-width=-1` uses `=`, so that `clap` reads `-1` as the value (Section 11.1) | Ignored |
+| Render usage snapshots | Command line of Section 5.3 of the plan, failure paths | `insta`, `usage` | `render --help`, and for `render`: a missing signature, a missing `--output`, `--size 512`, `--size 512x`, `--samples x`, `--colouring three`, `--threads 0`, `--threads 257`, a repeated `--stats`, a repeated `--size`, `--set aspect`, `--set =2`, `--rotation 1,2`, `--rotation a,b,c`, `--rotation 1,2,3,4`, `--light 1,,2`, `--shading gouraud`, a repeated `--rotation`, and `--rotation --stats`. Each of these that gives `--output` gives the fixed path that no test creates. The snapshot of `--help` shows `render` among the commands, and the snapshot of `render --help` shows the usage line, the defaults, the possible values of `--colouring` and `--shading`, the help text of `--colouring` with its default, `--set`, `--rotation`, and `--light` | Ignored |
+| Render diagnostic snapshots | Command line of Sections 5.3 and 5.5 of the plan, failure paths | `insta`, `render` | The diagnostic and status of `render 23`, `render '3*2'`, `render 732 --colouring parity`, `render 732 --colours '#e9c46a,#2a9d8f'`, `render '*532' --set aspect=2`, `--rotation nan,0,0`, `--light 0,0,0`, and `--light inf,0,0` for `*532`, `render '3*(inf)'`, `render '*(1001)32'`, the three examples of settings of Section 6.8, three colours and one colour for `parity`, `--colours '#e9c46a,red'`, `--border-colour red`, `--background '#ffff'`, `--size 0x0`, a size over the limit, `--samples 0`, a sample grid over the limit, `--border-width=-1`, and an output path in a directory that does not exist. `--border-width=-1` uses `=`, so that `clap` reads `-1` as the value (Section 11.1) | Ignored |
 | Statistics snapshot | Command line of Section 5.3 of the plan | `insta`, `render` | The status, the statistics lines, and the empty standard error of `render '*732' --size 16x16 --samples 1 --stats`, with the values masked as CLI-28 requires. `Samples: 256` stays in the snapshot | Ignored |
 | Spherical statistics snapshot | Command line of Section 5.5 of the plan | `insta`, `render` | As "Statistics snapshot", for `render '*532' --size 16x16 --samples 1 --stats`, in a test and a snapshot of its own | Ignored |
 | Written file | The PNG file decodes to the requested size | Plain test, `render` | `Success`, empty standard output and standard error, and a file for `render '*732' --size 48x32 --samples 2`. The test reads the file by hand: it starts with the 8-byte PNG signature, its first chunk is `IHDR` with length 13, a width of 48 and a height of 32 as big-endian `u32` values, a bit depth of 8, and the colour type 2, which is RGB, as Section 5.6 of `docs/design/render.md` requires, and a chunk `sRGB` comes before the first `IDAT` chunk. The non-square size catches a swap of width and height | Ignored |
 | Thread independence | Command line of Section 5.3 of the plan (CLI-23) | Plain test, `render` | The files of `render '*732' --size 64x64 --samples 2` with `--threads 1` and with `--threads 4` are equal byte for byte, and both equal the PNG bytes that `escher-render` encodes from one call of `render` on the whole image with the same options. The second comparison catches bands that are assembled in the wrong order, which gives the same wrong bytes for every number of threads | Ignored |
 | Global pool unused | Command line of Section 5.3 of the plan (CLI-22) | Plain test, `render` | After `render '*732' --size 8x8 --samples 1` returns `Success`, building the global pool of `rayon` still succeeds, so `render` did not use the global pool. The test relies on nextest running each test in a process of its own | Ignored |
-| Output file handling | Failure paths (CLI-21, `DEC-30`) | Plain tests, `render` | An existing file at the output path is replaced by the image. An output path that is a symbolic link to a file gives the image in that file and stays a link (Section 11.1). For `render 532`, for `--size 0x0`, for a bad colour, for `render '*2222' --set aspect=9`, and for `render '*532'` with `--rotation nan,0,0` and with `--light 0,0,0`, an existing file keeps its bytes and a missing path stays missing | Ignored |
+| Output file handling | Failure paths (CLI-21, `DEC-30`) | Plain tests, `render` | An existing file at the output path is replaced by the image. An output path that is a symbolic link to a file gives the image in that file and stays a link (Section 11.1). For `render '3*2'`, for `render 732 --colouring parity`, for `--size 0x0`, for a bad colour, for `render '*2222' --set aspect=9`, and for `render '*532'` with `--rotation nan,0,0` and with `--light 0,0,0`, an existing file keeps its bytes and a missing path stays missing | Ignored |
 | Render output errors | Failure paths | Plain tests, `render` | With `--stats`, a writer that fails with a broken pipe gives `Failure` and empty standard error, and the output file is written. A writer that fails with another error gives `Failure` and the diagnostic of Section 6.6. For a broken pipe on the output file, the test makes a FIFO with `mkfifo` in its test directory, a reader thread opens the FIFO and closes it at once, and `render '*732' --size 1024x1024 --samples 1` writes into it. It asserts `Failure`, empty standard output, and a standard error of exactly `error: cannot write the output file`, then `  caused by: Broken pipe (os error 32)` | Ignored |
-| Render status tests | Failure paths | Plain tests, `render` | `Failure` and the first line of standard error for `render 532`, for two colours for `one`, for `--colours '#e9c46a,red'`, and for `--size 0x0`, and `Usage` for a missing `--output`. Each fails before step 5, so it starts no thread pool and writes no file. Outside Miri, each test that gives `--output` removes any file at the fixed path first and asserts afterwards that no file exists there | Runs |
+| Render status tests | Failure paths | Plain tests, `render` | `Failure` and the first line of standard error for `render '3*2'`, for `render 732 --colouring parity`, for two colours for `one`, for `--colours '#e9c46a,red'`, and for `--size 0x0`, and `Usage` for a missing `--output`. Each fails before step 6, so it starts no thread pool and writes no file. Outside Miri, each test that gives `--output` removes any file at the fixed path first and asserts afterwards that no file exists there | Runs |
 | Colour parser | Failure paths | Unit tests in `render.rs` | The private parser reads `#e9c46a`, `#E9C46A`, and `#e9c` as the channels that Section 4.6 gives, and rejects `e9c46a`, `#`, `#e9c4`, `#e9c46a0`, `#ggg`, an empty string, a colour with a space before or after it, and a colour with a non-ASCII digit. The private function that splits `--colours` reports the position of the first bad item, and the text of the wrong count uses `1 colour` and `1 was given` for the number 1 | Runs |
 | Statistics text | Command line of Section 5.3 of the plan | Unit tests in `render.rs` | The private formatter, given counts as plain integers and a time, writes the five lines of Section 4.7: `10.01` for 1001 folds over 100 inside samples, `0.00` for no inside sample, a correct mean for `u64::MAX` folds, and `0.315` for a time of 0.3154 seconds | Runs |
 | Thread pool diagnostic | Failure paths | Unit test in `render.rs` | The private function that builds the error of a failed thread pool, given a stand-in error whose `Display` text is that of its inner `std::io::Error`, which is also its source, gives the diagnostic `error: cannot render *732`, then `  caused by: cannot start the thread pool`, then `  caused by: no thread can be started`, with the cause once. A stand-in is needed because the error type of `rayon` has no public constructor | Runs |
@@ -1061,6 +1124,8 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Repeated setting | Failure paths | Unit tests in `render.rs` | The private function that collects the settings of `--set` gives `setting 3 of --set names the same parameter as setting 1` when setting 3 repeats the name of setting 1, and keeps every setting when no name repeats | Runs |
 | Spherical render | Command line of Section 5.5 of the plan | Plain tests, `render` | `render '*532' --size 48x32 --samples 2` gives `Success` and a file whose header holds the requested size, read as the test "Written file" reads it. The files of `render '*532' --size 64x64 --samples 2` with `--threads 1` and with `--threads 4` are equal byte for byte. `--rotation -20,35,0` and `--light=-1,1,2` give `Success`, and the file with `--rotation 20,35,0` differs from the file with the default rotation | Ignored |
 | Triple parser | Failure paths | Unit tests in `args.rs` | The private parser reads `20,35,0`, `-1,1,2`, and `nan,0,0` as three numbers, and rejects `1,2`, `a,b,c`, `1,2,3,4`, `1,,2`, an empty value, and a value with a space before or after an item, with the message of Section 4.6 | Runs |
+| Default colouring | Command line of Section 5.6 of the plan (CLI-34) | Plain tests, `render` | `render 732 --size 32x32 --samples 1` gives `Success`, and its file equals byte for byte the file with `--colouring one`. The file of `render '*732' --size 32x32 --samples 1` equals byte for byte the file with `--colouring parity`. `render 442`, `render 2222 --set aspect=1.618`, and `render 532`, each at 48 by 32 pixels with 2 samples, give `Success` and a file whose header holds the requested size, read as the test "Written file" reads it | Ignored |
+| Interim refusal | Failure paths (CLI-36) | Plain test, `render` | `Failure` and the diagnostic of the row of CLI-36 of Section 6.8 for `render 732`, and no file. While CLI-36 holds, it is the only test that renders a rotation signature, because every such `render` stops at step 3. The change that withdraws CLI-36 removes it and adds the rotation inputs that the tests "Render diagnostic snapshots", "Output file handling", "Render status tests", and "Default colouring" name, such as `render 732 --colouring parity` | Runs |
 | Smoke test | One process-level smoke test of the binary | Plain test, `process` | The binary that Cargo names in `CARGO_BIN_EXE_escher`, run with `render '*732' --size 32x32 -o <path>`, exits with status 0, writes nothing to standard output or standard error, and writes a file that starts with the PNG signature | Ignored |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 
@@ -1082,7 +1147,7 @@ Each stream follows its marker line unchanged, so a stream that ends with a line
 Every snapshot must be deterministic (rule TEST-2 of `docs/rust-coding-standards.md`), and two kinds of floating-point value in the output need a rule for that:
 
 - The residual of a passed check is a rounding error, whose last digits can depend on the mathematics library of the platform. In every line that starts with `Check `, the snapshot helper replaces the text between `residual ` and the next `,` with `<residual>`, as the example of Section 5.3 shows. The tolerance, the result, and the line `Verification` stay in the snapshot. The test "Failed check text" covers the form of a residual. The test "Residual labels" covers which residual each label prints, without a snapshot, because it compares the output with values computed in the same process. Its input `*(11)(10)5` is the only reflection triangle with corner orders up to 30 whose six residuals print pairwise distinct in the development container, so there a swap of any two checks changes the output. The test does not assert that the residuals are distinct, so on a platform where two of them print the same, a swap of those two checks goes unnoticed.
-- The values of rows 12 to 14 are printed with six digits after the point (Section 5.5). A snapshot input is chosen so that the exact value of each of these rows lies farther from a rounding boundary of the sixth digit than the bound of Section 9.3 of `docs/design/domain.md` in the column for the orders of that input, converted to degrees for an angle. The column "Orders up to 12" applies to `*732`, `*542`, and `*433`, and the column "(1000, 3, 2)" to `*(1000)32`. Every correct build then prints the same digits. A 256-bit computation of `*732` confirms this for every value of its summary, as Section 5.3 shows. The test "Triangles" of `docs/design/domain.md` checks the values of the other inputs against the reference arithmetic of `escher-domain`, within the bound of that column (Section 12.1 of that document). For each of these inputs, the distance of every exact value to the nearest rounding boundary of the sixth digit, computed in double precision, is larger than that bound, so every snapshot input meets the condition. For `*632`, `*442`, `*333`, and `*2222`, the bound of each quantity in Section 9.4 of `docs/design/domain.md` applies, and every value of their summaries lies at least $4.36 \times 10^{6}$ times its bound, converted to degrees for an angle, from the nearest rounding boundary of the sixth digit. For `*532`, `*332`, `*722`, `*55`, `*22`, and `*(1000)22`, the bound of each quantity in Section 9.5 of `docs/design/domain.md` applies. Every exact value of their summaries lies at least $8.27 \times 10^{-8}$ from the nearest rounding boundary of the sixth digit, at side 1 of `*332`, whose length is 1.2309594173. That distance is at least $2.07 \times 10^{5}$ times the largest bound of Section 9.5, $4 \times 10^{-13}$. Their angles are whole numbers of degrees or $180/7$ and 0.18 degrees, far from a boundary. The minimum, the maximum, and the default of a parameter are constants of `escher-domain`, whose `Display` text is the same on every platform, so they need no such condition.
+- The values of rows 14 to 16 are printed with six digits after the point (Section 5.5). A snapshot input is chosen so that the exact value of each of these rows lies farther from a rounding boundary of the sixth digit than the bound of Section 9.3 of `docs/design/domain.md` in the column for the orders of that input, converted to degrees for an angle. The column "Orders up to 12" applies to `*732`, `*542`, and `*433`, and the column "(1000, 3, 2)" to `*(1000)32`. Every correct build then prints the same digits. A 256-bit computation of `*732` confirms this for every value of its summary, as Section 5.3 shows. The test "Triangles" of `docs/design/domain.md` checks the values of the other inputs against the reference arithmetic of `escher-domain`, within the bound of that column (Section 12.1 of that document). For each of these inputs, the distance of every exact value to the nearest rounding boundary of the sixth digit, computed in double precision, is larger than that bound, so every snapshot input meets the condition. For `*632`, `*442`, `*333`, and `*2222`, the bound of each quantity in Section 9.4 of `docs/design/domain.md` applies, and every value of their summaries lies at least $4.36 \times 10^{6}$ times its bound, converted to degrees for an angle, from the nearest rounding boundary of the sixth digit. For `*532`, `*332`, `*722`, `*55`, `*22`, and `*(1000)22`, the bound of each quantity in Section 9.5 of `docs/design/domain.md` applies. Every exact value of their summaries lies at least $8.27 \times 10^{-8}$ from the nearest rounding boundary of the sixth digit, at side 1 of `*332`, whose length is 1.2309594173. That distance is at least $2.07 \times 10^{5}$ times the largest bound of Section 9.5, $4 \times 10^{-13}$. Their angles are whole numbers of degrees or $180/7$ and 0.18 degrees, far from a boundary. For the rotation inputs `732`, `442`, `2222`, `532`, `(12)22`, `55`, and `22`, the bounds of Section 9.6 of `docs/design/domain.md` apply, and the distance of every value of their summaries from the nearest rounding boundary of the sixth digit is to be measured and recorded here. The minimum, the maximum, and the default of a parameter are constants of `escher-domain`, whose `Display` text is the same on every platform, so they need no such condition.
 
 CLI-20. A snapshot MUST NOT hold a residual of a check, and its inputs MUST meet the condition on rounding boundaries above, because a value that depends on the last bits of floating-point arithmetic makes the snapshot test fail on a platform whose mathematics library rounds differently, although the program is correct.
 
@@ -1141,11 +1206,11 @@ The other tests of Section 8.1 run under Miri unchanged, because they use only m
 
 The plain tests that run `info` on `*732` build its domain under Miri, and those that pass `--check` also verify it, so they run the arithmetic of `glam` and the floating-point functions of the standard library in the interpreter. The verification of `*732` needs few matrix products (Section 8.2 of `docs/design/domain.md`), so these tests need no attribute. They assert the status and the start or the end of the output, and no digit of a floating-point value, because the interpreter need not reproduce the last bits of the host library (Section 12.3 of `docs/design/domain.md`). They pass under `just check-miri`.
 
-Every test of `render` that reaches step 5 of Section 4.5 starts the thread pool, and every such test that succeeds writes the output file. A two-thread pool of `rayon`, run under Miri on a prototype outside the repository on 2026-11-16, made Miri report undefined behaviour inside `crossbeam-epoch` 0.9.21, a dependency of `rayon`. With the option `-Zmiri-tree-borrows`, Miri reported memory leaks instead. The owner accepts this for the proof of concept (`DEC-21`).
+Every test of `render` that reaches step 6 of Section 4.5 starts the thread pool, and every such test that succeeds writes the output file. A two-thread pool of `rayon`, run under Miri on a prototype outside the repository on 2026-11-16, made Miri report undefined behaviour inside `crossbeam-epoch` 0.9.21, a dependency of `rayon`. With the option `-Zmiri-tree-borrows`, Miri reported memory leaks instead. The owner accepts this for the proof of concept (`DEC-21`).
 
 CLI-27. Every test that reaches the thread pool MUST carry `#[cfg_attr(miri, ignore = "the thread pool library fails the checks of the interpreter")]`, unless it already carries the attribute of a snapshot test, because without it `just check-miri` fails on a defect that is outside this crate and that the owner has accepted.
 
-The smoke test carries `#[cfg_attr(miri, ignore = "the interpreter cannot start a process")]`. The tests "Output file handling" that fail before step 5 still create and read files, which the isolation of Miri refuses, so they carry `#[cfg_attr(miri, ignore = "the interpreter refuses file access")]`. The test of a broken pipe on the output file reaches the thread pool and also starts the process `mkfifo`. It carries the attribute of CLI-27, because a test carries only one `ignore` attribute. The tests "Render status tests" fail before step 5, so they run under Miri, and they pass under `just check-miri`. Under `cfg!(miri)` they skip the removal of a stale file and the check that no file exists, because the isolation of Miri refuses file access. They build the domain of `*732` in the interpreter, as the plain tests of `info` do.
+The smoke test carries `#[cfg_attr(miri, ignore = "the interpreter cannot start a process")]`. The tests "Output file handling" that fail before step 6 still create and read files, which the isolation of Miri refuses, so they carry `#[cfg_attr(miri, ignore = "the interpreter refuses file access")]`. The test of a broken pipe on the output file reaches the thread pool and also starts the process `mkfifo`. It carries the attribute of CLI-27, because a test carries only one `ignore` attribute. The tests "Render status tests" and "Interim refusal" fail before step 6, so they run under Miri. Under `cfg!(miri)` they skip the removal of a stale file and the check that no file exists, because the isolation of Miri refuses file access. They build the domain of `*732` or `732` in the interpreter, as the plain tests of `info` do.
 
 ## 9. Dependencies
 
@@ -1230,7 +1295,7 @@ CLI-14. The dev-dependencies of this crate MUST stay inside the dependency polic
 
 ## 10. Unverified Statements
 
-This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-10`, `UNV-26`, `UNV-28`, and `UNV-29` through `escher-domain`, and on `UNV-1`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
+This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-10`, `UNV-22`, `UNV-26`, `UNV-28`, `UNV-29`, `UNV-30`, and `UNV-31` through `escher-domain`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
 
 | Id | How this crate relies on it |
 | --- | --- |
@@ -1240,12 +1305,14 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 | `UNV-10` | `info` prints one `Parameter` line for each parameter that `escher-domain` specifies, such as one for `*2222`. No source states whether the published parameter count of `*2222` includes the scale, so the lines list the parameters of the construction and claim no count |
 | `UNV-28` | `info` prints the summary of a Euclidean triangle, and `render` draws it, from the vertex coordinates that `escher-domain` builds, whose checks and tests its design states |
 | `UNV-29` | `info` prints the summary of a lune, and `render` draws it as a fundamental domain, which no source states. `info --check` reports the checks that test it |
+| `UNV-22`, `UNV-30`, `UNV-31` | `info` prints the summary of a rotation domain, and `render` draws it as a fundamental domain of the rotation subgroup, which rests on the signature of that subgroup, on the lune double, and on the convexity and the vertex cycles of the double. `info --check` reports the checks that test each build |
 | `UNV-1` | `render` relies on the fold to stop for the samples of an image of a reflection triangle, rectangle, or lune. `Unconverged samples` counts the samples for which it does not stop within the fold cap, which on the sphere can happen near a vertex of very high order |
+| `UNV-2` | `render` relies on the fold to stop for the samples of an image of a rotation domain. `Unconverged samples` counts the samples for which it does not stop within the fold cap |
 | `UNV-16` | The ball that `render` draws comes from the lift onto the ball and the Phong reflection model, whose primary paper is unread |
 | `UNV-3` | A sample on or next to a wall can take either neighbouring tile, which is why CLI-28 masks the fold counts |
 | `UNV-4` | The default fold cap of `DEC-7` rests on fold counts measured on a prototype, and no source bounds them |
 | `UNV-15` | The border that `render` draws comes from the gradient form of the border estimate (`DEC-28`) |
-| `UNV-18` | The default colouring `parity` colours the tiles by the parity of the fold |
+| `UNV-18` | The default colouring `parity` of a domain with a reversing side colours the tiles by the parity of the fold, and the line `Parity colouring: none` and the diagnostic of CLI-35 rest on the reading that no parity colouring exists when every pairing preserves orientation |
 
 ## 11. Assumptions, Choices, and Open Questions
 
@@ -1284,14 +1351,14 @@ These choices are made here, and no other document dictates them:
 13. The help, version, and usage text of `clap` has each control character other than the line feed replaced with `?` (Section 6.5).
 14. A snapshot holds the status and each stream between fixed marker lines, with a final marker line (Section 8.1).
 15. A `Domain` line for every valid signature, with `none, ` and the `Display` text of the error of `escher-domain` when no domain is built, and the status `Success` for such a signature without `--check` (Section 5.5).
-16. The labels of rows 11 to 21, angles in degrees, and six digits after the point for the domain summary (Sections 5.1 and 5.2).
+16. The labels of rows 11 to 23, angles in degrees, and six digits after the point for the domain summary (Sections 5.1 and 5.2).
 17. Every check line shows its result, its residual, and its tolerance in the form `{:.1e}`, and a final `Verification` line gives the overall result (Section 5.6).
 18. With `--check`, a failed check and a missing domain each give `Failure` and a diagnostic (Section 6.7).
 19. The information text is written before the verification diagnostic (Section 6.7).
 20. The snapshot helper replaces the residual of each check line, and the snapshot inputs keep the printed digits away from rounding boundaries (Section 8.1).
 21. The `clap` flag `--check` is a `bool` converted at once into a private enum (Section 4.3).
 22. A repeated `--check` stays the usage error that `clap` gives (Section 4.3).
-23. The steps of `render` and their order, with the colours read before the domain is built (Section 4.5).
+23. The steps of `render` and their order, with the border colour and the background colour read before the domain is built, and the colouring and the fill colours after it (Section 4.5).
 24. `clap` checks only the syntax of an option value, and `escher-render` checks its range, so a size of `0x0` gives `Failure` and not `Usage` (Section 4.6).
 25. The limit of 1 to 256 threads, and the default of the available parallelism, at most 256 (Section 4.6).
 26. A thread pool for every call, also for one thread, and bands of one row (Section 4.5).
@@ -1305,13 +1372,18 @@ These choices are made here, and no other document dictates them:
 34. `render` reports a parameter set twice itself, and leaves every other check of a setting to `escher-domain` (CLI-29).
 35. The label, the position, and the form of the `Parameter` line, with the numbers in the `Display` form of `f64` (Section 5.1).
 36. `render` refuses no domain for its geometry, because `escher-render` has a view for every geometry (RND-23 of `docs/design/render.md`).
-37. The examples and snapshots that need a signature without a domain use `532` (Sections 5.3 and 8.1).
+37. The examples and snapshots that need a signature without a domain use `3*2`, a spherical signature whose group order `info` prints (Sections 5.3 and 8.1).
 38. The options `--rotation`, `--light`, and `--shading`, with their value names, help texts, and defaults (Sections 4.2 and 4.6).
 39. One parser for both triples, with exactly three items, nothing trimmed, and one message (Section 4.6).
 40. `allow_hyphen_values` on `--rotation` and `--light` (CLI-31).
 41. The value `none` of `--shading` for `Shading::Flat` (Section 4.6).
 42. The three options are read for every signature, checked by `escher-render`, and have no effect on a hyperbolic or Euclidean signature (Section 4.6).
 43. `escher info` prints no line about the view, the light, or the shading (Section 5.1).
+44. The `Domain` line of a rotation domain gives the numbers of sides and of pairs, and one `Side pairs` line names each pair once by its lower index, with the words `rotation` and `translation` (CLI-32).
+45. The `Parity colouring` line only when a domain is built and it has no reversing side, so the text of every reflection domain stays unchanged (CLI-33).
+46. `--colouring` without a default of `clap`, and the default chosen from the domain (CLI-34).
+47. An explicit `--colouring parity` for a domain without a reversing side is an error, and not an image in one colour (CLI-35, `DEC-32`).
+48. The diagnostic of the interim rule CLI-36 is that of an unsupported signature, with no `caused by` line, because no error of `escher-domain` caused it (Section 6.8).
 
 ### 11.3. Points for the Owner
 
@@ -1334,6 +1406,9 @@ None of these blocks the implementation:
 15. The options of the ball (Section 4.6). `--rotation` takes the yaw, the pitch, and the roll in degrees, `--light` takes `X,Y,Z`, and `--shading` takes `phong` or `none`, with the defaults of `DEC-16`. Points 24 to 29 of Section 12.3 of `docs/design/render.md` hold their conventions and constants. The alternatives are other value forms, such as one option per angle.
 16. A value that starts with `-` for `--rotation` and `--light` (CLI-31). The design accepts it, so `--light -1,1,2` works, and an option name directly after either option is read as its value. The alternative accepts only the form with `=`, such as `--light=-1,1,2`.
 17. The options of the ball on a hyperbolic or Euclidean signature (Section 4.6). They are checked and have no effect. The alternative is an error.
+18. The `Parity colouring` line (CLI-33). The design prints it only for a domain with no reversing side. The alternative prints a `Parity colouring` line for every built domain, which changes the snapshot of every reflection domain.
+19. `--colouring parity` for a domain without a reversing side (CLI-35, `DEC-32`). The design reports an error and writes no file. The alternative draws the image in the first colour, as `escher-render` does (RND-33 of `docs/design/render.md`).
+20. The fill colours follow the colouring that the domain gives (Section 4.6). So `escher render 732 --colours '#e9c46a,#2a9d8f'` fails, because the default colouring of `732` is `one`. The alternative chooses the colouring from the number of colours given, which adds a second rule for the default.
 
 ## 12. Security Considerations
 
@@ -1375,6 +1450,7 @@ The supported platform is Linux. The minimum supported Rust version is the one t
 | `render` gets a signature without a domain | The diagnostic of Section 6.8, with `Failure` | Use a signature that `escher-domain` constructs, which `escher info` shows in its `Domain` line |
 | `render` gets an unknown parameter name, a value outside the range of its parameter, or a parameter set twice | The diagnostic of Section 6.8, with `Failure` | Use the names and ranges that `escher info` lists, each name once |
 | `render` gets a bad colour or the wrong number of colours | The diagnostic of Section 6.8, with `Failure` | Give each colour as `#rgb` or `#rrggbb`, quoted, as many as the colouring needs |
+| `render` gets `--colouring parity` for a domain without a reversing side | The diagnostic of Section 6.8, with `Failure` | Leave out `--colouring`, or give `--colouring one`. The line `Parity colouring` of `escher info` shows such a domain |
 | `render` gets an option value outside a limit of `escher-render`, a rotation angle that is not finite, or a light direction that is zero or not finite | The diagnostic of Section 6.8, with `Failure` | Choose a value within the limits of Section 4.1 of `docs/design/render.md` |
 | `render` cannot write the output file | The diagnostic of Section 6.8, with `Failure` | Fix the path or its directory, and run the command again |
 | Samples reach the fold cap | No error. `Unconverged samples` counts them with `--stats`, and they take the border colour (`DEC-7`) | Raise `--max-folds` |
@@ -1430,3 +1506,8 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-29 | 4.5 | `render` passes every setting to `escher-domain` and checks no name or value itself, except a name that two settings give. |
 | CLI-30 | 4.5 | Withdrawn on 2026-11-17. |
 | CLI-31 | 4.6 | `--rotation` and `--light` accept a value that starts with `-`. |
+| CLI-32 | 5.5 | `info` prints the numbers of sides and pairs in the `Domain` line of a rotation domain, and one `Side pairs` line. |
+| CLI-33 | 5.5 | `info` prints `Parity colouring: none, every side pairing preserves orientation` exactly when a domain is built and has no reversing side. |
+| CLI-34 | 4.6 | Without `--colouring`, `render` uses `parity` when the domain has a reversing side, and `one` otherwise. |
+| CLI-35 | 4.5 | `render --colouring parity` for a domain without a reversing side fails at step 4 with its diagnostic and writes no file. |
+| CLI-36 | 4.5 | Interim: `render` refuses a domain with a side that is not a mirror, until `escher-render` renders a rotation domain within the bounds of its design. |
