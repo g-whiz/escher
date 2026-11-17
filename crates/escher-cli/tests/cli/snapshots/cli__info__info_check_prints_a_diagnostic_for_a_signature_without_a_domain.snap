@@ -1,17 +1,17 @@
 ---
 source: crates/escher-cli/tests/cli/info.rs
-expression: "snapshot(&[\"info\", \"--check\", \"532\"])"
+expression: "snapshot(&[\"info\", \"--check\", \"3*2\"])"
 ---
 status: Failure
 --- stdout
-Signature: 532
+Signature: 3*2
 Geometry: spherical
-Euler characteristic: 1/30
+Euler characteristic: 1/12
 Compact: yes
-Group order: 60
-Area: pi/15
-Domain: none, cannot build fundamental domain: the signature 532 is not supported
+Group order: 24
+Area: pi/6
+Domain: none, cannot build fundamental domain: the signature 3*2 is not supported
 --- stderr
 error: cannot verify fundamental domain
-  caused by: cannot build fundamental domain: the signature 532 is not supported
+  caused by: cannot build fundamental domain: the signature 3*2 is not supported
 --- end

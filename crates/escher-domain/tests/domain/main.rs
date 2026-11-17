@@ -13,6 +13,8 @@ mod reference;
 #[cfg(test)]
 mod regular;
 #[cfg(test)]
+mod rotation;
+#[cfg(test)]
 mod spherical;
 #[cfg(test)]
 mod triangles;

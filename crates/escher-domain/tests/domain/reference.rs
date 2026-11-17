@@ -468,6 +468,113 @@ impl Reference {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Model {
+    Hyperbolic,
+    Euclidean,
+    Spherical,
+}
+
+pub(crate) struct Double {
+    pub(crate) vertices: Vec<Vector>,
+    pub(crate) walls: Vec<Vector>,
+    pub(crate) lengths: Vec<BigFloat>,
+    pub(crate) area: BigFloat,
+}
+
+fn reflected_point(model: Model, wall: &Vector, x: &Vector) -> Vector {
+    match model {
+        Model::Hyperbolic => without_twice(x, &form(x, wall), wall),
+        Model::Spherical => without_twice(x, &dot(x, wall), wall),
+        Model::Euclidean => without_twice(
+            x,
+            &dot(wall, x),
+            &[wall[0].clone(), wall[1].clone(), int(0)],
+        ),
+    }
+}
+
+fn reflected_wall(model: Model, wall: &Vector, x: &Vector) -> Vector {
+    match model {
+        Model::Hyperbolic | Model::Spherical => reflected_point(model, wall, x),
+        Model::Euclidean => {
+            let along = add(&mul(&x[0], &wall[0]), &mul(&x[1], &wall[1]));
+            without_twice(x, &along, wall)
+        }
+    }
+}
+
+fn without_twice(x: &Vector, amount: &BigFloat, direction: &Vector) -> Vector {
+    let twice = mul(&int(2), amount);
+    [0, 1, 2].map(|index| sub(&x[index], &mul(&twice, &direction[index])))
+}
+
+impl Reference {
+    pub(crate) fn double(
+        &mut self,
+        model: Model,
+        vertices: &[Vector],
+        walls: &[Vector],
+        generating_area: &BigFloat,
+    ) -> Double {
+        let count = vertices.len();
+        let wall = &walls[1];
+        let mut doubled = vec![vertices[0].clone()];
+        for index in 1..count - 1 {
+            doubled.push(reflected_point(model, wall, &vertices[count - index]));
+        }
+        doubled.push(vertices[1].clone());
+        for index in 1..count - 1 {
+            doubled.push(vertices[1 + index].clone());
+        }
+        let total = doubled.len();
+        let sides = (0..total)
+            .map(|index| {
+                if index == 0 {
+                    walls[0].clone()
+                } else if index < count {
+                    reflected_wall(model, wall, &walls[(count + 1 - index) % count])
+                } else {
+                    walls[index + 2 - count].clone()
+                }
+            })
+            .collect();
+        let lengths = (0..total)
+            .map(|index| {
+                let (start, end) = (&doubled[(index + total - 1) % total], &doubled[index]);
+                match model {
+                    Model::Hyperbolic => self.distance(start, end),
+                    Model::Spherical => self.acos(&dot(start, end)),
+                    Model::Euclidean => {
+                        let along = [sub(&end[0], &start[0]), sub(&end[1], &start[1])];
+                        sqrt(&add(&mul(&along[0], &along[0]), &mul(&along[1], &along[1])))
+                    }
+                }
+            })
+            .collect();
+        let area = match model {
+            Model::Hyperbolic | Model::Spherical => mul(&int(2), generating_area),
+            Model::Euclidean => {
+                let mut twice = int(0);
+                for index in 0..total {
+                    let (start, end) = (&doubled[(index + total - 1) % total], &doubled[index]);
+                    twice = add(
+                        &twice,
+                        &sub(&mul(&start[0], &end[1]), &mul(&end[0], &start[1])),
+                    );
+                }
+                div(&twice, &int(2)).abs()
+            }
+        };
+        Double {
+            vertices: doubled,
+            walls: sides,
+            lengths,
+            area,
+        }
+    }
+}
+
 pub(crate) struct Triangle {
     pub(crate) vertices: [Vector; 3],
     pub(crate) normals: [Vector; 3],
@@ -518,6 +625,10 @@ impl Worst {
             self.ratio = ratio;
             self.input = input();
         }
+    }
+
+    pub(crate) fn count(&self) -> usize {
+        self.count
     }
 
     pub(crate) fn assert_at_most(&self, reference: &mut Reference, bound: f64) {

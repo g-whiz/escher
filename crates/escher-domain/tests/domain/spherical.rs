@@ -6,7 +6,7 @@ use escher_signature::Geometry;
 use glam::{DMat3, DVec3};
 
 use crate::common::{
-    LargestResiduals, assert_same_domain, largest_coordinate_error, order_text, signature,
+    LargestResiduals, assert_same_domain, built, largest_coordinate_error, order_text, signature,
 };
 use crate::reference::{Reference, SphericalPolygon, Worst, error, int};
 
@@ -31,6 +31,10 @@ const IMAGE_FLOOR: f64 = 2e-2;
 
 const LIMIT_IMAGE_FLOOR: f64 = 2e-4;
 
+const DOUBLE_IMAGE_FLOOR: f64 = 4e-2;
+
+const LIMIT_DOUBLE_IMAGE_FLOOR: f64 = 4e-4;
+
 const LARGEST_SMALL_ORDER: u32 = 12;
 
 const SPELLINGS: [(&str, &str); 9] = [
@@ -54,16 +58,11 @@ fn lune_text(order: u32) -> String {
     format!("*{}{}", order_text(order), order_text(order))
 }
 
-fn built(text: &str) -> FundamentalDomain {
-    match FundamentalDomain::build(&signature(text)) {
-        Ok(domain) => domain,
-        Err(error) => panic!("{text} has no domain: {error}"),
-    }
-}
-
 enum Shape {
     Triangle([u32; 3]),
     Lune(u32),
+    Kite([u32; 3]),
+    LuneDouble(u32),
 }
 
 impl Shape {
@@ -71,13 +70,20 @@ impl Shape {
         match *self {
             Self::Triangle(orders) => triangle_text(orders),
             Self::Lune(order) => lune_text(order),
+            Self::Kite(orders) => triangle_text(orders).replacen('*', "", 1),
+            Self::LuneDouble(order) => lune_text(order).replacen('*', "", 1),
         }
     }
 
-    fn reference(&self, reference: &mut Reference) -> SphericalPolygon {
+    const fn is_double(&self) -> bool {
+        matches!(self, Self::Kite(_) | Self::LuneDouble(_))
+    }
+
+    fn reference(&self, reference: &mut Reference) -> Option<SphericalPolygon> {
         match *self {
-            Self::Triangle(orders) => reference.spherical_triangle(orders),
-            Self::Lune(order) => reference.lune(order),
+            Self::Triangle(orders) => Some(reference.spherical_triangle(orders)),
+            Self::Lune(order) => Some(reference.lune(order)),
+            Self::Kite(_) | Self::LuneDouble(_) => None,
         }
     }
 }
@@ -95,12 +101,13 @@ fn measured_shapes() -> Vec<Shape> {
 }
 
 fn certificate_shapes(orders: impl Iterator<Item = u32> + Clone) -> Vec<Shape> {
-    let mut shapes: Vec<Shape> = [[3, 3, 2], [4, 3, 2], [5, 3, 2]]
-        .into_iter()
-        .map(Shape::Triangle)
-        .collect();
+    let triples = [[3, 3, 2], [4, 3, 2], [5, 3, 2]];
+    let mut shapes: Vec<Shape> = triples.into_iter().map(Shape::Triangle).collect();
     shapes.extend(orders.clone().map(|order| Shape::Triangle([order, 2, 2])));
-    shapes.extend(orders.map(Shape::Lune));
+    shapes.extend(orders.clone().map(Shape::Lune));
+    shapes.extend(triples.map(Shape::Kite));
+    shapes.extend(orders.clone().map(|order| Shape::Kite([order, 2, 2])));
+    shapes.extend(orders.map(Shape::LuneDouble));
     shapes
 }
 
@@ -119,6 +126,7 @@ fn spherical_signatures_build_and_pass_their_checks() {
         let domain = built(text);
         assert_eq!(domain.geometry(), Geometry::Spherical, "{text}");
         assert!(domain.verify().passed(), "{text}: {:?}", domain.verify());
+        assert!(domain.reverses_orientation(), "{text}");
         assert!(parameters(&signature(text)).is_empty(), "{text}");
         assert_eq!(domain.sides().len(), orders.len(), "{text}");
         assert_eq!(domain.vertices().len(), orders.len(), "{text}");
@@ -223,8 +231,8 @@ fn spherical_domains_are_within_their_bounds_of_the_reference() {
     let sides = shapes
         .iter()
         .map(|shape| match shape {
-            Shape::Triangle(_) => 3,
-            Shape::Lune(_) => 2,
+            Shape::Triangle(_) | Shape::Kite(_) => 3,
+            Shape::Lune(_) | Shape::LuneDouble(_) => 2,
         })
         .sum();
     let mut quantities = Quantities::new(sides, shapes.len());
@@ -232,7 +240,10 @@ fn spherical_domains_are_within_their_bounds_of_the_reference() {
     for shape in &shapes {
         let text = shape.text();
         let domain = built(&text);
-        quantities.record(&domain, &shape.reference(&mut reference), &text);
+        let Some(exact) = shape.reference(&mut reference) else {
+            panic!("{text} is not a reflection domain");
+        };
+        quantities.record(&domain, &exact, &text);
         residuals.record(&domain, &text);
         if let Shape::Lune(_) = shape {
             assert_eq!(domain.vertices(), [DVec3::Y, DVec3::NEG_Y], "{text}");
@@ -347,10 +358,28 @@ fn lune_sample(domain: &FundamentalDomain) -> Vec<DVec3> {
 struct Floor {
     smallest: f64,
     input: String,
+    excess: usize,
+    excess_input: String,
 }
 
-fn certify(shapes: &[Shape], floor: &mut Floor) {
+impl Floor {
+    const fn new() -> Self {
+        Self {
+            smallest: f64::INFINITY,
+            input: String::new(),
+            excess: 0,
+            excess_input: String::new(),
+        }
+    }
+}
+
+fn certify(shapes: &[Shape], reflections: &mut Floor, doubles: &mut Floor) {
     for shape in shapes {
+        let floor = if shape.is_double() {
+            &mut *doubles
+        } else {
+            &mut *reflections
+        };
         let text = shape.text();
         let domain = built(&text);
         let order = signature(&text).group_order().map_or(0, |order| {
@@ -377,11 +406,19 @@ fn certify(shapes: &[Shape], floor: &mut Floor) {
             let Some((folded, steps)) = fold(&domain, *image) else {
                 panic!("{text}: the image {image:?} reaches the fold cap");
             };
-            assert_eq!(steps, *depth, "{text}: {image:?}");
+            if shape.is_double() {
+                assert!(steps >= *depth, "{text}: {image:?}: {steps} steps");
+                if steps - depth > floor.excess {
+                    floor.excess = steps - depth;
+                    floor.excess_input = text.clone();
+                }
+            } else {
+                assert_eq!(steps, *depth, "{text}: {image:?}");
+            }
             let offset = (folded - centre).abs().max_element();
             assert!(offset <= FOLD_BACK_TOLERANCE, "{text}: {offset:e}");
         }
-        if let Shape::Lune(_) = shape {
+        if let Shape::Lune(_) | Shape::LuneDouble(_) = shape {
             for point in lune_sample(&domain) {
                 assert!(
                     fold(&domain, point).is_some(),
@@ -390,6 +427,13 @@ fn certify(shapes: &[Shape], floor: &mut Floor) {
             }
         }
     }
+}
+
+fn print_excess(floor: &Floor, name: &str) {
+    println!(
+        "{name}: largest number of fold steps above the breadth-first depth {}, at {}",
+        floor.excess, floor.excess_input
+    );
 }
 
 fn assert_floor(floor: &Floor, bound: f64, name: &str) {
@@ -413,12 +457,15 @@ fn assert_floor(floor: &Floor, bound: f64, name: &str) {
     ignore = "the enumeration of the groups runs loops too long for the interpreter"
 )]
 fn spherical_groups_have_their_order_and_fold_back_their_images() {
-    let mut floor = Floor {
-        smallest: f64::INFINITY,
-        input: String::new(),
-    };
-    certify(&certificate_shapes(2..=LARGEST_SMALL_ORDER), &mut floor);
-    assert_floor(&floor, IMAGE_FLOOR, "certificate");
+    let (mut reflections, mut doubles) = (Floor::new(), Floor::new());
+    certify(
+        &certificate_shapes(2..=LARGEST_SMALL_ORDER),
+        &mut reflections,
+        &mut doubles,
+    );
+    assert_floor(&reflections, IMAGE_FLOOR, "certificate");
+    assert_floor(&doubles, DOUBLE_IMAGE_FLOOR, "certificate of the doubles");
+    print_excess(&doubles, "certificate of the doubles");
 }
 
 #[test]
@@ -427,11 +474,19 @@ fn spherical_groups_have_their_order_and_fold_back_their_images() {
     ignore = "the checks of the largest orders run loops too long for the interpreter"
 )]
 fn spherical_groups_at_the_limit_have_their_order_and_fold_back_their_images() {
-    let mut floor = Floor {
-        smallest: f64::INFINITY,
-        input: String::new(),
-    };
-    let shapes = [Shape::Triangle([1000, 2, 2]), Shape::Lune(1000)];
-    certify(&shapes, &mut floor);
-    assert_floor(&floor, LIMIT_IMAGE_FLOOR, "certificate at the limit");
+    let (mut reflections, mut doubles) = (Floor::new(), Floor::new());
+    let shapes = [
+        Shape::Triangle([1000, 2, 2]),
+        Shape::Lune(1000),
+        Shape::Kite([1000, 2, 2]),
+        Shape::LuneDouble(1000),
+    ];
+    certify(&shapes, &mut reflections, &mut doubles);
+    assert_floor(&reflections, LIMIT_IMAGE_FLOOR, "certificate at the limit");
+    assert_floor(
+        &doubles,
+        LIMIT_DOUBLE_IMAGE_FLOOR,
+        "certificate of the doubles at the limit",
+    );
+    print_excess(&doubles, "certificate of the doubles at the limit");
 }

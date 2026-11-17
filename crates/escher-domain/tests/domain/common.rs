@@ -95,6 +95,17 @@ pub(crate) fn text(orders: [u32; 3]) -> String {
     format!("*{corners}")
 }
 
+pub(crate) fn cone_text(orders: [u32; 3]) -> String {
+    orders.into_iter().map(order_text).collect()
+}
+
+pub(crate) fn built(text: &str) -> FundamentalDomain {
+    match FundamentalDomain::build(&signature(text)) {
+        Ok(domain) => domain,
+        Err(error) => panic!("{text} has no domain: {error}"),
+    }
+}
+
 pub(crate) fn signature(text: &str) -> Signature {
     match text.parse() {
         Ok(signature) => signature,
@@ -103,11 +114,11 @@ pub(crate) fn signature(text: &str) -> Signature {
 }
 
 pub(crate) fn domain(orders: [u32; 3]) -> FundamentalDomain {
-    let text = text(orders);
-    match FundamentalDomain::build(&signature(&text)) {
-        Ok(domain) => domain,
-        Err(error) => panic!("{text} has no domain: {error}"),
-    }
+    built(&text(orders))
+}
+
+pub(crate) fn kite(orders: [u32; 3]) -> FundamentalDomain {
+    built(&cone_text(orders))
 }
 
 pub(crate) fn is_hyperbolic(orders: [u32; 3]) -> bool {
@@ -230,11 +241,15 @@ pub(crate) fn aspects() -> Vec<f64> {
 }
 
 pub(crate) fn rectangle(aspect: f64) -> FundamentalDomain {
+    with_aspect("*2222", aspect)
+}
+
+pub(crate) fn with_aspect(text: &str, aspect: f64) -> FundamentalDomain {
     let mut settings = ShapeParameters::new();
     settings.set("aspect", aspect);
-    match FundamentalDomain::build_with(&signature("*2222"), &settings) {
+    match FundamentalDomain::build_with(&signature(text), &settings) {
         Ok(domain) => domain,
-        Err(error) => panic!("*2222 at aspect {aspect} has no domain: {error}"),
+        Err(error) => panic!("{text} at aspect {aspect} has no domain: {error}"),
     }
 }
 

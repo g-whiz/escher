@@ -512,7 +512,7 @@ fn assert_no_file_changes(test: &str, args: &[&str]) {
 #[test]
 #[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_without_a_domain_changes_no_file() {
-    assert_no_file_changes("no_domain_file", &["532"]);
+    assert_no_file_changes("no_domain_file", &["3*2"]);
 }
 
 #[test]
@@ -711,11 +711,34 @@ fn first_error_line(args: &[&str]) -> (Status, String) {
 #[test]
 fn render_without_a_domain_returns_failure() {
     assert_eq!(
-        first_error_line(&["532"]),
+        first_error_line(&["3*2"]),
         (
             Status::Failure,
-            "error: cannot render 532: rendering this signature is not supported".to_owned()
+            "error: cannot render 3*2: rendering this signature is not supported".to_owned()
         )
+    );
+}
+
+#[test]
+fn render_refuses_a_domain_without_mirrors() {
+    let never_written = Path::new(NEVER_WRITTEN);
+    if !cfg!(miri) {
+        match std::fs::remove_file(never_written) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                panic!("cannot remove a stale output file: {error}")
+            }
+            _ => {}
+        }
+    }
+    let outcome = run_args(&["render", "732", "-o", NEVER_WRITTEN]);
+    if !cfg!(miri) {
+        assert!(!never_written.exists(), "the output file was written");
+    }
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot render 732: rendering this signature is not supported\n"
     );
 }
 

@@ -154,6 +154,7 @@ fn euclidean_signatures_build_with_their_sides_and_angles() {
         };
         assert_eq!(built.geometry(), Geometry::Euclidean, "{text}");
         assert!(built.verify().passed(), "{text}: {:?}", built.verify());
+        assert!(built.reverses_orientation(), "{text}");
         assert_eq!(built.sides().len(), orders.len(), "{text}");
         assert_eq!(built.vertices().len(), orders.len(), "{text}");
         for (index, side) in built.sides().iter().enumerate() {

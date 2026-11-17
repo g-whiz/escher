@@ -4,11 +4,12 @@ use escher_geometry::{euclidean, hyperbolic, spherical};
 use escher_signature::{Geometry, Signature};
 use glam::{DMat3, DVec3};
 
+use crate::double::double;
 use crate::error::{Error, Result};
 use crate::parameters::{Parameter, ShapeParameters, validate, value};
 use crate::polygon::{Polygon, rectangle, triangle};
 use crate::spherical::{lune, triangle as spherical_triangle};
-use crate::triangle::{LARGEST_ORDER, Supported, construct, supported};
+use crate::triangle::{LARGEST_ORDER, Shape, Supported, construct, supported};
 use crate::verify::Verification;
 
 /// The fundamental domain of a symmetry group of the hyperbolic plane, the
@@ -28,17 +29,27 @@ use crate::verify::Verification;
 /// module states its conventions.
 ///
 /// The crate builds a reflection triangle for a signature `*pqr`, a triangle
-/// whose sides are mirrors and whose corners have the angles `pi / p`,
-/// `pi / q`, and `pi / r`, a reflection rectangle for `*2222`, and a lune for
-/// `*nn`, the region of the sphere between two half great circles that are
-/// mirrors and meet at the angle `pi / n` at two antipodal vertices. Vertex
-/// `j` is corner `j` of the canonical signature, which lists the largest
-/// order first. Side `j` joins vertex `j - 1` and vertex `j`, with indexes
-/// modulo the number of sides, so vertex `j` lies between side `j` and side
-/// `j + 1`. The vertices are counterclockwise, in the Poincare disk for a
-/// hyperbolic domain, in the plane for a Euclidean one, and as seen from
-/// outside the sphere for a spherical one, and the domain is placed with its
+/// whose sides are mirrors, the walls in which the group reflects, and whose
+/// corners have the angles `pi / p`, `pi / q`, and `pi / r`. It builds a
+/// reflection rectangle for `*2222`, and a lune for `*nn`, the region of the
+/// sphere between two half great circles that are mirrors and meet at the angle
+/// `pi / n` at two antipodal vertices. In a reflection domain, vertex `j` is
+/// corner `j` of the canonical signature, which lists the largest order first.
+/// Side `j` joins vertex `j - 1` and vertex `j`, with indexes modulo the number
+/// of sides, so vertex `j` lies between side `j` and side `j + 1`. The vertices
+/// are counterclockwise, in the Poincare disk for a hyperbolic domain, in the
+/// plane for a Euclidean one, and as seen from outside the sphere for a
+/// spherical one, and the domain is placed with its
 /// [centre](FundamentalDomain::centre) at the origin.
+///
+/// For a signature without a mirror boundary, whose cone points, the centres of
+/// rotation, have the orders of the corners of a signature above, such as `732`
+/// for `*732`, the crate builds the double of the reflection domain of that
+/// signature. The double is the reflection domain together with its mirror
+/// image across the wall of its side 1. It keeps the reflection domain in
+/// place, so it has the same centre. Rotations pair its sides with each other
+/// in place of mirrors, except that a translation pairs two sides of the double
+/// of `2222`.
 ///
 /// # Examples
 ///
@@ -55,15 +66,77 @@ use crate::verify::Verification;
 /// let rectangle = FundamentalDomain::build(&"*2222".parse::<Signature>()?)?;
 /// assert_eq!(rectangle.sides().len(), 4);
 /// assert!(rectangle.verify().passed());
+///
+/// let kite = FundamentalDomain::build(&"732".parse::<Signature>()?)?;
+/// assert_eq!(kite.sides().len(), 4);
+/// assert_eq!(kite.centre(), domain.centre());
+/// assert!(kite.verify().passed());
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct FundamentalDomain {
     pub(crate) plane: Plane,
-    pub(crate) orders: Vec<u32>,
+    pub(crate) corners: Vec<Corner>,
     pub(crate) sides: Vec<Side>,
     pub(crate) vertices: Vec<DVec3>,
     pub(crate) centre: DVec3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Corner {
+    pub(crate) order: u32,
+    pub(crate) copies: u32,
+}
+
+impl Corner {
+    pub(crate) const fn single(order: u32) -> Self {
+        Self { order, copies: 1 }
+    }
+}
+
+impl Plane {
+    pub(crate) fn side(self, covector: DVec3, point: DVec3) -> f64 {
+        match self {
+            Self::Hyperbolic { .. } => hyperbolic::side(covector, point),
+            Self::Euclidean => euclidean::side(covector, point),
+            Self::Spherical { .. } => spherical::side(covector, point),
+        }
+    }
+}
+
+fn triangle_angles(plane: Plane, [first, second, third]: [DVec3; 3]) -> Option<[f64; 3]> {
+    let distance = match plane {
+        Plane::Hyperbolic { .. } => hyperbolic::distance,
+        Plane::Spherical { .. } => spherical::distance,
+        Plane::Euclidean => return None,
+    };
+    let lengths = [
+        distance(third, first),
+        distance(first, second),
+        distance(second, third),
+    ];
+    Some([0, 1, 2].map(|vertex| {
+        let a = lengths[vertex];
+        let b = lengths[(vertex + 1) % 3];
+        let c = lengths[(vertex + 2) % 3];
+        let cosine = match plane {
+            Plane::Hyperbolic { .. } => (a.cosh() * b.cosh() - c.cosh()) / (a.sinh() * b.sinh()),
+            Plane::Euclidean | Plane::Spherical { .. } => {
+                (c.cos() - a.cos() * b.cos()) / (a.sin() * b.sin())
+            }
+        };
+        cosine.clamp(-1.0, 1.0).acos()
+    }))
+}
+
+fn plane(shape: Shape) -> Plane {
+    match shape {
+        Shape::HyperbolicTriangle { area, .. } => Plane::Hyperbolic { area },
+        Shape::EuclideanTriangle { .. } | Shape::Rectangle => Plane::Euclidean,
+        Shape::SphericalTriangle { area, .. } | Shape::Lune { area, .. } => {
+            Plane::Spherical { area }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -106,8 +179,9 @@ impl FundamentalDomain {
     /// Builds the fundamental domain of a signature, with the shape
     /// parameters that the settings give.
     ///
-    /// The signature must have one mirror boundary with finite corner orders
-    /// and no handle, crosscap, or cone point, and be one of these:
+    /// The signature must have no handle or crosscap, and either one mirror
+    /// boundary with finite corner orders and no cone point, or finite cone
+    /// orders and no boundary. With a boundary, it must be one of these:
     ///
     /// - A hyperbolic triangle `*pqr`, whose corner orders have reciprocals
     ///   that sum to less than 1. Each corner order must be at most 1000.
@@ -118,12 +192,20 @@ impl FundamentalDomain {
     ///   with `n` at most 1000.
     /// - A lune `*nn`, with `n` at most 1000.
     ///
-    /// The triangle of a Euclidean signature has side 0 of length 1, and the
-    /// rectangle has area 1. A spherical domain lies on the unit sphere and
-    /// has no shape parameter. Each name of a setting must be the name of a
-    /// parameter that [`parameters`](crate::parameters()) lists for the
-    /// signature, and each value must lie in the range of that parameter. A
-    /// parameter without a setting takes its default value.
+    /// Without a boundary, its cone orders must be the corner orders of one of
+    /// these, such as `732`, `2222`, or `nn`, and its domain is the double of
+    /// the domain of that signature, which is the domain together with its
+    /// mirror image across the wall of side 1. The double of a triangle is a
+    /// kite with four sides, that of the rectangle has six, and that of a lune
+    /// has two. The double of `2222` has the shape parameter `aspect` of the
+    /// rectangle that it doubles.
+    ///
+    /// The reflection triangle of a Euclidean signature has side 0 of length 1,
+    /// and the reflection rectangle has area 1. A spherical domain lies on the
+    /// unit sphere and has no shape parameter. Each name of a setting must be
+    /// the name of a parameter that [`parameters`](crate::parameters()) lists
+    /// for the signature, and each value must lie in the range of that
+    /// parameter. A parameter without a setting takes its default value.
     ///
     /// # Examples
     ///
@@ -150,7 +232,7 @@ impl FundamentalDomain {
     ///    for a signature that is none of those above.
     /// 2. An error of kind
     ///    [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) for a
-    ///    corner order above 1000.
+    ///    corner or cone order above 1000.
     /// 3. An error of kind
     ///    [`ErrorKind::UnknownParameter`](crate::ErrorKind::UnknownParameter)
     ///    when a setting names no parameter of the signature.
@@ -164,59 +246,38 @@ impl FundamentalDomain {
     ///    known to do.
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
         let supported = supported(signature).ok_or_else(|| Error::unsupported(signature))?;
-        let orders = supported.orders();
-        let largest = orders.iter().copied().fold(0, u32::max);
+        let shape = supported.shape();
+        let largest = shape.orders().into_iter().fold(0, u32::max);
         if largest > LARGEST_ORDER {
             return Err(Error::limit_exceeded(largest));
         }
         validate(signature, supported, parameters)?;
+        let aspect = value(parameters, Parameter::Aspect);
         match supported {
-            Supported::HyperbolicTriangle { orders, area } => {
-                let triangle = construct(orders).map_err(Error::numerical)?;
-                Ok(Self {
-                    plane: Plane::Hyperbolic { area },
-                    orders: orders.to_vec(),
-                    sides: triangle.sides.to_vec(),
-                    vertices: triangle.vertices.to_vec(),
-                    centre: triangle.centre,
-                })
-            }
-            Supported::EuclideanTriangle { orders } => {
-                Self::euclidean(orders.to_vec(), triangle(orders))
-            }
-            Supported::Rectangle => {
-                Self::euclidean(orders, rectangle(value(parameters, Parameter::Aspect)))
-            }
-            Supported::SphericalTriangle { orders, area } => {
-                Self::spherical(orders.to_vec(), area, spherical_triangle(orders))
-            }
-            Supported::Lune { order, area } => Self::spherical(vec![order; 2], area, lune(order)),
+            Supported::Reflection(shape) => Self::reflection(shape, aspect),
+            Supported::Rotation(shape) => double(
+                &Self::reflection(shape.with_half_area(), aspect)?,
+                plane(shape),
+            ),
         }
     }
 
-    fn spherical(
-        orders: Vec<u32>,
-        area: f64,
-        polygon: core::result::Result<Polygon, Option<escher_geometry::Error>>,
-    ) -> Result<Self> {
-        let polygon = polygon.map_err(Error::numerical)?;
+    fn reflection(shape: Shape, aspect: f64) -> Result<Self> {
+        let polygon = match shape {
+            Shape::HyperbolicTriangle { orders, .. } => construct(orders).map(|triangle| Polygon {
+                sides: triangle.sides.to_vec(),
+                vertices: triangle.vertices.to_vec(),
+                centre: triangle.centre,
+            }),
+            Shape::EuclideanTriangle { orders } => triangle(orders),
+            Shape::Rectangle => rectangle(aspect),
+            Shape::SphericalTriangle { orders, .. } => spherical_triangle(orders),
+            Shape::Lune { order, .. } => lune(order),
+        }
+        .map_err(Error::numerical)?;
         Ok(Self {
-            plane: Plane::Spherical { area },
-            orders,
-            sides: polygon.sides,
-            vertices: polygon.vertices,
-            centre: polygon.centre,
-        })
-    }
-
-    fn euclidean(
-        orders: Vec<u32>,
-        polygon: core::result::Result<Polygon, Option<escher_geometry::Error>>,
-    ) -> Result<Self> {
-        let polygon = polygon.map_err(Error::numerical)?;
-        Ok(Self {
-            plane: Plane::Euclidean,
-            orders,
+            plane: plane(shape),
+            corners: shape.orders().into_iter().map(Corner::single).collect(),
             sides: polygon.sides,
             vertices: polygon.vertices,
             centre: polygon.centre,
@@ -255,8 +316,14 @@ impl FundamentalDomain {
     /// lies off the hyperboloid by a rounding error, and a caller should not
     /// normalize it. For a Euclidean domain the vertices are points `(x, y, 1)`
     /// of the plane. For a spherical domain the vertices are points of the
-    /// unit sphere. The two vertices of a lune are the antipodal points
-    /// `(0, 1, 0)` and `(0, -1, 0)`.
+    /// unit sphere. The two vertices of a lune and of its double are the
+    /// antipodal points `(0, 1, 0)` and `(0, -1, 0)`.
+    ///
+    /// The vertices of a double follow those of the domain that it doubles,
+    /// which has `n` vertices `V0` to `V(n-1)`. Vertex 0 of the double is
+    /// `V0`, vertices 1 to `n - 2` are the mirror images of `V(n-1)` down to
+    /// `V2` across the wall of side 1, vertex `n - 1` is `V1`, and the vertices
+    /// after it are `V2` to `V(n-1)`.
     #[must_use]
     pub fn vertices(&self) -> &[DVec3] {
         &self.vertices
@@ -275,7 +342,8 @@ impl FundamentalDomain {
     /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) up to rounding. The two
     /// vertices of a lune are antipodal and have no midpoint, so its centre is
     /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) exactly, halfway between
-    /// its two sides.
+    /// its two sides. A double has the centre of the domain that it doubles,
+    /// which lies inside that half of the double.
     #[must_use]
     pub fn centre(&self) -> DVec3 {
         self.centre
@@ -285,7 +353,8 @@ impl FundamentalDomain {
     ///
     /// The lengths are distances between the stored vertices, in the metric
     /// of curvature -1 for a hyperbolic domain and of the unit sphere for a
-    /// spherical one. Both sides of a lune have the length `pi`.
+    /// spherical one. Both sides of a lune and of its double have the length
+    /// `pi`.
     #[must_use]
     pub fn side_lengths(&self) -> Vec<f64> {
         self.lengths()
@@ -295,14 +364,23 @@ impl FundamentalDomain {
     /// order.
     ///
     /// For a hyperbolic or spherical triangle, each angle is measured from the
-    /// three side lengths by the law of cosines of its geometry. For a
-    /// Euclidean domain, it is measured from the directions of the two sides
-    /// at the vertex. The two vertices of a lune do not fix its sides, so both
-    /// of its angles are measured instead from the unit normals `u0` and `u1`
-    /// of its two walls, as the inverse cosine of `-u0 . u1`. Each angle lies
-    /// in the interval from 0 to pi. A hyperbolic domain that does not have
-    /// three vertices, and a spherical domain that has neither two nor three,
-    /// gives NaN for every angle.
+    /// three side lengths by the law of cosines of its geometry. A hyperbolic
+    /// or spherical domain with four vertices, the double of a triangle, is
+    /// split along the diagonal from vertex 0 to vertex 2 into two triangles,
+    /// each measured in this way, and the angle at vertex 0 or vertex 2 is the
+    /// sum of its angles in the two triangles. For a Euclidean domain, each
+    /// angle is measured from the directions of the two sides at the vertex.
+    /// The two vertices of a lune or of its double do not fix its sides, so
+    /// both of its angles are measured instead from the unit normals `u0` and
+    /// `u1` of its two walls: for a lune as the inverse cosine of `-u0 . u1`,
+    /// and for its double, whose angle can be pi, where the inverse cosine
+    /// magnifies a rounding error of the normals, as the two-argument
+    /// arctangent of the length of `u0 x u1` and `-u0 . u1`. Each angle lies
+    /// in the interval from 0 to pi. A vertex of a double where two
+    /// corners of the domain that it doubles meet has twice the angle of one
+    /// corner, which is `pi` for a corner of order 2. A hyperbolic domain that
+    /// has neither three nor four vertices, and a spherical domain that has
+    /// neither two, three, nor four, gives NaN for every angle.
     #[must_use]
     pub fn corner_angles(&self) -> Vec<f64> {
         self.angles()
@@ -310,24 +388,34 @@ impl FundamentalDomain {
 
     /// Returns the area of the domain.
     ///
-    /// For a hyperbolic domain it is pi minus the sum of its corner angles, in
-    /// the metric of curvature -1, which is the area of a triangle, and NaN
-    /// for a hyperbolic domain that does not have three vertices. For a
-    /// Euclidean domain it is the area that the vertices enclose. For a
-    /// spherical triangle it is the sum of its corner angles minus pi, and for
-    /// a lune twice its angle, each in the metric of the unit sphere, and NaN
-    /// for a spherical domain that has neither two nor three vertices.
+    /// For a hyperbolic triangle it is pi minus the sum of its corner angles, in
+    /// the metric of curvature -1. For a Euclidean domain it is the area that
+    /// the vertices enclose. For a spherical triangle it is the sum of its
+    /// corner angles minus pi, and for a lune or its double twice its angle,
+    /// each in the metric of the unit sphere. For a hyperbolic or spherical
+    /// domain with four vertices, it is the sum of the areas of the two
+    /// triangles that [`corner_angles`](FundamentalDomain::corner_angles)
+    /// measures. It is NaN for a domain whose angles that method gives as
+    /// NaN.
     #[must_use]
     pub fn area(&self) -> f64 {
         match self.plane {
-            Plane::Hyperbolic { .. } => match self.angles()[..] {
-                [first, second, third] => PI - first - second - third,
+            Plane::Hyperbolic { .. } => match self.triangles()[..] {
+                [[first, second, third]] => PI - first - second - third,
+                [[first, second, third], [fourth, fifth, sixth]] => {
+                    (PI - first - second - third) + (PI - fourth - fifth - sixth)
+                }
                 _ => f64::NAN,
             },
-            Plane::Spherical { .. } => match self.angles()[..] {
-                [first, second, third] => first + second + third - PI,
-                [first, _] => 2.0 * first,
-                _ => f64::NAN,
+            Plane::Spherical { .. } => match self.triangles()[..] {
+                [[first, second, third]] => first + second + third - PI,
+                [[first, second, third], [fourth, fifth, sixth]] => {
+                    (first + second + third - PI) + (fourth + fifth + sixth - PI)
+                }
+                _ => match self.angles()[..] {
+                    [first, _] => 2.0 * first,
+                    _ => f64::NAN,
+                },
             },
             Plane::Euclidean => {
                 let count = self.vertices.len();
@@ -341,14 +429,40 @@ impl FundamentalDomain {
         }
     }
 
+    /// Returns whether the pairing isometry of some side reverses
+    /// orientation.
+    ///
+    /// It is true for a domain whose sides are mirrors, and false for the
+    /// domain of a signature without mirrors, such as `732`, whose pairings
+    /// are all rotations or translations. Only a domain for which it is true
+    /// can be coloured by whether a tile is an even or an odd number of
+    /// reflections away from the domain.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use escher_domain::FundamentalDomain;
+    /// use escher_signature::Signature;
+    ///
+    /// assert!(FundamentalDomain::build(&"*732".parse::<Signature>()?)?.reverses_orientation());
+    /// assert!(!FundamentalDomain::build(&"732".parse::<Signature>()?)?.reverses_orientation());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn reverses_orientation(&self) -> bool {
+        self.sides
+            .iter()
+            .any(|side| side.orientation == Orientation::Reversing)
+    }
+
     /// Checks the domain numerically and reports each check with its
     /// residual and its tolerance.
     ///
     /// Use it to confirm that a domain is fit for use before relying on it,
     /// such as before drawing a tiling. The checks test that each pairing is
     /// an isometry, that the sides pair correctly, that each side lies on its
-    /// wall, that each corner closes up, that each angle is `pi` divided by
-    /// its order, and that the area agrees with the signature. The method
+    /// wall, that each corner closes up, that each angle agrees with the order
+    /// of its corner, and that the area agrees with the signature. The method
     /// computes every check on every call, changes nothing, and never panics.
     ///
     /// # Examples
@@ -368,6 +482,18 @@ impl FundamentalDomain {
         Verification::of(self)
     }
 
+    pub(crate) fn triangles(&self) -> Vec<[f64; 3]> {
+        let angles = |corners| triangle_angles(self.plane, corners);
+        match self.vertices[..] {
+            [first, second, third] => angles([first, second, third]).into_iter().collect(),
+            [first, second, third, fourth] => angles([first, second, third])
+                .into_iter()
+                .chain(angles([first, third, fourth]))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
     fn lengths(&self) -> Vec<f64> {
         let v = &self.vertices;
         let count = v.len();
@@ -384,40 +510,32 @@ impl FundamentalDomain {
     pub(crate) fn angles(&self) -> Vec<f64> {
         let count = self.vertices.len();
         match self.plane {
-            Plane::Hyperbolic { .. } => match self.lengths()[..] {
-                [first, second, third] => {
-                    let lengths = [first, second, third];
-                    [0, 1, 2]
-                        .map(|vertex| {
-                            let a = lengths[vertex];
-                            let b = lengths[(vertex + 1) % 3];
-                            let c = lengths[(vertex + 2) % 3];
-                            let cosine = (a.cosh() * b.cosh() - c.cosh()) / (a.sinh() * b.sinh());
-                            cosine.clamp(-1.0, 1.0).acos()
-                        })
-                        .to_vec()
+            Plane::Hyperbolic { .. } | Plane::Spherical { .. } => {
+                match (self.triangles().as_slice(), self.sides.as_slice()) {
+                    ([triangle], _) => triangle.to_vec(),
+                    ([first, second], _) => {
+                        vec![
+                            first[0] + second[0],
+                            first[1],
+                            first[2] + second[1],
+                            second[2],
+                        ]
+                    }
+                    ([], [first, second])
+                        if count == 2 && matches!(self.plane, Plane::Spherical { .. }) =>
+                    {
+                        let (normal, other) = (first.normal, second.normal);
+                        let angle = match first.kind {
+                            PairingKind::Mirror => (-normal.dot(other)).clamp(-1.0, 1.0).acos(),
+                            PairingKind::Rotation | PairingKind::Translation => {
+                                normal.cross(other).length().atan2(-normal.dot(other))
+                            }
+                        };
+                        vec![angle; 2]
+                    }
+                    _ => vec![f64::NAN; count],
                 }
-                _ => vec![f64::NAN; count],
-            },
-            Plane::Spherical { .. } => match (self.lengths().as_slice(), self.sides.as_slice()) {
-                (&[first, second, third], _) => {
-                    let lengths = [first, second, third];
-                    [0, 1, 2]
-                        .map(|vertex| {
-                            let a = lengths[vertex];
-                            let b = lengths[(vertex + 1) % 3];
-                            let c = lengths[(vertex + 2) % 3];
-                            let cosine = (c.cos() - a.cos() * b.cos()) / (a.sin() * b.sin());
-                            cosine.clamp(-1.0, 1.0).acos()
-                        })
-                        .to_vec()
-                }
-                (&[_, _], [first, second]) => {
-                    let angle = (-first.normal.dot(second.normal)).clamp(-1.0, 1.0).acos();
-                    vec![angle; 2]
-                }
-                _ => vec![f64::NAN; count],
-            },
+            }
             Plane::Euclidean => (0..count)
                 .map(|vertex| {
                     let corner = self.vertices[vertex].truncate();
@@ -507,7 +625,13 @@ impl Side {
     /// coordinate 1, and in a spherical domain it is an orthogonal matrix. The
     /// isometry maps the neighbouring copy of the domain across this side onto
     /// the domain. For a side of kind [`PairingKind::Mirror`] it is
-    /// the reflection in the wall of the side.
+    /// the reflection in the wall of the side. For a side of a double it is
+    /// the product of two reflections of the domain that the double doubles,
+    /// in the wall of its side 1 and in the wall of the side that this side is,
+    /// or is the mirror image of. Each entry of the product is computed with
+    /// the rounding errors of its products and sums carried along and added
+    /// back at the end, so it is close to the exact product of the two stored
+    /// matrices rounded once.
     #[must_use]
     pub fn pairing(self) -> DMat3 {
         self.pairing
@@ -516,7 +640,9 @@ impl Side {
     /// Returns the index of the side onto which the pairing isometry maps
     /// this side.
     ///
-    /// A mirror side is its own partner.
+    /// A mirror side is its own partner. A side of a double has another side
+    /// as its partner, and its pairing isometry maps it onto that side with
+    /// the endpoints exchanged.
     #[must_use]
     pub fn partner(self) -> usize {
         self.partner
@@ -531,7 +657,8 @@ impl Side {
     /// Returns whether the pairing isometry preserves or reverses
     /// orientation.
     ///
-    /// A reflection reverses orientation.
+    /// A reflection reverses orientation, and a rotation or a translation
+    /// preserves it.
     #[must_use]
     pub fn orientation(self) -> Orientation {
         self.orientation
@@ -558,6 +685,13 @@ pub enum PairingKind {
     /// The side is a mirror, its own partner, and its pairing isometry is the
     /// reflection in its wall.
     Mirror,
+    /// The pairing isometry is a rotation, which maps the side onto its
+    /// partner, another side of the domain.
+    Rotation,
+    /// The pairing isometry is a translation of the Euclidean plane, which
+    /// maps the side onto its partner, another side of the domain, and fixes
+    /// no point.
+    Translation,
 }
 
 /// Whether an isometry preserves or reverses orientation, the sense in which
@@ -607,11 +741,13 @@ mod tests {
 
     #[test]
     fn build_accepts_the_largest_order_and_rejects_the_next() {
-        let at_limit = signature(&format!("*({LARGEST_ORDER})32"));
-        assert!(FundamentalDomain::build(&at_limit).is_ok());
-        let over_limit = signature(&format!("*({})32", LARGEST_ORDER + 1));
-        let kind = FundamentalDomain::build(&over_limit).map_err(|error| error.kind());
-        assert_eq!(kind.err(), Some(ErrorKind::LimitExceeded));
+        for star in ["*", ""] {
+            let at_limit = signature(&format!("{star}({LARGEST_ORDER})32"));
+            assert!(FundamentalDomain::build(&at_limit).is_ok(), "{star}");
+            let over_limit = signature(&format!("{star}({})32", LARGEST_ORDER + 1));
+            let kind = FundamentalDomain::build(&over_limit).map_err(|error| error.kind());
+            assert_eq!(kind.err(), Some(ErrorKind::LimitExceeded), "{star}");
+        }
     }
 
     #[test]
@@ -627,7 +763,7 @@ mod tests {
         let mut settings = ShapeParameters::new();
         settings.set("aspect", f64::NAN);
         for (text, expected) in [
-            ("532", ErrorKind::UnsupportedSignature),
+            ("3*2", ErrorKind::UnsupportedSignature),
             (
                 &*format!("*({})32", LARGEST_ORDER + 1),
                 ErrorKind::LimitExceeded,

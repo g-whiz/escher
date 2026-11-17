@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use escher_domain::{FundamentalDomain, ShapeParameters};
+use escher_domain::{FundamentalDomain, PairingKind, ShapeParameters};
 use escher_render::{Colour, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png};
 use escher_signature::Signature;
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
@@ -60,6 +60,13 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         };
         anyhow::Error::new(error).context(context)
     })?;
+    if domain
+        .sides()
+        .iter()
+        .any(|side| side.kind() != PairingKind::Mirror)
+    {
+        return Err(cannot_render(&signature, NOT_SUPPORTED));
+    }
     let [yaw, pitch, roll] = args.rotation;
     let options = RenderOptions::builder(fill)
         .size(args.size.width, args.size.height)

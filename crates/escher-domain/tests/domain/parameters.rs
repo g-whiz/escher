@@ -43,27 +43,32 @@ fn parameters_list_aspect_for_the_rectangle_only() {
         })
         .collect();
     assert_eq!(listed, [("aspect", 0.125, 8.0, 1.0)]);
-    for text in ["*632", "*442", "*333", "*732", "*532"] {
+    assert_eq!(parameters(&signature("2222")), specs);
+    for text in ["*632", "*442", "*333", "*732", "*532", "732", "532"] {
         assert!(parameters(&signature(text)).is_empty(), "{text}");
     }
 }
 
 #[test]
 fn build_with_rejects_a_value_outside_the_range() {
-    for value in OUT_OF_RANGE {
-        assert_eq!(
-            error_of("*2222", &settings("aspect", value)),
-            Some((ErrorKind::ParameterOutOfRange, RANGE_TEXT.to_owned())),
-            "{value}"
-        );
+    for text in ["*2222", "2222"] {
+        for value in OUT_OF_RANGE {
+            assert_eq!(
+                error_of(text, &settings("aspect", value)),
+                Some((ErrorKind::ParameterOutOfRange, RANGE_TEXT.to_owned())),
+                "{text} {value}"
+            );
+        }
     }
 }
 
 #[test]
 fn build_with_accepts_both_ends_of_the_range() {
-    for value in [0.125, 8.0] {
-        let built = FundamentalDomain::build_with(&signature("*2222"), &settings("aspect", value));
-        assert!(built.is_ok(), "{value}: {built:?}");
+    for text in ["*2222", "2222"] {
+        for value in [0.125, 8.0] {
+            let built = FundamentalDomain::build_with(&signature(text), &settings("aspect", value));
+            assert!(built.is_ok(), "{text} {value}: {built:?}");
+        }
     }
 }
 
@@ -77,7 +82,7 @@ fn build_with_rejects_an_unknown_name() {
             "{name:?}"
         );
     }
-    for text in ["*632", "*732"] {
+    for text in ["*632", "*732", "732"] {
         assert_eq!(
             error_of(text, &settings("aspect", 2.0)),
             Some((
@@ -94,10 +99,10 @@ fn build_with_rejects_an_unknown_name() {
 #[test]
 fn build_with_rejects_an_unsupported_signature_before_its_settings() {
     assert_eq!(
-        error_of("532", &settings("aspect", 2.0)),
+        error_of("3*2", &settings("aspect", 2.0)),
         Some((
             ErrorKind::UnsupportedSignature,
-            "cannot build fundamental domain: the signature 532 is not supported".to_owned()
+            "cannot build fundamental domain: the signature 3*2 is not supported".to_owned()
         ))
     );
 }

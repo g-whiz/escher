@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use escher_domain::{Check, FundamentalDomain, Verification, parameters};
+use escher_domain::{Check, FundamentalDomain, PairingKind, Verification, parameters};
 use escher_signature::{Geometry, Rational, Signature};
 
 use crate::diagnostic::SignatureError;
@@ -137,7 +137,33 @@ fn push_domain_summary(
 ) {
     match domain {
         Ok(domain) => {
-            lines.push(("Domain", format!("{} mirror sides", domain.sides().len())));
+            let sides = domain.sides();
+            if domain.reverses_orientation() {
+                lines.push(("Domain", format!("{} mirror sides", sides.len())));
+            } else {
+                let pairs: Vec<String> = sides
+                    .iter()
+                    .enumerate()
+                    .filter(|&(index, side)| side.partner() > index)
+                    .map(|(index, side)| {
+                        format!(
+                            "{index} and {} by {}",
+                            side.partner(),
+                            kind_name(side.kind())
+                        )
+                    })
+                    .collect();
+                let noun = if pairs.len() == 1 { "pair" } else { "pairs" };
+                lines.push((
+                    "Domain",
+                    format!("{} sides in {} {noun}", sides.len(), pairs.len()),
+                ));
+                lines.push(("Side pairs", pairs.join(", ")));
+                lines.push((
+                    "Parity colouring",
+                    "none, every side pairing preserves orientation".to_owned(),
+                ));
+            }
             lines.push((
                 "Corner angles in degrees",
                 fixed_list(domain.corner_angles().into_iter().map(f64::to_degrees)),
@@ -149,6 +175,15 @@ fn push_domain_summary(
             lines.push(("Domain area", format!("{:.6}", domain.area())));
         }
         Err(error) => lines.push(("Domain", format!("none, {error}"))),
+    }
+}
+
+fn kind_name(kind: PairingKind) -> &'static str {
+    match kind {
+        PairingKind::Mirror => "reflection",
+        PairingKind::Rotation => "rotation",
+        PairingKind::Translation => "translation",
+        _ => "another isometry",
     }
 }
 

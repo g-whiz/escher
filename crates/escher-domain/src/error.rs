@@ -21,12 +21,12 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// use escher_domain::{ErrorKind, FundamentalDomain};
 /// use escher_signature::Signature;
 ///
-/// let signature: Signature = "532".parse()?;
+/// let signature: Signature = "3*2".parse()?;
 /// let error = FundamentalDomain::build(&signature).err();
 /// assert_eq!(error.as_ref().map(|error| error.kind()), Some(ErrorKind::UnsupportedSignature));
 /// assert_eq!(
 ///     error.map(|error| error.to_string()).as_deref(),
-///     Some("cannot build fundamental domain: the signature 532 is not supported"),
+///     Some("cannot build fundamental domain: the signature 3*2 is not supported"),
 /// );
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -126,17 +126,21 @@ impl core::error::Error for Error {
 pub enum ErrorKind {
     /// The crate does not build a fundamental domain for the signature.
     ///
-    /// Only a reflection triangle, the reflection rectangle, and the lune have
-    /// one. The signature of a triangle has the form `*pqr` with three finite
+    /// Only a reflection domain and its double have one. A reflection domain
+    /// is a triangle, the rectangle, or the lune, and its sides are mirrors.
+    /// The signature of a triangle has the form `*pqr` with three finite
     /// corner orders. It is hyperbolic when their reciprocals sum to less than
     /// 1, or it is one of the Euclidean signatures `*632`, `*442`, and `*333`,
     /// or one of the spherical signatures `*332`, `*432`, `*532`, and `*n22`.
     /// The signature of the rectangle is `*2222`, and that of the lune is
     /// `*nn`. A corner of order `n` is a corner where two mirrors meet at the
-    /// angle `pi / n`.
+    /// angle `pi / n`. The double of a reflection domain is the domain together
+    /// with its mirror image across one of its walls. Its signature has the
+    /// same orders as cone points, the centres of rotation, and no mirror
+    /// boundary, such as `732`, `2222`, or `nn`.
     UnsupportedSignature,
-    /// A corner order of a supported signature is larger than 1000, the
-    /// largest order for which the accuracy of the domain is established.
+    /// A corner or cone order of a supported signature is larger than 1000,
+    /// the largest order for which the accuracy of the domain is established.
     LimitExceeded,
     /// Rounding made the construction degenerate, such as a sum of vertices
     /// that is not a point of the hyperbolic plane or of the sphere, or a wall
@@ -197,7 +201,7 @@ mod tests {
 
     fn errors() -> [Error; 6] {
         [
-            Error::unsupported(&signature("235")),
+            Error::unsupported(&signature("3*2")),
             Error::limit_exceeded(1001),
             Error::numerical(Some(geometry_error())),
             Error::numerical(None),
@@ -224,7 +228,7 @@ mod tests {
         assert_eq!(
             texts,
             [
-                "cannot build fundamental domain: the signature 532 is not supported",
+                "cannot build fundamental domain: the signature 3*2 is not supported",
                 "cannot build fundamental domain: order 1001 is larger than 1000",
                 "cannot build fundamental domain: the construction is numerically degenerate",
                 "cannot build fundamental domain: the construction is numerically degenerate",

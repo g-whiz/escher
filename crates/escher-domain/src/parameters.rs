@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use escher_signature::Signature;
 
 use crate::error::{Error, Result};
-use crate::triangle::{Supported, supported};
+use crate::triangle::{Shape, Supported, supported};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Parameter {
@@ -44,8 +44,9 @@ impl Parameter {
 /// it to [`FundamentalDomain::build_with`](crate::FundamentalDomain::build_with)
 /// through [`ShapeParameters`]. The rectangle of `*2222` has the one parameter
 /// `aspect`, the length of its side 0 divided by the length of its side 1.
-/// Every other signature has none, whether or not the crate builds a domain
-/// for it.
+/// The domain of `2222` is two such rectangles side by side, and its parameter
+/// `aspect` is that of each rectangle. Every other signature has none, whether
+/// or not the crate builds a domain for it.
 ///
 /// # Examples
 ///
@@ -58,6 +59,7 @@ impl Parameter {
 /// assert_eq!(specs[0].name(), "aspect");
 /// assert_eq!((specs[0].minimum(), specs[0].maximum()), (0.125, 8.0));
 /// assert_eq!(specs[0].default_value(), 1.0);
+/// assert_eq!(parameters(&"2222".parse::<Signature>()?), specs);
 /// assert!(parameters(&"*632".parse::<Signature>()?).is_empty());
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -71,12 +73,12 @@ pub fn parameters(signature: &Signature) -> Vec<ParameterSpec> {
 }
 
 fn of(supported: Supported) -> Vec<Parameter> {
-    match supported {
-        Supported::Rectangle => vec![Parameter::Aspect],
-        Supported::HyperbolicTriangle { .. }
-        | Supported::EuclideanTriangle { .. }
-        | Supported::SphericalTriangle { .. }
-        | Supported::Lune { .. } => Vec::new(),
+    match supported.shape() {
+        Shape::Rectangle => vec![Parameter::Aspect],
+        Shape::HyperbolicTriangle { .. }
+        | Shape::EuclideanTriangle { .. }
+        | Shape::SphericalTriangle { .. }
+        | Shape::Lune { .. } => Vec::new(),
     }
 }
 

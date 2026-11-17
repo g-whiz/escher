@@ -2,16 +2,17 @@ use escher_domain::{ErrorKind, FundamentalDomain};
 
 use crate::common::signature;
 
-const UNSUPPORTED: [&str; 17] = [
-    "632",
+const UNSUPPORTED: [&str; 19] = [
     "*22222",
-    "532",
     "3*2",
-    "22",
+    "3*3",
     "*3333",
-    "732",
+    "3222",
+    "22222",
     "4*3",
+    "2*22",
     "*(inf)32",
+    "(inf)32",
     "*(inf)(inf)",
     "(inf)(inf)",
     "*22(inf)",
@@ -19,6 +20,7 @@ const UNSUPPORTED: [&str; 17] = [
     "*",
     "o",
     "*732*",
+    "7*32",
     "x732",
 ];
 
@@ -44,7 +46,14 @@ fn build_rejects_every_unsupported_signature() {
 
 #[test]
 fn build_rejects_an_order_above_the_limit() {
-    for text in ["*(1001)32", "*(1001)22", "*(1001)(1001)"] {
+    for text in [
+        "*(1001)32",
+        "*(1001)22",
+        "*(1001)(1001)",
+        "(1001)32",
+        "(1001)22",
+        "(1001)(1001)",
+    ] {
         let error = FundamentalDomain::build(&signature(text)).err();
         assert_eq!(
             error.as_ref().map(escher_domain::Error::kind),
@@ -61,7 +70,14 @@ fn build_rejects_an_order_above_the_limit() {
 
 #[test]
 fn build_accepts_the_order_at_the_limit() {
-    for text in ["*(1000)32", "*(1000)22", "*(1000)(1000)"] {
+    for text in [
+        "*(1000)32",
+        "*(1000)22",
+        "*(1000)(1000)",
+        "(1000)32",
+        "(1000)22",
+        "(1000)(1000)",
+    ] {
         let built = FundamentalDomain::build(&signature(text));
         assert!(built.is_ok(), "{text}: {built:?}");
     }
@@ -69,9 +85,12 @@ fn build_accepts_the_order_at_the_limit() {
 
 #[test]
 fn build_rejects_an_unsupported_signature_over_the_limit_as_unsupported() {
-    let error = FundamentalDomain::build(&signature("*(1001)(1001)(1001)(1001)")).err();
-    assert_eq!(
-        error.map(|error| error.kind()),
-        Some(ErrorKind::UnsupportedSignature)
-    );
+    for text in ["*(1001)(1001)(1001)(1001)", "(1001)(1001)(1001)(1001)"] {
+        let error = FundamentalDomain::build(&signature(text)).err();
+        assert_eq!(
+            error.map(|error| error.kind()),
+            Some(ErrorKind::UnsupportedSignature),
+            "{text}"
+        );
+    }
 }

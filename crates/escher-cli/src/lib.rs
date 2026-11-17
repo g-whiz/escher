@@ -17,11 +17,15 @@
 //! signature, its geometry, its Euler characteristic, the values that depend
 //! on them, and the shape parameters of the signature with their ranges and
 //! default values. It then prints a summary of the fundamental domain, or
-//! `none` and the reason when the signature has no domain. A malformed
-//! signature produces a diagnostic on standard error that locates the error
-//! in the signature. With the option `--check`, the command also verifies the
-//! domain, prints the result of each check, and fails when a check fails or
-//! the signature has no domain.
+//! `none` and the reason when the signature has no domain. A signature
+//! without a mirror boundary, such as `732`, has a domain with no mirror
+//! sides, which are sides where the group reflects. The summary then lists the
+//! pairs of sides that the side pairings join and states that the domain has no
+//! colouring by the parity of reflections. A malformed signature produces a
+//! diagnostic on standard error that locates the error in the signature. With
+//! the option `--check`, the command also verifies the domain, prints the
+//! result of each check, and fails when a check fails or the signature has no
+//! domain.
 //!
 //! The command `escher render --output <FILE> <SIGNATURE>` draws the tiling of
 //! the fundamental domain in the Poincare disk, a picture of the whole
@@ -33,7 +37,8 @@
 //! `aspect=1.5` for `*2222`. The command draws on a pool of threads that it
 //! builds for the call. It writes the PNG file only after the rendering and
 //! the encoding succeed, and it replaces a file that exists. It fails for a
-//! signature without a domain and for a setting that the domain does not
+//! signature without a domain, for a domain with a side that is not a mirror,
+//! such as the domain of `732`, and for a setting that the domain does not
 //! accept. It prints nothing on standard output unless the option `--stats` is
 //! given, which prints statistics of the rendering after the file is written.
 //!
@@ -42,13 +47,13 @@
 //!
 //! let mut stdout = Vec::new();
 //! let mut stderr = Vec::new();
-//! let status = run(["escher", "info", "235"], &mut stdout, &mut stderr);
+//! let status = run(["escher", "info", "3*2"], &mut stdout, &mut stderr);
 //! assert_eq!(status, Status::Success);
 //! assert_eq!(
 //!     String::from_utf8(stdout)?,
-//!     "Signature: 532\nGeometry: spherical\nEuler characteristic: 1/30\nCompact: yes\n\
-//!      Group order: 60\nArea: pi/15\n\
-//!      Domain: none, cannot build fundamental domain: the signature 532 is not supported\n",
+//!     "Signature: 3*2\nGeometry: spherical\nEuler characteristic: 1/12\nCompact: yes\n\
+//!      Group order: 24\nArea: pi/6\n\
+//!      Domain: none, cannot build fundamental domain: the signature 3*2 is not supported\n",
 //! );
 //! assert!(stderr.is_empty());
 //! # Ok::<(), Box<dyn std::error::Error>>(())

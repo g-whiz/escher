@@ -2,10 +2,11 @@ use escher_domain::FundamentalDomain;
 use escher_geometry::hyperbolic::ORIGIN;
 
 use crate::common::{
-    LargestResiduals, all_triangles, big, domain, is_small, largest_coordinate_error,
-    small_triangles, text,
+    LargestResiduals, all_triangles, big, cone_text, domain, is_small, kite,
+    largest_coordinate_error, small_triangles, text,
 };
 use crate::reference::{Reference, Triangle, Worst, error, int, largest_magnitude, sub};
+use crate::rotation::two_vertex_cycle_residual;
 
 const QUANTITIES: [&str; 6] = [
     "vertex, largest coordinate error over the largest coordinate",
@@ -154,8 +155,28 @@ fn third_side_matches_the_law_of_cosines() {
 )]
 fn checks_pass_at_the_worst_cases() {
     let mut largest = LargestResiduals::new();
+    let mut kites = LargestResiduals::new();
+    let mut two_vertex_cycles = (0.0, String::new(), 0);
     for orders in all_triangles() {
         largest.record(&domain(orders), &text(orders));
+        let double = kite(orders);
+        kites.record(&double, &cone_text(orders));
+        let residual = two_vertex_cycle_residual(&double, orders[2]);
+        two_vertex_cycles.2 += 1;
+        if residual >= two_vertex_cycles.0 {
+            two_vertex_cycles = (residual, cone_text(orders), two_vertex_cycles.2);
+        }
     }
+    println!("reflection triangles:");
     largest.print_and_assert_samples(CHECKED_MINIMUM);
+    println!("kites:");
+    kites.print_and_assert_samples(CHECKED_MINIMUM);
+    let (residual, input, samples) = two_vertex_cycles;
+    let tolerance = kite([7, 3, 2]).verify().relators().tolerance();
+    println!(
+        "relators of the kites, cycles of two vertices: largest residual {residual:.3e}, tolerance {tolerance:e}, margin {:.1}, {samples} samples, at {input}",
+        tolerance / residual
+    );
+    assert!(samples >= CHECKED_MINIMUM, "{samples}");
+    assert!(residual <= tolerance, "{input}: {residual:e}");
 }

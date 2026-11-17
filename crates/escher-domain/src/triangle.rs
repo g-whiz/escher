@@ -14,7 +14,7 @@ pub(crate) const LARGEST_ORDER: u32 = 1000;
 const TWO_TO_THE_32: f64 = 4_294_967_296.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Supported {
+pub(crate) enum Shape {
     HyperbolicTriangle { orders: [u32; 3], area: f64 },
     EuclideanTriangle { orders: [u32; 3] },
     Rectangle,
@@ -22,7 +22,7 @@ pub(crate) enum Supported {
     Lune { order: u32, area: f64 },
 }
 
-impl Supported {
+impl Shape {
     pub(crate) fn orders(self) -> Vec<u32> {
         match self {
             Self::HyperbolicTriangle { orders, .. }
@@ -32,36 +32,70 @@ impl Supported {
             Self::Lune { order, .. } => vec![order; 2],
         }
     }
+
+    pub(crate) fn with_half_area(self) -> Self {
+        match self {
+            Self::HyperbolicTriangle { orders, area } => Self::HyperbolicTriangle {
+                orders,
+                area: area / 2.0,
+            },
+            Self::SphericalTriangle { orders, area } => Self::SphericalTriangle {
+                orders,
+                area: area / 2.0,
+            },
+            Self::Lune { order, area } => Self::Lune {
+                order,
+                area: area / 2.0,
+            },
+            Self::EuclideanTriangle { .. } | Self::Rectangle => self,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Supported {
+    Reflection(Shape),
+    Rotation(Shape),
+}
+
+impl Supported {
+    pub(crate) fn shape(self) -> Shape {
+        match self {
+            Self::Reflection(shape) | Self::Rotation(shape) => shape,
+        }
+    }
 }
 
 pub(crate) fn supported(signature: &Signature) -> Option<Supported> {
-    if signature.handles() != 0 || signature.crosscaps() != 0 || !signature.cone_orders().is_empty()
-    {
+    if signature.handles() != 0 || signature.crosscaps() != 0 {
         return None;
     }
-    let [boundary] = signature.boundaries() else {
-        return None;
+    let cones = signature.cone_orders();
+    let (orders, class): (_, fn(Shape) -> Supported) = match signature.boundaries() {
+        [boundary] if cones.is_empty() => (boundary.corner_orders(), Supported::Reflection),
+        [] => (cones, Supported::Rotation),
+        _ => return None,
     };
-    match (boundary.corner_orders(), signature.geometry()) {
+    let shape = match (orders, signature.geometry()) {
         ([first, second, third], Geometry::Hyperbolic) => {
             let orders = [first.finite()?, second.finite()?, third.finite()?];
             let area = area(signature)?;
-            Some(Supported::HyperbolicTriangle { orders, area })
+            Shape::HyperbolicTriangle { orders, area }
         }
         ([first, second, third], Geometry::Euclidean) => {
             let orders = [first.finite()?, second.finite()?, third.finite()?];
-            Some(Supported::EuclideanTriangle { orders })
+            Shape::EuclideanTriangle { orders }
         }
         ([first, second, third, fourth], Geometry::Euclidean) => {
             for order in [first, second, third, fourth] {
                 order.finite()?;
             }
-            Some(Supported::Rectangle)
+            Shape::Rectangle
         }
         ([first, second, third], Geometry::Spherical) => {
             let orders = [first.finite()?, second.finite()?, third.finite()?];
             let area = area(signature)?;
-            Some(Supported::SphericalTriangle { orders, area })
+            Shape::SphericalTriangle { orders, area }
         }
         ([first, second], Geometry::Spherical) => {
             let order = first.finite()?;
@@ -69,10 +103,11 @@ pub(crate) fn supported(signature: &Signature) -> Option<Supported> {
                 return None;
             }
             let area = area(signature)?;
-            Some(Supported::Lune { order, area })
+            Shape::Lune { order, area }
         }
-        _ => None,
-    }
+        _ => return None,
+    };
+    Some(class(shape))
 }
 
 fn area(signature: &Signature) -> Option<f64> {
@@ -173,7 +208,7 @@ mod tests {
     use escher_geometry::ErrorKind;
     use escher_signature::Signature;
 
-    use super::{Supported, construct, signed_to_f64, supported, unsigned_to_f64};
+    use super::{Shape, Supported, construct, signed_to_f64, supported, unsigned_to_f64};
 
     fn signature(text: &str) -> Signature {
         match text.parse() {
@@ -195,10 +230,10 @@ mod tests {
     fn supported_reads_the_canonical_order_and_the_area() {
         assert_eq!(
             supported(&signature("*237")),
-            Some(Supported::HyperbolicTriangle {
+            Some(Supported::Reflection(Shape::HyperbolicTriangle {
                 orders: [7, 3, 2],
                 area: PI / 42.0,
-            }),
+            })),
         );
     }
 
@@ -206,29 +241,53 @@ mod tests {
     fn supported_reads_the_euclidean_triangle_and_the_rectangle() {
         assert_eq!(
             supported(&signature("*236")),
-            Some(Supported::EuclideanTriangle { orders: [6, 3, 2] }),
+            Some(Supported::Reflection(Shape::EuclideanTriangle {
+                orders: [6, 3, 2]
+            })),
         );
-        assert_eq!(supported(&signature("*2222")), Some(Supported::Rectangle));
+        assert_eq!(
+            supported(&signature("*2222")),
+            Some(Supported::Reflection(Shape::Rectangle))
+        );
     }
 
     #[test]
     fn supported_reads_the_spherical_triangle_and_the_lune() {
         assert_eq!(
             supported(&signature("*532")),
-            Some(Supported::SphericalTriangle {
+            Some(Supported::Reflection(Shape::SphericalTriangle {
                 orders: [5, 3, 2],
                 area: PI / 30.0,
-            }),
+            })),
         );
         assert!(matches!(
             supported(&signature("*55")),
-            Some(Supported::Lune { order: 5, .. })
+            Some(Supported::Reflection(Shape::Lune { order: 5, .. }))
+        ));
+    }
+
+    #[test]
+    fn supported_reads_the_rotation_signatures() {
+        assert_eq!(
+            supported(&signature("237")),
+            Some(Supported::Rotation(Shape::HyperbolicTriangle {
+                orders: [7, 3, 2],
+                area: PI / 21.0,
+            })),
+        );
+        assert_eq!(
+            supported(&signature("2222")),
+            Some(Supported::Rotation(Shape::Rectangle))
+        );
+        assert!(matches!(
+            supported(&signature("22")),
+            Some(Supported::Rotation(Shape::Lune { order: 2, .. }))
         ));
     }
 
     #[test]
     fn supported_rejects_a_signature_without_a_construction() {
-        for text in ["532", "*3333", "732", "*(inf)32"] {
+        for text in ["3*2", "*3333", "3222", "*(inf)32"] {
             assert_eq!(supported(&signature(text)), None, "{text}");
         }
     }

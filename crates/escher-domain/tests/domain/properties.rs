@@ -7,7 +7,9 @@ use proptest::collection::vec;
 use proptest::prelude::{Just, Strategy, prop_assert, prop_oneof, proptest};
 use proptest::sample::select;
 
-use crate::common::{domain, is_hyperbolic, order_text, proptest_config, text, triangles};
+use crate::common::{
+    cone_text, domain, is_hyperbolic, kite, order_text, proptest_config, text, triangles,
+};
 use crate::reference::{
     Matrix, Reference, Worst, div, error, int, largest_entry_from_identity, matrix, max, mul, num,
     power, product,
@@ -49,7 +51,7 @@ fn structured_text() -> impl Strategy<Value = String> {
     (
         0_usize..=1,
         0_usize..=1,
-        vec(order(), 0..=2),
+        vec(order(), 0..=4),
         vec(vec(order(), 0..=4), 0..=2),
     )
         .prop_map(|(handles, crosscaps, cones, boundaries)| {
@@ -92,18 +94,19 @@ proptest! {
 
     #[test]
     fn random_triples_build_and_pass_their_checks(orders in hyperbolic_triple()) {
-        let built = domain(orders);
-        let verification = built.verify();
-        prop_assert!(verification.passed(), "{}: {verification:?}", text(orders));
-        prop_assert!(counterclockwise(&built), "{}", text(orders));
-        for wall in built.sides() {
-            for vertex in built.vertices() {
-                let outside = side(wall.covector(), *vertex) / vertex.z;
-                prop_assert!(outside <= INSIDE_TOLERANCE, "{}: {outside:e}", text(orders));
+        for (built, input) in [(domain(orders), text(orders)), (kite(orders), cone_text(orders))] {
+            let verification = built.verify();
+            prop_assert!(verification.passed(), "{input}: {verification:?}");
+            prop_assert!(counterclockwise(&built), "{input}");
+            for wall in built.sides() {
+                for vertex in built.vertices() {
+                    let outside = side(wall.covector(), *vertex) / vertex.z;
+                    prop_assert!(outside <= INSIDE_TOLERANCE, "{input}: {outside:e}");
+                }
             }
+            let offset = (built.centre() - ORIGIN).abs().max_element();
+            prop_assert!(offset <= CENTRE_TOLERANCE, "{input}: {offset:e}");
         }
-        let offset = (built.centre() - ORIGIN).abs().max_element();
-        prop_assert!(offset <= CENTRE_TOLERANCE, "{}: {offset:e}", text(orders));
     }
 
     #[test]

@@ -10,20 +10,32 @@
 //! the unit sphere of the crate [`escher_geometry`]. A renderer can use the
 //! domain to fold each pixel into one tile.
 //!
-//! The crate supports compact hyperbolic signatures of the form `*pqr`, which
-//! have one mirror boundary and three finite corner orders, none above 1000,
-//! the Euclidean signatures `*632`, `*442`, `*333`, and `*2222`, and the
-//! spherical signatures `*332`, `*432`, `*532`, `*n22`, and `*nn`, with `n`
-//! from 2 to 1000. The domain of a signature `*pqr` of any of the three
-//! geometries is a reflection triangle, a triangle whose sides are mirrors and
-//! whose corners have the angles `pi / p`, `pi / q`, and `pi / r`. The domain
-//! of `*nn` is a lune, the region of the sphere between two half great circles
-//! that meet at two antipodal vertices at the angle `pi / n`. The domain of
-//! `*2222` is a rectangle whose sides are mirrors, and its shape parameter
-//! `aspect`, which [`parameters`](parameters()) lists, sets the ratio of its
-//! sides. Every other signature gives an [`Error`]. A signature of another
-//! form is unsupported, and a corner order above 1000 is over the limit.
-//! [`FundamentalDomain::verify`] checks a domain numerically.
+//! The crate supports two kinds of signature. A signature with one mirror
+//! boundary, such as `*632`, has a reflection domain, a polygon whose sides
+//! are mirrors, the walls in which the group reflects. A signature with cone
+//! points, the centres of rotation, and no mirror boundary, such as `632`, has
+//! the double of a reflection domain, which is the union of the reflection
+//! domain and its mirror image across the wall of its side 1, the side that
+//! joins its vertices 0 and 1. The sides of a double are paired by rotations,
+//! except that a translation joins one pair of sides of the double of `2222`.
+//!
+//! The reflection domains are these. A signature `*pqr` with three finite
+//! corner orders has a triangle whose corners have the angles `pi / p`,
+//! `pi / q`, and `pi / r`. The signature is hyperbolic when the reciprocals of
+//! the orders sum to less than 1, and no order may exceed 1000. It is
+//! Euclidean for `*632`, `*442`, and `*333`, and spherical for `*332`, `*432`,
+//! `*532`, and `*n22`, with `n` from 2 to 1000. The signature `*2222` has a
+//! rectangle, and its shape parameter `aspect`, which
+//! [`parameters`](parameters()) lists, sets the ratio of its sides. The
+//! signature `*nn`, with `n` from 2 to 1000, has a lune, the region of the
+//! sphere between two half great circles that meet at two antipodal vertices
+//! at the angle `pi / n`. A signature without a mirror boundary has a domain
+//! when its cone orders are the corner orders of one of these, such as `732`,
+//! `632`, `2222`, `532`, `n22`, and `nn`.
+//!
+//! Every other signature gives an [`Error`], because it is unsupported or an
+//! order is above 1000. [`FundamentalDomain::verify`] checks a domain
+//! numerically.
 //!
 //! ```
 //! use escher_domain::FundamentalDomain;
@@ -49,6 +61,7 @@
 //! from the platform's mathematical library and can differ between platforms.
 
 mod domain;
+mod double;
 mod error;
 mod parameters;
 mod polygon;
