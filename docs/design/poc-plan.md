@@ -132,11 +132,11 @@ The column "Depends on" names the milestones and research prerequisites whose re
 
 ## 4. Research Prerequisites
 
-The research documents hold no step-level description of Todd-Coxeter coset enumeration or the low-index subgroup search, little of the geometry of SymmHub's Euclidean and spherical catalogue, and no account of five of the nine cut types (`fundamental-domains.md` 8.5 and gap G4). A docs-only research branch therefore precedes each milestone that needs such material.
+Some milestones need material that a research document must supply first: a step-level account of Todd-Coxeter coset enumeration, the low-index subgroup search, and Reidemeister-Schreier rewriting, the geometry of SymmHub's Euclidean and spherical catalogue, of which the research documents hold little, and an account of five of the nine cut types, which they lack (`fundamental-domains.md` 8.5 and gap G4). A docs-only research branch therefore precedes each milestone that needs such material.
 
 | Label | Adds | To | From | Before |
 | --- | --- | --- | --- | --- |
-| RP-1 | A step-level account of Todd-Coxeter coset enumeration and of the low-index subgroup search | `colourings.md` 7 | The `low_index` paper, the manual of Groups, Algorithms, Programming (GAP), and a line-level reading of SymmHub's `lib/sublib/src/sublib_core.js`. `symmhub.md` 17 item 8 records that the `Subgroup*.js` files were not read line by line | M7 |
+| RP-1 | A step-level account of Todd-Coxeter coset enumeration, of the low-index subgroup search, and of Reidemeister-Schreier rewriting, with SymmHub's implementation and worked examples | `colourings.md` 7.8 to 7.21, and `symmhub.md` 12.8 | The sources that `colourings.md` 7.8 lists, with a line-level reading of SymmHub's `lib/sublib/src/sublib_core.js` and `reidemeister.js`. `symmhub.md` 17 item 8 records which files were read line by line | M7 |
 | RP-2 | The geometry of the functions of SymmHub's `lib/orbilib/WallpaperGroups_NonNegative.js`, of which the research holds little beyond names | `fundamental-domains.md` 9.5 and 9.6, and `symmhub.md` 7.1 | SymmHub source code | M10, M11 |
 | RP-3 | `atomizeOrbifold`, the twelve `unfoldAtom` cases, the weld, the walls, and `produceGenerators` at line level (gap G4) | `fundamental-domains.md` 8, and `symmhub.md` 6 | SymmHub source code | M15. Its sheet and slice part comes before M9 |
 | RP-4 | `Group_Frieze`, and the ideal corners of the triangle groups and their rotation subgroups that M18 renders | `fundamental-domains.md` and `symmhub.md` | SymmHub source code | M18 |
@@ -502,7 +502,7 @@ For a spherical signature it also prints "order by coset enumeration: 120, equal
 
 **Design documents.** `docs/design/group.md`, and an extension of `domain.md`. Prerequisite RP-1.
 
-**Sources.** [CH] pp. 255 to 257. Theorem 6.4.3 of [DAVIS] and the theorems of M6 for side presentations. The polygon theorems of `fundamental-domains.md` 4.9 and 4.10 for the cycle relators of mixed side pairings, from M10 on. `colourings.md` 7.2 for coset tables in GAP. `rust-ecosystem.md` 14, which records that no usable crate exists and that `algebraeon-groups` is under GPL-3.0-only and is not copied.
+**Sources.** [CH] pp. 255 to 257. Theorem 6.4.3 of [DAVIS] and the theorems of M6 for side presentations. The polygon theorems of `fundamental-domains.md` 4.9 and 4.10 for the cycle relators of mixed side pairings, from M10 on. `colourings.md` 7.2 for coset tables in GAP, 7.9 to 7.15 for the coset table, Todd-Coxeter enumeration, and its termination, 7.16 for the limits of existing implementations, and 7.20 for worked examples. `colourings.md` 7.15 and 14.1 item 19 record that no source read states what a run that reaches its limit shows. `rust-ecosystem.md` 14, which records that no usable crate exists and that `algebraeon-groups` is under GPL-3.0-only and is not copied.
 
 **Unverified statements relied on.** `UNV-19` (the algorithms without their primary texts) and `UNV-22` (a boundary without corners).
 
@@ -537,7 +537,7 @@ escher render '*642' --colouring 3a --colours crimson,gold,navy -o c.png
 
 **Design documents.** Extensions of `group.md`, `render.md`, and `cli.md`.
 
-**Sources.** Coset colourings and Lemma 2.1 (`colourings.md` 4.1). The algorithm and its cost (`colourings.md` 7.1 to 7.3 and 7.7). SymmHub's per-pixel colour and assembled algorithm (`colourings.md` 8, `symmhub.md` 12). SymmHub's `sublib` as the implementation to study.
+**Sources.** Coset colourings and Lemma 2.1 (`colourings.md` 4.1). The algorithm and its cost (`colourings.md` 7.1 to 7.3, 7.7, and 7.17), and its worked examples (`colourings.md` 7.20). SymmHub's per-pixel colour and assembled algorithm (`colourings.md` 8, `symmhub.md` 12). SymmHub's `sublib` as the implementation to study (`colourings.md` 7.19, `symmhub.md` 12.8).
 
 **Unverified statements relied on.** `UNV-17`: Lemma 2.1 is proved only for the triangle tiling of $G_{p,q}$ (`colourings.md` 4.2), and the composition order is the code's own claim (`colourings.md` 8.4). Whether the listing is complete, and how conjugate subgroups relate to colourings, is open (`colourings.md` 3.4 and 14.1 items 1 to 3). Also `UNV-19`.
 
@@ -553,7 +553,7 @@ escher render '*642' --colouring 3a --colours crimson,gold,navy -o c.png
 
 **Dependencies and `deny.toml` work.** None.
 
-**Risks.** The number of subgroups grows fast with the number of generators and the index. `colourings.md` 7.3 gives 653 classes for the free group of rank 3 at index 4, and `colourings.md` 7.1 gives exponential time. The default bound of 12 colours therefore needs the budget for signatures with handles, crosscaps, or many cone points. The test for conjugacy is the hardest part.
+**Risks.** The number of subgroups grows fast with the number of generators and the index. `colourings.md` 7.3 records an unverified count of 653 results for the free group of rank 3 at index 4 (`colourings.md` 14.1 item 27), and `colourings.md` 7.1 gives exponential time. The default bound of 12 colours therefore needs the budget for signatures with handles, crosscaps, or many cone points. The test for conjugacy is the hardest part.
 
 **Split.** (a) The search and `info`. (b) `render --colouring` and the palette.
 
@@ -891,7 +891,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-16 | The lift onto the ball, the view scale of the sphere, and the Phong formulas | `rendering.md` 13.1 items 11 and 12, `geometry-models.md` 11.6 | M5 | [PHONG75], [BLINN77] |
 | UNV-17 | Coset colourings are perfect for every orbifold group, the composition order, completeness, and conjugacy | `colourings.md` 4.2, 8.4, 8.7, and 14.1 items 1 to 3 | M8 | [DDL2009], [SCHWARZENBERGER1984], or Lean. [CBGS2008] defines colour types and states none of these (`colourings.md` 3.3 and 14.1 items 1 and 2) |
 | UNV-18 | The parity colouring as the colouring by the two cosets of the orientation-preserving subgroup. That subgroup and its signature are sourced for non-Euclidean crystallographic (NEC) groups with a compact quotient (`colourings.md` 6) | `colourings.md` 6 and 14.2, `rendering.md` 4.6 | M3 | A source that links the colouring to the subgroup, or Lean |
-| UNV-19 | Todd-Coxeter enumeration and the low-index search without their primary texts | `colourings.md` 7 and 14.3 | M7, M8 | [SIMS1994], [HOLT2005] |
+| UNV-19 | The steps of Todd-Coxeter enumeration and of the low-index search that only implementations state, the safety of the first-in-class pruning on partial tables, the termination of HLT, and what a run that reaches its coset limit shows. Termination for finite index under Mendelsohn's condition, the result of a run that stops, and the absence of a computable bound are stated by lecture notes and papers (`colourings.md` 7.15), whose primary texts were not read | `colourings.md` 7.8 to 7.17, 14.1 items 19 to 23 and 26, and 14.3 | M7, M8 | Chapter 5 and p. 208 of [SIMS1994], Chapter 5 and Section 5.4 of [HOLT2005], or Lean |
 | UNV-20 | Text conventions and the canonical form: the canonical string, the delimiter for orders of 10 or more, the spelling of infinity, and a `1` on its own. The equivalences and the omission of an order of 1 are sourced (`orbifold-notation.md` 3.5 and 4.1) | `orbifold-notation.md` 12 items 1 to 4 | M1, M11 | A project convention. [CBG] and [BH] define none of them |
 | UNV-21 | Geometry and parameters of non-compact signatures with $\chi \ne 0$: whether a signature with $\infty$, $\chi < 0$, and a mirror boundary or a crosscap gives a group, the geometry when $\chi > 0$, the deformation dimension, and the reading of the existence condition for orientation-preserving groups as $\chi < 0$. That condition is sourced in the terms of [BEARDON] (`orbifold-notation.md` 7.1, `fundamental-domains.md` 5.5) | `orbifold-notation.md` 12 item 15, `fundamental-domains.md` 9.8 | M1, M18 | A source, or Lean |
 | UNV-22 | The Conway presentation for a boundary without corners in general, the dictionary between NEC signatures and orbifold signatures, and the signature of the rotation subgroup in orbifold notation for hyperbolic signatures and the spherical groups. The NEC signature, its presentation, and the rotation subgroup of a proper NEC group in NEC terms are sourced (`orbifold-notation.md` 9.2 and 9.3) | `orbifold-notation.md` 12 items 5, 12, and 14, gap G10 | M6, M7 | A re-reading of [CH] (RP-5), a source that states the dictionary, or Lean |

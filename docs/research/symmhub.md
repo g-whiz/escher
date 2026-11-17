@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-16 |
+| Date | 2026-11-17 |
 | Applies to | The design and implementation of Escher's group construction, point folding, colouring, and rendering |
 
 ## Abstract
@@ -12,7 +12,7 @@ SymmHub is a browser application, written in JavaScript and the OpenGL Shading L
 
 ## 1. Scope
 
-This document covers the source code of SymmHub at commit `f2d19cb`, as two line-referenced code readings recorded it and a third reading of the source verified and corrected it. It describes what the code does, with the file and line of each claim. It covers the group specification, the construction of hyperbolic orbifolds, the catalogue of Euclidean and spherical groups, the triangle groups, generators, point reduction, projections, borders, colouring, and the group-theoretic machinery in detail. It covers simulation, animation, export, and the document format at survey level only.
+This document covers the source code of SymmHub at commit `f2d19cb`, as two line-referenced code readings recorded it and a third reading of the source verified and corrected it. A fourth reading read the subgroup library `lib/sublib/src/sublib_core.js` and `lib/sublib/src/reidemeister.js` line by line (Section 12.8). It describes what the code does, with the file and line of each claim. It covers the group specification, the construction of hyperbolic orbifolds, the catalogue of Euclidean and spherical groups, the triangle groups, generators, point reduction, projections, borders, colouring, and the group-theoretic machinery in detail. It covers simulation, animation, export, and the document format at survey level only.
 
 This document does not prove that any algorithm is correct, and it states no derivation of its own. Where a code reading marked a statement as its own inference, this document keeps that mark. The mathematics behind SymmHub, such as Conway's orbifold notation and Deaton's construction, belongs to other subject-matter references that cite the primary sources. The user interface, the navigation code, the scripting interface, and the bundled third-party libraries are out of scope, except for their licences.
 
@@ -103,7 +103,7 @@ These directories hold the code that this document describes:
 - `lib/invlib`: Inversive geometry, splanes, transforms, the `Group` class, and the packing of a group into a texture.
 - `lib/symhublib`: The renderer `SymRenderer`, navigation, visualization layers, the crown, and export.
 - `lib/shaders`: GLSL fragments, stored as JavaScript template strings in `.glsl.mjs` files.
-- `lib/sublib`: Standalone coset enumeration and subgroup search.
+- `lib/sublib`: A standalone low-index subgroup search and Reidemeister-Schreier rewriting. It has no Todd-Coxeter coset enumeration, although `outline.html:643` labels it "Standalone coset enumeration engine" (Section 12.8).
 - `lib/color_groups`: A catalogue of subgroups with their coset permutations.
 - `lib/drawlib`, `lib/uilib`, `lib/datgui`, `lib/extlib`: Drawing, user interface, and third-party code.
 - `apps/`: Thin applications. `sympix` is the main image and video application, `orbifold` is the older standalone orbifold explorer, and `symsim` holds the partial differential equation (PDE) simulations. The others are `attractors`, `symdraw`, `overlay`, `animated_patterns`, `groups`, and `sample`.
@@ -845,7 +845,7 @@ On the processor, a document stores one permutation per generator as text, such 
 
 ### 12.4. Subgroup Catalogue and Enumeration
 
-`lib/color_groups/{klm,sklm,wallpaper}/sub_<name>.json` holds a catalogue of subgroups with their coset permutations. For example, `lib/color_groups/klm/sub_222.json` holds `"generators": "a b", "cosets": "ab ba ab ba"`. The script `lib/color_groups/generate_manifests.js` and the library `lib/sublib` generated the catalogue. `lib/sublib/src/sublib_core.js`, 1254 lines, implements a Sims-style backtrack search for coset tables of low index, conjugacy classes, and conventions compatible with GAP. `lib/sublib/src/reidemeister.js`, 158 lines, implements Reidemeister-Schreier. `Subgroups.js`, `SubgroupTable(s).js`, `SubgroupDomain.js`, and `SubgroupConvex.js` build coloured and subgroup domains from them. `tests/subgroups/*` and `tests/sublib/*` test this code.
+`lib/color_groups/{klm,sklm,wallpaper}/sub_<name>.json` holds a catalogue of subgroups with their coset permutations. For example, `lib/color_groups/klm/sub_222.json` holds `"generators": "a b", "cosets": "ab ba ab ba"`. The script `lib/color_groups/generate_manifests.js` and the library `lib/sublib` generated the catalogue. `lib/sublib/src/sublib_core.js`, 1254 lines, implements a Sims-style backtrack search for coset tables of low index and their conjugacy classes, with conventions that its comments call identical to GAP's. `lib/sublib/src/reidemeister.js`, 158 lines, implements Reidemeister-Schreier rewriting. Section 12.8 describes both files. `Subgroups.js`, `SubgroupTable(s).js`, `SubgroupDomain.js`, and `SubgroupConvex.js` build coloured and subgroup domains from them. `tests/subgroups/*` and `tests/sublib/*` test this code.
 
 ### 12.5. Palettes
 
@@ -867,6 +867,48 @@ These layers fill $F$ with content other than flat colour:
 ### 12.7. Limits
 
 Colouring is limited to 24 colours by the 5-bit packing and `MAX_COLORS_COUNT`, to 32 sides with permutations, to 16 sides in the coset automaton, and to 20 crown elements.
+
+### 12.8. The Subgroup Library `sublib`
+
+This subsection records the code of `lib/sublib/src/sublib_core.js` (1254 lines, no imports) and `lib/sublib/src/reidemeister.js` (158 lines, no imports). Section 7.19 of `docs/research/colourings.md` states the steps of the search and compares them with the published algorithm. The other files of the directory are these:
+
+- `sublib.js`, the public entry point. It imports from the other files (`lib/sublib/src/sublib.js:18-48`), exports their functions (lines 78-110 and 112-120), and defines its own wrapper `subgroupsData` (lines 73-76).
+- `groups_description.js`, which holds the preset presentations.
+- `modules.js`, which re-exports only `ParseError`.
+
+No function in `lib/sublib` takes subgroup generators and computes a coset table, and no code there defines cosets by a strategy, queues coincidences, or merges cosets. A case-insensitive search for `todd` and `coxeter` in `lib/sublib` finds nothing.
+
+These are the data:
+
+- A word is an array of nonzero integers, with $+k$ for generator $k$, counted from 1, and $-k$ for its inverse (`sublib_core.js:39-40`). In text a lowercase letter is a generator and an uppercase letter its inverse. `[x,y]` is $x^{-1} y^{-1} x y$ (`sublib_core.js:100`).
+- `makePresentation(genText, relText)` returns `{ gens, relators, relStrings }`. A relator `u = v` becomes the free reduction of $u v^{-1}$, and empty relators are dropped from `relators` but not from `relStrings` (`sublib_core.js:177-190`).
+- A coset table is a flat `Int32Array` with the entry `tab[c*nCols + col]`, `nCols = 2*nGens`, cosets counted from 0 with coset 0 the subgroup, column $2k$ for generator $k$ counted from 0 and $2k + 1$ for its inverse, and `-1` for an undefined entry (`sublib_core.js:21-27`, 196-197, and 228). The search allocates it once at `maxIndex` rows and fills it in place.
+- `subgroupClasses(pres, maxIndex, options)` returns `{ classes, stats }`. A class is `{ index, table, nCols, size, normal, key }`, where `size` is the number of conjugate subgroups, `normal` is `size === 1`, and `key` is `n + '#' + table.join(',')` (`sublib_core.js:477-517`). `classSize` counts the distinct standardizations over all base points (`sublib_core.js:373-384`).
+- `subgroupsData(spec)` wraps the search and returns, for each subgroup, `{ subgroup, index, generators, cosets, invcos }`, where `cosets` and `invcos` are permutation strings with one character per coset from a 62-character alphabet (`sublib_core.js:530-550` and 674-737).
+
+These are the limits:
+
+| Limit | Default | Location |
+| --- | --- | --- |
+| `maxIndex` of `subgroupsData` | 24, and a `RangeError` above 62 | `sublib_core.js:677` and 681-683 |
+| `maxIndex` of `subgroupClasses` | Required, with no cap | `sublib_core.js:477` |
+| `maxTables` | Unlimited. `0` also means unlimited | `sublib_core.js:205` |
+| `deadlineMs` | Unlimited. `0` also means unlimited. Checked every 1024 nodes | `sublib_core.js:206` and 300 |
+| `maxSubgroups` | 0, no budget. Otherwise the search reruns from scratch for each index from `min(4, maxIndex)` up to `maxIndex` | `sublib_core.js:605-655` and 678 |
+
+A deadline or `maxTables` stops the search with `stats.aborted` set, and the partial classes are returned without an error (`sublib_core.js:300-311`). `subgroupsData` passes only `deadlineMs` and `maxTables` to the search, so the option `prune: false` is reachable only through `subgroupClasses`. Without pruning, `canonicalForm` merges conjugate tables afterwards (`sublib_core.js:490`). The callers in `lib/grouplib/SubgroupTable.js:29-32` set `DEFAULT_MAX_INDEX = 24`, `TABLE_MAX_SUBGROUPS = 2000`, and `TABLE_DEADLINE_MS = 3000`.
+
+`reidemeisterSchreier({ perms, relators })` takes one permutation per generator, counted from 0, and relators as letter strings (`reidemeister.js:44-59`). It builds a breadth-first spanning tree of the cosets, generators before inverses, and throws "coset table is not transitive" if a coset is unreached (`reidemeister.js:66-90`). Each edge outside the tree gives a Schreier generator, with at most 26 (`reidemeister.js:96-109`). It rewrites each relator at each coset, throws if the relator does not return to its coset, and freely reduces the result without removing duplicates (`reidemeister.js:116-141`). Its only caller is `lib/grouplib/SubgroupNames.js:145`. `abelianInvariants` in `sublib_core.js:1205-1254` repeats the same rewriting on exponent vectors and applies a Smith normal form.
+
+The code reading found these defects and conventions:
+
+- Classes are sorted by index and then by `key` as a string, so "1,10" sorts before "1,2", although the comment at `sublib_core.js:475` says "sorted by index, then by the canonical table" (`sublib_core.js:504`). The ids `<name>.<index>.<k>` follow this order.
+- `verifyData` indexes `relStrings` by the index into `relators`, so a trivial relator shifts the names in its messages (`sublib_core.js:973-979`).
+- The line `if (j < i) return 1` in `scan` cannot be reached, and the guard `e2 !== e1` in `define` is always true (`sublib_core.js:250` and 263), as the code reading inferred.
+- The search does not propagate at the root, only after the first definition (`sublib_core.js:230`).
+- `standardize` and `schreierGenerators` assume a complete, standardized table and do not test for `-1` (`sublib_core.js:397` and 429-439), as the code reading inferred.
+- With the default `generators: 'gap'`, the generator words of the output are written in reversed letter order, to match the GAP exporter that produced the shipped files (`sublib_core.js:526-528` and 570-578).
+- Words act left to right, and "generator x sends coset Hg to Hgx" (`sublib_core.js:766-768`, `reidemeister.js:17`), a right action on right cosets.
 
 ## 13. Simulation, Animation, Export, and Document Format
 
@@ -1026,6 +1068,7 @@ Escher's first deliverable is a command-line tool that renders the tiling of a s
 - Euclidean and spherical signatures come from a fixed catalogue, not from the general construction (Section 7.1).
 - The signatures `n` and `*n` are not supported (Section 4.3).
 - No hyperbolic orbifold is built without the atom-and-weld pipeline, and no closed-form Fricke polygon or map from Fenchel-Nielsen coordinates to matrices exists. The only moduli are the lengths and twists of Section 6.6.
+- No Todd-Coxeter coset enumeration exists. `lib/sublib` holds only the low-index subgroup search and Reidemeister-Schreier rewriting (Section 12.8).
 - No input by Wythoff construction or Coxeter diagram exists, and no form of signature beyond Conway's notation.
 - The shaders carry no word, parity, or tile identifier, so colour comes only from a permutation of at most 24 colours (Section 12).
 - Border widths are Euclidean in the model, scaled to pixels. No border has a width in hyperbolic distance.
@@ -1051,7 +1094,7 @@ These questions and claims are open:
 5. Termination of the fold: No cited source proves that the fold of Section 9 terminates for a given domain, or bounds its number of iterations. The comment in `lib/grouplib/Group_ON.js` asserts convergence, and the code bounds the loop only by the iteration cap (Section 9.3).
 6. Deaton's thesis: The three files that cite it disagree on the first name and the year (Section 3.5). [DEATON1993] follows the tutorial's reference entry, which no one has checked against the thesis.
 7. Unread sources: The papers in Section 3.5 are not in the repository and were not read for this document. Every statement about them is what SymmHub's tutorial says.
-8. Unread code: No code reading read `GroupGeometry.js`, `LimitSet.js`, or the `Subgroup*.js` files line by line. Section 16 states the absence of a lit sphere and of vector export as the result of a keyword search, not of a full read.
+8. Unread code: No code reading read `GroupGeometry.js`, `LimitSet.js`, or the `Subgroup*.js` files of `lib/grouplib` line by line. In `lib/sublib`, `src/sublib_core.js` and `src/reidemeister.js` were read line by line (Section 12.8), `src/sublib.js`, `src/groups_description.js`, and `src/modules.js` only for their imports, exports, and the lines cited, and `README.md` only for its section `Compatibility with the GAP-generated files` (Item 10). `docs/research/prior-art.md` cites that README under the tag `SYMMHUB-SUBLIB`. Section 16 states the absence of a lit sphere and of vector export as the result of a keyword search, not of a full read.
 9. Candidate statements about the triangles and the half-plane map: The source review derived these statements by algebra, and neither the code nor its comments state them:
    - In the hyperbolic triangle, $\lvert c \rvert^2 = 1 + r^2$ for the centre $c$ of $s_2$, so $s_2$ is orthogonal to the unit circle.
    - In the ideal triangle, the circle $s_1$ with centre $(-1, 1)$ and radius 1 touches the $x$ axis at $(-1, 0)$, which is the ideal $K$ corner.
@@ -1060,6 +1103,13 @@ These questions and claims are open:
    - In the spherical triangle, the circle $s_2$ passes through $(e_2, 0)$, so $e_2$ is the $x$ coordinate of the corner $L$. For $(K, L, M) = (2, 3, 3)$ the review computed the centre as about $(-0.341, -0.341)$ and the radius as about 0.683.
    - In the spherical triangle, the denominator $\cos a_2 + \cos(a_1 + a_0)$ is negative because the angle sum exceeds $\pi$, so $r < 0$ and the domain is inside the circle.
    - In the ideal triangle, the inversion in the circle with centre $(-1, 0)$ and radius 2 maps the line $x = 1$ to the unit circle, so the absolute is again the unit circle.
+10. Claims of the `sublib` comments:
+    - The comment at `lib/sublib/src/sublib_core.js:21-27` calls the table conventions "identical to GAP's".
+    - The comment at lines 31-33 says that the representative of a class agrees with GAP's for "~99%" of subgroups. The section `Compatibility with the GAP-generated files` of `lib/sublib/README.md` (line 297), which the comment names and which was read for this item only, says "97%" (line 310).
+    - The comment at lines 341-346 says that a prefix of a partial table that loses "still loses however it is completed, so cutting the branch there cannot discard a canonical table".
+
+    The research checked none of these. Item 24 of Section 14.1 of `docs/research/colourings.md` records what would close the first two, and its item 22 the third.
+
 ## 18. References
 
 - [SYMMHUB] Bulatov, V., Goodman-Strauss, C., and S. Vorthmann, "SymmHub", source code at commit `f2d19cb`, MIT licence, 2025, <https://github.com/SymmHub/SymmHub>.
@@ -1097,5 +1147,6 @@ This table lists the files that an implementer reads first, in the order of the 
 | `lib/shaders/colorTiles.glsl.mjs`, `lib/shaders/overlay_tiling.glsl.mjs` | Flat colour tiles and borders |
 | `lib/symhublib/ViewChain.js` | Processor mirror of the projection chain |
 | `lib/symhublib/CrownCalculator.js` | Tiles around a box |
-| `lib/sublib/src/sublib_core.js` | Low-index subgroup search |
+| `lib/sublib/src/sublib_core.js` | Low-index subgroup search: `LowIndexSearch` (199-331), `isCanonical` (351-371), `subgroupClasses` (477-517), `subgroupsData` (674-737) |
+| `lib/sublib/src/reidemeister.js` | Reidemeister-Schreier rewriting: `reidemeisterSchreier` (57-149) |
 | `tutorials/orbifold-notation.html` | Prose description of the orbifold algorithm |
