@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-16 |
+| Date | 2026-11-17 |
 | Applies to | The representation of points and isometries in Escher, the model maps, the geometric constructions, and the distance computations |
 
 ## Abstract
@@ -901,6 +901,15 @@ $$\cosh s = \cosh b \cosh^2 l - \sinh^2 l, \qquad \sinh(s/2) = \cosh l \sinh(b/2
 
 [KC24], p. 3, treats the sphere as a linear model (P). It is $S^d = \lbrace g^+(x, x) = 1 \rbrace$ with the origin $C_0 = (0, \dots, 0, 1)$. Its isometries are the orthogonal matrices, its translation is $T^\alpha(x) = (x_1 \cos \alpha + x_3 \sin \alpha, \ x_2, \ x_3 \cos \alpha - x_1 \sin \alpha)$, and its distance is $d(x, y) = \arccos g^+(x, y)$.
 
+[RAT], Section 2.1, states the same objects with the Euclidean dot product of $\mathbb{R}^{n+1}$ (P):
+
+- Distance: for $x$ and $y$ in $S^n$, "the spherical distance between x and y is defined to be the real number $d_S(x, y) = \theta(x, y)$", the Euclidean angle between $x$ and $y$, equation (2.1.6), p. 37. Then $0 \le d_S(x, y) \le \pi$, and $d_S(x, y) = \pi$ if and only if $y = -x$.
+- Cross product: $x \times y = (x_2 y_3 - x_3 y_2, \ x_3 y_1 - x_1 y_3, \ x_1 y_2 - x_2 y_1)$, equation (2.1.2), p. 36. By equation (2.1.3), p. 37, "x $\times$ y is orthogonal to both x and y", and $\lvert x \times y \rvert = \lvert x \rvert \lvert y \rvert \sin\theta(x, y)$ for nonzero $x$ and $y$, equation (2.1.4), p. 37.
+- Great circle: "A great circle of $S^n$ is the intersection of $S^n$ with a 2-dimensional vector subspace of $\mathbb{R}^{n+1}$", p. 39. For linearly independent $x$ and $y$, the set $S^n \cap V(x, y)$ "is the unique great circle of $S^n$ containing both x and y", and for $y = -x$ and $n > 1$ there is a continuum of great circles through $x$ and $-x$, p. 39. Corollary 2, p. 41, states that the geodesics of $S^n$ are its great circles.
+- Isometries: "Every orthogonal transformation of $\mathbb{R}^{n+1}$ restricts to an isometry of $S^n$, and every isometry of $S^n$ extends to a unique orthogonal transformation of $\mathbb{R}^{n+1}$", Theorem 2.1.3, p. 38. Its Corollary 1 identifies the isometry group of $S^n$ with $O(n + 1)$.
+
+[DAVIS], Section 6.2, p. 75, calls a hyperplane of $S^n$ a great subsphere and a half-space of $S^n$ a hemisphere, and states that $O(n + 1)$ "is the full group of isometries of $S^n$" (P). Its reflection, equation (6.4), is in Section 7.4.
+
 Rotations and reflections also have these representations:
 
 | Representation | Formula | Source |
@@ -933,9 +942,26 @@ Section 5.4 gives the equivalent inversion of [BUL11].
 
 ### 11.3. Spherical Trigonometry for Triangle Groups
 
-The spherical second law of cosines is $\cos C = -\cos A \cos B + \sin A \sin B \cos c$ [W-SPHLAW] (S). [RAT], Exercise 2.5.1, part (2), p. 53, states it as $\cos\alpha = -\cos\beta \cos\gamma + \sin\beta \sin\gamma \cos a$, as an exercise (P). Solved for a side, it has the form of the hyperbolic formula of Section 10.2 with $\cos$ in place of $\cosh$, according to the first research report.
+[RAT], Section 2.5, states the trigonometry of a spherical triangle $T(x, y, z)$ with the angles $\alpha$, $\beta$, and $\gamma$ at $x$, $y$, and $z$, and the opposite sides $a = \theta(y, z)$, $b = \theta(z, x)$, and $c = \theta(x, y)$, p. 48 (P). The statement lines of Theorems 2.5.1, 2.5.3, 2.5.4, and 2.5.5 and of the lune were read on the page images. The text layer lacks the statement line of Theorem 2.5.4:
 
-A spherical triangle group needs an angle sum above $\pi$, so $1/l + 1/m + 1/n > 1$ [W-TRIGROUP] (S). The spherical Mobius triangles are $(p\,2\,2)$, $(3\,3\,2)$, $(4\,3\,2)$, and $(5\,3\,2)$ [W-SCHWARZ] (S).
+| Statement | Formula | Locator |
+| --- | --- | --- |
+| Angle sum | $\alpha + \beta + \gamma > \pi$ | Theorem 2.5.1, p. 50 |
+| First law of cosines | $\cos\gamma = \dfrac{\cos c - \cos a \cos b}{\sin a \sin b}$ | Theorem 2.5.3, p. 50 |
+| Second law of cosines | $\cos c = \dfrac{\cos\alpha \cos\beta + \cos\gamma}{\sin\alpha \sin\beta}$ | Theorem 2.5.4, p. 51 |
+| Area of a lune | $\mathrm{Area}(L(\alpha)) = 2\alpha$ | p. 51 |
+| Area of a triangle | $\mathrm{Area}(T) = (\alpha + \beta + \gamma) - \pi$ | Theorem 2.5.5, p. 51 |
+
+[RAT], p. 51, defines a lune: "A lune of $S^2$ is defined to be the intersection of two distinct, nonopposite hemispheres of $S^2$." Every lune is congruent to $L(\alpha)$, given by $0 \le \theta \le \alpha$ in spherical coordinates, where "$\alpha$ is the angle formed by the two sides of $L(\alpha)$ at each of its two vertices" (P).
+
+Theorem 2.5.4 is the second law solved for a side, in the form of the hyperbolic formula of Section 10.2 with $\cos$ in place of $\cosh$. The other forms of the laws are exercises of [RAT], p. 53, read on the page image (P):
+
+- Exercise 2.5.1, part (1): $\cos a = \cos b \cos c + \sin b \sin c \cos\alpha$, and cyclically.
+- Exercise 2.5.1, part (2): $\cos\alpha = -\cos\beta \cos\gamma + \sin\beta \sin\gamma \cos a$, and cyclically. [W-SPHLAW] gives the same form (S).
+- Exercise 2.5.7: for $\alpha$, $\beta$, and $\gamma$ in $(0, \pi/2]$ with $\alpha + \beta + \gamma > \pi$, there is a spherical triangle with these angles.
+- Exercise 2.5.8: "two spherical triangles are congruent if and only if they have the same angles."
+
+A spherical triangle group needs an angle sum above $\pi$, so $1/l + 1/m + 1/n > 1$ [W-TRIGROUP] (S). The spherical Mobius triangles are $(p\,2\,2)$, $(3\,3\,2)$, $(4\,3\,2)$, and $(5\,3\,2)$ [W-SCHWARZ] (S). Section 9.1 of `docs/research/fundamental-domains.md` gives the primary source for both.
 
 ### 11.4. Ray and Sphere Intersection
 
@@ -1126,6 +1152,8 @@ Each open item is a candidate statement that no cited source states. It needs a 
 24. The line through two points of the plane $x_3 = 1$: for $p = (p_1, p_2, 1)$ and $q = (q_1, q_2, 1)$ with $p \ne q$, the cross product $w = p \times q$ divided by $\sqrt{w_1^2 + w_2^2}$ is $(a_1, a_2, -t)$ for a unit vector $a$ and a number $t$ with $p$ and $q$ on $P(a, t)$ of Section 12. No source read states it. [RAT] states cross products only on the sphere, Section 2.1, pp. 36 to 37, and in Lorentzian space, Section 3.2, p. 64. A source or a Lean proof would close it.
 25. The area of a polygon with the vertices $(x_j, y_j)$, $j = 0, \dots, n - 1$, in order around its boundary, as $\frac{1}{2} \left\lvert \sum_j (x_j y_{j+1} - x_{j+1} y_j) \right\rvert$ with indexes modulo $n$. No source read states it, and a search of the text layer of [RAT] found no area of a polygon from its vertices. A source or a Lean proof would close it.
 26. The vertices of a Euclidean triangle with the angles $\alpha_0$, $\alpha_1$, and $\alpha_2$ that sum to $\pi$: $W_2 = (0, 0)$, $W_0 = (1, 0)$, and $W_1 = l (\cos\alpha_2, \sin\alpha_2)$ with $l = \sin\alpha_0 / \sin\alpha_1$, so that the angle at $W_j$ is $\alpha_j$. It rests on a Euclidean law of sines, which no source read states. [RAT] states the law of sines for the sphere, Theorem 2.5.2, p. 50, and for the hyperbolic plane, Theorem 3.5.2, p. 86, and its notes on p. 104 mention a form of Bolyai's that holds in all three geometries without printing it. The Euclidean case of item 5 is the same triangle in another placement. A source that states the Euclidean law of sines, or a Lean proof, would close it.
+27. A map of the sphere that takes $C_0$ to a given unit vector $t$: the product $R^{\varphi} T^{\rho} R^{-\varphi}$ of the rotation and the translation of [KC24], p. 3 (Section 11.1), with $\rho = \operatorname{atan2}(\sqrt{t_1^2 + t_2^2}, t_3)$ and $\varphi = \operatorname{atan2}(t_2, t_1)$. [KC24] states $T^\alpha$ and $R^\alpha$ only, and no source read states the product or its image of $C_0$ on the sphere. Section 7.2 records the hyperbolic counterpart only in the $SU(1,1)$ form of [HT]. A source or a Lean proof would close it.
+28. The angle of two great circles of $S^2$ at a common point from their outward unit normals $u_0$ and $u_1$, as $\arccos(-u_0 \cdot u_1)$, such as the angle of a lune with its two sides oriented away from it. [RAT] states the corresponding relation only for a hyperbolic simplex, with inward normals (Section 7.4), and no source read states it on the sphere. A source or a Lean proof would close it.
 
 ### 15.2. Claims That Rest on Summaries or Secondary Sources
 
@@ -1160,7 +1188,7 @@ These sources were not read in full, and `docs/research/source-requests.md` reco
 - [MDPI-APOL]: possible closed forms of disk circles, item 2 of Section 15.1.
 - Every source marked (A) in this document, which was read only through a summary.
 
-[BEA] and [RAT] were read in part, as their entries in Section 16.1 state, and this document does not wait on either. A search of the text layer of each book found none of the candidate statements that remain open in Section 15.1. The text layer comes from optical character recognition, so the search can miss a statement.
+[BEA] and [RAT] were read in part, as their entries in Section 16.1 state, and this document does not wait on either. A search of the text layer of each book found none of the candidate statements of items 1 to 26 of Section 15.1 that remain open. The text layer comes from optical character recognition, so the search can miss a statement.
 
 ## 16. References
 

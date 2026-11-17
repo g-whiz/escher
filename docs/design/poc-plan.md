@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-16 |
+| Date | 2026-11-17 |
 | Applies to | The order of work of the proof of concept, from the first crate to the completion audit |
 
 ## Abstract
@@ -53,7 +53,7 @@ This document uses the terms that Section 2.2 of `docs/writing-documentation.md`
 - design branch: A branch named `feature/<name>-design` that changes only documents. It writes or extends the design documents of a milestone, and the research documents where a research prerequisite applies.
 - code branch: A branch in its own worktree that changes code together with its tests and the document updates that Hard Rule 1 of `AGENTS.md` requires.
 - research prerequisite: A design branch, labelled `RP-1` to `RP-5`, that adds to a research document what a milestone needs before its code can start (Section 4).
-- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-28` (Section 7).
+- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-29` (Section 7).
 - stage: One of the three stages of the owner's staging (Section 3.2).
 - proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`. Section 10.1 of that document states the defaults that the owner has decided, which keep their labels.
 - reference arithmetic: The independent high-precision implementation of a few formulas inside a test suite, which Section 7 of `docs/design/architecture.md` defines.
@@ -391,7 +391,7 @@ Sections 4.5, 4.6, 5, and 6.8 of `docs/design/cli.md` define the exact option, l
 
 ### 5.5. M5: The Sphere
 
-**Goal.** The spherical reflection groups `*332`, `*432`, `*532`, `*22n`, and `*nn`, drawn as a lit ball in orthographic projection with Phong shading, one light, and a viewing rotation that the command line sets, as the owner decided.
+**Goal.** The spherical reflection groups `*332`, `*432`, `*532`, `*n22`, and `*nn`, drawn as a lit ball in orthographic projection with Phong shading, one light, and a viewing rotation that the command line sets, as the owner decided.
 
 **Command line.** These commands illustrate the milestone:
 
@@ -406,28 +406,41 @@ escher render '*532' --rotation 20,35,0 -o ico-rotated.png
 - `--light`: the light direction.
 - `--shading phong|none`: Phong shading, or none.
 
-**Scope.** A spherical module with the unit sphere, reflections, rotations, and distance. The lift onto the ball, with the rotation. Spherical triangles from the spherical law of cosines, and the lune for `*nn`. A fold with a bound from the group order. Phong shading with one light.
+`escher info` prints the domain summary, and with `--check` the checks, of each signature of the milestone, and gains no line.
 
-**Design documents.** Extensions of `geometry.md`, `domain.md`, `render.md`, and `cli.md`.
+Sections 4.2, 4.6, 5.3, and 6.8 of `docs/design/cli.md` define the exact options, lines, and diagnostics.
+
+**Scope.** A module `spherical` in `escher-geometry` with the unit sphere, the side test, point normalization, distance, the wall through two points, reflections, rotations, and an isometry check. In `escher-domain`, the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22` from the spherical law of cosines, and the lune of `*nn`, which includes `*22` with $n = 2$, each with $n$ up to the existing limit of 1000. No spherical signature has a shape parameter. In `escher-render`, a point size of the sphere in the fold, the ball view with the viewing rotation, and Phong shading with one light (Sections 5.3, 5.9, and 5.10 of `docs/design/render.md`). The fold cap stays the only bound of the fold: no bound from the group order enters the code, and the tests compare the largest fold count of an image with the group order. In `escher-cli`, the options `--rotation`, `--light`, and `--shading`, and the removal of the rule that refuses a domain whose geometry has no view.
+
+**Design documents.** Extensions of `geometry.md`, `domain.md`, `render.md`, and `cli.md`, and the changes to `docs/design/architecture.md`, to this plan, and to `geometry-models.md` and `fundamental-domains.md` that the design makes.
 
 **Sources.**
 
 - The sphere as a linear model: [KC24] (`geometry-models.md` 11.1). Reflection: Section 6.4 of [DAVIS].
-- Triangles: Example 6.5.1 of [DAVIS]. The sector of two mirrors: p. 82 of [DAVIS] (`fundamental-domains.md` 4.5).
+- Triangles: Example 6.5.1 of [DAVIS], and Theorem 6.4.3 of [DAVIS] for the triangle as a strict fundamental domain. The sector of two mirrors: p. 82 of [DAVIS] (`fundamental-domains.md` 4.5). The spherical law of cosines solved for a side: Theorem 2.5.4 of [RATCLIFFE] (`geometry-models.md` 11.3). The definition of a convex polytope in the sphere: p. 75 of [DAVIS] (`fundamental-domains.md` 13.3 item 9).
 - Orders: `orbifold-notation.md` 8.2. Finite folds: `rendering.md` 9.3. Phong shading: `geometry-models.md` 11.6.
 
-**Unverified statements relied on.** `UNV-12` (the spherical law of cosines solved for a side, `geometry-models.md` 11.3), `UNV-16` (the lift, the view scale, and the Phong formulas, whose primary paper is unread), and `UNV-14` for the distance to a great circle if it is used.
+**Unverified statements relied on.** `UNV-16` (the lift, the view scale, and the Phong formulas, whose primary paper is unread), `UNV-26` (the angle of a lune measured from its outward normals), `UNV-29` (the lune as a strict fundamental domain), and `UNV-1`, `UNV-15`, and `UNV-18` for the fold, the border estimate, and the parity colouring on the sphere. The border tests use a brute-force oracle, so `UNV-14` is not used.
 
 **Tests and acceptance.**
 
-- Exhaustive certificate: a breadth-first enumeration of the generated matrices has exactly $2/\chi$ elements (`orbifold-notation.md` 7.3), the images of an interior point are distinct, and every sample folds within the bound.
-- With shading off, rotating the view by a group element leaves the image unchanged.
+- Exhaustive certificate: for `*332`, `*432`, `*532`, and `*n22` and `*nn` with $n$ from 2 to 12 and $n = 1000$, a breadth-first enumeration of the products of the pairings has exactly $2/\chi$ elements (`orbifold-notation.md` 7.3), the images of the centre are pairwise further apart than a stated floor, and every image of the centre folds back to the centre with as many steps as its depth and never reaches the fold cap.
+- Every sample of the canonical image of each tested signature folds within the fold cap, with a largest fold count below the group order. The claim covers the samples of these images and the images of the centre, not every point of the sphere (`UNV-1`).
+- With shading off, and also with it on, rotating the view by a group element leaves the image unchanged within the golden allowance, and a reversing element exchanges the parity colours.
 - The brightest point follows the light direction.
-- Golden images.
+- The fold, the lift and its tangents, the border estimate by rim band, and the shading against reference arithmetic (Section 6.7 of `docs/design/render.md`).
+- Golden images of `*532`, `*432`, `*332`, `*722`, and `*55`, of `*532` with the rotation 20, 35, 0 degrees, and of `*532` without shading. The seven existing golden images stay unchanged.
+- Snapshots of the domain summaries, of the three options, and of their diagnostics.
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Aliasing at the limb. Borders of pixel width on a view that is not conformal (`DEC-16`). The defaults for the light and the material.
+**Risks.** Aliasing at the limb. Borders of pixel width on a view that is not conformal (`DEC-16`): a faint dark outline at the rim, and a ball entirely of border colour at $n = 1000$ (Section 5.9 of `docs/design/render.md`). Near a vertex of very high order, a fold can fail to stop within the cap (Section 6.7 of `docs/design/render.md`). The defaults for the rotation, the light, and the material, which have no source.
+
+**Split.** Three branches, in this order:
+
+1. The design branch `feature/sphere-design`, with the documents of the field "Design documents" and every bound that a test sets stated as to be measured.
+2. The branch of the module `spherical` of `escher-geometry` and the spherical domains of `escher-domain`, with their tests and measured figures. It also updates the snapshots of `escher info` that change. The existing rule of `escher render` that refuses a domain whose geometry has no view keeps `render` from drawing a spherical domain wrongly until the next branch.
+3. The branch of the point size, the ball view, the viewing rotation, and the shading of `escher-render`, with their tests, golden images, and measured figures, together with the options `--rotation`, `--light`, and `--shading` of `escher render`. It removes the rule that refuses a domain whose geometry has no view.
 
 ### 5.6. M6: Rotation Subgroups
 
@@ -601,7 +614,7 @@ escher render o --set skew=0.25 -o p1.png
 
 ### 5.11. M11: The 14 Spherical Types
 
-**Goal.** The remaining `n*`, `nx`, `2*n`, and `3*2`, and the small cases `1`, `*`, `x`, `22`, `*22`, and `2*`. This milestone completes stage 2.
+**Goal.** The remaining `n*`, `nx`, `2*n`, and `3*2`, and the small cases `1`, `*`, `x`, `22`, and `2*`. This milestone completes stage 2. `*22` is the lune of `*nn` with $n = 2$, which M5 builds.
 
 **Command line.** These commands illustrate the milestone:
 
@@ -612,7 +625,7 @@ escher render '5x' -o s10.png
 
 `escher info` reports every type.
 
-**Scope.** Constructions on the unit sphere with rotations, reflections, and rotary reflections. Domains that are lunes or hemispheres. Prerequisite RP-2.
+**Scope.** Constructions on the unit sphere with rotations, reflections, and rotary reflections. Domains that are hemispheres, and lunes other than the lune of `*nn` of M5. Prerequisite RP-2.
 
 **Design documents.** An extension of `domain.md`.
 
@@ -851,7 +864,7 @@ The owner decided how the proof of concept treats a statement that no source est
 
 | Id | Statement relied on | Research location | Milestones that use it | What closes it |
 | --- | --- | --- | --- | --- |
-| UNV-1 | The first-violated-wall fold terminates for compact reflection polygons, in a number of steps equal to the word length | `rendering.md` 4.7 and 13.1 item 1, gap G5, `fundamental-domains.md` 13.3 item 6 | M3 on | Sections 1.6, 1.7, and 5.4 of [HUMPHREYS], or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
+| UNV-1 | The first-violated-wall fold terminates for compact reflection polygons, in a number of steps equal to the word length. On the sphere, a prototype found points within $10^{-14}$ radians of a vertex of order 1000 whose fold did not stop even at a cap of 100000, and points that took more steps than the longest word of the group (Section 6.7 of `docs/design/render.md`), so the design relies on it only for the samples of the images that the tests render and the images of the centre | `rendering.md` 4.7 and 13.1 item 1, gap G5, `fundamental-domains.md` 13.3 item 6 | M3 on | Sections 1.6, 1.7, and 5.4 of [HUMPHREYS], or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
 | UNV-2 | The same fold terminates for general side pairings and domains that are not convex | `rendering.md` 4.7 and 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M15 to M17 | A source, a change to Voight's rule, or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
 | UNV-3 | Behaviour on or near a wall | `rendering.md` 13.1 item 2 | M3 on | Tests. No source is known |
 | UNV-4 | Growth of the fold count, the reading of the exponents, and the limits of precision | `rendering.md` 13.1 items 5 and 6, `geometry-models.md` 15.1 item 10 | M3 defaults | The body of [FWW], and measurement |
@@ -862,9 +875,9 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-9 | The twist convention | Gap G11 | M10, M15, M16 | A project convention |
 | UNV-10 | Euclidean parameter counts: whether a count includes the scale, and the counts of the groups for which no source states one. The counts and the rule that are sourced are in `orbifold-notation.md` 10.2 and `fundamental-domains.md` 6.1 | Gap G7, `orbifold-notation.md` 12 item 7 | M4, M10 | [KLR], [SCOTT], or Lean |
 | UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7) | Gap G8, `fundamental-domains.md` 9.7 | M10, M11, M15 | A source that constructs them, or Lean |
-| UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, the spherical law of cosines solved for a side, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5 | `geometry-models.md` 10.5, 10.6, 11.3, 15.1 items 12 and 14, and 15.2 | M5, M9 | Chapter 2 of [BUSER], or Lean |
+| UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5, and the spherical law of cosines solved for a side, Theorem 2.5.4 of [RATCLIFFE], is in `geometry-models.md` 11.3 | `geometry-models.md` 10.5, 10.6, 15.1 items 12 and 14, and 15.2 | M9 | Chapter 2 of [BUSER], or Lean |
 | UNV-13 | The inverse and metric of the band, and the choice of map between the disk and the half-plane. The maps between the disk, the hyperboloid, and the Klein model are sourced in `geometry-models.md` 4.2 | `geometry-models.md` 4.3 and 5.1, `rendering.md` 13.1 item 14 | M12 | [HUB], and round-trip tests |
-| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M3 tests, M5, M13 | A source, or Lean |
+| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M3 tests, M13 | A source, or Lean |
 | UNV-15 | The screen-distance estimate through the fold, analytic antialiasing, and the fade of tiles smaller than a pixel | `rendering.md` 7.1 and 13.1 items 19 and 20 | M3, M14 | Measurement against supersampling |
 | UNV-16 | The lift onto the ball, the view scale of the sphere, and the Phong formulas | `rendering.md` 13.1 items 11 and 12, `geometry-models.md` 11.6 | M5 | [PHONG75], [BLINN77] |
 | UNV-17 | Coset colourings are perfect for every orbifold group, the composition order, completeness, and conjugacy | `colourings.md` 4.2, 8.4, 8.7, and 14.1 items 1 to 3 | M8 | [DDL2009], [SCHWARZENBERGER1984], or Lean. [CBGS2008] defines colour types and states none of these (`colourings.md` 3.3 and 14.1 items 1 and 2) |
@@ -876,9 +889,10 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-23 | Whether the fold applies to a domain with an ideal vertex. The polygon theorem for such a domain is sourced (`fundamental-domains.md` 4.7) | `rendering.md` 13.1 item 3, `geometry-models.md` 7.6.5 | M18 | A source on the fold, or Lean |
 | UNV-24 | MIT code inside a work under GPL-3.0-or-later | `symmhub.md` 17 item 1 | M15 | The licence texts, and the owner's judgement |
 | UNV-25 | Correct rounding of the reference-arithmetic crate | `rust-ecosystem.md` 21 item 5 | M2 on | One comparison with MPFR |
-| UNV-26 | Statements on the linear model in the conventions of Sections 5.1 and 5.2 of `docs/design/architecture.md`, with the time coordinate last and outward normals: the normal through two points, normals and the corner angle, a disk circle to a normal, and the Euclidean reflection as a matrix. [RATCLIFFE] states the cross product with the time coordinate first, the relation between normals and the angle with inward normals, and the Euclidean reflection as a map (`geometry-models.md` 2.4, 7.4, and 12) | `geometry-models.md` 2.4, 7.4, and 12 | M2, M4, M15, M18 | A source in these conventions, or Lean |
+| UNV-26 | Statements on the linear model in the conventions of Sections 5.1 and 5.2 of `docs/design/architecture.md`, with the time coordinate last and outward normals: the normal through two points, normals and the corner angle, a disk circle to a normal, and the Euclidean reflection as a matrix. [RATCLIFFE] states the cross product with the time coordinate first, the relation between normals and the angle with inward normals, and the Euclidean reflection as a map (`geometry-models.md` 2.4, 7.4, and 12) | `geometry-models.md` 2.4, 7.4, and 12 | M2, M4, M5, M15, M18 | A source in these conventions, or Lean |
 | UNV-27 | Coordinates for the family, ranges, and default shape of polygons with prescribed angles. Existence, the admissible angles, and one polygon for each set of angles are sourced (`geometry-models.md` 10.1, `fundamental-domains.md` 9.4) | `geometry-models.md` 15.1 item 14, `fundamental-domains.md` 9.4 | M9 | A detailed reading of the proof in [TH], [BUSER] |
 | UNV-28 | Properties of SymmHub's triangle: of its disk triangle, if it is used as an oracle, and in the Euclidean case the vertex coordinates of the triangle that `escher-domain` builds | `geometry-models.md` 15.1 item 5 | M2 tests, M4 | Tests only for the disk triangle. A source or Lean for the Euclidean coordinates |
+| UNV-29 | The lune of `*nn`, the intersection of two hemispheres whose walls meet at the angle $\pi/n$, is a strict fundamental domain of the group of its two reflections. Theorem 6.4.3 of [DAVIS] covers convex polytopes, and a lune is not one in the sense of p. 75 of [DAVIS] | `fundamental-domains.md` 13.3 item 9 | M5 | A source that proves it, or Lean |
 
 ## 8. Security Considerations
 

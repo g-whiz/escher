@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the crate `escher-domain`, which builds the fundamental domain of an orbifold signature as a polygon in the linear model, with a wall, a pairing isometry, and a partner for each side, and verifies it numerically. It covers the compact hyperbolic reflection triangle `*pqr`, the three Euclidean reflection triangles `*632`, `*442`, and `*333`, and the rectangle `*2222` with its shape parameter `aspect`. It defines the public types and operations, the exact set of signatures that have a domain, the shape parameters and their validation, each construction as a numbered algorithm with the source of each step, the placement of the polygon, the measurements of its sides, angles, and area, and the six numeric checks of the verification with their tolerances and the defects that each one detects. It also states the numerical accuracy over the supported orders, the error type, the resource limits, the tests, the dependencies, the unverified statements that the code relies on, the assumptions, and the choices that no other document dictates.
+This document specifies the crate `escher-domain`, which builds the fundamental domain of an orbifold signature as a polygon in the linear model, with a wall, a pairing isometry, and a partner for each side, and verifies it numerically. It covers the compact hyperbolic reflection triangle `*pqr`, the three Euclidean reflection triangles `*632`, `*442`, and `*333`, the rectangle `*2222` with its shape parameter `aspect`, the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and the lune of `*nn`. It defines the public types and operations, the exact set of signatures that have a domain, the shape parameters and their validation, each construction as a numbered algorithm with the source of each step, the placement of the polygon, the measurements of its sides, angles, and area, and the six numeric checks of the verification with their tolerances and the defects that each one detects. It also states the numerical accuracy over the supported orders, the error type, the resource limits, the tests, the dependencies, the unverified statements that the code relies on, the assumptions, and the choices that no other document dictates.
 
 ## 1. Introduction
 
@@ -26,9 +26,9 @@ The primary readers are the agent that changes the crate and the reviewer who ch
 
 ### 1.4. Scope
 
-This document covers the public surface of the crate, the supported signatures, the shape parameter of `*2222`, the conventions of the sides, the vertices, and the pairings, the construction of the compact hyperbolic reflection triangle, the Euclidean triangle, and the rectangle, their placement, their measurements, the verification, the numerical accuracy, the error type, the resource limits, the tests, and the dependencies.
+This document covers the public surface of the crate, the supported signatures, the shape parameter of `*2222`, the conventions of the sides, the vertices, and the pairings, the construction of the compact hyperbolic reflection triangle, the Euclidean triangle, the rectangle, the spherical triangle, and the lune, their placement, their measurements, the verification, the numerical accuracy, the error type, the resource limits, the tests, and the dependencies.
 
-The supported signatures are the compact hyperbolic `*pqr` with $1/p + 1/q + 1/r < 1$, and the Euclidean `*632`, `*442`, `*333`, and `*2222` (Section 4).
+The supported signatures are the compact hyperbolic `*pqr` with $1/p + 1/q + 1/r < 1$, the Euclidean `*632`, `*442`, `*333`, and `*2222`, and the spherical `*332`, `*432`, `*532`, `*n22`, and `*nn` (Section 4).
 
 ### 1.5. Non-Goals
 
@@ -38,7 +38,7 @@ These topics are owned elsewhere or are outside this document:
 - The lines that `escher info` prints for a domain and for `--check`, their format, and the exit status are specified in `docs/design/cli.md`.
 - Every shape parameter other than `aspect` of `*2222`, and the kind and unit of a `ParameterSpec` that Section 3.2 of the architecture names. A reflection triangle has no free parameter ("triangles are rigid", Section 10.1 of the geometry reference).
 - The side presentation, which needs `escher-group` (Section 3.2 of the architecture).
-- Ideal vertices, spherical domains, the Euclidean signatures other than the four of Section 4, and every other class of signature in the plan. Each returns `UnsupportedSignature` (Section 4).
+- Ideal vertices, the Euclidean and spherical signatures other than those of Section 4, and every other class of signature in the plan. Each returns `UnsupportedSignature` (Section 4).
 - The canonical view, the model, and the margin of `DEC-12`, which belong to `View` in `escher-render`. This crate places only the centre (Section 6.3).
 
 ## 2. Requirements Language
@@ -63,14 +63,15 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md` a
 | `docs/research/orbifold-notation.md` | the notation reference |
 | `docs/rust-coding-standards.md` | the coding standard |
 
-A function written as `hyperbolic::name` or `euclidean::name` is the function of that name in the module `hyperbolic` or `euclidean` of `escher-geometry`, which the geometry design specifies.
+A function written as `hyperbolic::name`, `euclidean::name`, or `spherical::name` is the function of that name in the module `hyperbolic`, `euclidean`, or `spherical` of `escher-geometry`, which the geometry design specifies.
 
 It adds these terms:
 
 - supported signature: A signature that meets the predicate of Section 4. `FundamentalDomain::build` constructs a domain for it when its corner orders are at most 1000 (DOM-3).
 - corner $j$: The corner of the canonical signature at index $j$ of `boundaries()[0].corner_orders()`, with the order $n_j$ and the angle $\alpha_j = \pi/n_j$.
-- $m$: The number of sides of a domain, which is also its number of vertices and corners: 3 for a triangle and 4 for the rectangle.
-- origin: `hyperbolic::ORIGIN` for a hyperbolic domain and `euclidean::ORIGIN` for a Euclidean one. Both are $(0, 0, 1)$.
+- $m$: The number of sides of a domain, which is also its number of vertices and corners: 2 for a lune, 3 for a triangle, and 4 for the rectangle.
+- origin: `hyperbolic::ORIGIN` for a hyperbolic domain, `euclidean::ORIGIN` for a Euclidean one, and `spherical::ORIGIN` for a spherical one. All three are $(0, 0, 1)$.
+- lune: The intersection of two distinct, nonopposite hemispheres of $S^2$, with two vertices and the same angle at both ([RAT], p. 51, Section 11.3 of the geometry reference).
 - standard position: The placement in which vertex 2 is the origin and vertex 0 lies on the positive first axis, for a triangle (Section 6.1, step 5, and Section 6.5, step 2).
 - final position: The placement in which the centre of `DEC-12` is the origin (Sections 6.3 and 6.5).
 - shape parameter: A named real number that selects one domain of a signature whose domains form a family, such as `aspect` of `*2222` (Section 6.6).
@@ -182,22 +183,22 @@ Each item guarantees its invariant by construction, so no caller checks it:
 
 | Item | Meaning | Invariant |
 | --- | --- | --- |
-| `FundamentalDomain` | The fundamental domain of a supported signature | Built only by `build` and `build_with`. It holds the geometry and the corner orders of the signature, the area of a hyperbolic signature, and the sides, the vertices, and the centre |
+| `FundamentalDomain` | The fundamental domain of a supported signature | Built only by `build` and `build_with`. It holds the geometry and the corner orders of the signature, the area of a hyperbolic or spherical signature, and the sides, the vertices, and the centre |
 | `build` | The constructor with no setting | Equal to `build_with` with an empty `ShapeParameters`, so each shape parameter takes its default value |
 | `build_with` | The constructor with settings | Returns a domain exactly for a supported signature with corner orders of at most 1000 (Section 4) and valid settings (Section 6.6), and an `Error` otherwise. Never panics |
-| `geometry()` | The geometry of the signature | `Hyperbolic` or `Euclidean` |
+| `geometry()` | The geometry of the signature | `Hyperbolic`, `Euclidean`, or `Spherical` |
 | `sides()` | The sides, in the order of Section 5.1 | $m$ sides of kind `Mirror` |
-| `vertices()` | The vertices, in the order of Section 5.1 | As many as the sides. Vertex $j$ is corner $j$. The vertices are counterclockwise in the disk, or in the plane for a Euclidean domain, where each is a Euclidean point $(x, y, 1)$ (Section 5.2). Each has the accuracy of Section 9.3 or 9.4, and a caller does not renormalize it (Section 9.1) |
-| `centre()` | The centre of `DEC-12`: the normalized sum of the vertices, or for a Euclidean domain their mean | Within $10^{-9}$ of the origin in each coordinate for a hyperbolic domain (Section 6.3), and within the bound of Section 9.4 for a Euclidean one |
-| `Side::normal` | The unit normal of the wall of the side, or for a Euclidean domain the unit normal $(a_1, a_2, 0)$ of its line | Outward (Section 5.2), and spacelike for a hyperbolic domain |
-| `Side::covector` | The covector of the wall | `hyperbolic::covector(normal)` for a hyperbolic domain, and the line covector $(a_1, a_2, -t)$ for a Euclidean one |
-| `Side::pairing` | The pairing isometry $P_j$ of the side (Section 5.3 of the architecture) | For a mirror, `hyperbolic::reflection(normal)` or `euclidean::reflection(covector)` |
+| `vertices()` | The vertices, in the order of Section 5.1 | As many as the sides. Vertex $j$ is corner $j$. The vertices are counterclockwise in the disk, in the plane for a Euclidean domain, where each is a Euclidean point $(x, y, 1)$, and as seen from outside the sphere for a spherical domain, where each is a sphere point whose last coordinate may be zero or negative (Section 5.2). Each has the accuracy of Section 9.3, 9.4, or 9.5, and a caller does not renormalize it (Section 9.1) |
+| `centre()` | The centre of `DEC-12`: the normalized sum of the vertices, for a Euclidean domain their mean, and for a lune `spherical::ORIGIN` (Section 6.7) | Within $10^{-9}$ of the origin in each coordinate for a hyperbolic domain (Section 6.3), within the bound of Section 9.4 for a Euclidean one, within the bound of Section 9.5 for a spherical triangle, and exactly the origin for a lune |
+| `Side::normal` | The unit normal of the wall of the side, for a Euclidean domain the unit normal $(a_1, a_2, 0)$ of its line, and for a spherical domain the great-circle normal of its great circle | Outward (Section 5.2), and spacelike for a hyperbolic domain |
+| `Side::covector` | The covector of the wall | `hyperbolic::covector(normal)` for a hyperbolic domain, the line covector $(a_1, a_2, -t)$ for a Euclidean one, and the normal itself for a spherical one |
+| `Side::pairing` | The pairing isometry $P_j$ of the side (Section 5.3 of the architecture) | For a mirror, `hyperbolic::reflection(normal)`, `euclidean::reflection(covector)`, or `spherical::reflection(normal)`, an orthogonal matrix |
 | `Side::partner` | The index of the side onto which $P_j$ maps side $j$ | For a mirror, $j$ itself |
-| `Side::kind` | The kind of the pairing | `Mirror` for every side of a reflection triangle and of the rectangle |
+| `Side::kind` | The kind of the pairing | `Mirror` for every side of a reflection triangle, of the rectangle, and of a lune |
 | `Side::orientation` | Whether $P_j$ preserves or reverses orientation | `Reversing` for a mirror |
 | `side_lengths()` | The length of each side, in side order | Section 7 |
 | `corner_angles()` | The angle at each vertex in radians, in corner order | Section 7 |
-| `area()` | The area measured from the corner angles, or for a Euclidean domain from the vertices | Section 7 |
+| `area()` | The area measured from the corner angles, or for a Euclidean domain from the vertices | Section 7. For a spherical domain, in the metric of the unit sphere |
 | `verify()` | The result of the six checks of Section 8.2 | Pure and never panics (DOM-8) |
 | `Verification::passed` | Whether every check passed | True exactly when each of the six `Check::passed` is true |
 | `Check::passed` | Whether the residual is within the tolerance | `residual() <= tolerance()`. The residual is never NaN, and an infinite residual fails |
@@ -220,8 +221,9 @@ The crate has these private modules, each a file named after the module:
 - `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, the re-exports, and the unit test "Auto traits" of Section 12.1.
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
 - `src/domain.rs`: `FundamentalDomain`, `Side`, `PairingKind`, `Orientation`, the accessors, and the measurements of Section 7.
-- `src/triangle.rs`: The supported-signature predicate of Section 4, with a private enum of the three supported classes, and the construction of Section 6.1.
+- `src/triangle.rs`: The supported-signature predicate of Section 4, with a private enum of the five supported classes, and the construction of Section 6.1.
 - `src/polygon.rs`: The constructions of the Euclidean triangle and the rectangle of Section 6.5, and the unit test "Exact rectangle" of Section 12.1.
+- `src/spherical.rs`: The constructions of the spherical triangle and the lune of Section 6.7.
 - `src/parameters.rs`: `parameters`, `ParameterSpec`, `ShapeParameters`, the private enum of the parameters with the name, the range, and the default of each, and the validation of Section 6.6.
 - `src/verify.rs`: `Verification`, `Check`, and the checks of Section 8.
 
@@ -246,20 +248,22 @@ A signature is supported exactly when all of these hold, each read from the publ
 1. `handles()` is 0.
 2. `crosscaps()` is 0.
 3. `cone_orders()` is empty.
-4. `boundaries()` has exactly one element, and its `corner_orders()` has three or four elements.
+4. `boundaries()` has exactly one element, and its `corner_orders()` has two, three, or four elements.
 5. `finite()` of each order is `Some`. This holds exactly when `is_compact()` is true for such a signature, and the crate reads `finite()` so that it needs no `expect` later.
 6. One of these holds:
    - three corners, and `geometry()` is `Geometry::Hyperbolic`.
    - three corners, and `geometry()` is `Geometry::Euclidean`.
    - four corners, and `geometry()` is `Geometry::Euclidean`.
+   - three corners, and `geometry()` is `Geometry::Spherical`.
+   - two corners, and `geometry()` is `Geometry::Spherical`.
 
-For a hyperbolic signature, the predicate also needs `area_over_pi()` to be `Some`, which it is for every hyperbolic signature that meets conditions 1 to 6, so this condition makes no further signature unsupported. Step 1 of Section 6.1 converts the area.
+For a hyperbolic or spherical signature, the predicate also needs `area_over_pi()` to be `Some`, which it is for every such signature that meets conditions 1 to 6 (Section 9.4 of the signature design), so this condition makes no further signature unsupported. Step 1 of Section 6.1 converts the area.
 
-The geometry is the exact rational classification of `escher-signature` (Section 9.1 of the signature design), so no floating-point comparison decides support. For three finite corners, the hyperbolic case of condition 6 is the condition $1/p + 1/q + 1/r < 1$ of Section 9.1 of the domain reference and Section 10.1 of the geometry reference. The Euclidean case with three corners is exactly `*632`, `*442`, and `*333`, the three solutions of $1/p + 1/q + 1/r = 1$ in Example 6.5.2 of [DAVIS2008] and in Section 7.2 of [RAT], p. 279 (Section 9.1 of the domain reference). The Euclidean case with four corners is exactly `*2222`, the only signature of one boundary with four corners among the 17 Euclidean signatures of Section 9.5 of the domain reference.
+The geometry is the exact rational classification of `escher-signature` (Section 9.1 of the signature design), so no floating-point comparison decides support. For three finite corners, the hyperbolic case of condition 6 is the condition $1/p + 1/q + 1/r < 1$ of Section 9.1 of the domain reference and Section 10.1 of the geometry reference. The Euclidean case with three corners is exactly `*632`, `*442`, and `*333`, the three solutions of $1/p + 1/q + 1/r = 1$ in Example 6.5.2 of [DAVIS2008] and in Section 7.2 of [RAT], p. 279 (Section 9.1 of the domain reference). The Euclidean case with four corners is exactly `*2222`, the only signature of one boundary with four corners among the 17 Euclidean signatures of Section 9.5 of the domain reference. The spherical case with three corners is exactly `*332`, `*432`, `*532`, and `*n22` with $n \ge 2$, the triples of Example 6.5.1 of [DAVIS2008] (Section 9.1 of the domain reference), which include `*222`. The spherical case with two corners is exactly `*nn` with $n \ge 2$, which include `*22`, because `escher-signature` rejects `*mn` with $m \ne n$ as a bad orbifold.
 
-Every other valid signature returns `UnsupportedSignature`. This covers the other Euclidean signatures, such as `632` and `*x`, the spherical `*532`, the hyperbolic `*3333`, `732`, and `4*3`, the triangle with an ideal corner `*(inf)32`, the friezes, the trivial signature `1`, and every general non-compact signature. A general non-compact signature returns this kind throughout the proof of concept (`DEC-19`, Section 5.8 of the architecture).
+Every other valid signature returns `UnsupportedSignature`. This covers the other Euclidean signatures, such as `632` and `*x`, the other spherical signatures, such as `532`, `*`, `3*2`, and `22`, the hyperbolic `*3333`, `732`, and `4*3`, the triangle with an ideal corner `*(inf)32`, the friezes, the trivial signature `1`, and every general non-compact signature. A general non-compact signature returns this kind throughout the proof of concept (`DEC-19`, Section 5.8 of the architecture).
 
-DOM-3. `build` MUST return `LimitExceeded` for a supported signature with a corner order above 1000, and MUST apply the predicate of this section first, because the accuracy of Section 9.3 is established only up to that order, and a domain outside it could pass its checks by a smaller margin than the tolerances assume. A signature that is both unsupported and over the limit gets `UnsupportedSignature`, because the limit is a property of this construction. Section 16 states the reason for the number. The orders of a supported Euclidean signature are at most 6, so the limit does not bind for it.
+DOM-3. `build` MUST return `LimitExceeded` for a supported signature with a corner order above 1000, and MUST apply the predicate of this section first, because the accuracy of Section 9.3 is established only up to that order, and a domain outside it could pass its checks by a smaller margin than the tolerances assume. A signature that is both unsupported and over the limit gets `UnsupportedSignature`, because the limit is a property of this construction. Section 16 states the reason for the number. The orders of a supported Euclidean signature are at most 6, so the limit does not bind for it. It binds for `*n22` and `*nn`, so `*(1001)22` and `*(1001)(1001)` return `LimitExceeded`.
 
 ## 5. Sides, Vertices, and Pairings
 
@@ -273,23 +277,23 @@ DOM-4. The crate MUST number the vertices and sides by this convention, because 
 - Vertex $j$ is the common point of side $j$ and side $j + 1$, with indexes modulo $m$. So side $j$ joins vertex $j - 1$ and vertex $j$.
 - Corner $j$ lies between side $j$ and side $j + 1$, so its relator is $(P_j P_{j+1})^{n_j}$.
 
-Section 9.1 of the notation reference reads a boundary with corners of orders $a$, $b$, and $c$ as the Latin reflections $P$, $Q$, $R$, and $S$ with the relators $(PQ)^a$, $(QR)^b$, and $(RS)^c$. Side 0 is $P$, side 1 is $Q$, and side 2 is $R$. For a triangle the convention reads $S$ as $P$ again, and for the rectangle side 3 is $S$. Section 15.1 records this reading as an assumption. The relators that the checks use come from Section 4.4 of the domain reference, which has three reflections and does not depend on it.
+Section 9.1 of the notation reference reads a boundary with corners of orders $a$, $b$, and $c$ as the Latin reflections $P$, $Q$, $R$, and $S$ with the relators $(PQ)^a$, $(QR)^b$, and $(RS)^c$. Side 0 is $P$, side 1 is $Q$, and side 2 is $R$. For a triangle the convention reads $S$ as $P$ again, and for the rectangle side 3 is $S$. A lune has $m = 2$, so side 0 joins vertex 1 and vertex 0, side 1 joins vertex 0 and vertex 1, and its relators are $(P_0 P_1)^{n}$ at corner 0 and $(P_1 P_0)^{n}$ at corner 1. Section 15.1 records this reading as an assumption. The relators that the checks use come from Section 4.4 of the domain reference, which has three reflections and does not depend on it.
 
 ### 5.2. Orientation and Outward Normals
 
-The vertices of a hyperbolic domain are counterclockwise in the disk: the planar cross product of `hyperbolic::to_disk(V1) - hyperbolic::to_disk(V0)` and `hyperbolic::to_disk(V2) - hyperbolic::to_disk(V0)` is positive. The vertices of a Euclidean domain are counterclockwise in the plane: the same cross product of the first two coordinates of $V_1 - V_0$ and $V_2 - V_0$ is positive.
+The vertices of a hyperbolic domain are counterclockwise in the disk: the planar cross product of `hyperbolic::to_disk(V1) - hyperbolic::to_disk(V0)` and `hyperbolic::to_disk(V2) - hyperbolic::to_disk(V0)` is positive. The vertices of a Euclidean domain are counterclockwise in the plane: the same cross product of the first two coordinates of $V_1 - V_0$ and $V_2 - V_0$ is positive. The vertices of a spherical triangle are counterclockwise as seen from outside the sphere: $(V_0 \times V_1) \cdot V_2$ is positive. The two vertices of a lune do not fix an orientation, and its placement in Section 6.7 numbers its sides counterclockwise as seen from outside the sphere at its centre.
 
-The normal of each side points outward, as Section 5.2 of the architecture requires. A point $x$ is inside the domain where `hyperbolic::side(covector, x)` or `euclidean::side(covector, x)` is at most 0 for every side, and a positive value means that the point is outside that side. Section 2.4 of the geometry reference records that [RAT] orients normals inward. This crate uses no statement of [RAT] that depends on that orientation.
+The normal of each side points outward, as Section 5.2 of the architecture requires. A point $x$ is inside the domain where `hyperbolic::side(covector, x)`, `euclidean::side(covector, x)`, or `spherical::side(covector, x)` is at most 0 for every side, and a positive value means that the point is outside that side. Section 2.4 of the geometry reference records that [RAT] orients normals inward. This crate uses no statement of [RAT] that depends on that orientation.
 
 ### 5.3. Pairings
 
-Side $j$ carries the isometry $P_j$ that maps the neighbouring copy of the domain across side $j$ onto the domain (Section 5.3 of the architecture). For a mirror side, $P_j$ is the reflection in its wall, `hyperbolic::reflection(normal)`, which is the reflection of equation (6.6) of [DAVIS] (Section 7.4 of the geometry reference) as Section 5.2 of the architecture adopts it. For a Euclidean mirror side, $P_j$ is `euclidean::reflection(covector)`, the reflection of equation (4.1.1) of [RAT] and equation 6.3 of [DAVIS] (Sections 7.4 and 12 of the geometry reference), whose form as a matrix is part of `UNV-26` (Section 14). The partner of a mirror side is the side itself.
+Side $j$ carries the isometry $P_j$ that maps the neighbouring copy of the domain across side $j$ onto the domain (Section 5.3 of the architecture). For a mirror side, $P_j$ is the reflection in its wall, `hyperbolic::reflection(normal)`, which is the reflection of equation (6.6) of [DAVIS] (Section 7.4 of the geometry reference) as Section 5.2 of the architecture adopts it. For a Euclidean mirror side, $P_j$ is `euclidean::reflection(covector)`, the reflection of equation (4.1.1) of [RAT] and equation 6.3 of [DAVIS] (Sections 7.4 and 12 of the geometry reference), whose form as a matrix is part of `UNV-26` (Section 14). For a spherical mirror side, $P_j$ is `spherical::reflection(normal)`, the reflection of equation (6.4) of [DAVIS] (Section 7.4 of the geometry reference). The partner of a mirror side is the side itself.
 
 ## 6. Construction
 
 ### 6.1. Algorithm
 
-DOM-5. `build_with` MUST construct a hyperbolic domain by the steps of this section and a Euclidean domain by the steps of Section 6.5, each in its order, because the accuracy of Sections 9.3 and 9.4 and the margins of Section 8.4 are measured for exactly these steps, and another order of the same operations gives other rounding errors that no test measures.
+DOM-5. `build_with` MUST construct a hyperbolic domain by the steps of this section, a Euclidean domain by the steps of Section 6.5, and a spherical domain by the steps of Section 6.7, each in its order, because the accuracy of Sections 9.3 to 9.5 and the margins of Section 8.4 are measured for exactly these steps, and another order of the same operations gives other rounding errors that no test measures.
 
 Let $n_0 \ge n_1 \ge n_2$ be the corner orders of Section 5.1 and $\alpha_j = \pi / n_j$:
 
@@ -315,7 +319,7 @@ The domain stores the geometry of the signature, the corner orders and the area 
 
 The rotation of step 5 is counterclockwise by $\alpha_2$ about the origin, as `hyperbolic::rotation` defines it, so vertex 1 lies counterclockwise from vertex 0 as seen from vertex 2, which gives the orientation of Section 5.2.
 
-DOM-6. The construction and the measurements MUST NOT use a relation between the inner product of two normals and the corner angle, because the only such relation in the research is stated with inward normals in the conventions of [RAT] (Section 7.4 of the geometry reference), and its form with the outward normals of this project is part of `UNV-26`. The corner angles are measured from the distances between the vertices instead (Section 7).
+DOM-6. The construction and the measurements MUST NOT use a relation between the inner product of two normals and the corner angle, except for the corner angle of a lune as DOM-20 states, because the only such relation in the research is stated with inward normals in the conventions of [RAT] (Section 7.4 of the geometry reference), and its form with the outward normals of this project is part of `UNV-26`. The corner angles are measured from the distances between the vertices instead (Section 7).
 
 ### 6.2. Source of Each Step
 
@@ -426,6 +430,48 @@ DOM-18. `build_with` MUST check in this order, and MUST return the first error t
 
 A name matches only when it is equal, byte for byte, to the name of a `ParameterSpec`, so `Aspect` and `aspect ` with a trailing space are unknown.
 
+### 6.7. Spherical Construction
+
+For a spherical signature, `build_with` runs steps 1 to 5 of DOM-18, computes the area of the signature as step 1 of Section 6.1 does, and then runs the steps of the triangle or of the lune. A spherical signature has no shape parameter, so `parameters` returns an empty list for it. Let $n_0 \ge n_1 \ge n_2$ be the corner orders of a triangle and $\alpha_j = \pi / n_j$:
+
+1. Compute each $\alpha_j$ as `PI / f64::from(n_j)`, and its sine and cosine.
+2. Compute two side lengths by the second law of cosines:
+   - $X_a = \dfrac{\cos\alpha_1 + \cos\alpha_2 \cos\alpha_0}{\sin\alpha_2 \sin\alpha_0}$, the cosine of side 0, from vertex 2 to vertex 0, opposite vertex 1.
+   - $X_b = \dfrac{\cos\alpha_0 + \cos\alpha_2 \cos\alpha_1}{\sin\alpha_2 \sin\alpha_1}$, the cosine of side 2, from vertex 1 to vertex 2, opposite vertex 0.
+   - $L_a = \arccos X_a$ and $L_b = \arccos X_b$, each computed with `f64::acos` on the argument clamped to $[-1, 1]$.
+3. Place the triangle in the standard position: $W_2 =$ `spherical::ORIGIN`, $W_0 =$ `spherical::boost(L_a) * spherical::ORIGIN`, and $W_1 =$ `spherical::rotation(alpha_2) * (spherical::boost(L_b) * spherical::ORIGIN)`.
+4. Compute $c =$ `spherical::normalize_point(W_0 + W_1 + W_2)`, $M =$ `spherical::inverse(spherical::translation(c))`, and each vertex $V_j = M W_j$, with no renormalization (Section 9.1).
+5. For each side $j$ from 0 to 2, with vertex indexes modulo 3, compute $u =$ `spherical::wall_through(V_{j-1}, V_j)`, and negate $u$ if `spherical::side(u, V_{j+1})` is positive. Side $j$ gets the normal $u$, the covector $u$, the pairing `spherical::reflection(u)`, the partner $j$, the kind `Mirror`, and the orientation `Reversing`.
+6. Compute the centre as `spherical::normalize_point(V_0 + V_1 + V_2)`.
+7. Return `Numerical` if a call of step 4, 5, or 6 returned an error, if any stored number is not finite, or if the value of `spherical::side` at the opposite vertex in step 5 is not strictly negative after the orientation.
+
+Steps 3 to 7 are steps 5 to 11 of Section 6.1 with the module `spherical`. For a lune of the order $n$, with $\theta = \pi / n$:
+
+1. Compute $\theta$ as `PI / f64::from(n)`, and $(s, c)$ as `(theta / 2.0).sin_cos()`.
+2. Place the lune directly in the final position: $V_0 = (0, 1, 0)$, $V_1 = (0, -1, 0)$, and the centre `spherical::ORIGIN`.
+3. Side 0 gets the normal $(c, 0, -s)$ and side 1 the normal $(-c, 0, -s)$. Each side gets its normal as its covector, the pairing `spherical::reflection(normal)`, the partner $j$, the kind `Mirror`, and the orientation `Reversing`.
+4. Return `Numerical` if any stored number is not finite, or if the value of `spherical::side` at the centre is not strictly negative for both sides.
+
+The domain stores the geometry, the corner orders, and the area of the signature, and the sides, vertices, and centre. The rule of `DEC-12` gives the zero vector as the centre of two antipodal vertices, so the centre of the lune is a choice of this design (Section 15.3).
+
+These statements support the steps. T names a step of the triangle and L a step of the lune:
+
+| Step | Statement used | Source |
+| --- | --- | --- |
+| T1 | A corner of order $n$ has the angle $\pi/n$ | Section 4.5 of the domain reference, the hypotheses of Theorem 6.4.3 of [DAVIS2008] |
+| T2 | The second law of cosines, $\cos c = (\cos\alpha \cos\beta + \cos\gamma)/(\sin\alpha \sin\beta)$ with $c$ opposite $\gamma$ | [RAT], Theorem 2.5.4, p. 51 (Section 11.3 of the geometry reference). The two lengths permute the angles of the printed form |
+| T2, T3 | The triangle exists for these triples and is determined up to congruence by its angles | Example 6.5.1 and the sentence of Example 6.5.3 of [DAVIS2008] (Section 9.1 of the domain reference) |
+| T3 | The boost, the rotation, and the origin | `spherical::boost`, `spherical::rotation`, and `spherical::ORIGIN` of the geometry design, from p. 3 of [KC24] |
+| T4, T6 | The centre is the normalized sum of the vertices | `DEC-12`, a choice of the architecture |
+| T4 | An isometry that maps the origin to $c$, and its inverse | `spherical::translation` and `spherical::inverse` of the geometry design. The image of the origin is an assumption of Section 13.1 of the geometry design |
+| T5 | The great circle through two vertices | `spherical::wall_through` of the geometry design, from [RAT], Section 2.1 |
+| T5 | The normal points away from the opposite vertex | Section 5.2 of the architecture |
+| T5, L3 | The pairing of a mirror is the reflection in its great circle | Equation (6.4) of [DAVIS] (Section 7.4 of the geometry reference) |
+| L2 | The vertices and the centre | A choice of this design |
+| L3 | The two sides meet at the angle $\theta$ at each vertex | The definition of a lune and of its angle, [RAT], p. 51. That the outward normals of step L3 give this angle has no source (item 28 of Section 15.1 of the geometry reference, part of `UNV-26`). Checks 4 and 5 and the test "Exhaustive certificate" test it |
+| All, triangle | The reflections generate a discrete group, and the triangle is a strict fundamental domain for it | Theorem 6.4.3 of [DAVIS2008], p. 83, for a convex polytope in $S^n$ as p. 75 defines it (Sections 4.5 and 9.6 of the domain reference) |
+| All, lune | The two reflections generate a group of order $2n$, and the lune is a strict fundamental domain for it | No source. `UNV-29` (item 9 of Section 13.3 of the domain reference), which the test "Exhaustive certificate" checks (DOM-22) |
+
 ## 7. Measurements
 
 The crate measures each quantity from the stored vertices, so that `verify()` and `escher-cli` see the same numbers:
@@ -434,7 +480,7 @@ The crate measures each quantity from the stored vertices, so that `verify()` an
 - `corner_angles()` returns, for each vertex $j$, the angle $\theta_j$ in $[0, \pi]$ for which the first law of cosines of Section 10.2 of the geometry reference ([BEA] Section 7.12, p. 148, and [RAT] Theorem 3.5.3, p. 86) holds with the three measured side lengths. With $c$ the length of the side opposite vertex $j$ and $a$ and $b$ the other two, it is $\arccos\big((\cosh a \cosh b - \cosh c) / (\sinh a \sinh b)\big)$, with the argument clamped to $[-1, 1]$.
 - `area()` returns $\pi - \theta_0 - \theta_1 - \theta_2$, the area of a triangle by Section 10.1 of the geometry reference.
 
-`corner_angles()` and `area()` are defined for exactly three vertices. For a hyperbolic domain with any other number of vertices, `corner_angles()` returns NaN for every vertex and `area()` returns NaN.
+For a hyperbolic domain, `corner_angles()` and `area()` are defined for exactly three vertices. With any other number of vertices, `corner_angles()` returns NaN for every vertex and `area()` returns NaN.
 
 The angles are measured from distances so that no step uses a relation between normals and angles (DOM-6). The form of the first law solved for the angle is a rearrangement that no source prints, and Section 15.1 records it.
 
@@ -443,6 +489,16 @@ For a Euclidean domain, with $(x_j, y_j)$ the first two coordinates of $V_j$:
 - `side_lengths()` returns `euclidean::distance(V_{j-1}, V_j)` for each side $j$.
 - `corner_angles()` returns, for each vertex $j$, the Euclidean angle $\theta$ of equation (1.3.3) of [RAT] (Section 12 of the geometry reference) between $V_{j+1} - V_j$ and $V_{j-1} - V_j$, as $\arccos$ of their dot product divided by the product of their lengths, with the argument clamped to $[-1, 1]$. It uses no normal, as DOM-6 requires.
 - `area()` returns $\frac{1}{2} \left\lvert \sum_j (x_j y_{j+1} - x_{j+1} y_j) \right\rvert$, with indexes modulo $m$. No source states this formula (item 25 of Section 15.1 of the geometry reference), and Section 14 records it.
+
+For a spherical domain, the measurements read the theorems of [RAT], Section 2.5 (Section 11.3 of the geometry reference), with lengths and areas in the metric of the unit sphere:
+
+- `side_lengths()` returns `spherical::distance(V_{j-1}, V_j)` for each side $j$. Both sides of a lune have the length $\pi$.
+- `corner_angles()` returns, for each vertex $j$ of a triangle, $\arccos\big((\cos c - \cos a \cos b) / (\sin a \sin b)\big)$, with the argument clamped to $[-1, 1]$, where $c$ is the measured length of the side opposite vertex $j$ and $a$ and $b$ the other two. This is the first law of cosines, [RAT], Theorem 2.5.3, p. 50, which prints the cosine of the angle in this form. For a lune, it returns the same angle $\theta = \arccos(-u_0 \cdot u_1)$ for both vertices, with the argument clamped to $[-1, 1]$, from the normals $u_0$ and $u_1$ of its two sides (DOM-20).
+- `area()` returns $\theta_0 + \theta_1 + \theta_2 - \pi$ for a triangle, [RAT], Theorem 2.5.5, p. 51, and $2\theta_0$ for a lune, the area of a lune of [RAT], p. 51.
+
+For a spherical domain with a number of vertices other than two or three, `corner_angles()` returns NaN for every vertex and `area()` returns NaN.
+
+DOM-20. `corner_angles()` MUST measure the angle of a lune from the normals of its two sides as $\arccos(-u_0 \cdot u_1)$, and MUST NOT use that relation for any other domain, because the two vertices of a lune are antipodal and so determine neither side, while for every other domain the vertices determine the angle and DOM-6 applies. The relation has no source (item 28 of Section 15.1 of the geometry reference). Check 4 and the test "Exhaustive certificate" test the same angle without it.
 
 ## 8. Verification
 
@@ -456,7 +512,7 @@ DOM-8. `verify()` MUST be pure, MUST NOT panic for any domain, and MUST NOT reno
 
 ### 8.2. Checks
 
-Every check runs on the stored values of the domain in the final position, unless the check names another frame. Checks 2 to 6 read the vertices, so each first requires at least one side, as many vertices and corner orders as sides, and every vertex to have finite coordinates and a positive last coordinate, and its residual is infinity when any of these fails. Check 1 reads only the pairings. A residual that is not finite after the computation of its check is reported as infinity:
+Every check runs on the stored values of the domain in the final position, unless the check names another frame. Checks 2 to 6 read the vertices, so each first requires at least one side, as many vertices and corner orders as sides, and every vertex to have finite coordinates and, for a hyperbolic or Euclidean domain, a positive last coordinate, or for a spherical domain, not to be the zero vector (DOM-21). Its residual is infinity when any of these fails. Check 1 reads only the pairings. A residual that is not finite after the computation of its check is reported as infinity:
 
 1. **Isometries.** For each side, compute `hyperbolic::isometry_defect(pairing)`. The residual is the largest value. Tolerance $10^{-9}$. Condition: Theorem 10.1 of [CFKP] (Section 6.1 of the geometry reference).
 2. **Pairings.** The residual is infinity unless both structural conditions hold, and otherwise the larger of the two numeric parts. Tolerance $10^{-9}$. Conditions: items 1 and 2 of Section 4.8 of the domain reference, and Condition 3.2 (a) to (d) of [EPSTEIN-PETRONIO1994] (Section 4.9 of the domain reference).
@@ -501,6 +557,21 @@ For a Euclidean domain, `verify()` computes the same six checks with the same to
 
 Check 6 of a Euclidean domain has the residual 0 on every Euclidean domain of Section 9.4 (Section 8.4), and passes on the triangle of `*442` labelled `*632`, where checks 4 and 5 fail (Section 8.3). The design keeps it so that the six checks exist for every geometry, and Section 15.3 puts that to the owner.
 
+For a spherical domain, `verify()` computes the same six checks with the same tolerances, and reads each one in this way, with indexes modulo $m$:
+
+| Check | Spherical reading | Condition |
+| --- | --- | --- |
+| 1. Isometries | `spherical::isometry_defect` of each pairing | [RAT], Theorem 2.1.3 (Section 11.1 of the geometry reference) |
+| 2. Pairings | As for a hyperbolic domain, with `spherical::side`. The endpoint part is the largest absolute coordinate of $P_i E - E$, with no division by a last coordinate | As for a hyperbolic domain |
+| 3. Walls | For each side $j$, the largest of: the absolute value of `spherical::side(covector_j, E)` for $E = V_{j-1}$ and $E = V_j$, with no division, the largest absolute entry of `pairing_j - spherical::reflection(normal_j)`, the largest absolute coordinate of `covector_j - normal_j`, and $\lvert \text{normal}_j \cdot \text{normal}_j - 1 \rvert$ | A great-circle normal of a great circle through the endpoints of its side, stored as its own covector, whose reflection is the pairing (Sections 4.6 and 6.7 of the geometry design) |
+| 4. Relators | For each corner $j$, $C = P_j P_{j+1}$, and $C^{n_j}$ by $n_j - 1$ successive multiplications. The residual is the largest absolute entry of $C^{n_j} - I$ divided by $n_j$, maximized over the corners. There is no corner frame. For a lune this is $(P_0 P_1)^n$ at corner 0 and $(P_1 P_0)^n$ at corner 1 | Item 4 of Section 4.8 of the domain reference, and the local group of a corner reflector of [TH], Proposition 13.3.1(iii), p. 308 (Section 9.4 of the notation reference) |
+| 5. Angles | The largest $\lvert \theta_j - \pi/n_j \rvert$, with $\theta_j$ of Section 7, or infinity when the angle sum of a triangle is not above $\pi$. Both angles of a lune come from its normals (DOM-20) | Every corner has the angle $\pi/n_j$ (item 4 of Section 4.8 of the domain reference), and the angle sum of a spherical triangle exceeds $\pi$ ([RAT], Theorem 2.5.1, p. 50) |
+| 6. Area | The absolute difference between `area()` and the stored area of the signature, $\pi$ times `area_over_pi()`, which is $2\pi\chi$ | The areas of a triangle and of a lune of Section 7, and the area $2\pi\lvert\chi\rvert$ of an elliptic orbifold of [TH], p. 312 (Section 7.3 of the notation reference) |
+
+DOM-21. For a spherical domain, the precondition of checks 2 to 6 MUST require each vertex to be finite and not the zero vector, and MUST NOT require a positive last coordinate, because a vertex of a spherical domain may lie on or below the plane $x_3 = 0$, as both vertices of a lune do, and the precondition of the other geometries would give every lune an infinite residual.
+
+`verify()` of a spherical domain costs no more products than the bound above. At the order limit, a lune needs $2 \cdot 999$ products for its two relators.
+
 ### 8.3. Defects Each Check Detects
 
 The test "Failing domains" of Section 12.1 injects each defect of this table into a domain built through private access, and asserts that exactly the checks of its row fail and that `passed()` is false. A defect without named triangles is applied to the domains of $(7, 3, 2)$, $(4, 4, 4)$, and $(1000, 3, 2)$. A tilt is a rotation of the normal about the origin by `hyperbolic::rotation`:
@@ -538,6 +609,18 @@ The test also injects these defects into Euclidean domains, which pass every che
 | The rectangle of `*2222` labelled with the three orders $(6, 3, 2)$, on the rectangle only | 2, 3, 4, 5, and 6, each with an infinite residual |
 | The last vertex removed | 2, 3, 4, 5, and 6, each with an infinite residual |
 | Every vertex removed | 2, 3, 4, 5, and 6, each with an infinite residual |
+
+The test also injects these defects into spherical domains, which pass every check before the defect: the domains of `*532`, `*722`, and `*55`, unless the row names others. The column gives the check that each defect targets. The change that adds the test records in this table the checks that fail on each domain, as the tables above record them, and the test then asserts exactly those:
+
+| Defect | Check that it targets |
+| --- | --- |
+| The normal of side 0 tilted by $10^{-6}$ about the origin, with its covector and pairing computed from the tilted normal | 2 and 3 |
+| The pairing of side 0 scaled by $1 + 10^{-6}$ | 1, 2, and 3 |
+| The triangle of `*432` labelled with the orders of `*532`, on `*532` only | 4, 5, and 6 |
+| The lune of the angle $2\pi/n$ labelled with the order $n$, for $n = 5$ and $n = 12$, on the lunes only | 5 and 6, while check 4 is expected to pass |
+| The partner of side 0 set to side 1 | 2 |
+| The centre set to its negation, outside the domain | 2 |
+| Vertex 0 set to the zero vector | 2, 3, 4, 5, and 6, each with an infinite residual |
 
 Check 4 passes on the scaled pairing at all three triangles, below its tolerance of $2 \times 10^{-6}$, and checks 1, 2, and 3 catch that defect. The residual of check 4 is $1.000003 \times 10^{-6}$ at $(7, 3, 2)$, a figure that no committed test prints.
 
@@ -588,6 +671,17 @@ A Euclidean domain uses the same tolerances. The test "Euclidean domains" of Sec
 | 5. Angles | $10^{-9}$ | $2.220 \times 10^{-16}$ | `*333` | $4.50 \times 10^{6}$ |
 | 6. Area | $10^{-9}$ | 0 | Every domain | Not applicable |
 
+A spherical domain uses the same tolerances. The test "Spherical domains" of Section 12.1 prints the largest residual of each check over the spherical domains of Section 9.5, and every domain passes every check. The change that adds the test records each figure in this table, with a margin of at least 8 as TEST-13 of the coding standard requires:
+
+| Check | Tolerance | Largest residual | Where | Margin |
+| --- | --- | --- | --- | --- |
+| 1. Isometries | $10^{-9}$ | To be measured | To be measured | To be measured |
+| 2. Pairings | $10^{-9}$ | To be measured | To be measured | To be measured |
+| 3. Walls | $10^{-9}$ | To be measured | To be measured | To be measured |
+| 4. Relators | $2 \times 10^{-6}$ | To be measured | To be measured | To be measured |
+| 5. Angles | $10^{-9}$ | To be measured | To be measured | To be measured |
+| 6. Area | $10^{-9}$ | To be measured | To be measured | To be measured |
+
 ## 9. Numerical Robustness
 
 ### 9.1. Renormalization
@@ -595,6 +689,7 @@ A Euclidean domain uses the same tolerances. The test "Euclidean domains" of Sec
 - `hyperbolic::normalize_point` runs twice, in steps 6 and 10 of Section 6.1, each time on a sum of vertices.
 - `hyperbolic::wall_through` divides each normal by its norm, and `euclidean::wall_through` divides each covector by the length of its first two coordinates (the geometry design).
 - The Euclidean construction divides a sum of vertices by its last coordinate in steps 3 and 5 of Section 6.5.
+- `spherical::normalize_point` runs twice for a spherical triangle, in steps 4 and 6 of Section 6.7, each time on a sum of vertices, and `spherical::wall_through` divides each normal by its length. The lune renormalizes nothing.
 - `verify()` renormalizes nothing (DOM-8).
 
 DOM-10. The construction MUST NOT renormalize the vertices after step 8, or after step 4 of Section 6.5, because a renormalized vertex lies on the hyperboloid but far from the true corner. Section 14 records the figures for $(1000, 1000, 1000)$, which no measurement of the code covers.
@@ -607,10 +702,11 @@ A vertex therefore leaves the hyperboloid by a small amount. Over the triples of
 - The relators are evaluated in the corner frame (Section 8.2, check 4).
 - The corner angles come from the distances between the vertices (Section 7).
 - $\operatorname{arcosh} X$ in step 4 needs no special form. The smallest $X$ that the construction computes over the triples of the reference sweep of Section 9.3 is 1.040349, at `*732`.
+- $\arccos X$ in step 2 of the spherical triangle is clamped to $[-1, 1]$. For `*n22` with a large $n$, $X_b$ comes close to 1, where the arccosine is ill-conditioned, and $\cos(\pi/2)$ is not 0 in `f64`, so Section 9.5 measures the triangle up to $n = 1000$.
 
 ### 9.3. Accuracy over the Supported Range
 
-DOM-11. The values that `build_with` returns MUST lie within the bounds of this table, or for a Euclidean domain of Section 9.4, of the values of the exact polygon in the final position, because the renderer and `escher info` use them without a check, and the reference-arithmetic tests of Section 12.1 assert these bounds.
+DOM-11. The values that `build_with` returns MUST lie within the bounds of this table, or for a Euclidean domain of Section 9.4 and a spherical domain of Section 9.5, of the values of the exact polygon in the final position, because the renderer and `escher info` use them without a check, and the reference-arithmetic tests of Section 12.1 assert these bounds.
 
 The rows for the side length, the corner angle, and the area bound the values that `side_lengths()`, `corner_angles()`, and `area()` return, which the crate measures from the stored vertices (Section 7), with lengths and areas at curvature $-1$ and angles in radians.
 
@@ -669,7 +765,22 @@ The test "SymmHub lines" measures the last row, and the three lines of SymmHub m
 
 At `aspect` 1 and 4, every number of the construction of the rectangle is a dyadic rational and every operation is exact in IEEE 754 arithmetic, and the square roots of 1 and 4 are exact. The test "Exact rectangle" therefore asserts exactly that the vertices are $(\pm w/2, \pm h/2, 1)$ and the covectors are $(\pm 1, 0, -w/2)$ and $(0, \pm 1, -h/2)$, as TEST-13 of the coding standard allows.
 
-DOM-19. A test that asserts a quantity of a domain for which this document states no measured bound MUST set its bound and record it in this document as TEST-13 of the coding standard requires, over an input set that this document states, in the same change as the test, because Sections 8.4, 9.3, and 9.4 are the one record of the tolerances of this crate, and a bound outside them has no measurement for a reviewer to check.
+DOM-19. A test that asserts a quantity of a domain for which this document states no measured bound MUST set its bound and record it in this document as TEST-13 of the coding standard requires, over an input set that this document states, in the same change as the test, because Sections 8.4 and 9.3 to 9.5 are the one record of the tolerances of this crate, and a bound outside them has no measurement for a reviewer to check.
+
+### 9.5. Accuracy of the Spherical Domains
+
+The spherical domains of the tests are those of `*332`, `*432`, `*532`, and `*222`, and of `*n22` and `*nn` for $n$ = 2, 3, 5, 12, 100, 999, and 1000. Over these domains, the test "Spherical domains" of Section 12.1 compares each quantity of this table with the reference construction of Section 12.2, asserts each bound, and prints the largest error with its domain and its margin. Each bound is set by the change that adds the test, from the largest error that it measures, with a margin of at least 8 as TEST-13 of the coding standard and DOM-19 require, and that change records it here:
+
+| Quantity | Measure | Bound | Largest error | Where | Margin |
+| --- | --- | --- | --- | --- | --- |
+| Vertex | Largest coordinate error | To be measured | To be measured | To be measured | To be measured |
+| Normal | Largest coordinate error | To be measured | To be measured | To be measured | To be measured |
+| Side length | Absolute error | To be measured | To be measured | To be measured | To be measured |
+| Centre | Largest coordinate error against the reference centre | To be measured | To be measured | To be measured | To be measured |
+| Corner angle | Absolute error against $\pi/n_j$ | To be measured | To be measured | To be measured | To be measured |
+| Area | Absolute error against $2\pi\chi$ | To be measured | To be measured | To be measured | To be measured |
+
+The vertices and the centre of a lune are exact values that the construction stores, and the dot product of its two vertices is exactly $-1$. The test asserts these equalities exactly, as TEST-13 of the coding standard allows, and compares the side lengths of a lune with $\pi$ within the bound of the side length.
 
 ## 10. Errors
 
@@ -692,15 +803,15 @@ DOM-13. `Display` for `Error` MUST be `cannot build fundamental domain: ` follow
 
 | Kind | When | Detail carries | Text after the prefix |
 | --- | --- | --- | --- |
-| `UnsupportedSignature` | The predicate of Section 4 fails, which includes every general non-compact signature (`DEC-19`) | The canonical string | `the signature *532 is not supported`, with the canonical string of the signature in place of `*532` |
+| `UnsupportedSignature` | The predicate of Section 4 fails, which includes every general non-compact signature (`DEC-19`) | The canonical string | `the signature 532 is not supported`, with the canonical string of the signature in place of `532` |
 | `LimitExceeded` | A corner order of a supported signature exceeds 1000 | The largest corner order | `order 1001 is larger than 1000`, with the largest corner order in place of `1001` |
-| `Numerical` | Step 11 of Section 6.1, or step 7 of Section 6.5 | The `escher-geometry` error, if one caused it | `the construction is numerically degenerate` |
+| `Numerical` | Step 11 of Section 6.1, step 7 of Section 6.5, or step 7 of the triangle or step 4 of the lune of Section 6.7 | The `escher-geometry` error, if one caused it | `the construction is numerically degenerate` |
 | `UnknownParameter` | Step 3 of DOM-18 | The canonical string | `the signature *632 has no shape parameter with one of the given names`, with the canonical string of the signature in place of `*632` |
 | `ParameterOutOfRange` | Step 4 of DOM-18 | The identity of the parameter, a private enum from which the name, the minimum, and the maximum of its `ParameterSpec` derive, so that `Error` keeps `Eq` | `the parameter aspect is outside its range of 0.125 to 8`, with the name, the minimum, and the maximum in place of `aspect`, `0.125`, and `8` |
 
 The texts of `UnknownParameter` and `ParameterOutOfRange` contain no name or value of a setting, because a caller's text may hold any character, and the printed name is that of the `ParameterSpec`. They write each number with the `{}` format of `f64`, which prints the two ends of the range of `aspect` as `0.125` and `8`.
 
-So `FundamentalDomain::build` on `*532` returns an `Error` whose `kind()` is `UnsupportedSignature` and whose `Display` text is exactly `cannot build fundamental domain: the signature *532 is not supported`. On `*(1001)32` it returns `LimitExceeded` with the text `cannot build fundamental domain: order 1001 is larger than 1000`. What `escher-cli` prints for either, and its exit status, are for the command-line design to state.
+So `FundamentalDomain::build` on `532` returns an `Error` whose `kind()` is `UnsupportedSignature` and whose `Display` text is exactly `cannot build fundamental domain: the signature 532 is not supported`. On `*(1001)32` it returns `LimitExceeded` with the text `cannot build fundamental domain: order 1001 is larger than 1000`. What `escher-cli` prints for either, and its exit status, are for the command-line design to state.
 
 Every fixed text is in lower case and has no trailing punctuation (ERR-4 of the coding standard). The canonical string contains only printable ASCII (Section 7.3 of the signature design), so the text needs no escaping. The `Display` text does not repeat the text of the `source()` error (ERR-4).
 
@@ -712,7 +823,7 @@ The crate limits the largest corner order, which `build_with` checks at step 2 o
 
 ### 12.1. Tests
 
-The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-domain/tests/domain/main.rs`, with the modules `common`, `reference`, `triangles`, `regular`, `properties`, `unsupported`, `euclidean`, and `parameters` (TEST-10). Its root has a `//!` line. The snapshot tests of the domain summary live in `escher-cli`, and the command-line design specifies them.
+The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-domain/tests/domain/main.rs`, with the modules `common`, `reference`, `triangles`, `regular`, `properties`, `unsupported`, `euclidean`, `parameters`, and `spherical` (TEST-10). Its root has a `//!` line. The snapshot tests of the domain summary live in `escher-cli`, and the command-line design specifies them.
 
 The module `common` defines the sets of triples that the tests use:
 
@@ -722,7 +833,7 @@ The module `common` defines the sets of triples that the tests use:
 - The orders up to 12: all 269 hyperbolic triples $n_0 \ge n_1 \ge n_2$ with orders up to 12.
 - The set of 294 triples: the orders up to 12 and the 25 named triples with an order above 12.
 
-Each test names the item of the field "Tests and acceptance" of Section 5.2 of the plan that it serves, or of Section 5.4 of the plan where the item says so. The tests "Triangles", "Third side", "Checks at the worst cases", "Relator agreement", and the two tests of $\{7, 3\}$ also assert their smallest number of samples, and print each largest value with its triple and its margin. The test harness captures that output for a test that passes:
+Each test names the item of the field "Tests and acceptance" of Section 5.2 of the plan that it serves, or of Section 5.4 or 5.5 of the plan where the item says so. The tests "Triangles", "Third side", "Checks at the worst cases", "Relator agreement", and the two tests of $\{7, 3\}$ also assert their smallest number of samples, and print each largest value with its triple and its margin. The test harness captures that output for a test that passes:
 
 | Test | Plan item | Kind and place | Asserts |
 | --- | --- | --- | --- |
@@ -734,12 +845,12 @@ Each test names the item of the field "Tests and acceptance" of Section 5.2 of t
 | Random triples | Properties | `proptest`, `properties` | For orders from 2 to 1000 with $1/p + 1/q + 1/r < 1$, drawn with half of the cases from orders 900 to 1000: `build` succeeds, `verify().passed()`, the vertices are counterclockwise, every vertex is inside or on every side within the tolerance of check 3, and the centre is within $10^{-9}$ of `hyperbolic::ORIGIN` |
 | Relator agreement | Properties | Reference test, `properties` | For the 30 named triples, with the residual of each frame computed in the reference from the exact power of the `f64` matrices and divided by $n_j$: the residual of check 4 is within $10^{-9}$ of the largest residual in the corner frame, and at each corner the residual in either frame is at most 2.0 times the residual in the other frame times 9 times the square of the largest absolute entry of $F$. This tests the assumption on conjugates of Section 15.1. Measured: $1.459 \times 10^{-11}$ against $10^{-9}$, a margin of 68.5, at $(1000, 1000, 2)$, and 0.217 against 2.0, a margin of 9.2, at corner 1 of $(1000, 1000, 2)$ |
 | Relators in the domain frame | None | Reference test, `properties` | The figures of the table of Section 8.2. At $(998, 981, 961)$, the largest exact residual is at least $2 \times 10^{-6}$ in the domain frame and at most $2 \times 10^{-6}$ in the corner frame. At $(1000, 3, 2)$, it is at most $10^{-10}$ in the domain frame and at most $10^{-12}$ in the corner frame. It prints both residuals for both triples |
-| Failing domains | Failure paths | Unit tests in `verify.rs` | The domains of $(7, 3, 2)$, $(4, 4, 4)$, and $(1000, 3, 2)$, built through private access, pass every check. For each defect of Section 8.3, on the domains of its row, exactly the checks of the row fail and `passed()` is false. For a row that names an infinite residual, each failed check has the residual `f64::INFINITY`, and no check has a NaN residual. The rows with a vertex removed and the relabelled rectangle give domains whose numbers of sides, vertices, and corner orders disagree, and `verify()` returns on them without a panic (DOM-8) |
+| Failing domains | Failure paths | Unit tests in `verify.rs` | The domains of $(7, 3, 2)$, $(4, 4, 4)$, and $(1000, 3, 2)$, and the spherical domains of Section 8.3, built through private access, pass every check. For each defect of Section 8.3, on the domains of its row, exactly the checks of the row fail and `passed()` is false. For a row that names an infinite residual, each failed check has the residual `f64::INFINITY`, and no check has a NaN residual. The rows with a vertex removed and the relabelled rectangle give domains whose numbers of sides, vertices, and corner orders disagree, and `verify()` returns on them without a panic (DOM-8) |
 | Check results | Failure paths | Unit tests in `verify.rs` | A `Check` built through private access with a NaN residual fails, a residual equal to the tolerance passes, and an infinite residual fails |
-| Unsupported | Failure paths | Table test, `unsupported` | `632`, `*22222`, `*532`, `*3333`, `732`, `4*3`, `*(inf)32`, `*(inf)(inf)`, `(inf)(inf)`, `*22(inf)`, `1`, `*`, `o`, `*732*`, and `x732` return `UnsupportedSignature` with the text of Section 10.2. `*(1001)32` returns `LimitExceeded` with its text, `*(1000)32` builds, and `*(1001)(1001)(1001)(1001)` returns `UnsupportedSignature` |
-| Limit | Failure paths | Unit tests in `domain.rs` | With the private limit constant: `*(1000)32` builds and `*(1001)32` returns `LimitExceeded`, and `*(1001)(1001)` returns `UnsupportedSignature`, because support is checked before the limit |
+| Unsupported | Failure paths | Table test, `unsupported` | `632`, `*22222`, `532`, `3*2`, `22`, `*3333`, `732`, `4*3`, `*(inf)32`, `*(inf)(inf)`, `(inf)(inf)`, `*22(inf)`, `1`, `*`, `o`, `*732*`, and `x732` return `UnsupportedSignature` with the text of Section 10.2. `*(1001)32`, `*(1001)22`, and `*(1001)(1001)` return `LimitExceeded` with its text, `*(1000)32`, `*(1000)22`, and `*(1000)(1000)` build, and `*(1001)(1001)(1001)(1001)` returns `UnsupportedSignature` |
+| Limit | Failure paths | Unit tests in `domain.rs` | With the private limit constant: `*(1000)32` builds and `*(1001)32` returns `LimitExceeded`, and `*(1001)(1001)(1001)(1001)` returns `UnsupportedSignature`, because support is checked before the limit |
 | Sides and vertices | None | Unit test in `domain.rs` | For `*732`, each side is its own partner, and `hyperbolic::side` of its covector at each of its two vertices is below $10^{-12}$ in absolute value |
-| Corner order and area | None | Unit tests in `triangle.rs` | The private predicate of Section 4 gives the orders $(7, 3, 2)$ and the area `PI / 42.0` for `*237`, the Euclidean triangle with the orders $(6, 3, 2)$ for `*236`, the rectangle for `*2222`, and nothing for `*532`, `*3333`, `732`, and `*(inf)32`. The area is compared exactly, because the numerator 1 and the denominator 42 convert exactly and multiplying by 1 is exact, so IEEE 754 arithmetic computes the same quotient as `PI / 42.0` (TEST-13 of the coding standard) |
+| Corner order and area | None | Unit tests in `triangle.rs` | The private predicate of Section 4 gives the orders $(7, 3, 2)$ and the area `PI / 42.0` for `*237`, the Euclidean triangle with the orders $(6, 3, 2)$ for `*236`, the rectangle for `*2222`, the spherical triangle with the orders $(5, 3, 2)$ and the area `PI / 30.0` for `*532`, the lune of the order 5 for `*55`, and nothing for `532`, `*3333`, `732`, and `*(inf)32`. The area is compared exactly, because the numerator 1 and the denominator 42 convert exactly and multiplying by 1 is exact, so IEEE 754 arithmetic computes the same quotient as `PI / 42.0` (TEST-13 of the coding standard) |
 | Conversion | None | Unit test in `triangle.rs` | The private signed conversion of step 1 of Section 6.1 gives exactly 0, $-1$, and $-4294967297$ for those integers, $2^{53}$ for $2^{53} + 1$ by ties to even, $2^{63}$ for `i64::MAX`, and $-2^{63}$ for `i64::MIN`. The unsigned conversion gives exactly 1 and $4294967297$ for those integers, and $2^{64}$ for `u64::MAX`. The test compares exactly, because the sum of the two parts is the only rounding, and IEEE 754 arithmetic fixes the result of that rounding to nearest, bit for bit (TEST-13 of the coding standard) |
 | Numerical | Failure paths | Unit test in `triangle.rs` | The private construction of steps 3 to 11, given the spherical orders $(5, 3, 2)$, fails with the `escher-geometry` error of kind `NotAPoint`, which `build` reports as `Numerical`, because the law of cosines then gives a hyperbolic cosine below 1 |
 | Any signature | Failure paths | `proptest`, `properties` | For any text that parses as a signature, `build` returns without a panic, and a returned domain passes `verify()` |
@@ -750,9 +861,17 @@ Each test names the item of the field "Tests and acceptance" of Section 5.2 of t
 | Exact rectangle | None | Unit test in `polygon.rs` | At `aspect` 1 and 4, the vertices and covectors of the rectangle are exactly those of Section 9.4 |
 | Rectangle aspect | Properties | `proptest`, `euclidean` | For a value of `aspect` within its range, the rectangle passes `verify()`, has four right angles within the bound of the corner angle of Section 9.4, and the length of side 0 divided by that of side 1 is the value within the bound of the aspect of Section 9.4 |
 | Parameters | Range errors, of Section 5.4 of the plan | Table test, `parameters` | `parameters` gives one `ParameterSpec` for `*2222`, with the name `aspect`, the range 0.125 to 8, and the default 1, and an empty list for `*632`, `*442`, `*333`, `*732`, and `*532`. `build_with` returns `ParameterOutOfRange` for `aspect` set to 0.1249, 8.0001, 0, $-1$, NaN, and both infinities, and builds at 0.125 and 8. It returns `UnknownParameter` for the names `Aspect`, `aspect ` with a trailing space, and the empty name on `*2222`, and for `aspect` on `*632` and `*732`. An unsupported signature with a setting returns `UnsupportedSignature`. For `*2222` and `*632`, `build` gives the domain of `build_with` with no setting, with every vertex within twice the vertex bound of Section 9.4, and `set` returns the value that it replaces. Each error has the text of Section 10.2 |
+| Spherical table | None | Table test, `spherical` | `*332`, `*432`, `*532`, `*222`, `*722`, `*22`, and `*55` build and pass `verify()`, with 3 sides and vertices for a triangle and 2 for a lune, each side its own partner, `parameters` empty, and the corner angles $\pi/n_j$ within the bound of Section 9.5. Each triangle has $(V_0 \times V_1) \cdot V_2 > 0$. Every other spelling of a signature, such as `*22n` for `*n22` and `*221` for `*22`, builds the domain of its canonical form, with every vertex within twice the vertex bound of Section 9.5 |
+| Spherical domains | None | Reference test, `spherical` | Each quantity of Section 9.5 is within its bound against the reference of Section 12.2, over the spherical domains of Section 9.5. Each check passes, and the test prints the largest residual of each check with its margin, which Section 8.4 records (DOM-19) |
+| Exhaustive certificate | Exhaustive certificate, of Section 5.5 of the plan | Integration test, `spherical` | For `*332`, `*432`, `*532`, and `*n22` and `*nn` with $n$ from 2 to 12: a breadth-first enumeration of the products of the pairings, which merges two matrices whose entries agree within $10^{-9}$, has exactly as many elements as `group_order()` of the signature. The images of the centre under these elements are pairwise further apart than a floor that the change that adds the test measures and records here. Each image of the centre folds back to the centre within the tolerance of check 3, in as many steps as its breadth-first depth, by a fold written in the test that applies the pairing of the first side with a positive side value, and no such fold reaches the default largest number of folds of `escher-render` (Section 4.1 of `docs/design/render.md`). For each lune, a dense sample of the sphere, which includes the two vertices, points from $10^{-3}$ to $10^{-300}$ from each vertex, the centre and its negation, and points on and next to each side, folds into the lune |
+| Exhaustive certificate at the limit | Exhaustive certificate, of Section 5.5 of the plan | Integration test, `spherical` | The assertions of "Exhaustive certificate" for `*(1000)22` and `*(1000)(1000)` |
 | Reference self-check | None | Reference test, `reference` | The four known values of Section 12.2 |
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type is `Send`, `Sync`, and `'static` (CONC-1 of the coding standard) |
 | Doctests | None | Doctests | The examples of the crate-level and item documentation |
+
+DOM-22. The tests "Exhaustive certificate" and "Exhaustive certificate at the limit" MUST cover every lune of their sets and MUST stay while `UNV-29` is open, because no source makes the lune a fundamental domain (Section 6.7), and these tests are the only evidence that its two reflections generate a group of order $2n$ whose copies of the lune cover the sphere.
+
+The claim that a fold returns in its breadth-first depth and never reaches the cap holds for the images of the centre, which the tests assert. It does not hold for every point: near a vertex of very high order, a fold can fail to converge, which belongs to the unverified statement on termination, `UNV-1` (Section 14).
 
 The plan item "Properties" also names the inverse $J M^t J$ and the round trip of the disk map. Those are properties of `escher-geometry`, and the geometry design tests them.
 
@@ -767,7 +886,7 @@ The property tests commit their regression files (TEST-9 of the coding standard)
 The reference is the independent high-precision implementation of Section 7 of the architecture, with the precision and tolerances that this section states:
 
 - Structure. A module `reference` in the test binary holds points as arrays of three high-precision numbers and writes each formula componentwise from the research documents. It calls no function of `escher-domain`, `escher-geometry`, or `glam`.
-- Independence. The reference builds the standard position from $\cosh L$ and $\sqrt{\cosh^2 L - 1}$ without $\operatorname{arcosh}$, and centres the triangle with $\cos\varphi = c_1/h$, $\sin\varphi = c_2/h$, $\sinh\rho = h$, and $\cosh\rho = c_3$, where $h$ is the length of the first two coordinates of the centre, read from the polar form of Section 8.3 of the geometry reference. The crate takes the other path in both places, so a transcription error is not shared. For a Euclidean domain, the reference computes the vertices of steps 1 to 5 of Section 6.5 componentwise, and the line of each side as $P(a, t)$ of Section 12 of the geometry reference, with $a$ the unit vector perpendicular to the side and $t = a \cdot V$ for an endpoint $V$, without a cross product.
+- Independence. The reference builds the standard position from $\cosh L$ and $\sqrt{\cosh^2 L - 1}$ without $\operatorname{arcosh}$, and centres the triangle with $\cos\varphi = c_1/h$, $\sin\varphi = c_2/h$, $\sinh\rho = h$, and $\cosh\rho = c_3$, where $h$ is the length of the first two coordinates of the centre, read from the polar form of Section 8.3 of the geometry reference. The crate takes the other path in both places, so a transcription error is not shared. For a Euclidean domain, the reference computes the vertices of steps 1 to 5 of Section 6.5 componentwise, and the line of each side as $P(a, t)$ of Section 12 of the geometry reference, with $a$ the unit vector perpendicular to the side and $t = a \cdot V$ for an endpoint $V$, without a cross product. For a spherical triangle, the reference builds the standard position from $\cos L$ and $\sqrt{1 - \cos^2 L}$ without $\arccos$, centres it with $\cos\rho = c_3$, $\sin\rho = h$, $\cos\varphi = c_1/h$, and $\sin\varphi = c_2/h$ for the reference centre $c$ of unit length, without $\operatorname{atan2}$. The change that adds the test states here how the reference finds each normal without the cross product of `spherical::wall_through`. The reference computes side lengths and angles with the arccosine of the reference type. For a lune, it computes the vertices and normals of Section 6.7 from the reference values of $\cos(\theta/2)$ and $\sin(\theta/2)$.
 - Precision. 256 bits, rounding to nearest with ties to even.
 - Comparison. As in Section 10.2 of the geometry design, each test converts the `f64` result exactly into the reference type, takes the difference there, and compares it with the tolerance there, because `astro-float-num` has no public conversion back to `f64`. A message that prints a measured error formats the number as decimal text.
 - Self-check. The test "Reference self-check" in `reference` checks the reference library itself: $\pi$ against a literal with 80 digits after the decimal point, $\cos(\pi/3) = 1/2$, $\cosh(\operatorname{arcosh} 2) = 2$, and $\sqrt{2}^2 = 2$, each to $10^{-70}$. The largest of the four errors is $1.7 \times 10^{-77}$. It guards against a wrong precision or rounding argument and does not close `UNV-25`.
@@ -780,15 +899,16 @@ DOM-15. The reference module MUST share no code with `escher-domain` or `escher-
 
 | Tests | Under Miri | Attribute or configuration |
 | --- | --- | --- |
-| "Triangles", "Third side", "Edge of $\{7, 3\}$", "Circumradius of $\{7, 3\}$", "Relator agreement", "Relators in the domain frame", "Euclidean domains", "SymmHub lines", and "Reference self-check" | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
-| "Checks at the worst cases" | Ignored | `#[cfg_attr(miri, ignore = "the checks of the largest orders run loops too long for the interpreter")]` |
+| "Triangles", "Third side", "Edge of $\{7, 3\}$", "Circumradius of $\{7, 3\}$", "Relator agreement", "Relators in the domain frame", "Euclidean domains", "SymmHub lines", "Spherical domains", and "Reference self-check" | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
+| "Checks at the worst cases" and "Exhaustive certificate at the limit" | Ignored | `#[cfg_attr(miri, ignore = "the checks of the largest orders run loops too long for the interpreter")]` |
+| "Exhaustive certificate" | Run unchanged, unless the change that adds it measures that it runs too long for the interpreter. It is then ignored with the attribute of the row above, and that change records it here | None |
 | "Random triples", "Rectangle aspect", and "Any signature" | Run with 8 cases and no failure persistence | The helper of DOM-16 |
-| The unit tests, which include "Failing domains" with the three tests of a corner order off by one and the tests of a negated vertex and of NaN entries, "Corner order and area", "Conversion", and "Exact rectangle", and the table tests "Unsupported", "Euclidean table", and "Parameters" | Run unchanged | None |
+| The unit tests, which include "Failing domains" with the three tests of a corner order off by one and the tests of a negated vertex and of NaN entries, "Corner order and area", "Conversion", and "Exact rectangle", and the table tests "Unsupported", "Euclidean table", "Parameters", and "Spherical table" | Run unchanged | None |
 | The doctests | Not run, because Miri runs the tests through nextest, which runs no doctest | None |
 
 Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`).
 
-No test asserts a bit-exact result of a transcendental function, because the interpreter need not reproduce the last bits of the host library, and every tolerance of this document leaves room for that. For the same reason, the tests "Euclidean table" and "Parameters" compare two builds of one domain within twice the vertex bound of Section 9.4 and not bit for bit: under Miri, two calls of a transcendental function on the same input can round differently, so two builds can differ in the last bits.
+No test asserts a bit-exact result of a transcendental function, because the interpreter need not reproduce the last bits of the host library, and every tolerance of this document leaves room for that. For the same reason, the tests "Euclidean table", "Parameters", and "Spherical table" compare two builds of one domain within twice the vertex bound of Section 9.4 and not bit for bit: under Miri, two calls of a transcendental function on the same input can round differently, so two builds can differ in the last bits.
 
 DOM-16. The property tests MUST take their configuration from one helper in `common`, with the numbers of cases and the failure persistence that Section 4 of `docs/design/tooling.md` states, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and a full set of cases takes too long in the interpreter.
 
@@ -827,6 +947,10 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | `UNV-10` | Whether the one parameter of `*2222` includes the scale | Fixes the scale by the area 1, asserts no count of parameters, and leaves `deformation_dimension()` as the signature design states (Section 6.6) |
 | None | The line through two vertices as a normalized cross product, item 24 of Section 15.1 of the geometry reference, through `euclidean::wall_through` | Check 3 tests each line against the endpoints of its side, and the test "Euclidean domains" compares every covector with the reference |
 | None | The area of a polygon from its vertices, item 25 of Section 15.1 of the geometry reference, in `area()` of a Euclidean domain (Section 7) | The test "Euclidean domains" compares the area with that of the reference polygon, which uses the same formula, so the test checks the arithmetic and not the formula. No check of `verify()` reads it |
+| `UNV-29` | That the lune of the angle $\pi/n$ is a strict fundamental domain of the group of its two reflections, of order $2n$ (item 9 of Section 13.3 of the domain reference) | The tests "Exhaustive certificate" and "Exhaustive certificate at the limit" enumerate the group, check that the images of the centre are distinct and fold back, and fold a dense sample of the sphere into the lune (DOM-22). Checks 4, 5, and 6 run on every build |
+| `UNV-26` | The angle of a lune from its two outward normals (item 28 of Section 15.1 of the geometry reference), in `corner_angles()` and check 5 (DOM-20) | Check 4 tests the same angle from the pairings alone, and the exhaustive certificate tests it through the group order |
+| `UNV-1` | The termination of the fold that the test "Exhaustive certificate" writes, for the images of the centre | Asserts it for those images only. On a prototype outside the repository, the fold of `*(1000)22` did not converge within the default cap for some points within $10^{-14}$ of its vertex of order 1000, and four such points cycled under a cap of 100,000 |
+| None | That `spherical::translation` maps the origin to the sphere point of its target, in step 4 of the spherical triangle | Section 13.1 of the geometry design records the assumption. The test "Spherical domains" compares every vertex and the centre with the reference, which centres without it |
 | None | That the angles of a Euclidean polygon with $m$ vertices sum to $(m - 2)\pi$, which check 6 reads as its residual (Section 8.2). No source read states it for a polygon | Reports the residual as a consistency check only. Section 8.4 records its measured residuals, and Section 8.3 the defects that it detects. A source or a Lean proof would close it |
 
 The hyperbolic construction does not rely on `UNV-28`, because it uses SymmHub's triangle neither in the code nor as a test oracle (Section 6.3). `UNV-4` concerns the precision of the disk map near the limit circle, and the crate maps to the disk only in the test "Circumradius of $\{7, 3\}$", at a point near the origin.
@@ -838,6 +962,8 @@ These statements of this design rest on figures that no measurement of the code 
 | A domain left with vertex 2 at the origin has larger normal components and fails checks that the final position passes | 6.3 | At $(1000, 3, 2)$, a largest normal component of 1 and a relator residual of $7.28 \times 10^{-12}$, which passes. At $(1000, 100, 100)$, 63.6 and $6.23 \times 10^{-4}$, which fails. At $(1000, 1000, 1000)$, 637 and an infinite residual. In the family $(n, n, n)$, $(60, 60, 60)$ and $(70, 70, 70)$ fail checks 1 and 2, $(80, 80, 80)$ also fails check 4, and every larger order fails. The families $(n, 3, 2)$, $(n, 4, 4)$, and $(n, n, 2)$ fail no check up to $n = 1000$ |
 | Repeated multiplication evaluates the relator more accurately than repeated squaring | 8.2 | At corner 0 of $(1000, 3, 2)$, a largest entry of $C^{1000} - I$ of $3.46 \times 10^{-9}$ in the domain frame by repeated multiplication and $7.77 \times 10^{-8}$ by repeated squaring, against $2.33 \times 10^{-11}$ in the corner frame by either method |
 | The residual of check 6 stays close to that of check 5 | 8.2 | Never more than 2.91 times the residual of check 5, over 300 random triples |
+| The tolerances of Section 8.4 hold for the spherical domains with the margin of 8 | 8.4 | On a prototype of the constructions of Section 6.7 outside the repository, every check passed for `*332`, `*432`, `*532`, `*222`, and `*n22` and `*nn` at $n = 2$, 3, 5, 12, 100, 999, and 1000. At $n = 1000$, the smallest margin was $4.9 \times 10^{4}$ for `*n22`, on checks 5 and 6, and $2.5 \times 10^{4}$ for `*nn`, on check 6 |
+| The certificate of DOM-22 passes for the lune, which is evidence for `UNV-29` and not a proof of it | 6.7 | On the same prototype, for the orders tested up to 1000, the enumeration found exactly $2n$ elements, every image of the centre folded back in exactly its depth, and a dense sample of the sphere, with the poles and the walls, folded into the lune |
 | Renormalizing the vertices after step 8 makes them less accurate (DOM-10) | 9.1 | At $(1000, 1000, 1000)$, renormalization raised the largest relative vertex error from $5.7 \times 10^{-11}$ to $8.9 \times 10^{-6}$ and the angle error from $1.9 \times 10^{-13}$ to $2.8 \times 10^{-8}$ |
 
 ## 15. Assumptions, Choices, and Points for the Owner
@@ -846,9 +972,9 @@ These statements of this design rest on figures that no measurement of the code 
 
 These readings of this design rest on no sentence of a source. Each names what checks it:
 
-- The triangle placed by the two sides $L_a$ and $L_b$ with the included angle $\alpha_2$ is the triangle with the angles $\alpha_0$, $\alpha_1$, and $\alpha_2$. The research states uniqueness given the three angles (Section 10.1 of the geometry reference), but no statement on two sides and the included angle. The test "Third side" and checks 4 and 5 check it.
+- The triangle placed by the two sides $L_a$ and $L_b$ with the included angle $\alpha_2$ is the triangle with the angles $\alpha_0$, $\alpha_1$, and $\alpha_2$. The research states uniqueness given the three angles (Section 10.1 of the geometry reference), but no statement on two sides and the included angle. The test "Third side" and checks 4 and 5 check it. The same reading applies to the spherical triangle of Section 6.7, which checks 4 and 5 and the test "Spherical domains" check.
 - The angle at a vertex is the arccosine of $(\cosh a \cosh b - \cosh c) / (\sinh a \sinh b)$. This is the first law of cosines of Section 10.2 of the geometry reference solved for the angle, which no source prints in this form. The test "Triangles" compares the angles with $\pi/n_j$ in the reference.
-- The normalized sum of the vertices lies strictly inside the triangle. Check 2 fails if it does not, and the test "Random triples" checks it.
+- The normalized sum of the vertices lies strictly inside the triangle, hyperbolic or spherical. Check 2 fails if it does not, and the tests "Random triples" and "Spherical table" check it.
 - A power of a matrix is the identity exactly when the same power of its conjugate is. This is matrix algebra, not a statement of the geometry reference. The test "Relator agreement" checks it on the 30 named triples.
 - Side 0, side 1, and side 2 are the Latin reflections $P$, $Q$, and $R$ of step 3 of Section 9.1 of the notation reference, and its fourth reflection $S$ is $P$ again for a triangle and side 3 for the rectangle. The relators that the checks use come from Section 4.4 of the domain reference and do not depend on this reading.
 - `hyperbolic::translation(c)` maps `hyperbolic::ORIGIN` to the point with the spatial coordinates of $c$, as Section 6.4 of the geometry design states, and this is $c$ itself only when $c$ lies on the hyperboloid. Section 13.1 of the geometry design records this property as an assumption and names the test that checks it.
@@ -862,7 +988,7 @@ No other document dictates these choices:
 | `FundamentalDomain::build` as an inherent constructor with one argument that returns a `Result` | 3.1, 3.4 |
 | The measurements `side_lengths`, `corner_angles`, and `area` as methods of the domain, so that `escher-cli` needs neither `glam` nor `escher-geometry` | 3.1, 7 |
 | `Orientation` with both variants, and `PairingKind` with one | 3.2 |
-| The domain stores the geometry and the corner orders of its signature, the area of a hyperbolic signature, and its vertices, sides, and centre, although all of them follow from the signature. They are the result of the construction, which the renderer would otherwise repeat, and the type is immutable, so they cannot diverge. It stores no signature, because `build` borrows it and the checks need only these values. A reviewer checks this against TYPE-3 of the coding standard | 3.2, 6.1 |
+| The domain stores the geometry and the corner orders of its signature, the area of a hyperbolic or spherical signature, and its vertices, sides, and centre, although all of them follow from the signature. They are the result of the construction, which the renderer would otherwise repeat, and the type is immutable, so they cannot diverge. It stores no signature, because `build` borrows it and the checks need only these values. A reviewer checks this against TYPE-3 of the coding standard | 3.2, 6.1 |
 | The area of the signature converted to `f64` once, at construction, with no limit on the size of its numerator or denominator | 6.1 |
 | Vertex $j$ is corner $j$, between side $j$ and side $j + 1$, and the vertices are counterclockwise | 5.1, 5.2 |
 | Vertex 2 at the origin in the standard position, and the centre at the origin in the final position | 6.3 |
@@ -878,6 +1004,7 @@ No other document dictates these choices:
 | The sets of triples of Section 12.1, and the weighting of the test "Random triples" toward large orders | 12.1 |
 | `astro-float-num` in place of `astro-float` | 13 |
 | The choices of the Euclidean domains and of the shape parameter that Section 15.3 puts to the owner, in items 6 to 12 | 3.4, 6.5, 6.6, 7, 8.2 |
+| The choices of the spherical domains that Section 15.3 puts to the owner, in items 13 to 18 | 4, 6.7, 7, 8.2, 8.4, 9.5 |
 
 ### 15.3. Points for the Owner
 
@@ -895,6 +1022,12 @@ None of these blocks the crate. Each states what the design does until the owner
 10. Check 6 for a Euclidean domain. The design keeps the angle defect, which fails among the defects of Section 8.3 only for a NaN vertex, so that the six checks exist for every geometry (Section 8.2). The alternative is to compare the measured area with the area that the unit of item 7 implies, which would detect a wrong scale but rests on the area formula of item 9.
 11. `build_with` beside `build`. The design adds a second constructor that takes the settings, so that the callers of `build` do not change (Section 3.4). The alternative is to give `build` a second argument and change every call.
 12. Validation in `escher-domain`. The crate reports an unknown name and a value out of range (DOM-18), and a caller detects only a name set twice, through the return value of `ShapeParameters::set`. The alternative is to validate in `escher-cli`, which would duplicate the ranges.
+13. The spherical domains. The design builds `*332`, `*432`, `*532`, `*222`, `*n22`, and the lune of `*nn` with $n$ up to the limit of 1000, which includes `*22`, with no new public item and no shape parameter (Sections 4 and 6.7). The alternatives are to leave `*22` with the other signatures of two corners of order 2 for a later milestone, or a lower limit for the spherical families, whose tiles at $n = 1000$ are smaller than a pixel of a default image.
+14. The lune on an unverified statement. No source makes the lune a fundamental domain, so the design builds it on `UNV-29` and certifies it by the tests of DOM-22 (Section 6.7). The alternative is to build no lune until a source or a Lean proof closes the statement, which leaves `*nn` unsupported.
+15. The placement of the lune. The design places the lune directly, with its vertices on the second axis and its centre at the origin (Section 6.7), because the rule of `DEC-12` gives no centre for two antipodal vertices. The alternative is a centre at the midpoint of one side, which the view would not centre on the domain.
+16. The angle of the lune from its normals. DOM-20 makes it the one exception to DOM-6, because the vertices do not determine the sides. The alternative is to measure no angle for a lune and to drop check 5 for it, which leaves the angle to check 4 and the certificate alone.
+17. The readings of the checks and their precondition for a spherical domain. The design keeps the six checks and reads each per geometry (Section 8.2), with a vertex that is finite and not the zero vector (DOM-21). The alternative is a separate set of checks for the sphere, which `escher info --check` would print differently.
+18. The tolerances and the limit. The design keeps every tolerance of Section 8.4 and the limit of 1000 for the spherical domains, and leaves the bounds of Section 9.5 to the measurement of the change that adds the tests. The alternative is tolerances of their own for the sphere, which no measurement of the code supports yet.
 
 ## 16. Security Considerations
 
@@ -909,7 +1042,7 @@ DOM-3 requires the limit of this table. The input is untrusted, the cost of `ver
 | Largest corner order | 1000 | The construction costs the same for every order. `verify()` costs at most about 3000 matrix products at this limit (Section 8.2), and the relator check keeps a margin of 15.0 at its tolerance of $2 \times 10^{-6}$ over every supported triple (Section 8.4). The plan tests up to this order. The number is a choice of this design (Section 15.3). A higher limit needs a construction of the far walls that is better conditioned, which the research does not source, and new measurements of every margin |
 | `aspect` | 0.125 to 8, inclusive | A finite value in a bounded range keeps the rectangle within the scale that the tests of Section 9.4 measure. NaN and infinities are rejected (DOM-18). The range is a choice of this design (Section 15.3) |
 
-The limit is a private constant, and unit tests inside the crate read it. `build_with` allocates at most four sides and four vertices, so the memory of a domain does not depend on the input. A setting is only compared with the names of the `ParameterSpec` values and stored, and the error text echoes no setting (Section 10.2), so the number and the length of the settings need no limit.
+The limit is a private constant, and unit tests inside the crate read it. It applies in the same way to the orders of `*n22` and `*nn`, and `verify()` of a spherical domain costs no more products than at the hyperbolic limit (Section 8.2). `build_with` allocates at most four sides and four vertices, so the memory of a domain does not depend on the input. A setting is only compared with the names of the `ParameterSpec` values and stored, and the error text echoes no setting (Section 10.2), so the number and the length of the settings need no limit.
 
 The other topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -970,13 +1103,13 @@ The tags of the mathematical sources resolve to the reference sections of the re
 | DOM-2 | `build` constructs a domain only for a signature that meets the predicate of Section 4, and returns `UnsupportedSignature` for every other valid signature without a panic | 4 |
 | DOM-3 | `build` returns `LimitExceeded` for a supported signature with an order above 1000, after the support check | 4 |
 | DOM-4 | Vertices and sides follow the index convention of Section 5.1 | 5.1 |
-| DOM-5 | `build_with` constructs a hyperbolic domain by the steps of Section 6.1 and a Euclidean one by those of Section 6.5, in order | 6.1 |
-| DOM-6 | No relation between the inner product of two normals and the corner angle is used | 6.1 |
+| DOM-5 | `build_with` constructs a hyperbolic domain by the steps of Section 6.1, a Euclidean one by those of Section 6.5, and a spherical one by those of Section 6.7, in order | 6.1 |
+| DOM-6 | No relation between the inner product of two normals and the corner angle is used, except for the lune of DOM-20 | 6.1 |
 | DOM-7 | `verify()` computes and reports every check on every call | 8.1 |
 | DOM-8 | `verify()` is pure, never panics, and renormalizes nothing | 8.1 |
 | DOM-9 | Each check uses the tolerance of Section 8.4 | 8.4 |
 | DOM-10 | The vertices are not renormalized after centring | 9.1 |
-| DOM-11 | The values that `build_with` returns are within the bounds of Section 9.3, or of Section 9.4 for a Euclidean domain | 9.3 |
+| DOM-11 | The values that `build_with` returns are within the bounds of Section 9.3, of Section 9.4 for a Euclidean domain, or of Section 9.5 for a spherical one | 9.3 |
 | DOM-12 | `Error` follows ERR-1, with the operation that failed | 10.1 |
 | DOM-13 | The `Display` text of each kind is the one stated | 10.2 |
 | DOM-14 | No test takes an expected value from Table 2 of [HT] | 12.1 |
@@ -985,3 +1118,6 @@ The tags of the mathematical sources resolve to the reference sections of the re
 | DOM-17 | The crate declares only the dependencies of Section 13, each from the workspace table | 13 |
 | DOM-18 | `build_with` checks support, the order limit, the names, and the values, in this order, and returns the first error that applies | 6.6 |
 | DOM-19 | A test of a quantity without a measured bound here sets and records its bound as TEST-13 requires, in the same change | 9.4 |
+| DOM-20 | The angle of a lune is measured from its two normals, and no other angle is | 7 |
+| DOM-21 | For a spherical domain, the vertex precondition of checks 2 to 6 is finite and not the zero vector, with no condition on the last coordinate | 8.2 |
+| DOM-22 | The exhaustive certificates cover every lune of their sets and stay while `UNV-29` is open | 12.1 |
