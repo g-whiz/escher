@@ -50,6 +50,30 @@ fn render_diagnostic_gives_the_cause_of_an_order_over_the_limit() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn render_diagnostic_says_parity_does_not_exist_without_a_reversing_side() {
+    insta::assert_snapshot!(render_snapshot(
+        "parity_without_reversing_side",
+        &["732", "--colouring", "parity"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_counts_two_colours_for_the_default_colouring_of_a_rotation_domain() {
+    insta::assert_snapshot!(render_snapshot(
+        "two_colours_for_rotation_domain",
+        &["732", "--colours", "#e9c46a,#2a9d8f"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn render_diagnostic_counts_three_colours_for_parity() {
     insta::assert_snapshot!(render_snapshot(
         "three_colours",
@@ -517,6 +541,12 @@ fn render_without_a_domain_changes_no_file() {
 
 #[test]
 #[cfg_attr(miri, ignore = "the interpreter refuses file access")]
+fn render_with_parity_for_a_domain_without_a_reversing_side_changes_no_file() {
+    assert_no_file_changes("parity_rotation_file", &["732", "--colouring", "parity"]);
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_a_parameter_outside_its_range_changes_no_file() {
     assert_no_file_changes("parameter_range_file", &["*2222", "--set", "aspect=9"]);
 }
@@ -686,6 +716,80 @@ fn render_turns_the_ball_with_the_rotation() {
     assert_ne!(turned, default);
 }
 
+fn small_file(test: &str, args: &[&str]) -> Vec<u8> {
+    let output = output_path(test);
+    let mut all = vec!["render"];
+    all.extend_from_slice(args);
+    all.extend_from_slice(&[
+        "--size",
+        "32x32",
+        "--samples",
+        "1",
+        "-o",
+        path_text(&output),
+    ]);
+    let outcome = run_args(&all);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    std::fs::read(&output).expect("the output file is written")
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_colours_a_rotation_domain_with_one_colour_by_default() {
+    assert_eq!(
+        small_file("default_rotation", &["732"]),
+        small_file("one_rotation", &["732", "--colouring", "one"])
+    );
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_colours_a_reflection_domain_by_parity_by_default() {
+    assert_eq!(
+        small_file("default_reflection", &["*732"]),
+        small_file("parity_reflection", &["*732", "--colouring", "parity"])
+    );
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_a_png_file_of_each_geometry_of_a_rotation_domain() {
+    for (test, args) in [
+        ("rotation_euclidean", &["442"][..]),
+        ("rotation_rectangle", &["2222", "--set", "aspect=1.618"][..]),
+        ("rotation_spherical", &["532"][..]),
+    ] {
+        let output = output_path(test);
+        let mut all = vec!["render"];
+        all.extend_from_slice(args);
+        all.extend_from_slice(&[
+            "--size",
+            "48x32",
+            "--samples",
+            "2",
+            "-o",
+            path_text(&output),
+        ]);
+        let outcome = run_args(&all);
+        assert_eq!(
+            outcome.status,
+            Status::Success,
+            "{test}: {}",
+            outcome.stderr
+        );
+        assert_png_header(&output, 48, 32);
+    }
+}
+
 fn first_error_line(args: &[&str]) -> (Status, String) {
     let never_written = Path::new(NEVER_WRITTEN);
     if !cfg!(miri) {
@@ -720,25 +824,14 @@ fn render_without_a_domain_returns_failure() {
 }
 
 #[test]
-fn render_refuses_a_domain_without_mirrors() {
-    let never_written = Path::new(NEVER_WRITTEN);
-    if !cfg!(miri) {
-        match std::fs::remove_file(never_written) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => {
-                panic!("cannot remove a stale output file: {error}")
-            }
-            _ => {}
-        }
-    }
-    let outcome = run_args(&["render", "732", "-o", NEVER_WRITTEN]);
-    if !cfg!(miri) {
-        assert!(!never_written.exists(), "the output file was written");
-    }
-    assert_eq!(outcome.status, Status::Failure);
-    assert_eq!(outcome.stdout, "");
+fn render_with_parity_for_a_domain_without_a_reversing_side_returns_failure() {
     assert_eq!(
-        outcome.stderr,
-        "error: cannot render 732: rendering this signature is not supported\n"
+        first_error_line(&["732", "--colouring", "parity"]),
+        (
+            Status::Failure,
+            "error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation"
+                .to_owned()
+        )
     );
 }
 

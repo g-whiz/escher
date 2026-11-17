@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use escher_domain::{FundamentalDomain, PairingKind, ShapeParameters};
+use escher_domain::{FundamentalDomain, ShapeParameters};
 use escher_render::{Colour, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png};
 use escher_signature::Signature;
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
@@ -15,8 +15,6 @@ use crate::args::{Colouring, RenderArgs, Setting, ShadingChoice};
 use crate::diagnostic::SignatureError;
 
 const MAX_THREADS: usize = 256;
-
-const NOT_SUPPORTED: &str = "rendering this signature is not supported";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Statistics {
@@ -36,8 +34,6 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         .signature
         .parse()
         .map_err(|error| SignatureError::new(&args.signature, error))?;
-    let fill = fill(args.colouring, args.colours.as_deref())
-        .map_err(|detail| cannot_render(&signature, detail))?;
     let border_colour = parse_colour(&args.border_colour).ok_or_else(|| {
         cannot_render(
             &signature,
@@ -54,19 +50,15 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         shape_parameters(&args.set).map_err(|detail| cannot_render(&signature, detail))?;
     let domain = FundamentalDomain::build_with(&signature, &parameters).map_err(|error| {
         let context = if error.kind() == escher_domain::ErrorKind::UnsupportedSignature {
-            format!("cannot render {signature}: {NOT_SUPPORTED}")
+            format!("cannot render {signature}: rendering this signature is not supported")
         } else {
             format!("cannot render {signature}")
         };
         anyhow::Error::new(error).context(context)
     })?;
-    if domain
-        .sides()
-        .iter()
-        .any(|side| side.kind() != PairingKind::Mirror)
-    {
-        return Err(cannot_render(&signature, NOT_SUPPORTED));
-    }
+    let fill = colouring(args.colouring, domain.reverses_orientation())
+        .and_then(|colouring| fill(colouring, args.colours.as_deref()))
+        .map_err(|detail| cannot_render(&signature, detail))?;
     let [yaw, pitch, roll] = args.rotation;
     let options = RenderOptions::builder(fill)
         .size(args.size.width, args.size.height)
@@ -169,6 +161,21 @@ fn thread_pool_error(signature: &Signature, error: &dyn Display) -> anyhow::Erro
 
 fn cannot_render(signature: &Signature, detail: impl Display) -> anyhow::Error {
     anyhow::anyhow!("cannot render {signature}: {detail}")
+}
+
+fn colouring(
+    requested: Option<Colouring>,
+    reverses_orientation: bool,
+) -> Result<Colouring, String> {
+    match (requested, reverses_orientation) {
+        (Some(Colouring::Parity), false) => Err(
+            "the colouring parity does not exist, because no side pairing reverses orientation"
+                .to_owned(),
+        ),
+        (Some(colouring), _) => Ok(colouring),
+        (None, true) => Ok(Colouring::Parity),
+        (None, false) => Ok(Colouring::One),
+    }
 }
 
 fn fill(colouring: Colouring, colours: Option<&str>) -> Result<Fill, String> {

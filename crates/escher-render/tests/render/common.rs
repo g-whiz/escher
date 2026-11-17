@@ -9,7 +9,7 @@ use glam::{DMat3, DVec2, DVec3};
 use proptest::test_runner::Config;
 
 use crate::golden_images::domain_with_aspect;
-use crate::reference::{Wall, matrix, vector};
+use crate::reference::{self, Reference, Vector, Wall, matrix, vector};
 
 pub(crate) const PLAN_TRIPLES: [[u32; 3]; 6] = [
     [7, 3, 2],
@@ -392,4 +392,231 @@ pub(crate) fn decode_png(file: &[u8]) -> Result<Decoded, png::DecodingError> {
         pixels,
         info,
     })
+}
+
+pub(crate) fn rotation_text(starred: &str) -> &str {
+    starred
+        .strip_prefix('*')
+        .unwrap_or_else(|| panic!("{starred} has no star"))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Measure {
+    Hyperbolic,
+    Euclidean,
+    Spherical,
+}
+
+impl Measure {
+    pub(crate) fn distance(
+        self,
+        reference: &mut Reference,
+        x: &Vector,
+        y: &Vector,
+    ) -> astro_float_num::BigFloat {
+        match self {
+            Self::Hyperbolic => reference.distance(x, y),
+            Self::Euclidean => reference::plane_distance(x, y),
+            Self::Spherical if reference::dot(x, y).is_positive() => reference.angle(x, y),
+            Self::Spherical => reference.pi(),
+        }
+    }
+
+    pub(crate) fn wall_distance(
+        self,
+        reference: &mut Reference,
+        covector: &Vector,
+        point: &Vector,
+    ) -> astro_float_num::BigFloat {
+        match self {
+            Self::Hyperbolic => reference.wall_distance(covector, point),
+            Self::Euclidean => reference::plane_wall_distance(covector, point),
+            Self::Spherical => reference.sphere_wall_distance(covector, point),
+        }
+    }
+}
+
+pub(crate) struct RotationSample {
+    pub(crate) group: usize,
+    pub(crate) point: DVec3,
+    pub(crate) name: String,
+}
+
+pub(crate) struct RotationCase {
+    pub(crate) name: String,
+    pub(crate) domain: FundamentalDomain,
+    pub(crate) reflection: FundamentalDomain,
+    pub(crate) measure: Measure,
+    pub(crate) groups: Vec<String>,
+    pub(crate) bounds: Vec<f64>,
+    pub(crate) reflection_bounds: Vec<f64>,
+    pub(crate) decisions: Vec<usize>,
+    pub(crate) oracle: Vec<usize>,
+    pub(crate) range: usize,
+    pub(crate) samples: Vec<RotationSample>,
+}
+
+pub(crate) const ROTATION_REPLAY_BOUNDS: [[f64; 6]; 7] = [
+    [3e-13, 3e-11, 3e-9, 3e-7, 4e-5, 4e-3],
+    [3e-13, 4e-11, 4e-9, 3e-7, 4e-5, 4e-3],
+    [5e-13, 6e-11, 7e-9, 8e-7, 6e-5, 5e-3],
+    [3e-13, 5e-11, 4e-9, 4e-7, 4e-5, 4e-3],
+    [3e-13, 3e-11, 4e-9, 4e-7, 4e-5, 4e-3],
+    [2e-11, 2e-9, 2e-7, 6e-5, 3e-3, 4e-1],
+    [3e-12, 3e-10, 2e-7, 8e-6, 3e-4, 2e-1],
+];
+
+pub(crate) const ROTATION_EUCLIDEAN_REPLAY_BOUNDS: [[f64; 4]; 7] = [
+    [3e-15, 2e-14, 9e-14, 2e-12],
+    [3e-15, 9e-15, 2e-13, 2e-12],
+    [3e-15, 2e-14, 1e-13, 2e-12],
+    [9e-16, 4e-15, 2e-14, 6e-14],
+    [2e-15, 4e-15, 4e-14, 9e-13],
+    [3e-16, 5e-15, 5e-14, 8e-13],
+    [2e-15, 2e-14, 9e-14, 2e-12],
+];
+
+pub(crate) const ROTATION_SPHERICAL_REPLAY_BOUNDS: [f64; 17] = [
+    3e-15, 3e-15, 4e-15, 2e-15, 2e-15, 3e-15, 3e-15, 8e-15, 3e-14, 3e-14, 6e-16, 1e-15, 2e-15,
+    3e-15, 6e-15, 2e-14, 3e-14,
+];
+
+pub(crate) const ROTATION_DECISION_COUNTS: [[usize; 6]; 7] = [
+    [0; 6],
+    [0, 0, 0, 0, 0, 1],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0, 0, 0, 0, 0, 2],
+    [0; 6],
+];
+
+pub(crate) const ROTATION_EUCLIDEAN_DECISION_COUNTS: [[usize; 4]; 7] =
+    [[1, 0, 0, 0], [0; 4], [0; 4], [0; 4], [0; 4], [0; 4], [0; 4]];
+
+pub(crate) const ROTATION_SPHERICAL_DECISION_COUNTS: [usize; 17] =
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0];
+
+pub(crate) const ROTATION_ORACLE_COUNTS: [[usize; 6]; 7] = [[0; 6]; 7];
+
+pub(crate) const ROTATION_EUCLIDEAN_ORACLE_COUNTS: [[usize; 4]; 7] = [[0; 4]; 7];
+
+pub(crate) const ROTATION_SPHERICAL_ORACLE_COUNTS: [usize; 17] = [0; 17];
+
+pub(crate) const ROTATION_RANGES: [usize; 7] = [6; 7];
+
+pub(crate) fn rotation_domain(starred: &str, aspect: Option<f64>) -> FundamentalDomain {
+    domain_with_aspect(rotation_text(starred), aspect)
+}
+
+pub(crate) fn hyperbolic_rotation_cases() -> Vec<RotationCase> {
+    FOLD_TRIPLES
+        .iter()
+        .enumerate()
+        .map(|(index, &triple)| {
+            let starred = text(triple);
+            let name = rotation_text(&starred).to_owned();
+            let samples = fold_set(triple)
+                .into_iter()
+                .map(|sample| RotationSample {
+                    group: sample.band,
+                    point: sample.point,
+                    name: format!(
+                        "{name} in band {} at angle {} of {FOLD_ANGLES}",
+                        BANDS[sample.band], sample.angle
+                    ),
+                })
+                .collect();
+            RotationCase {
+                domain: rotation_domain(&starred, None),
+                reflection: domain(triple),
+                measure: Measure::Hyperbolic,
+                groups: BANDS.iter().map(|band| format!("band {band}")).collect(),
+                bounds: ROTATION_REPLAY_BOUNDS[index].to_vec(),
+                reflection_bounds: REPLAY_BOUNDS[index].to_vec(),
+                decisions: ROTATION_DECISION_COUNTS[index].to_vec(),
+                oracle: ROTATION_ORACLE_COUNTS[index].to_vec(),
+                range: ROTATION_RANGES[index],
+                samples,
+                name,
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn euclidean_rotation_cases() -> Vec<RotationCase> {
+    (0..EUCLIDEAN_DOMAINS.len())
+        .map(|index| {
+            let (starred, aspect) = EUCLIDEAN_DOMAINS[index];
+            let name = euclidean_name(index)
+                .strip_prefix('*')
+                .unwrap_or_default()
+                .to_owned();
+            let samples = euclidean_fold_set(index)
+                .into_iter()
+                .map(|sample| RotationSample {
+                    group: sample.distance,
+                    point: sample.point,
+                    name: format!(
+                        "{name} at distance {} at angle {} of {FOLD_ANGLES}",
+                        EUCLIDEAN_DISTANCES[sample.distance], sample.angle
+                    ),
+                })
+                .collect();
+            RotationCase {
+                domain: rotation_domain(starred, aspect),
+                reflection: euclidean_domain(index),
+                measure: Measure::Euclidean,
+                groups: EUCLIDEAN_DISTANCES
+                    .iter()
+                    .map(|distance| format!("distance {distance}"))
+                    .collect(),
+                bounds: ROTATION_EUCLIDEAN_REPLAY_BOUNDS[index].to_vec(),
+                reflection_bounds: EUCLIDEAN_REPLAY_BOUNDS[index].to_vec(),
+                decisions: ROTATION_EUCLIDEAN_DECISION_COUNTS[index].to_vec(),
+                oracle: ROTATION_EUCLIDEAN_ORACLE_COUNTS[index].to_vec(),
+                range: EUCLIDEAN_DISTANCES.len(),
+                samples,
+                name,
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn spherical_rotation_cases(
+    indices: impl IntoIterator<Item = usize>,
+) -> Vec<RotationCase> {
+    indices
+        .into_iter()
+        .map(|index| {
+            let starred = SPHERICAL_DOMAINS[index];
+            let name = rotation_text(starred).to_owned();
+            let samples = spherical_fold_set(index)
+                .into_iter()
+                .map(|sample| RotationSample {
+                    group: 0,
+                    point: sample.point,
+                    name: format!(
+                        "{name} with rotation {:?} at {} pixels from the rim at angle {} of {FOLD_ANGLES}",
+                        SPHERE_ROTATIONS[sample.rotation],
+                        RIM_DISTANCES[sample.band],
+                        sample.angle
+                    ),
+                })
+                .collect();
+            RotationCase {
+                domain: rotation_domain(starred, None),
+                reflection: spherical_domain(index),
+                measure: Measure::Spherical,
+                groups: vec!["all positions".to_owned()],
+                bounds: vec![ROTATION_SPHERICAL_REPLAY_BOUNDS[index]],
+                reflection_bounds: vec![SPHERICAL_REPLAY_BOUNDS[index]],
+                decisions: vec![ROTATION_SPHERICAL_DECISION_COUNTS[index]],
+                oracle: vec![ROTATION_SPHERICAL_ORACLE_COUNTS[index]],
+                range: 1,
+                samples,
+                name,
+            }
+        })
+        .collect()
 }

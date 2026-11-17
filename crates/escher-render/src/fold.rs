@@ -131,6 +131,22 @@ impl Fold {
 /// not converge. Beyond those limits the function still returns, but its
 /// result carries no accuracy guarantee.
 ///
+/// A domain whose side pairings are rotations and translations, such as the
+/// domain of `732`, folds by the same steps. Each of its pairings is a product
+/// of two reflections, so its error bounds are its own, and the ranges of
+/// accuracy above hold for it with one exception. For a hyperbolic domain
+/// whose corner orders are all near 1000, such as the domain of
+/// `(1000)(1000)(1000)` or `(1000)(1000)(999)`, a point within a hyperbolic
+/// distance of `1e-6` of a vertex of order near 1000 other than vertex 0 may
+/// still lie outside a side after the default cap, and its fold then does not
+/// converge. A measurement found such folds at vertices 1, 2, and 3 of the
+/// domain of `(1000)(1000)(1000)`, up to a distance of `3e-8`, and at vertices
+/// 1 and 3 of the domain of `(1000)(1000)(999)`, up to a distance of `1e-7`. It
+/// found none for the domains of `(998)(981)(961)` and `(1000)32`.
+///
+/// A domain with no reversing side counts no reversal, and the step counts of
+/// a point and of its image under a pairing need not differ by one.
+///
 /// # Examples
 ///
 /// ```

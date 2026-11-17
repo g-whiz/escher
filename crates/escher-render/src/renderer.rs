@@ -23,6 +23,13 @@ use crate::view::View;
 /// its third axis and turned by the viewing rotation of the options. With no
 /// rotation, the centre of the domain lies at the centre of the ball.
 ///
+/// A domain whose side pairings are rotations and translations, such as the
+/// domain of `732`, has the view of its reflection domain, which is `*732`,
+/// and draws borders only on its own sides, which lie on borders of the
+/// reflection tiling. Because no pairing of such a domain reverses
+/// orientation, [`Fill::Parity`] gives every tile its first colour. The
+/// documentation of [`fold`](crate::fold) states the accuracy of its fold.
+///
 /// For each sample of the grid of a pixel, the renderer folds the point of the
 /// view into the domain and gives the sample the fill, border, or background
 /// colour. It shades each sample on the ball by the [`Shading`] and the light
@@ -469,10 +476,20 @@ mod tests {
             let options = image.options();
             let (pixels, _) = Renderer::new(&domain, options.clone()).render();
             let geometry = domain.geometry();
+            let rotation = !domain.reverses_orientation();
             let walls = domain
                 .sides()
                 .iter()
                 .map(|side| match geometry {
+                    _ if rotation => {
+                        let pairing = side.pairing();
+                        let moved = glam::DMat3::from_cols(
+                            next_up(pairing.x_axis),
+                            next_up(pairing.y_axis),
+                            next_up(pairing.z_axis),
+                        );
+                        Wall::from_parts(next_up(side.covector()), moved, side.orientation())
+                    }
                     Geometry::Euclidean => {
                         let moved = next_up(side.covector());
                         Wall::from_parts(moved, euclidean::reflection(moved), side.orientation())

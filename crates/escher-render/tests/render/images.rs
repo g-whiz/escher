@@ -428,7 +428,8 @@ fn spherical_golden_domains_fold_every_sample_within_the_group_order() {
     let mut texts: Vec<&str> = Vec::new();
     for image in &GOLDEN_IMAGES {
         let spherical = image.domain().geometry() == escher_signature::Geometry::Spherical;
-        if spherical && !texts.contains(&image.signature) {
+        let reflection = image.signature.starts_with('*');
+        if spherical && reflection && !texts.contains(&image.signature) {
             texts.push(image.signature);
         }
     }
@@ -457,4 +458,25 @@ fn triangle_of_order_1000_folds_every_sample_within_the_group_order() {
 )]
 fn lune_of_order_1000_folds_every_sample_within_the_group_order() {
     assert_folds_within_the_group_order("*(1000)(1000)");
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn parity_fill_of_a_rotation_domain_equals_its_first_colour() {
+    let first = Colour::from_srgb8(245, 222, 179);
+    let second = Colour::from_srgb8(70, 130, 180);
+    for text in ["732", "55"] {
+        let domain = domain_with_aspect(text, None);
+        let render = |fill| {
+            let options = options(RenderOptions::builder(fill).size(64, 64).samples(2));
+            Renderer::new(&domain, options).render().0
+        };
+        assert!(
+            render(Fill::Parity([first, second])) == render(Fill::One(first)),
+            "{text}"
+        );
+    }
 }

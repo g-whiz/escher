@@ -14,7 +14,7 @@ Arguments:
 Options:
   -o, --output <FILE>              The PNG file to write. An existing file is replaced
       --size <WIDTHxHEIGHT>        The image size in pixels, as WIDTHxHEIGHT [default: 512x512]
-      --colouring <COLOURING>      One colour for every tile, or two colours by parity [default: parity] [possible values: one, parity]
+      --colouring <COLOURING>      One colour for every tile, or two colours by parity. The default is parity when a side pairing of the domain reverses orientation, and one otherwise [possible values: one, parity]
       --colours <COLOURS>          The fill colours, separated by commas, each as #rgb or #rrggbb. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'
       --border-width <PIXELS>      The border width in pixels. 0 draws no border [default: 1]
       --border-colour <COLOUR>     The border colour, as #rgb or #rrggbb [default: #000000]

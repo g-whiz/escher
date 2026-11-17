@@ -308,3 +308,101 @@ fn spherical_border_pixels_lie_where_the_tile_of_a_sample_changes() {
         );
     }
 }
+
+const BORDER_SUBSET_DOMAINS: [(&str, Option<f64>); 32] = [
+    ("*732", None),
+    ("*542", None),
+    ("*444", None),
+    ("*433", None),
+    ("*(12)32", None),
+    ("*(1000)32", None),
+    ("*(1000)(1000)(1000)", None),
+    ("*632", None),
+    ("*442", None),
+    ("*333", None),
+    ("*2222", Some(1.0)),
+    ("*2222", Some(1.618)),
+    ("*2222", Some(0.125)),
+    ("*2222", Some(8.0)),
+    ("*2222", Some(4.0)),
+    ("*332", None),
+    ("*432", None),
+    ("*532", None),
+    ("*222", None),
+    ("*322", None),
+    ("*522", None),
+    ("*(12)22", None),
+    ("*(100)22", None),
+    ("*(999)22", None),
+    ("*(1000)22", None),
+    ("*22", None),
+    ("*33", None),
+    ("*55", None),
+    ("*(12)(12)", None),
+    ("*(100)(100)", None),
+    ("*(999)(999)", None),
+    ("*(1000)(1000)", None),
+];
+
+const BORDER_SUBSET_MEASURED: [usize; 32] = [0; 32];
+
+fn fill_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool> {
+    let fill = Colour::from_srgb8(70, 130, 180);
+    let options = options(
+        RenderOptions::builder(Fill::One(fill))
+            .size(size, size)
+            .samples(1)
+            .shading(Shading::Flat),
+    );
+    let (pixels, _) = Renderer::new(domain, options).render();
+    pixels
+        .as_chunks::<3>()
+        .0
+        .iter()
+        .map(|pixel| *pixel != fill.to_srgb8())
+        .collect()
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn every_border_pixel_of_a_rotation_domain_is_a_border_pixel_of_its_reflection_domain() {
+    for ((starred, aspect), measured) in BORDER_SUBSET_DOMAINS
+        .into_iter()
+        .zip(BORDER_SUBSET_MEASURED)
+    {
+        let reflection = domain_with_aspect(starred, aspect);
+        let rotation = domain_with_aspect(&starred[1..], aspect);
+        let euclidean = reflection.geometry() == escher_signature::Geometry::Euclidean;
+        let size = if euclidean { EUCLIDEAN_SIZE } else { SIZE };
+        let counted = |index: usize| {
+            let index = u32::try_from(index).unwrap_or(u32::MAX);
+            euclidean || position(index % size, index / size).length() <= RADIUS
+        };
+        let reflection_mask = fill_mask(&reflection, size);
+        let rotation_mask = fill_mask(&rotation, size);
+        let mut reflection_borders = 0;
+        let mut rotation_borders = 0;
+        let mut outside_subset = 0;
+        for (index, (&reflected, &rotated)) in
+            reflection_mask.iter().zip(&rotation_mask).enumerate()
+        {
+            if !counted(index) {
+                continue;
+            }
+            reflection_borders += usize::from(reflected);
+            rotation_borders += usize::from(rotated);
+            outside_subset += usize::from(rotated && !reflected);
+        }
+        let name = format!("{} aspect {aspect:?}", &starred[1..]);
+        let bound = count_bound(measured);
+        println!(
+            "{name}: {rotation_borders} border pixels, {reflection_borders} of {starred}, {outside_subset} not border pixels of {starred}, bound {bound}"
+        );
+        assert!(outside_subset <= bound, "{name}: {outside_subset} pixels");
+        assert!(rotation_borders > 0, "{name}");
+        assert!(rotation_borders <= reflection_borders, "{name}");
+    }
+}

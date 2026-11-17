@@ -36,11 +36,15 @@
 //! `--set NAME=VALUE` sets a shape parameter of the domain, such as
 //! `aspect=1.5` for `*2222`. The command draws on a pool of threads that it
 //! builds for the call. It writes the PNG file only after the rendering and
-//! the encoding succeed, and it replaces a file that exists. It fails for a
-//! signature without a domain, for a domain with a side that is not a mirror,
-//! such as the domain of `732`, and for a setting that the domain does not
-//! accept. It prints nothing on standard output unless the option `--stats` is
-//! given, which prints statistics of the rendering after the file is written.
+//! the encoding succeed, and it replaces a file that exists. Without the
+//! option `--colouring`, it colours the tiles by the parity of reflections
+//! when a side pairing of the domain reverses orientation, and in one colour
+//! otherwise, as for the domain of `732`. It fails for a signature without a
+//! domain, for a setting that the domain does not accept, and for the
+//! colouring `parity` of a domain whose side pairings all preserve
+//! orientation. It prints nothing on standard output unless the option
+//! `--stats` is given, which prints statistics of the rendering after the file
+//! is written.
 //!
 //! ```
 //! use escher_cli::{Status, run};

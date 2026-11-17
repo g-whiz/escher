@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"parity_without_reversing_side\",\n&[\"732\", \"--colouring\", \"parity\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation
+--- end

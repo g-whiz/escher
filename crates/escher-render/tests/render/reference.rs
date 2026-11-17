@@ -360,6 +360,18 @@ impl Reference {
         self.asinh(&dot(covector, &normalize(point)).abs())
     }
 
+    pub(crate) fn sphere_wall_distance(&mut self, normal: &Vector, point: &Vector) -> BigFloat {
+        let sine = div(
+            &dot(normal, point).abs(),
+            &mul(&length(normal), &length(point)),
+        );
+        let cosine = sqrt(&sub(&int(1), &mul(&sine, &sine)));
+        if cosine.is_zero() {
+            return div(&self.pi(), &int(2));
+        }
+        self.atan(&div(&sine, &cosine))
+    }
+
     pub(crate) fn border_distance(
         &mut self,
         covectors: &[Vector],

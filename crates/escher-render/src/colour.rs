@@ -76,7 +76,9 @@ pub enum Fill {
     /// orientation-reversing pairings maps it onto the fundamental domain,
     /// and the second colour when an odd number does, so that two tiles that
     /// share a mirror side differ. The fundamental domain takes the first
-    /// colour.
+    /// colour. When no side pairing of the domain reverses orientation, as for
+    /// the domain of `732`, every tile takes the first colour, so the image
+    /// equals the image with [`Fill::One`] of that colour.
     Parity([Colour; 2]),
 }
 

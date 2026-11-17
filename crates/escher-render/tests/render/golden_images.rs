@@ -46,7 +46,7 @@ const fn golden(signature: &'static str, aspect: Option<f64>, file: &'static str
     }
 }
 
-pub(crate) const GOLDEN_IMAGES: [GoldenImage; 14] = [
+pub(crate) const GOLDEN_IMAGES: [GoldenImage; 20] = [
     golden("*732", None, "7-3-2.png"),
     golden("*542", None, "5-4-2.png"),
     golden("*433", None, "4-3-3.png"),
@@ -73,6 +73,12 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 14] = [
         shading: Shading::Flat,
         file: "5-3-2-flat.png",
     },
+    golden("732", None, "rot-7-3-2.png"),
+    golden("442", None, "rot-4-4-2.png"),
+    golden("2222", Some(1.618), "rot-2-2-2-2.png"),
+    golden("532", None, "rot-5-3-2.png"),
+    golden("722", None, "rot-7-2-2.png"),
+    golden("55", None, "rot-5-5.png"),
 ];
 
 pub(crate) const GOLDEN_FILL: [[u8; 3]; 2] = [[245, 222, 179], [70, 130, 180]];

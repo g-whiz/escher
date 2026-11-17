@@ -59,10 +59,9 @@ pub(crate) struct RenderArgs {
     #[arg(
         long,
         value_enum,
-        default_value_t = Colouring::Parity,
-        help = "One colour for every tile, or two colours by parity"
+        help = "One colour for every tile, or two colours by parity. The default is parity when a side pairing of the domain reverses orientation, and one otherwise"
     )]
-    pub(crate) colouring: Colouring,
+    pub(crate) colouring: Option<Colouring>,
     #[arg(
         long,
         help = "The fill colours, separated by commas, each as #rgb or #rrggbb. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'"

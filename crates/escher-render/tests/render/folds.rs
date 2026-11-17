@@ -1,4 +1,6 @@
-use escher_geometry::hyperbolic::{ORIGIN, from_disk, side};
+use escher_geometry::hyperbolic::{
+    ORIGIN, boost, from_disk, normalize_point, rotation, side, translation,
+};
 use escher_geometry::spherical;
 use escher_render::{Fill, RenderOptions, Renderer, fold};
 use escher_signature::{Geometry, Signature};
@@ -6,14 +8,15 @@ use glam::{DMat3, DVec3};
 
 use crate::common::{
     BANDS, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS, EUCLIDEAN_REPLAY_BOUNDS,
-    FOLD_TRIPLES, REPLAY_BOUNDS, SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS,
+    FOLD_TRIPLES, REPLAY_BOUNDS, RotationCase, SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS,
     SPHERICAL_IMAGE_BOUNDS, SPHERICAL_REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe,
     describe_plane, describe_sphere, domain, euclidean_domain, euclidean_fold_set, euclidean_name,
-    fold_set, one_fill, options, pixel_position, reference_walls, rim_set, spherical_domain,
-    spherical_fold_set, text,
+    euclidean_rotation_cases, fold_set, hyperbolic_rotation_cases, one_fill, options,
+    pixel_position, reference_walls, rim_set, rotation_domain, rotation_text, spherical_domain,
+    spherical_fold_set, spherical_rotation_cases, text,
 };
 use crate::golden_images::domain_with_aspect;
-use crate::reference::{self, Reference, Worst, count_bound, vector};
+use crate::reference::{self, Reference, Worst, count_bound, num, vector};
 
 const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 6];
 
@@ -22,6 +25,21 @@ const EUCLIDEAN_DECISION_COUNTS: [usize; 4] = [0, 0, 0, 0];
 const VERTEX_ASPECTS: u32 = 64;
 
 const CENTRE_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
+
+const SPHERICAL_LUNES: usize = 10;
+
+const NEAR_VERTEX_DOMAINS: [(&str, f64); 4] = [
+    ("*(1000)(1000)(1000)", 1e-7),
+    ("*(1000)(1000)(999)", 2e-7),
+    ("*(998)(981)(961)", 1e-11),
+    ("*(1000)32", 1e-11),
+];
+
+const NEAR_VERTEX_DISTANCES: [f64; 13] = [
+    1e-5, 3e-6, 1e-6, 6e-7, 3e-7, 2e-7, 1e-7, 3e-8, 2e-8, 1e-8, 1e-9, 1e-10, 1e-11,
+];
+
+const NEAR_VERTEX_DIRECTIONS: u32 = 256;
 
 fn sides_of(
     domain: &escher_domain::FundamentalDomain,
@@ -776,4 +794,485 @@ fn fold_and_render_beyond_the_range_of_accuracy_return_without_a_panic() {
         beyond > 0,
         "no row of the image has a sample beyond the range of accuracy"
     );
+}
+
+fn assert_rotation_replay(cases: &[RotationCase]) {
+    let mut reference = Reference::new();
+    for case in cases {
+        let walls = reference_walls(&case.domain);
+        let groups = case.groups.len();
+        let mut worst: Vec<Worst> = case
+            .groups
+            .iter()
+            .map(|group| {
+                Worst::new(
+                    format!("folded point of {} from the replay, {group}", case.name),
+                    0,
+                )
+            })
+            .collect();
+        let mut differing = vec![0_usize; groups];
+        let mut unconverged = vec![0_usize; groups];
+        let mut steps = vec![(0_u64, 0_u32, 0_u64); groups];
+        for sample in &case.samples {
+            let (result, sides) = sides_of(&case.domain, sample.point, DEFAULT_CAP);
+            let (total, largest, count) = &mut steps[sample.group];
+            *total += u64::from(result.steps());
+            *largest = (*largest).max(result.steps());
+            *count += 1;
+            if !result.converged() {
+                println!("{} does not converge", sample.name);
+                unconverged[sample.group] += 1;
+                continue;
+            }
+            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let distance = case.measure.distance(
+                &mut reference,
+                &vector(result.point().to_array()),
+                &replayed,
+            );
+            worst[sample.group].record(&distance, &reference::int(1), || sample.name.clone());
+            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
+            if !exact.converged || exact.sides != sides {
+                println!(
+                    "{}: the side sequence differs from the exact fold, which converged {}",
+                    sample.name, exact.converged
+                );
+                differing[sample.group] += 1;
+            }
+        }
+        for (group, label) in case.groups.iter().enumerate() {
+            let (total, largest, count) = steps[group];
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the counts are far below 2 to the power 52"
+            )]
+            let mean = total as f64 / count as f64;
+            let allowed = count_bound(case.decisions[group]);
+            println!(
+                "{} {label}: mean steps {mean:.1}, largest {largest}, {} unconverged, {} of {count} folds differ, bound {allowed}",
+                case.name, unconverged[group], differing[group]
+            );
+            if group < case.range {
+                assert_eq!(unconverged[group], 0, "{} {label}", case.name);
+                worst[group].assert_at_most(&mut reference, case.bounds[group]);
+                assert!(
+                    differing[group] <= allowed,
+                    "{} {label}: {} folds differ, more than {allowed}",
+                    case.name,
+                    differing[group]
+                );
+            } else {
+                println!("{} {label} lies beyond the range of accuracy", case.name);
+            }
+        }
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_fold_replay_of_hyperbolic_domains_stays_within_its_bounds() {
+    assert_rotation_replay(&hyperbolic_rotation_cases());
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_fold_replay_of_euclidean_domains_stays_within_its_bounds() {
+    assert_rotation_replay(&euclidean_rotation_cases());
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_fold_replay_of_spherical_kites_stays_within_its_bounds() {
+    assert_rotation_replay(&spherical_rotation_cases(0..SPHERICAL_LUNES));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_fold_replay_of_spherical_lunes_stays_within_its_bounds() {
+    assert_rotation_replay(&spherical_rotation_cases(
+        SPHERICAL_LUNES..SPHERICAL_DOMAINS.len(),
+    ));
+}
+
+fn assert_double_oracle(cases: &[RotationCase]) {
+    let mut reference = Reference::new();
+    for case in cases {
+        let reflection_walls = reference_walls(&case.reflection);
+        let covectors: Vec<reference::Vector> = case
+            .reflection
+            .sides()
+            .iter()
+            .map(|side| vector(side.covector().to_array()))
+            .collect();
+        let doubled = &reflection_walls[1].pairing;
+        let groups = case.groups.len();
+        let mut kept = vec![0_usize; groups];
+        let mut failed = vec![0_usize; groups];
+        for sample in &case.samples {
+            if sample.group >= case.range {
+                continue;
+            }
+            let tolerance = case.reflection_bounds[sample.group] + case.bounds[sample.group];
+            let clearance = num(1e-6_f64.max(2.0 * tolerance));
+            let reflected = fold(&case.reflection, sample.point, DEFAULT_CAP, |_| {});
+            if !reflected.converged() {
+                continue;
+            }
+            let folded = vector(reflected.point().to_array());
+            let clear = covectors.iter().all(|covector| {
+                case.measure
+                    .wall_distance(&mut reference, covector, &folded)
+                    >= clearance
+            });
+            if !clear {
+                continue;
+            }
+            kept[sample.group] += 1;
+            let target = if reflected.reversals().is_multiple_of(2) {
+                folded
+            } else {
+                reference::apply(doubled, &folded)
+            };
+            let rotated = fold(&case.domain, sample.point, DEFAULT_CAP, |_| {});
+            let agrees = rotated.converged()
+                && case.measure.distance(
+                    &mut reference,
+                    &vector(rotated.point().to_array()),
+                    &target,
+                ) <= num(tolerance);
+            if !agrees {
+                println!(
+                    "{}: the rotation fold, converged {}, lands farther than {tolerance:e} from the reflection fold of parity {}",
+                    sample.name,
+                    rotated.converged(),
+                    reflected.reversals() % 2
+                );
+                failed[sample.group] += 1;
+            }
+        }
+        assert!(
+            kept.iter().sum::<usize>() > 0,
+            "{}: no point is kept",
+            case.name
+        );
+        for (group, label) in case.groups.iter().enumerate().take(case.range) {
+            let allowed = count_bound(case.oracle[group]);
+            println!(
+                "{} {label}: {} of {} kept points disagree with the reflection fold, bound {allowed}",
+                case.name, failed[group], kept[group]
+            );
+            assert!(
+                failed[group] <= allowed,
+                "{} {label}: {} points disagree, more than {allowed}",
+                case.name,
+                failed[group]
+            );
+        }
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_folds_of_hyperbolic_domains_agree_with_the_folds_of_their_reflection_domains() {
+    assert_double_oracle(&hyperbolic_rotation_cases());
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_folds_of_euclidean_domains_agree_with_the_folds_of_their_reflection_domains() {
+    assert_double_oracle(&euclidean_rotation_cases());
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_folds_of_spherical_kites_agree_with_the_folds_of_their_reflection_domains() {
+    assert_double_oracle(&spherical_rotation_cases(0..SPHERICAL_LUNES));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_folds_of_spherical_lunes_agree_with_the_folds_of_their_reflection_domains() {
+    assert_double_oracle(&spherical_rotation_cases(
+        SPHERICAL_LUNES..SPHERICAL_DOMAINS.len(),
+    ));
+}
+
+#[test]
+fn every_vertex_of_a_rotation_domain_folds_in_zero_steps() {
+    let hyperbolic = FOLD_TRIPLES
+        .into_iter()
+        .chain(VERTEX_TRIPLES)
+        .chain([[868, 416, 5]])
+        .map(|triple| {
+            let starred = text(triple);
+            let name = rotation_text(&starred).to_owned();
+            let domain = rotation_domain(&starred, None);
+            (name, domain)
+        });
+    let euclidean = EUCLIDEAN_DOMAINS
+        .into_iter()
+        .chain(
+            core::iter::once(4.0)
+                .chain(vertex_aspects())
+                .map(|aspect| ("*2222", Some(aspect))),
+        )
+        .map(|(starred, aspect)| {
+            (
+                format!("{} aspect {aspect:?}", rotation_text(starred)),
+                rotation_domain(starred, aspect),
+            )
+        });
+    let spherical = SPHERICAL_DOMAINS.into_iter().map(|starred| {
+        (
+            rotation_text(starred).to_owned(),
+            rotation_domain(starred, None),
+        )
+    });
+    let (ratio, at) = largest_vertex_ratio(hyperbolic.chain(euclidean).chain(spherical));
+    println!(
+        "largest side value at a vertex of a rotation domain over the tolerance scale: {ratio:.3e} at {at}, tolerance {TOLERANCE:e}, margin {:.2}",
+        TOLERANCE / ratio
+    );
+    assert!(ratio <= TOLERANCE, "{ratio:e} at {at}");
+}
+
+fn assert_rotation_image_converges(text: &str) {
+    let options = options(RenderOptions::builder(one_fill()));
+    let renderer = Renderer::new(&domain_with_aspect(text, None), options);
+    let band_rows = 64;
+    let band_bytes = 3 * 512 * band_rows;
+    let mut pixels = vec![0; band_bytes * 8];
+    let stats = std::thread::scope(|scope| {
+        let bands: Vec<_> = pixels
+            .chunks_mut(band_bytes)
+            .zip((0..512).step_by(64))
+            .map(|(band, first)| {
+                let renderer = &renderer;
+                scope.spawn(move || renderer.render_rows(first, band))
+            })
+            .collect();
+        bands.into_iter().fold(
+            escher_render::RenderStats::default(),
+            |stats, band| match band.join().expect("a band of rows returns") {
+                Ok(band) => stats.merged(band),
+                Err(error) => panic!("{text}: {error}"),
+            },
+        )
+    });
+    let inside = stats.samples() - stats.outside();
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the counts are far below 2 to the power 52"
+    )]
+    let mean = stats.folds() as f64 / inside as f64;
+    println!(
+        "{text} at 512 by 512 with 4 by 4 samples: {inside} samples inside the view, mean steps {mean:.2}, largest {}, {} unconverged",
+        stats.largest_fold(),
+        stats.unconverged()
+    );
+    assert_eq!(stats.unconverged(), 0, "{text}");
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn rotation_triangle_of_order_1000_converges_at_every_sample() {
+    assert_rotation_image_converges("(1000)32");
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn rotation_triangle_of_three_orders_1000_converges_at_every_sample() {
+    assert_rotation_image_converges("(1000)(1000)(1000)");
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn rotation_kite_of_order_1000_on_the_sphere_converges_at_every_sample() {
+    assert_rotation_image_converges("(1000)22");
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn rotation_lune_of_order_1000_converges_at_every_sample() {
+    assert_rotation_image_converges("(1000)(1000)");
+}
+
+const ROTATION_CENTRE_DOMAINS: [&str; 27] = [
+    "332",
+    "432",
+    "532",
+    "222",
+    "322",
+    "422",
+    "522",
+    "622",
+    "722",
+    "822",
+    "922",
+    "(10)22",
+    "(11)22",
+    "(12)22",
+    "(1000)22",
+    "22",
+    "33",
+    "44",
+    "55",
+    "66",
+    "77",
+    "88",
+    "99",
+    "(10)(10)",
+    "(11)(11)",
+    "(12)(12)",
+    "(1000)(1000)",
+];
+
+const ROTATION_CENTRE_BOUNDS: [f64; 27] = [
+    7e-15, 2e-14, 3e-14, 6e-15, 7e-15, 1e-14, 9e-15, 2e-14, 5e-15, 2e-14, 3e-14, 3e-14, 2e-14,
+    3e-14, 3e-10, 8e-15, 9e-16, 6e-15, 3e-15, 8e-15, 3e-15, 6e-15, 4e-15, 4e-15, 2e-15, 4e-15,
+    3e-13,
+];
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the enumeration of the group runs loops too long for the interpreter"
+)]
+fn images_of_the_centre_under_a_rotation_group_fold_back_in_at_least_as_many_steps_as_their_depth()
+{
+    let mut reference = Reference::new();
+    for (name, bound) in ROTATION_CENTRE_DOMAINS
+        .into_iter()
+        .zip(ROTATION_CENTRE_BOUNDS)
+    {
+        let signature: Signature = name
+            .parse()
+            .unwrap_or_else(|error| panic!("{name:?} is rejected: {error}"));
+        let order = signature
+            .group_order()
+            .unwrap_or_else(|| panic!("{name} has no group order"))
+            .get();
+        let domain = domain_with_aspect(name, None);
+        let elements = enumerate_group(&domain, order);
+        assert_eq!(elements.len() as u64, order, "{name}");
+        let centre = domain.centre();
+        let exact_centre = vector(centre.to_array());
+        let mut largest = (0.0_f64, 0_u32);
+        let mut largest_depth = 0;
+        let mut most_steps = 0;
+        for element in &elements {
+            let depth = element.depth;
+            let exact_image = reference::apply(&element.exact, &exact_centre);
+            let image =
+                DVec3::from_array([0, 1, 2].map(|row| reference.approximate(&exact_image[row])));
+            let result = fold(&domain, image, DEFAULT_CAP, |_| {});
+            assert!(result.converged(), "{name} at depth {depth}");
+            assert!(
+                result.steps() >= depth,
+                "{name} at depth {depth}: {} steps",
+                result.steps()
+            );
+            let angle = reference.angle(&vector(result.point().to_array()), &exact_centre);
+            let angle = reference.approximate(&angle);
+            largest_depth = largest_depth.max(depth);
+            most_steps = most_steps.max(result.steps());
+            if angle > largest.0 {
+                largest = (angle, depth);
+            }
+        }
+        println!(
+            "{name}: {} elements, largest depth {largest_depth}, most steps {most_steps}, largest angle {:.3e} at depth {}, bound {bound:e}, margin {:.1}",
+            elements.len(),
+            largest.0,
+            largest.1,
+            bound / largest.0
+        );
+        assert!(
+            largest.0 <= bound,
+            "{name}: angle {:e} exceeds {bound:e}",
+            largest.0
+        );
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "folding thousands of points of a large group runs loops too long for the interpreter"
+)]
+fn fold_near_a_vertex_of_a_rotation_domain_converges_beyond_the_measured_distance() {
+    for (starred, clear) in NEAR_VERTEX_DOMAINS {
+        let name = rotation_text(starred);
+        let domain = rotation_domain(starred, None);
+        let reflection = domain_with_aspect(starred, None);
+        for (index, &vertex) in domain.vertices().iter().enumerate() {
+            let vertex = normalize_point(vertex)
+                .unwrap_or_else(|error| panic!("{name} vertex {index}: {error}"));
+            let to_vertex = translation(vertex);
+            let mut unconverged = [[0_u32; NEAR_VERTEX_DISTANCES.len()]; 2];
+            for (slot, &distance) in NEAR_VERTEX_DISTANCES.iter().enumerate() {
+                for direction in 0..NEAR_VERTEX_DIRECTIONS {
+                    let heading = core::f64::consts::TAU * f64::from(direction)
+                        / f64::from(NEAR_VERTEX_DIRECTIONS);
+                    let point = to_vertex * rotation(heading) * boost(distance) * ORIGIN;
+                    for (counts, folded) in unconverged.iter_mut().zip([&domain, &reflection]) {
+                        let result = fold(folded, point, DEFAULT_CAP, |_| {});
+                        assert!(
+                            result.steps() <= DEFAULT_CAP,
+                            "{name} vertex {index} direction {direction}"
+                        );
+                        if !result.converged() {
+                            counts[slot] += 1;
+                        }
+                    }
+                }
+                assert!(
+                    distance < clear || unconverged[0][slot] == 0,
+                    "{name} vertex {index}: {} of {NEAR_VERTEX_DIRECTIONS} folds unconverged at distance {distance:e}, at or beyond {clear:e}",
+                    unconverged[0][slot]
+                );
+            }
+            println!(
+                "{name} vertex {index}: unconverged of {NEAR_VERTEX_DIRECTIONS} at distances {NEAR_VERTEX_DISTANCES:?}: {:?}, and of the same points in {starred}: {:?}",
+                unconverged[0], unconverged[1]
+            );
+        }
+    }
 }

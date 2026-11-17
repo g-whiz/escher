@@ -8,6 +8,13 @@
 //! of `*632`, `*442`, or `*333`, the rectangle of `*2222`, the spherical
 //! reflection triangle of `*332`, `*432`, `*532`, or `*n22`, or the lune of
 //! `*nn`, which is the region between two half great circles of the sphere.
+//! It can also be the domain of the signature without the star, such as `732`
+//! for `*732`, whose group has no reflections. That domain is two copies of
+//! the reflection domain joined across one side, and its side pairings are
+//! rotations and translations. It has the place and the view of its reflection
+//! domain and draws borders only on its own sides, and [`Fill::Parity`] gives
+//! every tile its first colour.
+//!
 //! The view follows the geometry of the domain. For a hyperbolic domain, the
 //! Poincare disk is centred in the image, with the centre of the domain at the
 //! centre of the disk. For a Euclidean domain, the tiling fills the image, the
