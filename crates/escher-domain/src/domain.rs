@@ -1,39 +1,44 @@
 use core::f64::consts::PI;
 
-use escher_geometry::{euclidean, hyperbolic};
+use escher_geometry::{euclidean, hyperbolic, spherical};
 use escher_signature::{Geometry, Signature};
 use glam::{DMat3, DVec3};
 
 use crate::error::{Error, Result};
 use crate::parameters::{Parameter, ShapeParameters, validate, value};
 use crate::polygon::{Polygon, rectangle, triangle};
+use crate::spherical::{lune, triangle as spherical_triangle};
 use crate::triangle::{LARGEST_ORDER, Supported, construct, supported};
 use crate::verify::Verification;
 
-/// The fundamental domain of a symmetry group of the hyperbolic or the
-/// Euclidean plane, a polygon whose copies under the group tile the plane
-/// without overlap.
+/// The fundamental domain of a symmetry group of the hyperbolic plane, the
+/// Euclidean plane, or the sphere, a polygon whose copies under the group
+/// tile the plane or the sphere without overlap.
 ///
 /// Use it to fold a point into the domain, or to read the shape of the
 /// domain. A domain holds its vertices and its sides. Each side lies on a wall,
-/// a line of the plane, and carries the pairing isometry, a map that preserves
-/// distances and moves the neighbouring copy of the domain across that side
-/// onto the domain. The points and walls are those of the crate
-/// [`escher_geometry`]: of its module
+/// a line of the plane or a great circle of the sphere, and carries the
+/// pairing isometry, a map that preserves distances and moves the
+/// neighbouring copy of the domain across that side onto the domain. The
+/// points and walls are those of the crate [`escher_geometry`]: of its module
 /// [`hyperbolic`](escher_geometry::hyperbolic) for a domain whose
-/// [geometry](FundamentalDomain::geometry) is hyperbolic, and of its module
-/// [`euclidean`](escher_geometry::euclidean) for a Euclidean one. Each module
-/// states its conventions.
+/// [geometry](FundamentalDomain::geometry) is hyperbolic, of its module
+/// [`euclidean`](escher_geometry::euclidean) for a Euclidean one, and of its
+/// module [`spherical`](escher_geometry::spherical) for a spherical one. Each
+/// module states its conventions.
 ///
 /// The crate builds a reflection triangle for a signature `*pqr`, a triangle
 /// whose sides are mirrors and whose corners have the angles `pi / p`,
-/// `pi / q`, and `pi / r`, and a reflection rectangle for `*2222`. Vertex `j`
-/// is corner `j` of the canonical signature, which lists the largest order
-/// first. Side `j` joins vertex `j - 1` and vertex `j`, with indexes modulo
-/// the number of sides, so vertex `j` lies between side `j` and side `j + 1`.
-/// The vertices are counterclockwise, in the Poincare disk for a hyperbolic
-/// domain and in the plane for a Euclidean one, and the domain is placed with
-/// its [centre](FundamentalDomain::centre) at the origin.
+/// `pi / q`, and `pi / r`, a reflection rectangle for `*2222`, and a lune for
+/// `*nn`, the region of the sphere between two half great circles that are
+/// mirrors and meet at the angle `pi / n` at two antipodal vertices. Vertex
+/// `j` is corner `j` of the canonical signature, which lists the largest
+/// order first. Side `j` joins vertex `j - 1` and vertex `j`, with indexes
+/// modulo the number of sides, so vertex `j` lies between side `j` and side
+/// `j + 1`. The vertices are counterclockwise, in the Poincare disk for a
+/// hyperbolic domain, in the plane for a Euclidean one, and as seen from
+/// outside the sphere for a spherical one, and the domain is placed with its
+/// [centre](FundamentalDomain::centre) at the origin.
 ///
 /// # Examples
 ///
@@ -65,6 +70,7 @@ pub struct FundamentalDomain {
 pub(crate) enum Plane {
     Hyperbolic { area: f64 },
     Euclidean,
+    Spherical { area: f64 },
 }
 
 impl FundamentalDomain {
@@ -108,9 +114,13 @@ impl FundamentalDomain {
     /// - A Euclidean triangle, which is `*632`, `*442`, or `*333`.
     /// - The Euclidean rectangle `*2222`, whose shape parameter `aspect` is
     ///   the length of side 0 divided by the length of side 1.
+    /// - A spherical triangle, which is `*332`, `*432`, `*532`, or `*n22`
+    ///   with `n` at most 1000.
+    /// - A lune `*nn`, with `n` at most 1000.
     ///
     /// The triangle of a Euclidean signature has side 0 of length 1, and the
-    /// rectangle has area 1. Each name of a setting must be the name of a
+    /// rectangle has area 1. A spherical domain lies on the unit sphere and
+    /// has no shape parameter. Each name of a setting must be the name of a
     /// parameter that [`parameters`](crate::parameters()) lists for the
     /// signature, and each value must lie in the range of that parameter. A
     /// parameter without a setting takes its default value.
@@ -177,7 +187,26 @@ impl FundamentalDomain {
             Supported::Rectangle => {
                 Self::euclidean(orders, rectangle(value(parameters, Parameter::Aspect)))
             }
+            Supported::SphericalTriangle { orders, area } => {
+                Self::spherical(orders.to_vec(), area, spherical_triangle(orders))
+            }
+            Supported::Lune { order, area } => Self::spherical(vec![order; 2], area, lune(order)),
         }
+    }
+
+    fn spherical(
+        orders: Vec<u32>,
+        area: f64,
+        polygon: core::result::Result<Polygon, Option<escher_geometry::Error>>,
+    ) -> Result<Self> {
+        let polygon = polygon.map_err(Error::numerical)?;
+        Ok(Self {
+            plane: Plane::Spherical { area },
+            orders,
+            sides: polygon.sides,
+            vertices: polygon.vertices,
+            centre: polygon.centre,
+        })
     }
 
     fn euclidean(
@@ -195,13 +224,14 @@ impl FundamentalDomain {
     }
 
     /// Returns the geometry of the signature, which is
-    /// [`Geometry::Hyperbolic`] or [`Geometry::Euclidean`] for every domain
-    /// the crate builds.
+    /// [`Geometry::Hyperbolic`], [`Geometry::Euclidean`], or
+    /// [`Geometry::Spherical`].
     #[must_use]
     pub fn geometry(&self) -> Geometry {
         match self.plane {
             Plane::Hyperbolic { .. } => Geometry::Hyperbolic,
             Plane::Euclidean => Geometry::Euclidean,
+            Plane::Spherical { .. } => Geometry::Spherical,
         }
     }
 
@@ -224,7 +254,9 @@ impl FundamentalDomain {
     /// scaling moves a vertex away from the true corner. A vertex therefore
     /// lies off the hyperboloid by a rounding error, and a caller should not
     /// normalize it. For a Euclidean domain the vertices are points `(x, y, 1)`
-    /// of the plane.
+    /// of the plane. For a spherical domain the vertices are points of the
+    /// unit sphere. The two vertices of a lune are the antipodal points
+    /// `(0, 1, 0)` and `(0, -1, 0)`.
     #[must_use]
     pub fn vertices(&self) -> &[DVec3] {
         &self.vertices
@@ -237,7 +269,13 @@ impl FundamentalDomain {
     /// [`ORIGIN`](escher_geometry::hyperbolic::ORIGIN) up to rounding, the
     /// centre of the Poincare disk. For a Euclidean domain it is the mean of
     /// the vertices, and the domain is placed so that it is the point
-    /// [`ORIGIN`](escher_geometry::euclidean::ORIGIN) up to rounding.
+    /// [`ORIGIN`](escher_geometry::euclidean::ORIGIN) up to rounding. For a
+    /// spherical triangle it is the sum of the vertices scaled onto the
+    /// sphere, and the domain is placed so that it is the point
+    /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) up to rounding. The two
+    /// vertices of a lune are antipodal and have no midpoint, so its centre is
+    /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) exactly, halfway between
+    /// its two sides.
     #[must_use]
     pub fn centre(&self) -> DVec3 {
         self.centre
@@ -246,7 +284,8 @@ impl FundamentalDomain {
     /// Returns the length of each side, in side order.
     ///
     /// The lengths are distances between the stored vertices, in the metric
-    /// of curvature -1 for a hyperbolic domain.
+    /// of curvature -1 for a hyperbolic domain and of the unit sphere for a
+    /// spherical one. Both sides of a lune have the length `pi`.
     #[must_use]
     pub fn side_lengths(&self) -> Vec<f64> {
         self.lengths()
@@ -255,12 +294,15 @@ impl FundamentalDomain {
     /// Returns the interior angle at each vertex in radians, in vertex
     /// order.
     ///
-    /// For a hyperbolic domain each angle is measured from the three side
-    /// lengths by the law of cosines of hyperbolic trigonometry, and for a
-    /// Euclidean domain from the directions of the two sides at the vertex.
-    /// No angle is measured from the walls, and each lies in the interval from
-    /// 0 to pi. The law of cosines holds only for a triangle, so a hyperbolic
-    /// domain that does not have three vertices gives NaN for every angle.
+    /// For a hyperbolic or spherical triangle, each angle is measured from the
+    /// three side lengths by the law of cosines of its geometry. For a
+    /// Euclidean domain, it is measured from the directions of the two sides
+    /// at the vertex. The two vertices of a lune do not fix its sides, so both
+    /// of its angles are measured instead from the unit normals `u0` and `u1`
+    /// of its two walls, as the inverse cosine of `-u0 . u1`. Each angle lies
+    /// in the interval from 0 to pi. A hyperbolic domain that does not have
+    /// three vertices, and a spherical domain that has neither two nor three,
+    /// gives NaN for every angle.
     #[must_use]
     pub fn corner_angles(&self) -> Vec<f64> {
         self.angles()
@@ -271,12 +313,20 @@ impl FundamentalDomain {
     /// For a hyperbolic domain it is pi minus the sum of its corner angles, in
     /// the metric of curvature -1, which is the area of a triangle, and NaN
     /// for a hyperbolic domain that does not have three vertices. For a
-    /// Euclidean domain it is the area that the vertices enclose.
+    /// Euclidean domain it is the area that the vertices enclose. For a
+    /// spherical triangle it is the sum of its corner angles minus pi, and for
+    /// a lune twice its angle, each in the metric of the unit sphere, and NaN
+    /// for a spherical domain that has neither two nor three vertices.
     #[must_use]
     pub fn area(&self) -> f64 {
         match self.plane {
             Plane::Hyperbolic { .. } => match self.angles()[..] {
                 [first, second, third] => PI - first - second - third,
+                _ => f64::NAN,
+            },
+            Plane::Spherical { .. } => match self.angles()[..] {
+                [first, second, third] => first + second + third - PI,
+                [first, _] => 2.0 * first,
                 _ => f64::NAN,
             },
             Plane::Euclidean => {
@@ -324,6 +374,7 @@ impl FundamentalDomain {
         let distance = match self.plane {
             Plane::Hyperbolic { .. } => hyperbolic::distance,
             Plane::Euclidean => euclidean::distance,
+            Plane::Spherical { .. } => spherical::distance,
         };
         (0..count)
             .map(|index| distance(v[(index + count - 1) % count], v[index]))
@@ -348,6 +399,25 @@ impl FundamentalDomain {
                 }
                 _ => vec![f64::NAN; count],
             },
+            Plane::Spherical { .. } => match (self.lengths().as_slice(), self.sides.as_slice()) {
+                (&[first, second, third], _) => {
+                    let lengths = [first, second, third];
+                    [0, 1, 2]
+                        .map(|vertex| {
+                            let a = lengths[vertex];
+                            let b = lengths[(vertex + 1) % 3];
+                            let c = lengths[(vertex + 2) % 3];
+                            let cosine = (c.cos() - a.cos() * b.cos()) / (a.sin() * b.sin());
+                            cosine.clamp(-1.0, 1.0).acos()
+                        })
+                        .to_vec()
+                }
+                (&[_, _], [first, second]) => {
+                    let angle = (-first.normal.dot(second.normal)).clamp(-1.0, 1.0).acos();
+                    vec![angle; 2]
+                }
+                _ => vec![f64::NAN; count],
+            },
             Plane::Euclidean => (0..count)
                 .map(|vertex| {
                     let corner = self.vertices[vertex].truncate();
@@ -368,8 +438,10 @@ impl FundamentalDomain {
 /// across the side. In a hyperbolic domain a wall is a geodesic line,
 /// represented by a unit normal, a vector whose Minkowski form with itself
 /// equals 1. In a Euclidean domain it is a line, represented by a line
-/// covector. The pairing isometry is a map that preserves distances and maps
-/// the neighbouring copy of the domain across this side onto the domain.
+/// covector. In a spherical domain it is a great circle, represented by a
+/// unit normal of its plane. The pairing isometry is a map that preserves
+/// distances and maps the neighbouring copy of the domain across this side onto
+/// the domain.
 ///
 /// # Examples
 ///
@@ -404,7 +476,8 @@ impl Side {
     /// In a hyperbolic domain the normal is a vector of the linear model
     /// whose Minkowski form with itself is 1, and the wall is the set of
     /// points whose form with it is 0. In a Euclidean domain it is the unit
-    /// vector `(a.x, a.y, 0)` normal to the line.
+    /// vector `(a.x, a.y, 0)` normal to the line. In a spherical domain it is
+    /// the unit normal of the plane of the great circle.
     #[must_use]
     pub fn normal(self) -> DVec3 {
         self.normal
@@ -417,7 +490,9 @@ impl Side {
     /// [`escher_geometry::hyperbolic::side`] to test a point against the wall.
     /// In a Euclidean domain it is the line covector `(a.x, a.y, -t)` of the
     /// line of points `p` with `a . p = t`, and a caller passes it to
-    /// [`escher_geometry::euclidean::side`]. Either test is the dot product of
+    /// [`escher_geometry::euclidean::side`]. In a spherical domain it is the
+    /// normal itself, and a caller passes it to
+    /// [`escher_geometry::spherical::side`]. Each test is the dot product of
     /// the covector and the point, and is positive outside the domain, zero on
     /// the wall, and negative inside.
     #[must_use]
@@ -427,10 +502,11 @@ impl Side {
 
     /// Returns the pairing isometry of the side as a 3 by 3 matrix.
     ///
-    /// In a hyperbolic domain it is a matrix of the linear model, and in a
+    /// In a hyperbolic domain it is a matrix of the linear model, in a
     /// Euclidean domain it is an isometry of the affine plane with last
-    /// coordinate 1. The isometry maps the neighbouring copy of the domain across this
-    /// side onto the domain. For a side of kind [`PairingKind::Mirror`] it is
+    /// coordinate 1, and in a spherical domain it is an orthogonal matrix. The
+    /// isometry maps the neighbouring copy of the domain across this side onto
+    /// the domain. For a side of kind [`PairingKind::Mirror`] it is
     /// the reflection in the wall of the side.
     #[must_use]
     pub fn pairing(self) -> DMat3 {
@@ -540,7 +616,8 @@ mod tests {
 
     #[test]
     fn build_checks_support_before_the_limit() {
-        let unsupported = signature(&format!("*({})({})", LARGEST_ORDER + 1, LARGEST_ORDER + 1));
+        let over = LARGEST_ORDER + 1;
+        let unsupported = signature(&format!("*({over})({over})({over})({over})"));
         let kind = FundamentalDomain::build(&unsupported).map_err(|error| error.kind());
         assert_eq!(kind.err(), Some(ErrorKind::UnsupportedSignature));
     }
@@ -550,7 +627,7 @@ mod tests {
         let mut settings = ShapeParameters::new();
         settings.set("aspect", f64::NAN);
         for (text, expected) in [
-            ("*532", ErrorKind::UnsupportedSignature),
+            ("532", ErrorKind::UnsupportedSignature),
             (
                 &*format!("*({})32", LARGEST_ORDER + 1),
                 ErrorKind::LimitExceeded,

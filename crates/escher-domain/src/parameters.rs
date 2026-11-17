@@ -73,7 +73,10 @@ pub fn parameters(signature: &Signature) -> Vec<ParameterSpec> {
 fn of(supported: Supported) -> Vec<Parameter> {
     match supported {
         Supported::Rectangle => vec![Parameter::Aspect],
-        Supported::HyperbolicTriangle { .. } | Supported::EuclideanTriangle { .. } => Vec::new(),
+        Supported::HyperbolicTriangle { .. }
+        | Supported::EuclideanTriangle { .. }
+        | Supported::SphericalTriangle { .. }
+        | Supported::Lune { .. } => Vec::new(),
     }
 }
 

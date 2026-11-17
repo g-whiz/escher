@@ -94,10 +94,10 @@ fn build_with_rejects_an_unknown_name() {
 #[test]
 fn build_with_rejects_an_unsupported_signature_before_its_settings() {
     assert_eq!(
-        error_of("*532", &settings("aspect", 2.0)),
+        error_of("532", &settings("aspect", 2.0)),
         Some((
             ErrorKind::UnsupportedSignature,
-            "cannot build fundamental domain: the signature *532 is not supported".to_owned()
+            "cannot build fundamental domain: the signature 532 is not supported".to_owned()
         ))
     );
 }

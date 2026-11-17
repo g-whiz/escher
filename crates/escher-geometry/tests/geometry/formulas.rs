@@ -1,14 +1,15 @@
 use astro_float_num::BigFloat;
-use escher_geometry::euclidean;
 use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, distance, form, from_disk, inverse, isometry_defect, normalize_point,
     reflection, rotation, side, to_disk, translation, wall_through,
 };
+use escher_geometry::{euclidean, spherical};
 use glam::{DVec2, DVec3};
 
 use crate::common::{
-    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, Rng, Triangle, pair, point_off_wall, polar_point,
-    table_points, table_vectors, wall_normal,
+    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, Rng, SPHERE_SEPARATION_FLOOR, SphereDomain,
+    SphereFactor, Triangle, pair, point_off_wall, polar_point, table_points, table_vectors,
+    tangent_basis, wall_normal,
 };
 use crate::reference::{
     Reference, Vector, Worst, add, difference, div, epsilon, error, int, max, mul, num, scale,
@@ -25,6 +26,19 @@ const EUCLIDEAN_REFLECTION_DEFECT_TOLERANCE: f64 = 32.0;
 const EUCLIDEAN_ORTHOGONALITY_TOLERANCE: f64 = 8.0;
 const EUCLIDEAN_NORM_TOLERANCE: f64 = 32.0;
 const EUCLIDEAN_DISTANCE_TOLERANCE: f64 = 16.0;
+const SPHERE_SIDE_TOLERANCE: f64 = 16.0;
+const SPHERE_NORMALIZE_TOLERANCE: f64 = 16.0;
+const SPHERE_DISTANCE_TOLERANCE: f64 = 16.0;
+const SPHERE_SAME_POINT_TOLERANCE: f64 = 32.0;
+const SPHERE_ORTHOGONALITY_TOLERANCE: f64 = 8.0;
+const SPHERE_NORM_TOLERANCE: f64 = 32.0;
+const SPHERE_BOOST_TOLERANCE: f64 = 1e-14;
+const SPHERE_TRANSLATION_TOLERANCE: f64 = 16.0;
+const SPHERE_TRANSLATION_COMPOSITION_TOLERANCE: f64 = 32.0;
+const SPHERE_TRANSLATION_DEFECT_TOLERANCE: f64 = 32.0;
+const SPHERE_REFLECTION_TOLERANCE: f64 = 16.0;
+const SPHERE_REFLECTION_DEFECT_TOLERANCE: f64 = 64.0;
+const SPHERE_PRODUCT_DEFECT_TOLERANCE: f64 = 128.0;
 
 fn big(value: DVec3) -> Vector {
     vector(value.to_array())
@@ -1057,4 +1071,337 @@ fn euclidean_wall_through_and_distance_are_within_their_bounds_of_the_reference(
     orthogonality.assert_at_most(&mut reference, EUCLIDEAN_ORTHOGONALITY_TOLERANCE);
     norm.assert_at_most(&mut reference, EUCLIDEAN_NORM_TOLERANCE);
     distances.assert_at_most(&mut reference, EUCLIDEAN_DISTANCE_TOLERANCE);
+}
+
+fn dot(x: &Vector, y: &Vector) -> BigFloat {
+    add(
+        &add(&mul(&x[0], &y[0]), &mul(&x[1], &y[1])),
+        &mul(&x[2], &y[2]),
+    )
+}
+
+fn unit(x: &Vector) -> Vector {
+    let length = sqrt(&dot(x, x));
+    [
+        div(&x[0], &length),
+        div(&x[1], &length),
+        div(&x[2], &length),
+    ]
+}
+
+fn record_vector(worst: &mut Worst, computed: DVec3, exact: &Vector, input: &dyn Fn() -> String) {
+    for (value, exact) in computed.to_array().into_iter().zip(exact) {
+        worst.record(&error(value, exact), &epsilon(), input);
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_side_is_within_its_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::new("spherical side, scaled by eps * sum |u_i x_i|", CASES);
+    let mut check = |normal: DVec3, point: DVec3, name: &str| {
+        let (ru, rx) = (big(normal), big(point));
+        let scale = mul(&epsilon(), &terms_bound(&ru, &rx));
+        worst.record(
+            &error(spherical::side(normal, point), &dot(&ru, &rx)),
+            &scale,
+            || format!("{name} {normal:?} {point:?}"),
+        );
+    };
+    let mut rng = Rng::new(30);
+    for _ in 0..CASES {
+        check(rng.sphere_point(), rng.sphere_point(), "random");
+    }
+    for domain in SphereDomain::all() {
+        for &normal in &domain.normals {
+            for &point in &domain.points {
+                check(normal, point, &domain.name);
+            }
+        }
+    }
+    worst.assert_at_most(&mut reference, SPHERE_SIDE_TOLERANCE);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_normalize_point_is_within_its_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::new(
+        "spherical normalize_point, each coordinate, scaled by eps",
+        3 * CASES,
+    );
+    let mut rng = Rng::new(31);
+    let mut measured = 0;
+    while measured < CASES {
+        let vector = match measured % 3 {
+            0 => rng.sphere_point() * rng.uniform(0.5, 2.0),
+            1 => rng.sphere_point() + rng.sphere_point(),
+            _ => rng.sphere_point() + rng.sphere_point() + rng.sphere_point(),
+        };
+        if vector.length() < 1e-3 {
+            continue;
+        }
+        measured += 1;
+        let Ok(point) = spherical::normalize_point(vector) else {
+            panic!("normalize_point rejects {vector:?}");
+        };
+        record_vector(&mut worst, point, &unit(&big(vector)), &|| {
+            format!("{vector:?}")
+        });
+    }
+    worst.assert_at_most(&mut reference, SPHERE_NORMALIZE_TOLERANCE);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_distance_and_wall_through_are_within_their_bounds_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut distances = Worst::new("spherical distance, scaled by eps / sin d", CASES);
+    let mut orthogonality = Worst::new(
+        "spherical wall_through, |u . a| and |u . b|, scaled by eps / sin d",
+        2 * CASES,
+    );
+    let mut norm = Worst::new("spherical wall_through, |u . u - 1|, scaled by eps", CASES);
+    let mut rng = Rng::new(32);
+    for _ in 0..CASES {
+        let (first, second) = rng.sphere_pair(SPHERE_SEPARATION_FLOOR);
+        let (ra, rb) = (big(first), big(second));
+        let cosine = dot(&ra, &rb);
+        let d = reference.acos(&cosine);
+        let scale = div(&epsilon(), &reference.sin(&d));
+        let input = || format!("{first:?} {second:?}");
+        distances.record(
+            &error(spherical::distance(first, second), &d),
+            &scale,
+            input,
+        );
+        let Ok(normal) = spherical::wall_through(first, second) else {
+            panic!("no great circle through {first:?} {second:?}");
+        };
+        let ru = big(normal);
+        orthogonality.record(&dot(&ru, &ra).abs(), &scale, input);
+        orthogonality.record(&dot(&ru, &rb).abs(), &scale, input);
+        norm.record(&sub(&dot(&ru, &ru), &int(1)).abs(), &epsilon(), input);
+    }
+    distances.assert_at_most(&mut reference, SPHERE_DISTANCE_TOLERANCE);
+    orthogonality.assert_at_most(&mut reference, SPHERE_ORTHOGONALITY_TOLERANCE);
+    norm.assert_at_most(&mut reference, SPHERE_NORM_TOLERANCE);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_distance_of_a_point_to_itself_is_at_least_zero_and_within_its_bound() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::new("spherical distance(x, x), scaled by sqrt(eps)", CASES);
+    let mut rng = Rng::new(33);
+    let points: Vec<DVec3> = (0..CASES).map(|_| rng.sphere_point()).collect();
+    for point in core::iter::once(spherical::ORIGIN).chain(points) {
+        let d = spherical::distance(point, point);
+        assert!(d >= 0.0, "{d} for {point:?}");
+        worst.record(&num(d), &num(f64::EPSILON.sqrt()), || format!("{point:?}"));
+    }
+    worst.assert_at_most(&mut reference, SPHERE_SAME_POINT_TOLERANCE);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_boost_entries_are_within_their_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::new("spherical boost entries, absolute", 4 * CASES);
+    let mut rng = Rng::new(34);
+    let edges = [0.0, 1000.0, -1000.0, core::f64::consts::PI, 1e-300];
+    let random: Vec<f64> = (0..CASES).map(|_| rng.uniform(-1000.0, 1000.0)).collect();
+    for angle in edges.into_iter().chain(random) {
+        let matrix = spherical::boost(angle);
+        let ra = num(angle);
+        let (cos, sin) = (reference.cos(&ra), reference.sin(&ra));
+        let minus_sin = sin.neg();
+        for (value, exact) in [
+            (matrix.x_axis.x, &cos),
+            (matrix.z_axis.z, &cos),
+            (matrix.z_axis.x, &sin),
+            (matrix.x_axis.z, &minus_sin),
+        ] {
+            worst.record(&error(value, exact), &int(1), || format!("{angle:e}"));
+        }
+        assert_eq!(
+            [
+                matrix.x_axis.y,
+                matrix.y_axis.x,
+                matrix.y_axis.y,
+                matrix.y_axis.z,
+                matrix.z_axis.y
+            ],
+            [0.0, 0.0, 1.0, 0.0, 0.0],
+        );
+    }
+    worst.assert_at_most(&mut reference, SPHERE_BOOST_TOLERANCE);
+}
+
+fn sphere_translation_composition(target: &Vector, x: &Vector) -> Vector {
+    let planar = sqrt(&add(
+        &mul(&target[0], &target[0]),
+        &mul(&target[1], &target[1]),
+    ));
+    let length = sqrt(&dot(target, target));
+    let (cos_rho, sin_rho) = (div(&target[2], &length), div(&planar, &length));
+    let (cos_phi, sin_phi) = if planar.is_zero() {
+        (int(1), int(0))
+    } else {
+        (div(&target[0], &planar), div(&target[1], &planar))
+    };
+    let turn = |cos: &BigFloat, sin: &BigFloat, p: &Vector| -> Vector {
+        [
+            sub(&mul(&p[0], cos), &mul(&p[1], sin)),
+            add(&mul(&p[1], cos), &mul(&p[0], sin)),
+            p[2].clone(),
+        ]
+    };
+    let back = turn(&cos_phi, &sin_phi.neg(), x);
+    let moved = [
+        add(&mul(&back[0], &cos_rho), &mul(&back[2], &sin_rho)),
+        back[1].clone(),
+        sub(&mul(&back[2], &cos_rho), &mul(&back[0], &sin_rho)),
+    ];
+    turn(&cos_phi, &sin_phi, &moved)
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_translation_is_within_its_bounds_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut images = Worst::new(
+        "spherical translation(t) * ORIGIN, each coordinate, scaled by eps",
+        3 * CASES,
+    );
+    let mut composed = Worst::new(
+        "spherical translation(t) * x, each coordinate, scaled by eps",
+        3 * CASES,
+    );
+    let mut defects = Worst::new(
+        "spherical isometry_defect(translation(t)), scaled by eps",
+        CASES,
+    );
+    let mut rng = Rng::new(35);
+    let tiny = 1e-300;
+    let mut targets = vec![
+        spherical::ORIGIN,
+        -spherical::ORIGIN,
+        DVec3::new(tiny, 0.0, 1.0),
+        DVec3::new(0.0, -tiny, 1.0),
+        DVec3::new(-tiny, tiny, 1.0),
+        DVec3::new(tiny, 0.0, -1.0),
+        DVec3::new(0.0, tiny, -1.0),
+        DVec3::new(-tiny, -tiny, -1.0),
+    ];
+    targets.extend((0..CASES).map(|_| rng.sphere_point()));
+    for target in targets {
+        let matrix = spherical::translation(target);
+        let rt = big(target);
+        let input = || format!("{target:?}");
+        record_vector(&mut images, matrix * spherical::ORIGIN, &unit(&rt), &input);
+        let x = rng.sphere_point();
+        let exact = sphere_translation_composition(&rt, &big(x));
+        record_vector(&mut composed, matrix * x, &exact, &|| {
+            format!("{target:?} {x:?}")
+        });
+        defects.record(&num(spherical::isometry_defect(matrix)), &epsilon(), input);
+    }
+    images.assert_at_most(&mut reference, SPHERE_TRANSLATION_TOLERANCE);
+    composed.assert_at_most(&mut reference, SPHERE_TRANSLATION_COMPOSITION_TOLERANCE);
+    defects.assert_at_most(&mut reference, SPHERE_TRANSLATION_DEFECT_TOLERANCE);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_reflection_is_within_its_bounds_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut points = Worst::new(
+        "spherical reflection(u) * x, scaled by eps * sigma_i",
+        3 * CASES,
+    );
+    let mut defects = Worst::new(
+        "spherical isometry_defect(reflection(u)), scaled by eps",
+        CASES,
+    );
+    let mut rng = Rng::new(36);
+    for index in 0..CASES {
+        let normal = rng.sphere_point();
+        let x = if index % 2 == 0 {
+            rng.sphere_point()
+        } else {
+            let (first, second) = tangent_basis(normal);
+            let along = rng.angle();
+            let foot = first * along.cos() + second * along.sin();
+            let offset = rng.sign() * rng.log_uniform(1e-12, 1.0);
+            foot * offset.cos() + normal * offset.sin()
+        };
+        let (ru, rx) = (big(normal), big(x));
+        let along_normal = dot(&ru, &rx);
+        let twice = mul(&int(2), &along_normal);
+        let sum = terms_bound(&ru, &rx);
+        let computed = spherical::reflection(normal) * x;
+        for (axis, value) in computed.to_array().into_iter().enumerate() {
+            let exact = sub(&rx[axis], &mul(&twice, &ru[axis]));
+            let sigma = add(&rx[axis].abs(), &mul(&mul(&int(2), &ru[axis].abs()), &sum));
+            points.record(&error(value, &exact), &mul(&epsilon(), &sigma), || {
+                format!("{normal:?} {x:?}")
+            });
+        }
+        let defect = spherical::isometry_defect(spherical::reflection(normal));
+        defects.record(&num(defect), &epsilon(), || format!("{normal:?}"));
+    }
+    points.assert_at_most(&mut reference, SPHERE_REFLECTION_TOLERANCE);
+    defects.assert_at_most(&mut reference, SPHERE_REFLECTION_DEFECT_TOLERANCE);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn spherical_isometry_defect_of_products_is_within_its_bound() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::new(
+        "spherical isometry_defect of a product, scaled by eps",
+        CASES,
+    );
+    let mut rng = Rng::new(37);
+    for _ in 0..CASES {
+        let count = 1 + rng.choice(3);
+        let factors: Vec<SphereFactor> = (0..count).map(|_| rng.sphere_factor()).collect();
+        let mut matrix = glam::DMat3::IDENTITY;
+        for factor in &factors {
+            let Some(next) = factor.matrix() else {
+                panic!("no reflection for {factor:?}");
+            };
+            matrix *= next;
+        }
+        worst.record(&num(spherical::isometry_defect(matrix)), &epsilon(), || {
+            format!("{factors:?}")
+        });
+    }
+    worst.assert_at_most(&mut reference, SPHERE_PRODUCT_DEFECT_TOLERANCE);
 }

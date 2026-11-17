@@ -1,0 +1,18 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*22\"])"
+---
+status: Success
+--- stdout
+Signature: *22
+Geometry: spherical
+Euler characteristic: 1/2
+Compact: yes
+Group order: 4
+Area: pi
+Domain: 2 mirror sides
+Corner angles in degrees: 90.000000, 90.000000
+Side lengths: 3.141593, 3.141593
+Domain area: 3.141593
+--- stderr
+--- end

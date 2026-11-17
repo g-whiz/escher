@@ -29,6 +29,15 @@ fn info_prints_a_spherical_signature_with_its_group_order() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn info_prints_a_spherical_signature_without_a_domain() {
+    insta::assert_snapshot!(snapshot(&["info", "532"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn info_prints_a_hyperbolic_signature_with_a_cone_point_and_a_corner() {
     insta::assert_snapshot!(snapshot(&["info", "4*3"]));
 }
@@ -165,7 +174,7 @@ fn info_prints_the_same_text_for_both_spellings_of_infinity() {
 fn info_gives_failure_and_no_diagnostic_on_a_broken_pipe() {
     let mut stdout = FailingWriter::failing_write(io::ErrorKind::BrokenPipe);
     let mut stderr = Vec::new();
-    let status = run(["escher", "info", "*532"], &mut stdout, &mut stderr);
+    let status = run(["escher", "info", "532"], &mut stdout, &mut stderr);
     assert_eq!(status, Status::Failure);
     assert_eq!(stderr, b"");
 }
@@ -174,7 +183,7 @@ fn info_gives_failure_and_no_diagnostic_on_a_broken_pipe() {
 fn info_gives_failure_and_a_diagnostic_when_standard_output_fails() {
     let mut stdout = FailingWriter::failing_write(io::ErrorKind::StorageFull);
     let mut stderr = Vec::new();
-    let status = run(["escher", "info", "*532"], &mut stdout, &mut stderr);
+    let status = run(["escher", "info", "532"], &mut stdout, &mut stderr);
     assert_eq!(status, Status::Failure);
     assert_eq!(
         String::from_utf8(stderr).expect("standard error is UTF-8"),
@@ -189,7 +198,7 @@ fn info_gives_failure_and_a_diagnostic_when_standard_output_fails() {
 fn info_gives_failure_when_flushing_standard_output_fails() {
     let mut stdout = FailingWriter::failing_flush(io::ErrorKind::StorageFull);
     let mut stderr = Vec::new();
-    let status = run(["escher", "info", "*532"], &mut stdout, &mut stderr);
+    let status = run(["escher", "info", "532"], &mut stdout, &mut stderr);
     assert_eq!(status, Status::Failure);
     assert!(
         String::from_utf8(stderr)
@@ -249,7 +258,7 @@ fn info_check_prints_each_check_of_a_verified_domain() {
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
 fn info_check_prints_a_diagnostic_for_a_signature_without_a_domain() {
-    insta::assert_snapshot!(snapshot(&["info", "--check", "*532"]));
+    insta::assert_snapshot!(snapshot(&["info", "--check", "532"]));
 }
 
 #[test]
@@ -322,29 +331,101 @@ fn info_check_after_the_signature_returns_success_when_every_check_passes() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_the_spherical_triangle_of_the_tetrahedron() {
+    insta::assert_snapshot!(snapshot(&["info", "*332"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_a_spherical_triangle_of_a_dihedral_group() {
+    insta::assert_snapshot!(snapshot(&["info", "*722"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_a_lune() {
+    insta::assert_snapshot!(snapshot(&["info", "*55"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_the_lune_of_two_right_angles() {
+    insta::assert_snapshot!(snapshot(&["info", "*22"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_check_prints_each_check_of_a_spherical_triangle() {
+    insta::assert_snapshot!(snapshot(&["info", "--check", "*532"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_check_prints_each_check_of_a_lune() {
+    insta::assert_snapshot!(snapshot(&["info", "--check", "*55"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_check_verifies_a_spherical_triangle_at_the_largest_corner_order() {
+    insta::assert_snapshot!(snapshot(&["info", "--check", "*(1000)22"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_check_prints_a_diagnostic_for_a_lune_over_the_limit() {
+    insta::assert_snapshot!(snapshot(&["info", "--check", "*(1001)(1001)"]));
+}
+
+#[test]
 fn info_check_returns_failure_for_a_signature_without_a_domain() {
-    let outcome = run_args(&["info", "--check", "*532"]);
+    let outcome = run_args(&["info", "--check", "532"]);
     assert_eq!(outcome.status, Status::Failure);
     assert!(
         outcome.stdout.ends_with(
-            "\nDomain: none, cannot build fundamental domain: the signature *532 is not supported\n"
+            "\nDomain: none, cannot build fundamental domain: the signature 532 is not supported\n"
         ),
         "{}",
         outcome.stdout
     );
     assert_eq!(
         outcome.stderr,
-        "error: cannot verify fundamental domain\n  caused by: cannot build fundamental domain: the signature *532 is not supported\n"
+        "error: cannot verify fundamental domain\n  caused by: cannot build fundamental domain: the signature 532 is not supported\n"
     );
 }
 
 #[test]
 fn info_returns_success_for_a_signature_without_a_domain() {
-    let outcome = run_args(&["info", "*532"]);
+    let outcome = run_args(&["info", "532"]);
     assert_eq!(outcome.status, Status::Success);
     assert!(
         outcome.stdout.ends_with(
-            "\nDomain: none, cannot build fundamental domain: the signature *532 is not supported\n"
+            "\nDomain: none, cannot build fundamental domain: the signature 532 is not supported\n"
         ),
         "{}",
         outcome.stdout
@@ -370,7 +451,7 @@ fn info_check_writes_no_verification_diagnostic_when_standard_output_fails() {
     let mut stdout = FailingWriter::failing_write(io::ErrorKind::StorageFull);
     let mut stderr = Vec::new();
     let status = run(
-        ["escher", "info", "--check", "*532"],
+        ["escher", "info", "--check", "532"],
         &mut stdout,
         &mut stderr,
     );

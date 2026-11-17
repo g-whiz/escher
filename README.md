@@ -4,13 +4,13 @@ Escher is a Rust application for creating symmetry-based graphics, like those in
 
 ## Contents
 
-The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, a crate of hyperbolic and Euclidean geometry, a crate that builds the fundamental domain of a hyperbolic or Euclidean reflection triangle and of the rectangle, and a crate that renders a hyperbolic or Euclidean domain as a tiling into a PNG image.
+The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, a crate of hyperbolic, Euclidean, and spherical geometry, a crate that builds the fundamental domain of a hyperbolic, Euclidean, or spherical reflection triangle, of the rectangle, and of the lune, and a crate that renders a hyperbolic or Euclidean domain as a tiling into a PNG image.
 
 | Crate | Purpose |
 | --- | --- |
 | `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, and, with `--check`, verifies that domain, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle or of a Euclidean signature with a fundamental domain to a PNG file. It is not published. |
-| `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, of the Euclidean reflection triangles `*632`, `*442`, and `*333`, and of the rectangle `*2222`, whose shape parameter `aspect` sets the ratio of its sides, with a wall and a reflection for each side. It measures the side lengths, corner angles, and area of the domain, and checks it numerically. It is not published. |
-| `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model and of the Euclidean plane, over the vector and matrix types of `glam`: points, distances, walls and lines, reflections and other isometries, and the map between the hyperboloid and the Poincare disk. It is not published. |
+| `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, of the Euclidean reflection triangles `*632`, `*442`, and `*333`, of the rectangle `*2222`, whose shape parameter `aspect` sets the ratio of its sides, of the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and of the lune `*nn`, with a wall and a reflection for each side. It measures the side lengths, corner angles, and area of the domain, and checks it numerically. It is not published. |
+| `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model, of the Euclidean plane, and of the sphere, over the vector and matrix types of `glam`: points, distances, walls and lines, reflections and other isometries, and the map between the hyperboloid and the Poincare disk. It is not published. |
 | `escher-render` | A library that renders the tiling of a compact hyperbolic reflection triangle in the Poincare disk, or of a Euclidean reflection triangle or rectangle in the plane, with borders and one or two fill colours, averages several samples in each pixel, and encodes the image as a PNG file in memory. It is not published. |
 | `escher-signature` | A library that parses an orbifold signature, such as `*632`, into its canonical form, computes its exact Euler characteristic, and classifies it as spherical, Euclidean, or hyperbolic, with its group order, area, and deformation dimension where they apply. It is not published. |
 
@@ -55,7 +55,10 @@ Euler characteristic: 1/60
 Compact: yes
 Group order: 120
 Area: pi/30
-Domain: none, cannot build fundamental domain: the signature *532 is not supported
+Domain: 3 mirror sides
+Corner angles in degrees: 36.000000, 60.000000, 90.000000
+Side lengths: 0.553574, 0.652358, 0.364864
+Domain area: 0.104720
 ```
 
 An infinite order is written `(inf)` or `∞`, and an order of 10 or more in parentheses. This command prints a frieze, whose canonical form puts the infinite order first:
@@ -100,7 +103,7 @@ A wrong command line, such as an unknown command, gives exit status 2.
 
 ### Rendering a Tiling
 
-`escher render` draws the tiling of a signature whose `Domain` line in `escher info` names a domain, and writes it to a PNG file. It draws a compact hyperbolic reflection triangle, such as `*732`, in the Poincare disk, and the Euclidean signatures `*632`, `*442`, `*333`, and `*2222` in the plane. It gives an error with exit status 1 for any other signature. This command writes a 512 by 512 image to `tiling.png`, and replaces the file if it exists:
+`escher render` draws the tiling of a hyperbolic or Euclidean signature whose `Domain` line in `escher info` names a domain, and writes it to a PNG file. It draws a compact hyperbolic reflection triangle, such as `*732`, in the Poincare disk, and the Euclidean signatures `*632`, `*442`, `*333`, and `*2222` in the plane. It gives an error with exit status 1 for any other signature. This command writes a 512 by 512 image to `tiling.png`, and replaces the file if it exists:
 
 ```sh
 escher render '*732' -o tiling.png

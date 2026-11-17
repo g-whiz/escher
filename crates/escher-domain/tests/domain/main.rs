@@ -13,6 +13,8 @@ mod reference;
 #[cfg(test)]
 mod regular;
 #[cfg(test)]
+mod spherical;
+#[cfg(test)]
 mod triangles;
 #[cfg(test)]
 mod unsupported;

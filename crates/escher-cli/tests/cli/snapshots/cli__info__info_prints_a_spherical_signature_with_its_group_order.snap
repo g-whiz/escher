@@ -10,6 +10,9 @@ Euler characteristic: 1/60
 Compact: yes
 Group order: 120
 Area: pi/30
-Domain: none, cannot build fundamental domain: the signature *532 is not supported
+Domain: 3 mirror sides
+Corner angles in degrees: 36.000000, 60.000000, 90.000000
+Side lengths: 0.553574, 0.652358, 0.364864
+Domain area: 0.104720
 --- stderr
 --- end

@@ -1,8 +1,8 @@
 /// A specialized [`Result`](core::result::Result) whose error is [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// The reason why a vector is not a point of the hyperbolic plane, or why
-/// two points span no wall.
+/// The reason why a vector is not a point of a geometry, or why two points
+/// span no wall.
 ///
 /// Match on [`Error::kind`] to tell the causes apart. The
 /// [`Display`](core::fmt::Display) text starts with `cannot `, names the
@@ -38,6 +38,13 @@ impl Error {
         }
     }
 
+    pub(crate) fn no_length() -> Self {
+        Self {
+            operation: "normalize point",
+            detail: Detail::NoLength,
+        }
+    }
+
     pub(crate) fn degenerate_wall() -> Self {
         Self {
             operation: "find wall through two points",
@@ -49,7 +56,7 @@ impl Error {
     #[must_use]
     pub fn kind(&self) -> ErrorKind {
         match self.detail {
-            Detail::NotAPoint => ErrorKind::NotAPoint,
+            Detail::NotAPoint | Detail::NoLength => ErrorKind::NotAPoint,
             Detail::DegenerateWall => ErrorKind::DegenerateWall,
         }
     }
@@ -71,17 +78,19 @@ impl Error {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// The vector is not timelike with a positive last coordinate, so no
-    /// point of the hyperboloid lies on its ray.
+    /// No point of the geometry lies on the ray of the vector.
     ///
-    /// A vector is timelike when its Minkowski form with itself is negative.
-    /// This kind also covers a vector with a NaN or infinite coordinate, and
-    /// a vector whose form with itself underflows to zero or overflows to
-    /// infinity.
+    /// In the hyperbolic plane, the vector is not timelike with a positive
+    /// last coordinate. A vector is timelike when its Minkowski form with
+    /// itself is negative. On the sphere, the vector has no finite, positive
+    /// length. This kind also covers a vector with a NaN or infinite
+    /// coordinate, and a vector whose form or dot product with itself
+    /// underflows to zero or overflows to infinity.
     NotAPoint,
     /// The two points span no wall, such as two equal points.
     ///
-    /// The Euclidean plane and the hyperbolic plane both report this kind.
+    /// The hyperbolic plane, the Euclidean plane, and the sphere all report
+    /// this kind, and on the sphere it also covers two antipodal points.
     /// It also covers two points so close that rounding leaves the squared
     /// length of the normal found from them not positive and finite, and a
     /// NaN or infinite coordinate. In the hyperbolic plane that squared length
@@ -93,6 +102,8 @@ pub enum ErrorKind {
 enum Detail {
     #[error("the vector is not timelike with a positive last coordinate")]
     NotAPoint,
+    #[error("the vector has no finite, positive length")]
+    NoLength,
     #[error("the points do not span a wall")]
     DegenerateWall,
 }
@@ -110,6 +121,14 @@ mod tests {
     }
 
     #[test]
+    fn display_of_no_length_names_the_operation_and_the_cause() {
+        assert_eq!(
+            Error::no_length().to_string(),
+            "cannot normalize point: the vector has no finite, positive length",
+        );
+    }
+
+    #[test]
     fn display_of_degenerate_wall_names_the_operation_and_the_cause() {
         assert_eq!(
             Error::degenerate_wall().to_string(),
@@ -120,12 +139,14 @@ mod tests {
     #[test]
     fn kind_matches_each_constructor() {
         assert_eq!(Error::not_a_point().kind(), ErrorKind::NotAPoint);
+        assert_eq!(Error::no_length().kind(), ErrorKind::NotAPoint);
         assert_eq!(Error::degenerate_wall().kind(), ErrorKind::DegenerateWall);
     }
 
     #[test]
     fn source_is_none() {
         assert!(core::error::Error::source(&Error::not_a_point()).is_none());
+        assert!(core::error::Error::source(&Error::no_length()).is_none());
         assert!(core::error::Error::source(&Error::degenerate_wall()).is_none());
     }
 }

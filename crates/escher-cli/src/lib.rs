@@ -7,7 +7,7 @@
 //! short text such as `*632` that names a symmetry group of the plane, the
 //! sphere, or the hyperbolic plane. The crate `escher-domain` builds and
 //! verifies the fundamental domain of a signature, a polygon whose copies
-//! under the group tile the plane, and the crate `escher-render` draws the
+//! under the group tile the plane or the sphere, and the crate `escher-render` draws the
 //! tiling of a domain. This crate turns those results into text, an image
 //! file, diagnostics, and an exit status. Use [`run`] to call the program from
 //! Rust, such as in a test, without starting a process.
@@ -40,13 +40,13 @@
 //!
 //! let mut stdout = Vec::new();
 //! let mut stderr = Vec::new();
-//! let status = run(["escher", "info", "*235"], &mut stdout, &mut stderr);
+//! let status = run(["escher", "info", "235"], &mut stdout, &mut stderr);
 //! assert_eq!(status, Status::Success);
 //! assert_eq!(
 //!     String::from_utf8(stdout)?,
-//!     "Signature: *532\nGeometry: spherical\nEuler characteristic: 1/60\nCompact: yes\n\
-//!      Group order: 120\nArea: pi/30\n\
-//!      Domain: none, cannot build fundamental domain: the signature *532 is not supported\n",
+//!     "Signature: 532\nGeometry: spherical\nEuler characteristic: 1/30\nCompact: yes\n\
+//!      Group order: 60\nArea: pi/15\n\
+//!      Domain: none, cannot build fundamental domain: the signature 532 is not supported\n",
 //! );
 //! assert!(stderr.is_empty());
 //! # Ok::<(), Box<dyn std::error::Error>>(())

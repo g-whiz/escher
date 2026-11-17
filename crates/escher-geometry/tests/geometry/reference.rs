@@ -107,6 +107,10 @@ impl Reference {
         value.asinh(PRECISION, ROUNDING, &mut self.consts)
     }
 
+    pub(crate) fn acos(&mut self, value: &BigFloat) -> BigFloat {
+        value.acos(PRECISION, ROUNDING, &mut self.consts)
+    }
+
     pub(crate) fn parse(&mut self, text: &str) -> BigFloat {
         BigFloat::parse(text, Radix::Dec, PRECISION, ROUNDING, &mut self.consts)
     }

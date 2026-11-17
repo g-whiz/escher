@@ -1,0 +1,25 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--check\", \"*55\"])"
+---
+status: Success
+--- stdout
+Signature: *55
+Geometry: spherical
+Euler characteristic: 1/5
+Compact: yes
+Group order: 10
+Area: 2pi/5
+Domain: 2 mirror sides
+Corner angles in degrees: 36.000000, 36.000000
+Side lengths: 3.141593, 3.141593
+Domain area: 1.256637
+Check isometries: passed, residual <residual>, tolerance 1.0e-9
+Check pairings: passed, residual <residual>, tolerance 1.0e-9
+Check walls: passed, residual <residual>, tolerance 1.0e-9
+Check relators: passed, residual <residual>, tolerance 2.0e-6
+Check angles: passed, residual <residual>, tolerance 1.0e-9
+Check area: passed, residual <residual>, tolerance 1.0e-9
+Verification: passed
+--- stderr
+--- end

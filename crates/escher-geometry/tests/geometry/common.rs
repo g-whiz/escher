@@ -4,6 +4,7 @@ use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, distance, inverse, normalize_point, reflection, rotation, side,
     translation, wall_through,
 };
+use escher_geometry::spherical;
 use glam::{DMat3, DVec3};
 use proptest::test_runner::Config;
 
@@ -18,6 +19,10 @@ const SMALLEST_SEPARATION: f64 = 0.1;
 const LARGEST_SEPARATION: f64 = 128.0;
 
 const ATTEMPTS: usize = 1000;
+
+pub(crate) const SPHERE_SEPARATION_FLOOR: f64 = 1e-3;
+
+pub(crate) const SPHERE_DOMAIN_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
 
 pub(crate) const DOMAIN_TRIPLES: [[u32; 3]; 10] = [
     [7, 3, 2],
@@ -143,6 +148,38 @@ impl Rng {
         panic!("no second point lies within {EUCLIDEAN_RADIUS} after {ATTEMPTS} attempts");
     }
 
+    pub(crate) fn sphere_point(&mut self) -> DVec3 {
+        let height = self.uniform(-1.0, 1.0);
+        sphere_point(height, self.angle())
+    }
+
+    pub(crate) fn sphere_separation(&mut self, floor: f64) -> f64 {
+        let towards_end = self.log_uniform(floor, FRAC_PI_2);
+        if self.choice(2) == 0 {
+            towards_end
+        } else {
+            PI - towards_end
+        }
+    }
+
+    pub(crate) fn sphere_pair(&mut self, floor: f64) -> (DVec3, DVec3) {
+        let first = self.sphere_point();
+        let separation = self.sphere_separation(floor);
+        let second = sphere_step(first, self.angle(), separation);
+        (first, second)
+    }
+
+    pub(crate) fn sphere_factor(&mut self) -> SphereFactor {
+        match self.choice(3) {
+            0 => SphereFactor::Boost(self.uniform(-10.0, 10.0)),
+            1 => SphereFactor::Rotation(self.uniform(-10.0, 10.0)),
+            _ => {
+                let (first, second) = self.sphere_pair(SPHERE_SEPARATION_FLOOR);
+                SphereFactor::Reflection(first, second)
+            }
+        }
+    }
+
     pub(crate) fn separated_pair(&mut self) -> (DVec3, DVec3) {
         for _ in 0..ATTEMPTS {
             let (first, second) = (self.point_within(3.0), self.point_within(3.0));
@@ -160,6 +197,27 @@ pub(crate) fn polar_point(distance: f64, angle: f64) -> DVec3 {
         angle.sin() * distance.sinh(),
         distance.cosh(),
     )
+}
+
+pub(crate) fn sphere_point(height: f64, angle: f64) -> DVec3 {
+    let radius = (1.0 - height * height).sqrt();
+    DVec3::new(radius * angle.cos(), radius * angle.sin(), height)
+}
+
+pub(crate) fn tangent_basis(point: DVec3) -> (DVec3, DVec3) {
+    let helper = if point.x.abs() < 0.5 {
+        DVec3::X
+    } else {
+        DVec3::Y
+    };
+    let first = (helper - point * point.dot(helper)).normalize();
+    (first, point.cross(first))
+}
+
+pub(crate) fn sphere_step(point: DVec3, direction: f64, distance: f64) -> DVec3 {
+    let (first, second) = tangent_basis(point);
+    let tangent = first * direction.cos() + second * direction.sin();
+    point * distance.cos() + tangent * distance.sin()
 }
 
 pub(crate) fn euclidean_point(distance: f64, angle: f64) -> DVec3 {
@@ -341,5 +399,90 @@ impl Triangle {
             self.vertices[2],
             self.centre,
         ]
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum SphereFactor {
+    Boost(f64),
+    Rotation(f64),
+    Reflection(DVec3, DVec3),
+}
+
+impl SphereFactor {
+    pub(crate) fn matrix(self) -> Option<DMat3> {
+        match self {
+            Self::Boost(angle) => Some(spherical::boost(angle)),
+            Self::Rotation(angle) => Some(spherical::rotation(angle)),
+            Self::Reflection(first, second) => spherical::wall_through(first, second)
+                .ok()
+                .map(spherical::reflection),
+        }
+    }
+}
+
+pub(crate) struct SphereDomain {
+    pub(crate) name: String,
+    pub(crate) normals: Vec<DVec3>,
+    pub(crate) points: Vec<DVec3>,
+}
+
+impl SphereDomain {
+    pub(crate) fn triangle(orders: [u32; 3]) -> Self {
+        let angles = orders.map(|order| PI / f64::from(order));
+        let (sines, cosines) = (angles.map(f64::sin), angles.map(f64::cos));
+        let length =
+            |numerator: f64, denominator: f64| (numerator / denominator).clamp(-1.0, 1.0).acos();
+        let first_length = length(cosines[1] + cosines[2] * cosines[0], sines[2] * sines[0]);
+        let second_length = length(cosines[0] + cosines[2] * cosines[1], sines[2] * sines[1]);
+        let origin = spherical::ORIGIN;
+        let placed = [
+            spherical::boost(first_length) * origin,
+            spherical::rotation(angles[2]) * (spherical::boost(second_length) * origin),
+            origin,
+        ];
+        let target = spherical::normalize_point(placed[0] + placed[1] + placed[2])
+            .expect("the vertices of a spherical triangle have a non-zero sum");
+        let move_to_origin = spherical::inverse(spherical::translation(target));
+        let vertices = placed.map(|vertex| move_to_origin * vertex);
+        let normals = [0_usize, 1, 2].map(|index| {
+            let normal = spherical::wall_through(vertices[(index + 2) % 3], vertices[index])
+                .expect("two vertices of a spherical triangle span a great circle");
+            if spherical::side(normal, vertices[(index + 1) % 3]) > 0.0 {
+                -normal
+            } else {
+                normal
+            }
+        });
+        let centre = spherical::normalize_point(vertices[0] + vertices[1] + vertices[2])
+            .expect("the vertices of a spherical triangle have a non-zero sum");
+        let [n0, n1, n2] = orders;
+        Self {
+            name: format!("*{n0},{n1},{n2}"),
+            normals: normals.to_vec(),
+            points: vec![vertices[0], vertices[1], vertices[2], centre],
+        }
+    }
+
+    pub(crate) fn lune(order: u32) -> Self {
+        let angle = PI / f64::from(order);
+        let (sin, cos) = (angle / 2.0).sin_cos();
+        Self {
+            name: format!("*{order},{order}"),
+            normals: vec![DVec3::new(cos, 0.0, -sin), DVec3::new(-cos, 0.0, -sin)],
+            points: vec![DVec3::Y, -DVec3::Y, spherical::ORIGIN],
+        }
+    }
+
+    pub(crate) fn all() -> Vec<Self> {
+        let mut domains: Vec<Self> = [[3, 3, 2], [4, 3, 2], [5, 3, 2], [2, 2, 2]]
+            .into_iter()
+            .map(Self::triangle)
+            .collect();
+        for order in SPHERE_DOMAIN_ORDERS {
+            domains.push(Self::triangle([order, 2, 2]));
+            domains.push(Self::lune(order));
+        }
+        domains
     }
 }

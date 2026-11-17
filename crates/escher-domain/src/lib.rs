@@ -1,24 +1,28 @@
 //! Builds the fundamental domain of an orbifold signature as a polygon of the
-//! hyperbolic or the Euclidean plane, and checks it numerically.
+//! hyperbolic plane, the Euclidean plane, or the sphere, and checks it
+//! numerically.
 //!
 //! A fundamental domain of a symmetry group is a polygon whose copies under
-//! the group tile the plane without overlap. This crate turns a
+//! the group tile the plane or the sphere without overlap. This crate turns a
 //! [`Signature`](escher_signature::Signature) of the crate
 //! [`escher_signature`] into a [`FundamentalDomain`]. It computes with the
-//! linear model of the hyperbolic plane and with the Euclidean plane of the
-//! crate [`escher_geometry`]. A renderer can use the domain to fold each pixel
-//! into one tile.
+//! linear model of the hyperbolic plane, with the Euclidean plane, and with
+//! the unit sphere of the crate [`escher_geometry`]. A renderer can use the
+//! domain to fold each pixel into one tile.
 //!
 //! The crate supports compact hyperbolic signatures of the form `*pqr`, which
 //! have one mirror boundary and three finite corner orders, none above 1000,
-//! and the Euclidean signatures `*632`, `*442`, `*333`, and `*2222`. The
-//! domain of a signature `*pqr`, including the three Euclidean ones, is a
-//! reflection triangle, a triangle whose sides are mirrors and whose corners
-//! have the angles `pi / p`, `pi / q`, and `pi / r`. The domain of `*2222` is
-//! a rectangle whose sides are mirrors, and its shape parameter `aspect`,
-//! which [`parameters`](parameters()) lists, sets the ratio of its sides.
-//! Every other signature gives an [`Error`]. A signature of another form is
-//! unsupported, and a corner order above 1000 is over the limit.
+//! the Euclidean signatures `*632`, `*442`, `*333`, and `*2222`, and the
+//! spherical signatures `*332`, `*432`, `*532`, `*n22`, and `*nn`, with `n`
+//! from 2 to 1000. The domain of a signature `*pqr` of any of the three
+//! geometries is a reflection triangle, a triangle whose sides are mirrors and
+//! whose corners have the angles `pi / p`, `pi / q`, and `pi / r`. The domain
+//! of `*nn` is a lune, the region of the sphere between two half great circles
+//! that meet at two antipodal vertices at the angle `pi / n`. The domain of
+//! `*2222` is a rectangle whose sides are mirrors, and its shape parameter
+//! `aspect`, which [`parameters`](parameters()) lists, sets the ratio of its
+//! sides. Every other signature gives an [`Error`]. A signature of another
+//! form is unsupported, and a corner order above 1000 is over the limit.
 //! [`FundamentalDomain::verify`] checks a domain numerically.
 //!
 //! ```
@@ -48,6 +52,7 @@ mod domain;
 mod error;
 mod parameters;
 mod polygon;
+mod spherical;
 mod triangle;
 mod verify;
 

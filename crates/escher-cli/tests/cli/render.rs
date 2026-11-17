@@ -464,7 +464,7 @@ fn assert_no_file_changes(test: &str, args: &[&str]) {
 #[test]
 #[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_without_a_domain_changes_no_file() {
-    assert_no_file_changes("no_domain_file", &["*532"]);
+    assert_no_file_changes("no_domain_file", &["532"]);
 }
 
 #[test]
@@ -562,10 +562,10 @@ fn first_error_line(args: &[&str]) -> (Status, String) {
 #[test]
 fn render_without_a_domain_returns_failure() {
     assert_eq!(
-        first_error_line(&["*532"]),
+        first_error_line(&["532"]),
         (
             Status::Failure,
-            "error: cannot render *532: rendering this signature is not supported".to_owned()
+            "error: cannot render 532: rendering this signature is not supported".to_owned()
         )
     );
 }

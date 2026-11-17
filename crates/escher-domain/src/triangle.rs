@@ -18,15 +18,18 @@ pub(crate) enum Supported {
     HyperbolicTriangle { orders: [u32; 3], area: f64 },
     EuclideanTriangle { orders: [u32; 3] },
     Rectangle,
+    SphericalTriangle { orders: [u32; 3], area: f64 },
+    Lune { order: u32, area: f64 },
 }
 
 impl Supported {
     pub(crate) fn orders(self) -> Vec<u32> {
         match self {
-            Self::HyperbolicTriangle { orders, .. } | Self::EuclideanTriangle { orders } => {
-                orders.to_vec()
-            }
+            Self::HyperbolicTriangle { orders, .. }
+            | Self::EuclideanTriangle { orders }
+            | Self::SphericalTriangle { orders, .. } => orders.to_vec(),
             Self::Rectangle => vec![2; 4],
+            Self::Lune { order, .. } => vec![order; 2],
         }
     }
 }
@@ -42,9 +45,7 @@ pub(crate) fn supported(signature: &Signature) -> Option<Supported> {
     match (boundary.corner_orders(), signature.geometry()) {
         ([first, second, third], Geometry::Hyperbolic) => {
             let orders = [first.finite()?, second.finite()?, third.finite()?];
-            let area_over_pi = signature.area_over_pi()?;
-            let area = PI * signed_to_f64(area_over_pi.numerator())
-                / unsigned_to_f64(area_over_pi.denominator().get());
+            let area = area(signature)?;
             Some(Supported::HyperbolicTriangle { orders, area })
         }
         ([first, second, third], Geometry::Euclidean) => {
@@ -57,8 +58,29 @@ pub(crate) fn supported(signature: &Signature) -> Option<Supported> {
             }
             Some(Supported::Rectangle)
         }
+        ([first, second, third], Geometry::Spherical) => {
+            let orders = [first.finite()?, second.finite()?, third.finite()?];
+            let area = area(signature)?;
+            Some(Supported::SphericalTriangle { orders, area })
+        }
+        ([first, second], Geometry::Spherical) => {
+            let order = first.finite()?;
+            if second.finite()? != order {
+                return None;
+            }
+            let area = area(signature)?;
+            Some(Supported::Lune { order, area })
+        }
         _ => None,
     }
+}
+
+fn area(signature: &Signature) -> Option<f64> {
+    let area_over_pi = signature.area_over_pi()?;
+    Some(
+        PI * signed_to_f64(area_over_pi.numerator())
+            / unsigned_to_f64(area_over_pi.denominator().get()),
+    )
 }
 
 fn signed_to_f64(value: i64) -> f64 {
@@ -190,8 +212,23 @@ mod tests {
     }
 
     #[test]
+    fn supported_reads_the_spherical_triangle_and_the_lune() {
+        assert_eq!(
+            supported(&signature("*532")),
+            Some(Supported::SphericalTriangle {
+                orders: [5, 3, 2],
+                area: PI / 30.0,
+            }),
+        );
+        assert!(matches!(
+            supported(&signature("*55")),
+            Some(Supported::Lune { order: 5, .. })
+        ));
+    }
+
+    #[test]
     fn supported_rejects_a_signature_without_a_construction() {
-        for text in ["*532", "*3333", "732", "*(inf)32"] {
+        for text in ["532", "*3333", "732", "*(inf)32"] {
             assert_eq!(supported(&signature(text)), None, "{text}");
         }
     }

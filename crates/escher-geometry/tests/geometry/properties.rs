@@ -1,18 +1,19 @@
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_PI_2, PI};
 use core::hint::black_box;
 
 use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, distance, form, from_disk, inverse, isometry_defect, normalize_point,
     reflection, rotation, side, to_disk, translation, wall_through,
 };
-use escher_geometry::{ErrorKind, euclidean};
+use escher_geometry::{ErrorKind, euclidean, spherical};
 use glam::{DMat3, DVec2, DVec3};
 use proptest::collection::vec;
 use proptest::prelude::{Just, Strategy, any, prop_assert, prop_assert_eq, prop_oneof, proptest};
 
 use crate::common::{
-    CASES, EUCLIDEAN_RADIUS, Factor, Product, Rng, Wall, euclidean_point, largest_entry,
-    line_covector, pair, polar_point, proptest_config,
+    CASES, EUCLIDEAN_RADIUS, Factor, Product, Rng, SPHERE_SEPARATION_FLOOR, Wall, euclidean_point,
+    largest_entry, line_covector, pair, polar_point, proptest_config, sphere_point, sphere_step,
+    tangent_basis,
 };
 use crate::reference::{Reference, Worst, error, num};
 
@@ -30,6 +31,13 @@ const EUCLIDEAN_REFLECTION_DEFECT_TOLERANCE: f64 = 32.0;
 const EUCLIDEAN_ORTHOGONALITY_TOLERANCE: f64 = 8.0;
 const EUCLIDEAN_NORM_TOLERANCE: f64 = 32.0;
 const LARGEST_CORNER_ORDER: u32 = 6;
+const SPHERE_TWICE_REFLECTED_TOLERANCE: f64 = 64.0;
+const SPHERE_FIXED_POINT_TOLERANCE: f64 = 64.0;
+const SPHERE_RELATOR_TOLERANCE: f64 = 1024.0;
+const SPHERE_REFLECTION_DEFECT_TOLERANCE: f64 = 64.0;
+const SPHERE_ORTHOGONALITY_TOLERANCE: f64 = 8.0;
+const SPHERE_NORM_TOLERANCE: f64 = 32.0;
+const SPHERE_LARGEST_CORNER_ORDER: u32 = 12;
 
 fn point_within(radius: f64) -> impl Strategy<Value = DVec3> {
     (0.0..radius, -PI..PI).prop_map(|(distance, angle)| polar_point(distance, angle))
@@ -152,6 +160,61 @@ fn euclidean_relator_error(centre: DVec3, angle: f64, order: u32) -> f64 {
 fn euclidean_orthogonality_scale(first: DVec3, second: DVec3) -> f64 {
     let (p, q) = (first.x.hypot(first.y), second.x.hypot(second.y));
     f64::EPSILON * (1.0 + p + q + p * q / euclidean::distance(first, second))
+}
+
+fn any_sphere_point() -> impl Strategy<Value = DVec3> {
+    (-1.0..1.0, -PI..PI).prop_map(|(height, angle)| sphere_point(height, angle))
+}
+
+fn separated_sphere_points() -> impl Strategy<Value = (DVec3, DVec3)> {
+    (
+        any_sphere_point(),
+        -PI..PI,
+        SPHERE_SEPARATION_FLOOR.ln()..FRAC_PI_2.ln(),
+        any::<bool>(),
+    )
+        .prop_map(|(first, direction, exponent, towards_antipode)| {
+            let near = exponent.exp();
+            let separation = if towards_antipode { PI - near } else { near };
+            (first, sphere_step(first, direction, separation))
+        })
+}
+
+fn great_circle_point(normal: DVec3, along: f64) -> DVec3 {
+    let (first, second) = tangent_basis(normal);
+    first * along.cos() + second * along.sin()
+}
+
+fn sphere_twice_reflected_error(normal: DVec3) -> f64 {
+    let matrix = spherical::reflection(normal);
+    identity_error(matrix * matrix) / f64::EPSILON
+}
+
+fn sphere_fixed_point_error(normal: DVec3, along: f64) -> f64 {
+    let point = great_circle_point(normal, along);
+    (spherical::reflection(normal) * point - point)
+        .abs()
+        .max_element()
+        / f64::EPSILON
+}
+
+fn sphere_relator_error(centre: DVec3, angle: f64, order: u32) -> f64 {
+    let normals = [angle, angle + PI / f64::from(order)]
+        .map(|direction| great_circle_point(centre, direction));
+    let rotation = spherical::reflection(normals[0]) * spherical::reflection(normals[1]);
+    let mut power = rotation;
+    for _ in 1..order {
+        power *= rotation;
+    }
+    identity_error(power) / f64::EPSILON
+}
+
+fn sphere_orthogonality_error(first: DVec3, second: DVec3, normal: DVec3) -> f64 {
+    let scale = f64::EPSILON / spherical::distance(first, second).sin();
+    spherical::side(normal, first)
+        .abs()
+        .max(spherical::side(normal, second).abs())
+        / scale
 }
 
 fn identity_error(matrix: DMat3) -> f64 {
@@ -395,6 +458,52 @@ proptest! {
     }
 
     #[test]
+    fn spherical_reflection_is_an_involution_that_fixes_its_great_circle(
+        normal in any_sphere_point(),
+        along in -PI..PI,
+    ) {
+        let twice = sphere_twice_reflected_error(normal);
+        prop_assert!(twice <= SPHERE_TWICE_REFLECTED_TOLERANCE, "{twice} for {normal:?}");
+        let fixed = sphere_fixed_point_error(normal, along);
+        prop_assert!(fixed <= SPHERE_FIXED_POINT_TOLERANCE, "{fixed} for {normal:?} {along}");
+        let defect = spherical::isometry_defect(spherical::reflection(normal));
+        prop_assert!(
+            defect <= SPHERE_REFLECTION_DEFECT_TOLERANCE * f64::EPSILON,
+            "{defect} for {normal:?}"
+        );
+    }
+
+    #[test]
+    fn spherical_reflections_at_pi_over_n_close_up_after_n_turns(
+        centre in any_sphere_point(),
+        angle in -PI..PI,
+        order in 2..=SPHERE_LARGEST_CORNER_ORDER,
+    ) {
+        let error = sphere_relator_error(centre, angle, order);
+        prop_assert!(
+            error <= SPHERE_RELATOR_TOLERANCE,
+            "{error} for {centre:?} {angle} {order}"
+        );
+    }
+
+    #[test]
+    fn spherical_wall_through_is_orthogonal_unit_and_negated_by_a_swap(
+        points in separated_sphere_points(),
+    ) {
+        let (first, second) = points;
+        let normal = spherical::wall_through(first, second);
+        let swapped = spherical::wall_through(second, first);
+        prop_assert!(normal.is_ok() && swapped.is_ok(), "{first:?} {second:?}");
+        if let (Ok(normal), Ok(swapped)) = (normal, swapped) {
+            let orthogonality = sphere_orthogonality_error(first, second, normal);
+            prop_assert!(orthogonality <= SPHERE_ORTHOGONALITY_TOLERANCE, "{orthogonality}");
+            let norm = (normal.dot(normal) - 1.0).abs();
+            prop_assert!(norm <= SPHERE_NORM_TOLERANCE * f64::EPSILON, "{norm}");
+            prop_assert_eq!(swapped, -normal);
+        }
+    }
+
+    #[test]
     fn every_function_returns_for_any_input(
         x in any_vector(),
         y in any_vector(),
@@ -440,6 +549,27 @@ proptest! {
         }
         if let Ok(line) = euclidean::wall_through(x, y) {
             prop_assert!(line.is_finite(), "{line:?}");
+        }
+        black_box(spherical::side(x, y));
+        black_box(spherical::boost(scalar));
+        black_box(spherical::rotation(scalar));
+        black_box(spherical::translation(x));
+        black_box(spherical::reflection(x));
+        let arc = spherical::distance(x, y);
+        prop_assert!(arc.is_nan() || (0.0..=PI).contains(&arc), "{arc}");
+        let sphere_defect = spherical::isometry_defect(matrix);
+        prop_assert!(sphere_defect >= 0.0, "{sphere_defect}");
+        let transposed_twice = spherical::inverse(spherical::inverse(matrix));
+        prop_assert_eq!(
+            transposed_twice.to_cols_array().map(f64::to_bits),
+            matrix.to_cols_array().map(f64::to_bits)
+        );
+        if let Ok(point) = spherical::normalize_point(x) {
+            prop_assert!(point.is_finite(), "{point:?}");
+        }
+        match spherical::wall_through(x, y) {
+            Ok(normal) => prop_assert!(normal.is_finite(), "{normal:?}"),
+            Err(error) => prop_assert_eq!(error.kind(), ErrorKind::DegenerateWall),
         }
     }
 }
@@ -720,4 +850,89 @@ fn euclidean_reflections_and_relators_are_within_their_bounds() {
             "{name}: {value} exceeds {bound} at {input}"
         );
     }
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
+fn spherical_reflections_relators_and_walls_are_within_their_bounds() {
+    let mut largest: [(f64, String); 4] = Default::default();
+    let mut record = |slot: usize, value: f64, input: &dyn Fn() -> String| {
+        assert!(!value.is_nan(), "NaN for {}", input());
+        if value > largest[slot].0 {
+            largest[slot] = (value, input());
+        }
+    };
+    let mut rng = Rng::new(38);
+    for _ in 0..CASES {
+        let normal = rng.sphere_point();
+        let along = rng.angle();
+        record(0, sphere_twice_reflected_error(normal), &|| {
+            format!("{normal:?}")
+        });
+        record(1, sphere_fixed_point_error(normal, along), &|| {
+            format!("{normal:?} {along}")
+        });
+        let centre = rng.sphere_point();
+        let angle = rng.angle();
+        let order = 2 + u32::try_from(rng.choice(11)).unwrap_or(0);
+        record(2, sphere_relator_error(centre, angle, order), &|| {
+            format!("{centre:?} {angle} {order}")
+        });
+        let (first, second) = rng.sphere_pair(SPHERE_SEPARATION_FLOOR);
+        let Ok(normal) = spherical::wall_through(first, second) else {
+            panic!("no great circle through {first:?} {second:?}");
+        };
+        let swapped = spherical::wall_through(second, first);
+        assert_eq!(swapped, Ok(-normal), "{first:?} {second:?}");
+        record(
+            3,
+            sphere_orthogonality_error(first, second, normal),
+            &|| format!("{first:?} {second:?}"),
+        );
+    }
+    let names = [
+        "spherical reflection applied twice, scaled by eps",
+        "spherical reflection of a point of its great circle, scaled by eps",
+        "spherical relator of two great circles at pi / n, scaled by eps",
+        "spherical wall_through orthogonality in f64, scaled by eps / sin d",
+    ];
+    let bounds = [
+        SPHERE_TWICE_REFLECTED_TOLERANCE,
+        SPHERE_FIXED_POINT_TOLERANCE,
+        SPHERE_RELATOR_TOLERANCE,
+        SPHERE_ORTHOGONALITY_TOLERANCE,
+    ];
+    for ((name, bound), (value, input)) in names.into_iter().zip(bounds).zip(&largest) {
+        println!(
+            "{name}: largest error {value:.3e} of the scale, bound {bound:e}, margin {:.1}, {CASES} samples, at {input}",
+            bound / value
+        );
+        assert!(
+            *value <= bound,
+            "{name}: {value} exceeds {bound} at {input}"
+        );
+    }
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
+fn spherical_wall_through_below_the_separation_floor_gives_finite_normals_or_degenerate_walls() {
+    let mut rng = Rng::new(39);
+    let mut degenerate = 0;
+    for _ in 0..CASES {
+        let first = rng.sphere_point();
+        let near = rng.log_uniform(1e-12, SPHERE_SEPARATION_FLOOR);
+        let separation = if rng.choice(2) == 0 { near } else { PI - near };
+        let second = sphere_step(first, rng.angle(), separation);
+        match spherical::wall_through(first, second) {
+            Ok(normal) => assert!(normal.is_finite(), "{normal:?} for {first:?} {second:?}"),
+            Err(error) => {
+                assert_eq!(error.kind(), ErrorKind::DegenerateWall);
+                degenerate += 1;
+            }
+        }
+    }
+    println!(
+        "spherical wall_through below the separation floor: {degenerate} of {CASES} were DegenerateWall"
+    );
 }

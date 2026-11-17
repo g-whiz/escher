@@ -1,6 +1,6 @@
 use core::f64::consts::PI;
 
-use escher_geometry::{euclidean, hyperbolic};
+use escher_geometry::{euclidean, hyperbolic, spherical};
 use glam::{DMat3, DVec3};
 
 use crate::domain::{FundamentalDomain, PairingKind, Plane};
@@ -73,10 +73,12 @@ impl Check {
 /// how much. Every check is computed, whether or not another one fails.
 ///
 /// The checks of the pairings, the walls, the relators, the angles, and the
-/// area read the vertices, and each requires every vertex to be a point with
-/// finite coordinates and a positive last coordinate. Each also requires the
-/// domain to have as many vertices and corner orders as sides, and at least
-/// one side, and its residual is infinite when a requirement fails.
+/// area read the vertices, and each requires every vertex to be a point: a
+/// vector with finite coordinates and, in a hyperbolic or Euclidean domain, a
+/// positive last coordinate, or, in a spherical domain, not the zero vector.
+/// Each also requires the domain to have as many vertices and corner orders
+/// as sides, and at least one side, and its residual is infinite when a
+/// requirement fails.
 ///
 /// # Examples
 ///
@@ -139,12 +141,13 @@ impl Verification {
 
     /// Returns the check that each pairing isometry is an isometry, a matrix
     /// that preserves the Minkowski form of the linear model in a hyperbolic
-    /// domain, and distances in a Euclidean one.
+    /// domain, and distances in a Euclidean or spherical one.
     ///
     /// The residual is the largest
-    /// [`hyperbolic::isometry_defect`](escher_geometry::hyperbolic::isometry_defect)
+    /// [`hyperbolic::isometry_defect`](escher_geometry::hyperbolic::isometry_defect),
+    /// [`euclidean::isometry_defect`](escher_geometry::euclidean::isometry_defect),
     /// or
-    /// [`euclidean::isometry_defect`](escher_geometry::euclidean::isometry_defect)
+    /// [`spherical::isometry_defect`](escher_geometry::spherical::isometry_defect)
     /// of a pairing. It is infinite when an entry of a pairing is not finite,
     /// or, in a hyperbolic domain, when a pairing maps the hyperboloid onto
     /// its other sheet.
@@ -155,16 +158,16 @@ impl Verification {
 
     /// Returns the check that the sides pair correctly.
     ///
-    /// The residual is infinite unless every vertex is a point with finite
-    /// coordinates and a positive last coordinate, the partner of each side is
-    /// in range, the partner of the partner of each side is the side itself,
-    /// the centre is inside every side, each pairing moves the centre outside
-    /// the partner side, and the values below are finite. Otherwise the
-    /// residual is the larger of two values. The first is the largest entry of
+    /// The residual is infinite unless every vertex is a point, the partner of
+    /// each side is in range, the partner of the partner of each side is the
+    /// side itself, the centre is inside every side, each pairing moves the
+    /// centre outside the partner side, and the values below are finite.
+    /// Otherwise the residual is the larger of two values. The first is the largest entry of
     /// the product of a pairing and its partner's pairing minus the identity.
     /// The second is the largest coordinate of the difference between an
     /// endpoint of a mirror side and its image under the pairing, divided by
-    /// the last coordinate of the endpoint.
+    /// the last coordinate of the endpoint in a hyperbolic or Euclidean
+    /// domain.
     #[must_use]
     pub fn pairings(&self) -> Check {
         self.pairings
@@ -175,16 +178,22 @@ impl Verification {
     ///
     /// The residual is the largest of these values. The first is the absolute
     /// value of the side test of an endpoint against its wall, divided by the
-    /// last coordinate of the endpoint. In a hyperbolic domain, the second is
-    /// the largest entry of a pairing minus the reflection in its normal, and
-    /// the third is the largest coordinate of a covector minus the covector of
-    /// its normal. In a Euclidean domain, the second is the largest entry of a
-    /// pairing minus the reflection in its covector, the third is the largest
-    /// coordinate of a normal minus the first two coordinates of its covector,
-    /// and the fourth is how far the sum of the squares of those two
-    /// coordinates is from 1. The residual is infinite when a vertex is not a
-    /// point with finite coordinates and a positive last coordinate, or when
-    /// one of these values is not finite.
+    /// last coordinate of the endpoint in a hyperbolic or Euclidean domain. In
+    /// a hyperbolic domain, the second is the largest entry of a pairing minus
+    /// the reflection in its normal, and the third is the largest coordinate
+    /// of a covector minus the covector of its normal. In a Euclidean domain,
+    /// the second is the largest entry of a pairing minus the reflection in
+    /// its covector, the third is the largest coordinate of a normal minus the
+    /// first two coordinates of its covector, and the fourth is how far the
+    /// sum of the squares of those two coordinates is from 1. In a spherical
+    /// domain, the second is the largest entry of a pairing minus the
+    /// reflection in its normal, the third is the largest coordinate of a
+    /// covector minus its normal, and the fourth is how far the dot product of
+    /// the normal with itself is from 1. A spherical domain adds how far the
+    /// dot product of each vertex with itself is from 1, and for a lune, whose
+    /// two vertices must be antipodal, the largest coordinate of their sum.
+    /// The residual is infinite when a vertex
+    /// is not a point, or when one of these values is not finite.
     #[must_use]
     pub fn walls(&self) -> Check {
         self.walls
@@ -198,9 +207,8 @@ impl Verification {
     /// be the identity. The residual is the largest entry of the relator minus
     /// the identity, divided by `n`, computed in a hyperbolic domain with the
     /// corner moved to the centre of the disk. The residual is infinite when a
-    /// vertex is not a point with finite coordinates and a positive last
-    /// coordinate, or when an entry of the relator is not finite. The
-    /// tolerance is 2e-6.
+    /// vertex is not a point, or when an entry of the relator is not finite.
+    /// The tolerance is 2e-6.
     #[must_use]
     pub fn relators(&self) -> Check {
         self.relators
@@ -209,10 +217,11 @@ impl Verification {
     /// Returns the check that each corner of order `n` has the angle `pi / n`.
     ///
     /// The residual is the largest absolute difference between a measured
-    /// angle and `pi / n`. It is infinite when a vertex is not a point with
-    /// finite coordinates and a positive last coordinate, when an angle is
-    /// not finite, or, in a hyperbolic domain, when the angles sum to `pi` or
-    /// more, which no triangle of the hyperbolic plane does.
+    /// angle and `pi / n`. It is infinite when a vertex is not a point, when
+    /// an angle is not finite, in a hyperbolic domain when the angles sum to
+    /// `pi` or more, which no triangle of the hyperbolic plane does, and in a
+    /// spherical triangle when they sum to `pi` or less, which no triangle of
+    /// the sphere does.
     #[must_use]
     pub fn angles(&self) -> Check {
         self.angles
@@ -221,15 +230,15 @@ impl Verification {
     /// Returns the check that the domain agrees with the area of the
     /// signature.
     ///
-    /// The area of a hyperbolic orbifold is `-2 pi` times its Euler
-    /// characteristic. In a hyperbolic domain, the residual is the absolute
-    /// difference between [`FundamentalDomain::area`] and that area. A
-    /// Euclidean orbifold has the Euler characteristic 0, so the signature
-    /// fixes no area. The residual of a Euclidean domain is instead the
-    /// absolute difference between `(m - 2) pi` and the sum of the corner
-    /// angles of its `m` corners. The residual is infinite when a vertex is
-    /// not a point with finite coordinates and a positive last coordinate, or
-    /// when the measured area or angle sum is not finite.
+    /// The area of a hyperbolic or spherical orbifold is `2 pi` times the
+    /// absolute value of its Euler characteristic. In a hyperbolic or
+    /// spherical domain, the residual is the absolute difference between
+    /// [`FundamentalDomain::area`] and that area. A Euclidean orbifold has the
+    /// Euler characteristic 0, so the signature fixes no area. The residual of
+    /// a Euclidean domain is instead the absolute difference between
+    /// `(m - 2) pi` and the sum of the corner angles of its `m` corners. The
+    /// residual is infinite when a vertex is not a point, or when the measured
+    /// area or angle sum is not finite.
     #[must_use]
     pub fn area(&self) -> Check {
         self.area
@@ -279,13 +288,21 @@ fn largest_coordinate(vector: DVec3) -> f64 {
 
 fn vertices_are_points(domain: &FundamentalDomain) -> bool {
     let count = domain.sides.len();
+    let is_point = |vertex: &DVec3| match domain.plane {
+        Plane::Hyperbolic { .. } | Plane::Euclidean => vertex.is_finite() && vertex.z > 0.0,
+        Plane::Spherical { .. } => vertex.is_finite() && *vertex != DVec3::ZERO,
+    };
     count > 0
         && domain.vertices.len() == count
         && domain.orders.len() == count
-        && domain
-            .vertices
-            .iter()
-            .all(|vertex| vertex.is_finite() && vertex.z > 0.0)
+        && domain.vertices.iter().all(is_point)
+}
+
+fn endpoint_scale(domain: &FundamentalDomain, endpoint: DVec3) -> f64 {
+    match domain.plane {
+        Plane::Hyperbolic { .. } | Plane::Euclidean => endpoint.z,
+        Plane::Spherical { .. } => 1.0,
+    }
 }
 
 fn endpoints(domain: &FundamentalDomain, index: usize) -> [DVec3; 2] {
@@ -300,6 +317,7 @@ fn side_value(domain: &FundamentalDomain, covector: DVec3, point: DVec3) -> f64 
     match domain.plane {
         Plane::Hyperbolic { .. } => hyperbolic::side(covector, point),
         Plane::Euclidean => euclidean::side(covector, point),
+        Plane::Spherical { .. } => spherical::side(covector, point),
     }
 }
 
@@ -307,6 +325,7 @@ fn isometries(domain: &FundamentalDomain) -> f64 {
     let defect = match domain.plane {
         Plane::Hyperbolic { .. } => hyperbolic::isometry_defect,
         Plane::Euclidean => euclidean::isometry_defect,
+        Plane::Spherical { .. } => spherical::isometry_defect,
     };
     largest(domain.sides.iter().map(|side| defect(side.pairing)))
 }
@@ -333,7 +352,8 @@ fn pairings(domain: &FundamentalDomain) -> f64 {
             PairingKind::Mirror => {
                 for endpoint in endpoints(domain, index) {
                     numeric.push(
-                        largest_coordinate(current.pairing * endpoint - endpoint) / endpoint.z,
+                        largest_coordinate(current.pairing * endpoint - endpoint)
+                            / endpoint_scale(domain, endpoint),
                     );
                 }
             }
@@ -353,7 +373,10 @@ fn walls(domain: &FundamentalDomain) -> f64 {
     let mut values = Vec::new();
     for (index, current) in domain.sides.iter().enumerate() {
         for endpoint in endpoints(domain, index) {
-            values.push(side_value(domain, current.covector, endpoint).abs() / endpoint.z);
+            values.push(
+                side_value(domain, current.covector, endpoint).abs()
+                    / endpoint_scale(domain, endpoint),
+            );
         }
         match domain.plane {
             Plane::Hyperbolic { .. } => {
@@ -372,6 +395,22 @@ fn walls(domain: &FundamentalDomain) -> f64 {
                 ));
                 values.push((line.x * line.x + line.y * line.y - 1.0).abs());
             }
+            Plane::Spherical { .. } => {
+                let normal = current.normal;
+                values.push(largest_entry(
+                    current.pairing - spherical::reflection(normal),
+                ));
+                values.push(largest_coordinate(current.covector - normal));
+                values.push((normal.dot(normal) - 1.0).abs());
+            }
+        }
+    }
+    if let Plane::Spherical { .. } = domain.plane {
+        for vertex in &domain.vertices {
+            values.push((vertex.dot(*vertex) - 1.0).abs());
+        }
+        if let [first, second] = domain.vertices[..] {
+            values.push(largest_coordinate(first + second));
         }
     }
     largest(values)
@@ -393,7 +432,7 @@ fn relators(domain: &FundamentalDomain) -> f64 {
                 let frame = hyperbolic::translation(domain.vertices[corner]);
                 hyperbolic::inverse(frame) * first * second * frame
             }
-            Plane::Euclidean => first * second,
+            Plane::Euclidean | Plane::Spherical { .. } => first * second,
         };
         let mut power = rotation;
         for _ in 1..order {
@@ -408,11 +447,14 @@ fn angles(domain: &FundamentalDomain) -> f64 {
         return f64::INFINITY;
     }
     let measured = domain.angles();
-    if let Plane::Hyperbolic { .. } = domain.plane {
-        let below_pi = measured.iter().sum::<f64>() < PI;
-        if !below_pi {
-            return f64::INFINITY;
-        }
+    let sum = measured.iter().sum::<f64>();
+    let sum_fits = match domain.plane {
+        Plane::Hyperbolic { .. } => sum < PI,
+        Plane::Euclidean => true,
+        Plane::Spherical { .. } => measured.len() != 3 || sum > PI,
+    };
+    if !sum_fits {
+        return f64::INFINITY;
     }
     largest(
         measured
@@ -427,7 +469,7 @@ fn area(domain: &FundamentalDomain) -> f64 {
         return f64::INFINITY;
     }
     match domain.plane {
-        Plane::Hyperbolic { area } => (domain.area() - area).abs(),
+        Plane::Hyperbolic { area } | Plane::Spherical { area } => (domain.area() - area).abs(),
         Plane::Euclidean => {
             let measured = domain.angles();
             let corners = u32::try_from(measured.len()).map_or(f64::INFINITY, f64::from);
@@ -438,12 +480,16 @@ fn area(domain: &FundamentalDomain) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use escher_geometry::euclidean;
+    use core::f64::consts::PI;
+
     use escher_geometry::hyperbolic::{covector, reflection, rotation};
+    use escher_geometry::{euclidean, spherical};
     use escher_signature::Signature;
+    use glam::DVec3;
 
     use super::{Check, Verification};
     use crate::domain::{FundamentalDomain, Plane};
+    use crate::polygon::Polygon;
     use crate::triangle::{Supported, construct, supported};
 
     const BASES: [[u32; 3]; 3] = [[7, 3, 2], [4, 4, 4], [1000, 3, 2]];
@@ -883,6 +929,141 @@ mod tests {
         for mut corrupted in euclidean_domains().into_iter().chain([domain([7, 3, 2])]) {
             corrupted.vertices.clear();
             assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "no vertices");
+        }
+    }
+
+    fn spherical_domains() -> [FundamentalDomain; 3] {
+        [built("*532"), built("*722"), built("*55")]
+    }
+
+    fn spherical(
+        polygon: Result<Polygon, Option<escher_geometry::Error>>,
+        orders: Vec<u32>,
+        area: f64,
+    ) -> FundamentalDomain {
+        let polygon = match polygon {
+            Ok(polygon) => polygon,
+            Err(error) => panic!("{orders:?} has no spherical domain: {error:?}"),
+        };
+        FundamentalDomain {
+            plane: Plane::Spherical { area },
+            orders,
+            sides: polygon.sides,
+            vertices: polygon.vertices,
+            centre: polygon.centre,
+        }
+    }
+
+    #[test]
+    fn verify_passes_on_built_spherical_domains() {
+        for domain in spherical_domains() {
+            let verification = domain.verify();
+            assert!(
+                failed(&verification).is_empty(),
+                "{:?}: {verification:?}",
+                domain.orders
+            );
+            assert!(verification.passed());
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_tilted_spherical_wall_with_its_pairing() {
+        let expected: [&[&str]; 3] = [
+            &["pairings", "walls"],
+            &["pairings", "walls"],
+            &["pairings", "walls"],
+        ];
+        for (mut corrupted, expected) in spherical_domains().into_iter().zip(expected) {
+            let side = &mut corrupted.sides[0];
+            let normal = spherical::rotation(1e-7) * side.normal;
+            side.normal = normal;
+            side.covector = normal;
+            side.pairing = spherical::reflection(normal);
+            assert_failed(&corrupted, expected, "wall and pairing tilted by 1e-7");
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_scaled_spherical_pairing() {
+        for mut corrupted in spherical_domains() {
+            corrupted.sides[0].pairing *= 1.0 + 1e-6;
+            assert_failed(
+                &corrupted,
+                &["isometries", "pairings", "walls"],
+                "scaled pairing",
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_the_spherical_triangle_of_432_labelled_532() {
+        let corrupted = spherical(
+            crate::spherical::triangle([4, 3, 2]),
+            vec![5, 3, 2],
+            PI / 30.0,
+        );
+        assert_failed(
+            &corrupted,
+            &["relators", "angles", "area"],
+            "*432 labelled with the orders of *532",
+        );
+    }
+
+    #[test]
+    fn verify_fails_on_a_lune_of_twice_its_angle() {
+        for order in [5, 12] {
+            let angle = 2.0 * PI / f64::from(order);
+            let corrupted = spherical(
+                crate::spherical::lune_of_angle(angle),
+                vec![order; 2],
+                PI / f64::from(order) * 2.0,
+            );
+            assert_failed(
+                &corrupted,
+                &["angles", "area"],
+                &format!("lune of the angle 2 pi / {order} labelled *{order}{order}"),
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_lune_vertices_that_are_not_antipodal_unit_vectors() {
+        for vertices in [
+            vec![DVec3::Y, DVec3::Y],
+            vec![0.5 * DVec3::Y, -3.0 * DVec3::Y],
+        ] {
+            let mut corrupted = built("*55");
+            corrupted.vertices = vertices;
+            assert_failed(
+                &corrupted,
+                &["walls"],
+                "lune vertices moved along their axis",
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_wrong_spherical_partner() {
+        for mut corrupted in spherical_domains() {
+            corrupted.sides[0].partner = 1;
+            assert_failed(&corrupted, &["pairings"], "wrong partner");
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_negated_spherical_centre() {
+        for mut corrupted in spherical_domains() {
+            corrupted.centre = -corrupted.centre;
+            assert_failed(&corrupted, &["pairings"], "centre negated");
+        }
+    }
+
+    #[test]
+    fn verify_reports_infinite_residuals_for_a_zero_spherical_vertex() {
+        for mut corrupted in spherical_domains() {
+            corrupted.vertices[0] = DVec3::ZERO;
+            assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "vertex 0 set to zero");
         }
     }
 

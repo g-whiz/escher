@@ -1,0 +1,15 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"532\"])"
+---
+status: Success
+--- stdout
+Signature: 532
+Geometry: spherical
+Euler characteristic: 1/30
+Compact: yes
+Group order: 60
+Area: pi/15
+Domain: none, cannot build fundamental domain: the signature 532 is not supported
+--- stderr
+--- end

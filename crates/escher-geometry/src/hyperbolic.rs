@@ -609,6 +609,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the interpreter adds rounding errors of its own to the hyperbolic sine and cosine"
+    )]
     fn to_disk_of_a_point_at_distance_38_point_2_is_within_rounding_of_the_unit_circle() {
         let point = DVec3::new(38.2_f64.sinh(), 0.0, 38.2_f64.cosh());
         let radius = to_disk(point).length();

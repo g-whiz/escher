@@ -255,11 +255,11 @@ A signature is supported exactly when all of these hold, each read from the publ
    - three corners, and `geometry()` is `Geometry::Euclidean`.
    - four corners, and `geometry()` is `Geometry::Euclidean`.
    - three corners, and `geometry()` is `Geometry::Spherical`.
-   - two corners, and `geometry()` is `Geometry::Spherical`.
+   - two corners of equal order, and `geometry()` is `Geometry::Spherical`.
 
 For a hyperbolic or spherical signature, the predicate also needs `area_over_pi()` to be `Some`, which it is for every such signature that meets conditions 1 to 6 (Section 9.4 of the signature design), so this condition makes no further signature unsupported. Step 1 of Section 6.1 converts the area.
 
-The geometry is the exact rational classification of `escher-signature` (Section 9.1 of the signature design), so no floating-point comparison decides support. For three finite corners, the hyperbolic case of condition 6 is the condition $1/p + 1/q + 1/r < 1$ of Section 9.1 of the domain reference and Section 10.1 of the geometry reference. The Euclidean case with three corners is exactly `*632`, `*442`, and `*333`, the three solutions of $1/p + 1/q + 1/r = 1$ in Example 6.5.2 of [DAVIS2008] and in Section 7.2 of [RAT], p. 279 (Section 9.1 of the domain reference). The Euclidean case with four corners is exactly `*2222`, the only signature of one boundary with four corners among the 17 Euclidean signatures of Section 9.5 of the domain reference. The spherical case with three corners is exactly `*332`, `*432`, `*532`, and `*n22` with $n \ge 2$, the triples of Example 6.5.1 of [DAVIS2008] (Section 9.1 of the domain reference), which include `*222`. The spherical case with two corners is exactly `*nn` with $n \ge 2$, which include `*22`, because `escher-signature` rejects `*mn` with $m \ne n$ as a bad orbifold.
+The geometry is the exact rational classification of `escher-signature` (Section 9.1 of the signature design), so no floating-point comparison decides support. For three finite corners, the hyperbolic case of condition 6 is the condition $1/p + 1/q + 1/r < 1$ of Section 9.1 of the domain reference and Section 10.1 of the geometry reference. The Euclidean case with three corners is exactly `*632`, `*442`, and `*333`, the three solutions of $1/p + 1/q + 1/r = 1$ in Example 6.5.2 of [DAVIS2008] and in Section 7.2 of [RAT], p. 279 (Section 9.1 of the domain reference). The Euclidean case with four corners is exactly `*2222`, the only signature of one boundary with four corners among the 17 Euclidean signatures of Section 9.5 of the domain reference. The spherical case with three corners is exactly `*332`, `*432`, `*532`, and `*n22` with $n \ge 2$, the triples of Example 6.5.1 of [DAVIS2008] (Section 9.1 of the domain reference), which include `*222`. The spherical case with two corners is exactly `*nn` with $n \ge 2$, which include `*22`, because `escher-signature` rejects `*mn` with $m \ne n$ as a bad orbifold. The predicate also requires the two orders to be equal, because the lune of Section 6.7 stores one order for both corners, so a lune built from the first order of an unequal pair would pass its checks for a signature that it does not fit. No input reaches that case, so no test covers it.
 
 Every other valid signature returns `UnsupportedSignature`. This covers the other Euclidean signatures, such as `632` and `*x`, the other spherical signatures, such as `532`, `*`, `3*2`, and `22`, the hyperbolic `*3333`, `732`, and `4*3`, the triangle with an ideal corner `*(inf)32`, the friezes, the trivial signature `1`, and every general non-compact signature. A general non-compact signature returns this kind throughout the proof of concept (`DEC-19`, Section 5.8 of the architecture).
 
@@ -563,10 +563,12 @@ For a spherical domain, `verify()` computes the same six checks with the same to
 | --- | --- | --- |
 | 1. Isometries | `spherical::isometry_defect` of each pairing | [RAT], Theorem 2.1.3 (Section 11.1 of the geometry reference) |
 | 2. Pairings | As for a hyperbolic domain, with `spherical::side`. The endpoint part is the largest absolute coordinate of $P_i E - E$, with no division by a last coordinate | As for a hyperbolic domain |
-| 3. Walls | For each side $j$, the largest of: the absolute value of `spherical::side(covector_j, E)` for $E = V_{j-1}$ and $E = V_j$, with no division, the largest absolute entry of `pairing_j - spherical::reflection(normal_j)`, the largest absolute coordinate of `covector_j - normal_j`, and $\lvert \text{normal}_j \cdot \text{normal}_j - 1 \rvert$ | A great-circle normal of a great circle through the endpoints of its side, stored as its own covector, whose reflection is the pairing (Sections 4.6 and 6.7 of the geometry design) |
+| 3. Walls | For each side $j$, the largest of: the absolute value of `spherical::side(covector_j, E)` for $E = V_{j-1}$ and $E = V_j$, with no division, the largest absolute entry of `pairing_j - spherical::reflection(normal_j)`, the largest absolute coordinate of `covector_j - normal_j`, and $\lvert \text{normal}_j \cdot \text{normal}_j - 1 \rvert$. Also $\lvert V \cdot V - 1 \rvert$ for each vertex $V$, and, for a lune, the largest absolute coordinate of $V_0 + V_1$ | A great-circle normal of a great circle through the endpoints of its side, stored as its own covector, whose reflection is the pairing (Sections 4.6 and 6.7 of the geometry design). Each vertex is a sphere point, and the two vertices of a lune are antipodal (Section 6.7) |
 | 4. Relators | For each corner $j$, $C = P_j P_{j+1}$, and $C^{n_j}$ by $n_j - 1$ successive multiplications. The residual is the largest absolute entry of $C^{n_j} - I$ divided by $n_j$, maximized over the corners. There is no corner frame. For a lune this is $(P_0 P_1)^n$ at corner 0 and $(P_1 P_0)^n$ at corner 1 | Item 4 of Section 4.8 of the domain reference, and the local group of a corner reflector of [TH], Proposition 13.3.1(iii), p. 308 (Section 9.4 of the notation reference) |
 | 5. Angles | The largest $\lvert \theta_j - \pi/n_j \rvert$, with $\theta_j$ of Section 7, or infinity when the angle sum of a triangle is not above $\pi$. Both angles of a lune come from its normals (DOM-20) | Every corner has the angle $\pi/n_j$ (item 4 of Section 4.8 of the domain reference), and the angle sum of a spherical triangle exceeds $\pi$ ([RAT], Theorem 2.5.1, p. 50) |
 | 6. Area | The absolute difference between `area()` and the stored area of the signature, $\pi$ times `area_over_pi()`, which is $2\pi\chi$ | The areas of a triangle and of a lune of Section 7, and the area $2\pi\lvert\chi\rvert$ of an elliptic orbifold of [TH], p. 312 (Section 7.3 of the notation reference) |
+
+Check 3 reads the vertices of a spherical domain because both sides of a lune have the side value 0 at every point of the second axis. Without the vertex terms, a lune whose vertices coincide or lie off the sphere would pass every check.
 
 DOM-21. For a spherical domain, the precondition of checks 2 to 6 MUST require each vertex to be finite and not the zero vector, and MUST NOT require a positive last coordinate, because a vertex of a spherical domain may lie on or below the plane $x_3 = 0$, as both vertices of a lune do, and the precondition of the other geometries would give every lune an infinite residual.
 
@@ -610,19 +612,26 @@ The test also injects these defects into Euclidean domains, which pass every che
 | The last vertex removed | 2, 3, 4, 5, and 6, each with an infinite residual |
 | Every vertex removed | 2, 3, 4, 5, and 6, each with an infinite residual |
 
-The test also injects these defects into spherical domains, which pass every check before the defect: the domains of `*532`, `*722`, and `*55`, unless the row names others. The column gives the check that each defect targets. The change that adds the test records in this table the checks that fail on each domain, as the tables above record them, and the test then asserts exactly those:
+The test also injects these defects into spherical domains, which pass every check before the defect: the domains of `*532`, `*722`, and `*55`, unless the row names others. A tilt is a rotation of the normal about the origin by `spherical::rotation`. On each domain of its row, exactly the checks of the row fail:
 
-| Defect | Check that it targets |
-| --- | --- |
-| The normal of side 0 tilted by $10^{-6}$ about the origin, with its covector and pairing computed from the tilted normal | 2 and 3 |
-| The pairing of side 0 scaled by $1 + 10^{-6}$ | 1, 2, and 3 |
-| The triangle of `*432` labelled with the orders of `*532`, on `*532` only | 4, 5, and 6 |
-| The lune of the angle $2\pi/n$ labelled with the order $n$, for $n = 5$ and $n = 12$, on the lunes only | 5 and 6, while check 4 is expected to pass |
-| The partner of side 0 set to side 1 | 2 |
-| The centre set to its negation, outside the domain | 2 |
-| Vertex 0 set to the zero vector | 2, 3, 4, 5, and 6, each with an infinite residual |
+| Defect | `*532` | `*722` | `*55` |
+| --- | --- | --- | --- |
+| The normal of side 0 tilted by $10^{-7}$, with its covector and pairing computed from the tilted normal | 2 and 3 | 2 and 3 | 2 and 3 |
+| The pairing of side 0 scaled by $1 + 10^{-6}$ | 1, 2, and 3 | 1, 2, and 3 | 1, 2, and 3 |
+| The triangle of `*432` labelled with the orders and the area $\pi/30$ of `*532` | 4, 5, and 6 | Not applied | Not applied |
+| The lune of the angle $2\pi/n$ labelled with the order $n$, for $n = 5$ and $n = 12$ | Not applied | Not applied | 5 and 6, for both orders |
+| The vertices of the lune set to $(0, 1, 0)$ and $(0, 1, 0)$, which coincide, or to $(0, 0.5, 0)$ and $(0, -3, 0)$, which lie off the sphere | Not applied | Not applied | 3, for both pairs |
+| The partner of side 0 set to side 1 | 2 | 2 | 2 |
+| The centre set to its negation, outside the domain | 2 | 2 | 2 |
+| Vertex 0 set to the zero vector | 2, 3, 4, 5, and 6, each with an infinite residual | 2, 3, 4, 5, and 6, each with an infinite residual | 2, 3, 4, 5, and 6, each with an infinite residual |
 
-Check 4 passes on the scaled pairing at all three triangles, below its tolerance of $2 \times 10^{-6}$, and checks 1, 2, and 3 catch that defect. The residual of check 4 is $1.000003 \times 10^{-6}$ at $(7, 3, 2)$, a figure that no committed test prints.
+Check 4 passes on several of the spherical defects. No committed test prints the residuals below, which were printed once by hand:
+
+- On the relabelled lunes, check 4 passes with the residuals $1.8 \times 10^{-16}$ and $3.2 \times 10^{-16}$.
+- On the scaled pairing, check 4 passes with $1.000002 \times 10^{-6}$ at `*532`, $1.000003 \times 10^{-6}$ at `*722`, and $1.000002 \times 10^{-6}$ at `*55`.
+- On the tilted wall, checks 2 and 3 fail with the residuals $7.064 \times 10^{-8}$ and $3.560 \times 10^{-8}$ at `*532`, $1.699 \times 10^{-7}$ and $8.675 \times 10^{-8}$ at `*722`, and $1.809 \times 10^{-7}$ and $9.511 \times 10^{-8}$ at `*55`, each at least 35 times the tolerance of $10^{-9}$. Check 4 passes with $1.901 \times 10^{-7}$ at `*532` and $1.505 \times 10^{-7}$ at `*722`, 10.5 and 13.3 times below its tolerance of $2 \times 10^{-6}$, and with $1.5 \times 10^{-14}$ at `*55`.
+
+In the hyperbolic table, check 4 passes on the scaled pairing at all three triangles, below its tolerance of $2 \times 10^{-6}$, and checks 1, 2, and 3 catch that defect. The residual of check 4 is $1.000003 \times 10^{-6}$ at $(7, 3, 2)$, a figure that no committed test prints.
 
 Check 3 exists for the row with the pairing left as constructed. The renderer tests a point with the covector and moves it with the pairing, so a domain whose covector and pairing disagree corrupts the image while the other five checks pass. The tilted wall no longer passes through the endpoints of its side, so the first two values of check 3 exceed its tolerance.
 
@@ -671,16 +680,16 @@ A Euclidean domain uses the same tolerances. The test "Euclidean domains" of Sec
 | 5. Angles | $10^{-9}$ | $2.220 \times 10^{-16}$ | `*333` | $4.50 \times 10^{6}$ |
 | 6. Area | $10^{-9}$ | 0 | Every domain | Not applicable |
 
-A spherical domain uses the same tolerances. The test "Spherical domains" of Section 12.1 prints the largest residual of each check over the spherical domains of Section 9.5, and every domain passes every check. The change that adds the test records each figure in this table, with a margin of at least 8 as TEST-13 of the coding standard requires:
+A spherical domain uses the same tolerances. The test "Spherical domains" of Section 12.1 prints the largest residual of each check over the 18 spherical domains of Section 9.5, and every domain passes every check:
 
 | Check | Tolerance | Largest residual | Where | Margin |
 | --- | --- | --- | --- | --- |
-| 1. Isometries | $10^{-9}$ | To be measured | To be measured | To be measured |
-| 2. Pairings | $10^{-9}$ | To be measured | To be measured | To be measured |
-| 3. Walls | $10^{-9}$ | To be measured | To be measured | To be measured |
-| 4. Relators | $2 \times 10^{-6}$ | To be measured | To be measured | To be measured |
-| 5. Angles | $10^{-9}$ | To be measured | To be measured | To be measured |
-| 6. Area | $10^{-9}$ | To be measured | To be measured | To be measured |
+| 1. Isometries | $10^{-9}$ | $1.554 \times 10^{-15}$ | `*522` | $6.43 \times 10^{5}$ |
+| 2. Pairings | $10^{-9}$ | $1.554 \times 10^{-15}$ | `*522` | $6.43 \times 10^{5}$ |
+| 3. Walls | $10^{-9}$ | $5.551 \times 10^{-16}$ | `*522` | $1.80 \times 10^{6}$ |
+| 4. Relators | $2 \times 10^{-6}$ | $3.097 \times 10^{-14}$ | `*(999)22` | $6.46 \times 10^{7}$ |
+| 5. Angles | $10^{-9}$ | $2.038 \times 10^{-14}$ | `*(1000)(1000)` | $4.91 \times 10^{4}$ |
+| 6. Area | $10^{-9}$ | $4.075 \times 10^{-14}$ | `*(1000)(1000)` | $2.45 \times 10^{4}$ |
 
 ## 9. Numerical Robustness
 
@@ -769,16 +778,16 @@ DOM-19. A test that asserts a quantity of a domain for which this document state
 
 ### 9.5. Accuracy of the Spherical Domains
 
-The spherical domains of the tests are those of `*332`, `*432`, `*532`, and `*222`, and of `*n22` and `*nn` for $n$ = 2, 3, 5, 12, 100, 999, and 1000. Over these domains, the test "Spherical domains" of Section 12.1 compares each quantity of this table with the reference construction of Section 12.2, asserts each bound, and prints the largest error with its domain and its margin. Each bound is set by the change that adds the test, from the largest error that it measures, with a margin of at least 8 as TEST-13 of the coding standard and DOM-19 require, and that change records it here:
+The spherical domains of the tests are those of `*332`, `*432`, `*532`, and `*222`, and of `*n22` and `*nn` for $n$ = 2, 3, 5, 12, 100, 999, and 1000. Over these domains, the test "Spherical domains" of Section 12.1 compares each quantity of this table with the reference construction of Section 12.2, asserts each bound, and prints the largest error with its domain and its margin. The test builds `*222` twice, as `*222` and as `*n22` with $n = 2$, so it measures 18 domains with 47 sides. The bounds are choices of this design, set from the largest errors measured, and every margin is at least 8, as TEST-13 of the coding standard and DOM-19 require:
 
 | Quantity | Measure | Bound | Largest error | Where | Margin |
 | --- | --- | --- | --- | --- | --- |
-| Vertex | Largest coordinate error | To be measured | To be measured | To be measured | To be measured |
-| Normal | Largest coordinate error | To be measured | To be measured | To be measured | To be measured |
-| Side length | Absolute error | To be measured | To be measured | To be measured | To be measured |
-| Centre | Largest coordinate error against the reference centre | To be measured | To be measured | To be measured | To be measured |
-| Corner angle | Absolute error against $\pi/n_j$ | To be measured | To be measured | To be measured | To be measured |
-| Area | Absolute error against $2\pi\chi$ | To be measured | To be measured | To be measured | To be measured |
+| Vertex | Largest coordinate error | $4 \times 10^{-13}$ | $2.785 \times 10^{-14}$ | `*(1000)22` | 14.4 |
+| Normal | Largest coordinate error | $10^{-13}$ | $7.764 \times 10^{-15}$ | `*(999)22` | 12.9 |
+| Side length | Absolute error | $4 \times 10^{-13}$ | $3.892 \times 10^{-14}$ | `*(999)22` | 10.3 |
+| Centre | Largest coordinate error against the reference centre | $2 \times 10^{-15}$ | $1.241 \times 10^{-16}$ | `*(1000)22` | 16.1 |
+| Corner angle | Absolute error against $\pi/n_j$ | $2 \times 10^{-13}$ | $2.038 \times 10^{-14}$ | `*(1000)22` | 9.8 |
+| Area | Absolute error against $2\pi\chi$ | $4 \times 10^{-13}$ | $4.075 \times 10^{-14}$ | `*(1000)(1000)` | 9.8 |
 
 The vertices and the centre of a lune are exact values that the construction stores, and the dot product of its two vertices is exactly $-1$. The test asserts these equalities exactly, as TEST-13 of the coding standard allows, and compares the side lengths of a lune with $\pi$ within the bound of the side length.
 
@@ -863,13 +872,24 @@ Each test names the item of the field "Tests and acceptance" of Section 5.2 of t
 | Parameters | Range errors, of Section 5.4 of the plan | Table test, `parameters` | `parameters` gives one `ParameterSpec` for `*2222`, with the name `aspect`, the range 0.125 to 8, and the default 1, and an empty list for `*632`, `*442`, `*333`, `*732`, and `*532`. `build_with` returns `ParameterOutOfRange` for `aspect` set to 0.1249, 8.0001, 0, $-1$, NaN, and both infinities, and builds at 0.125 and 8. It returns `UnknownParameter` for the names `Aspect`, `aspect ` with a trailing space, and the empty name on `*2222`, and for `aspect` on `*632` and `*732`. An unsupported signature with a setting returns `UnsupportedSignature`. For `*2222` and `*632`, `build` gives the domain of `build_with` with no setting, with every vertex within twice the vertex bound of Section 9.4, and `set` returns the value that it replaces. Each error has the text of Section 10.2 |
 | Spherical table | None | Table test, `spherical` | `*332`, `*432`, `*532`, `*222`, `*722`, `*22`, and `*55` build and pass `verify()`, with 3 sides and vertices for a triangle and 2 for a lune, each side its own partner, `parameters` empty, and the corner angles $\pi/n_j$ within the bound of Section 9.5. Each triangle has $(V_0 \times V_1) \cdot V_2 > 0$. Every other spelling of a signature, such as `*22n` for `*n22` and `*221` for `*22`, builds the domain of its canonical form, with every vertex within twice the vertex bound of Section 9.5 |
 | Spherical domains | None | Reference test, `spherical` | Each quantity of Section 9.5 is within its bound against the reference of Section 12.2, over the spherical domains of Section 9.5. Each check passes, and the test prints the largest residual of each check with its margin, which Section 8.4 records (DOM-19) |
-| Exhaustive certificate | Exhaustive certificate, of Section 5.5 of the plan | Integration test, `spherical` | For `*332`, `*432`, `*532`, and `*n22` and `*nn` with $n$ from 2 to 12: a breadth-first enumeration of the products of the pairings, which merges two matrices whose entries agree within $10^{-9}$, has exactly as many elements as `group_order()` of the signature. The images of the centre under these elements are pairwise further apart than a floor that the change that adds the test measures and records here. Each image of the centre folds back to the centre within the tolerance of check 3, in as many steps as its breadth-first depth, by a fold written in the test that applies the pairing of the first side with a positive side value, and no such fold reaches the default largest number of folds of `escher-render` (Section 4.1 of `docs/design/render.md`). For each lune, a dense sample of the sphere, which includes the two vertices, points from $10^{-3}$ to $10^{-300}$ from each vertex, the centre and its negation, and points on and next to each side, folds into the lune |
-| Exhaustive certificate at the limit | Exhaustive certificate, of Section 5.5 of the plan | Integration test, `spherical` | The assertions of "Exhaustive certificate" for `*(1000)22` and `*(1000)(1000)` |
+| Exhaustive certificate | Exhaustive certificate, of Section 5.5 of the plan | Integration test, `spherical` | For `*332`, `*432`, `*532`, and `*n22` and `*nn` with $n$ from 2 to 12: a breadth-first enumeration of the products of the pairings, which merges two matrices whose entries agree within $10^{-9}$, has exactly as many elements as `group_order()` of the signature. The images of the centre under these elements are pairwise further apart than the floor $2 \times 10^{-2}$. Each image of the centre folds back to the centre within the tolerance of check 3, in as many steps as its breadth-first depth, by the fold of the test that this section describes below the table, and no such fold reaches the default largest number of folds of `escher-render`, 1500 (Section 4.1 of `docs/design/render.md`). For each lune, a dense sample folds into the lune within that number of folds. The sample is 2000 points of a Fibonacci lattice on the sphere, the two vertices, the points $10^{-3}$, $10^{-10}$, $10^{-30}$, $10^{-100}$, $10^{-200}$, and $10^{-300}$ from each vertex in five directions, the centre and its negation, and 33 points on each side, each also at the offsets $\pm 10^{-12}$ and $\pm 10^{-6}$ along the normal of the side |
+| Exhaustive certificate at the limit | Exhaustive certificate, of Section 5.5 of the plan | Integration test, `spherical` | The assertions of "Exhaustive certificate" for `*(1000)22` and `*(1000)(1000)`, with the floor $2 \times 10^{-4}$ |
 | Reference self-check | None | Reference test, `reference` | The four known values of Section 12.2 |
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type is `Send`, `Sync`, and `'static` (CONC-1 of the coding standard) |
 | Doctests | None | Doctests | The examples of the crate-level and item documentation |
 
 DOM-22. The tests "Exhaustive certificate" and "Exhaustive certificate at the limit" MUST cover every lune of their sets and MUST stay while `UNV-29` is open, because no source makes the lune a fundamental domain (Section 6.7), and these tests are the only evidence that its two reflections generate a group of order $2n$ whose copies of the lune cover the sphere.
+
+The fold of the two certificate tests uses the rule of the renderer. Side $i$ is violated at a point $x$ when $s_i > \tau \, \sigma_i \, \lambda(x)$, where $s_i$ is `spherical::side` of the covector of the side at $x$, $\tau = 4 \times 10^{-15}$ is a copy of the constant of `escher-render`, $\sigma_i = \sum_j \lvert c_{ij} \rvert$ for the covector $c_i$, and $\lambda(x) = \max_j \lvert x_j \rvert$. The fold applies the pairing of the first violated side, and stops when no side is violated. A fold that applies the pairing of the first side with a positive side value does not stop for a point on a wall. On `*33`, the point $(0.14514, 0.95694, 0.25139)$ of side 0 has the side value $+2.78 \times 10^{-17}$, and the reflection maps it to itself bit for bit, so such a fold cycles until the cap. The images of the centre lie far from every wall, so the tolerance does not change their depth.
+
+The floors are set from the smallest distance measured between two images of the centre, with a margin of at least 8 as TEST-13 of the coding standard requires:
+
+| Test | Floor | Smallest distance | Where | Margin |
+| --- | --- | --- | --- | --- |
+| Exhaustive certificate | $2 \times 10^{-2}$ | 0.2168 | `*532` | 10.8 |
+| Exhaustive certificate at the limit | $2 \times 10^{-4}$ | $2.810 \times 10^{-3}$ | `*(1000)22` | 14.0 |
+
+At the limit, `*(1000)22` has the group order 4000 and `*(1000)(1000)` the order 2000. The largest breadth-first depth there is about 1001, at `*(1000)22`, below the default largest number of folds of 1500.
 
 The claim that a fold returns in its breadth-first depth and never reaches the cap holds for the images of the centre, which the tests assert. It does not hold for every point: near a vertex of very high order, a fold can fail to converge, which belongs to the unverified statement on termination, `UNV-1` (Section 14).
 
@@ -886,7 +906,7 @@ The property tests commit their regression files (TEST-9 of the coding standard)
 The reference is the independent high-precision implementation of Section 7 of the architecture, with the precision and tolerances that this section states:
 
 - Structure. A module `reference` in the test binary holds points as arrays of three high-precision numbers and writes each formula componentwise from the research documents. It calls no function of `escher-domain`, `escher-geometry`, or `glam`.
-- Independence. The reference builds the standard position from $\cosh L$ and $\sqrt{\cosh^2 L - 1}$ without $\operatorname{arcosh}$, and centres the triangle with $\cos\varphi = c_1/h$, $\sin\varphi = c_2/h$, $\sinh\rho = h$, and $\cosh\rho = c_3$, where $h$ is the length of the first two coordinates of the centre, read from the polar form of Section 8.3 of the geometry reference. The crate takes the other path in both places, so a transcription error is not shared. For a Euclidean domain, the reference computes the vertices of steps 1 to 5 of Section 6.5 componentwise, and the line of each side as $P(a, t)$ of Section 12 of the geometry reference, with $a$ the unit vector perpendicular to the side and $t = a \cdot V$ for an endpoint $V$, without a cross product. For a spherical triangle, the reference builds the standard position from $\cos L$ and $\sqrt{1 - \cos^2 L}$ without $\arccos$, centres it with $\cos\rho = c_3$, $\sin\rho = h$, $\cos\varphi = c_1/h$, and $\sin\varphi = c_2/h$ for the reference centre $c$ of unit length, without $\operatorname{atan2}$. The change that adds the test states here how the reference finds each normal without the cross product of `spherical::wall_through`. The reference computes side lengths and angles with the arccosine of the reference type. For a lune, it computes the vertices and normals of Section 6.7 from the reference values of $\cos(\theta/2)$ and $\sin(\theta/2)$.
+- Independence. The reference builds the standard position from $\cosh L$ and $\sqrt{\cosh^2 L - 1}$ without $\operatorname{arcosh}$, and centres the triangle with $\cos\varphi = c_1/h$, $\sin\varphi = c_2/h$, $\sinh\rho = h$, and $\cosh\rho = c_3$, where $h$ is the length of the first two coordinates of the centre, read from the polar form of Section 8.3 of the geometry reference. The crate takes the other path in both places, so a transcription error is not shared. For a Euclidean domain, the reference computes the vertices of steps 1 to 5 of Section 6.5 componentwise, and the line of each side as $P(a, t)$ of Section 12 of the geometry reference, with $a$ the unit vector perpendicular to the side and $t = a \cdot V$ for an endpoint $V$, without a cross product. For a spherical triangle, the reference builds the standard position from $\cos L$ and $\sqrt{1 - \cos^2 L}$ without $\arccos$, centres it with $\cos\rho = c_3$, $\sin\rho = h$, $\cos\varphi = c_1/h$, and $\sin\varphi = c_2/h$ for the reference centre $c$ of unit length, without $\operatorname{atan2}$. The reference finds each normal by the Gram-Schmidt process, without the cross product of `spherical::wall_through`. For the side from $V_{j-1}$ to $V_j$, it takes $e_1 = V_{j-1} / \lvert V_{j-1} \rvert$ and $e_2$ the unit vector of $V_j - (V_j \cdot e_1) e_1$, removes from the opposite vertex its components along $e_1$ and $e_2$, and takes the negated unit vector of the remainder, so the normal points away from the opposite vertex. The reference side lengths are the arccosines of the three values $X_a$, $X_c$, and $X_b$ of the law of cosines, in the arccosine of the reference type. The reference angles of a triangle are $\pi/n_j$, and its reference area is $\sum_j \pi/n_j - \pi$. For a lune, it computes the vertices and normals of Section 6.7 from the reference values of $\cos(\theta/2)$ and $\sin(\theta/2)$.
 - Precision. 256 bits, rounding to nearest with ties to even.
 - Comparison. As in Section 10.2 of the geometry design, each test converts the `f64` result exactly into the reference type, takes the difference there, and compares it with the tolerance there, because `astro-float-num` has no public conversion back to `f64`. A message that prints a measured error formats the number as decimal text.
 - Self-check. The test "Reference self-check" in `reference` checks the reference library itself: $\pi$ against a literal with 80 digits after the decimal point, $\cos(\pi/3) = 1/2$, $\cosh(\operatorname{arcosh} 2) = 2$, and $\sqrt{2}^2 = 2$, each to $10^{-70}$. The largest of the four errors is $1.7 \times 10^{-77}$. It guards against a wrong precision or rounding argument and does not close `UNV-25`.
@@ -901,14 +921,14 @@ DOM-15. The reference module MUST share no code with `escher-domain` or `escher-
 | --- | --- | --- |
 | "Triangles", "Third side", "Edge of $\{7, 3\}$", "Circumradius of $\{7, 3\}$", "Relator agreement", "Relators in the domain frame", "Euclidean domains", "SymmHub lines", "Spherical domains", and "Reference self-check" | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
 | "Checks at the worst cases" and "Exhaustive certificate at the limit" | Ignored | `#[cfg_attr(miri, ignore = "the checks of the largest orders run loops too long for the interpreter")]` |
-| "Exhaustive certificate" | Run unchanged, unless the change that adds it measures that it runs too long for the interpreter. It is then ignored with the attribute of the row above, and that change records it here | None |
+| "Exhaustive certificate" | Ignored, because it takes 332 seconds alone under Miri. The reason of the row above does not apply, because its orders stop at 12 | `#[cfg_attr(miri, ignore = "the enumeration of the groups runs loops too long for the interpreter")]` |
 | "Random triples", "Rectangle aspect", and "Any signature" | Run with 8 cases and no failure persistence | The helper of DOM-16 |
 | The unit tests, which include "Failing domains" with the three tests of a corner order off by one and the tests of a negated vertex and of NaN entries, "Corner order and area", "Conversion", and "Exact rectangle", and the table tests "Unsupported", "Euclidean table", "Parameters", and "Spherical table" | Run unchanged | None |
 | The doctests | Not run, because Miri runs the tests through nextest, which runs no doctest | None |
 
 Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`).
 
-No test asserts a bit-exact result of a transcendental function, because the interpreter need not reproduce the last bits of the host library, and every tolerance of this document leaves room for that. For the same reason, the tests "Euclidean table", "Parameters", and "Spherical table" compare two builds of one domain within twice the vertex bound of Section 9.4 and not bit for bit: under Miri, two calls of a transcendental function on the same input can round differently, so two builds can differ in the last bits.
+No test asserts a bit-exact result of a transcendental function, because the interpreter need not reproduce the last bits of the host library, and every tolerance of this document leaves room for that. For the same reason, the tests "Euclidean table", "Parameters", and "Spherical table" compare two builds of one domain within twice the vertex bound of Section 9.4 or 9.5 and not bit for bit: under Miri, two calls of a transcendental function on the same input can round differently, so two builds can differ in the last bits.
 
 DOM-16. The property tests MUST take their configuration from one helper in `common`, with the numbers of cases and the failure persistence that Section 4 of `docs/design/tooling.md` states, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and a full set of cases takes too long in the interpreter.
 
@@ -962,8 +982,6 @@ These statements of this design rest on figures that no measurement of the code 
 | A domain left with vertex 2 at the origin has larger normal components and fails checks that the final position passes | 6.3 | At $(1000, 3, 2)$, a largest normal component of 1 and a relator residual of $7.28 \times 10^{-12}$, which passes. At $(1000, 100, 100)$, 63.6 and $6.23 \times 10^{-4}$, which fails. At $(1000, 1000, 1000)$, 637 and an infinite residual. In the family $(n, n, n)$, $(60, 60, 60)$ and $(70, 70, 70)$ fail checks 1 and 2, $(80, 80, 80)$ also fails check 4, and every larger order fails. The families $(n, 3, 2)$, $(n, 4, 4)$, and $(n, n, 2)$ fail no check up to $n = 1000$ |
 | Repeated multiplication evaluates the relator more accurately than repeated squaring | 8.2 | At corner 0 of $(1000, 3, 2)$, a largest entry of $C^{1000} - I$ of $3.46 \times 10^{-9}$ in the domain frame by repeated multiplication and $7.77 \times 10^{-8}$ by repeated squaring, against $2.33 \times 10^{-11}$ in the corner frame by either method |
 | The residual of check 6 stays close to that of check 5 | 8.2 | Never more than 2.91 times the residual of check 5, over 300 random triples |
-| The tolerances of Section 8.4 hold for the spherical domains with the margin of 8 | 8.4 | On a prototype of the constructions of Section 6.7 outside the repository, every check passed for `*332`, `*432`, `*532`, `*222`, and `*n22` and `*nn` at $n = 2$, 3, 5, 12, 100, 999, and 1000. At $n = 1000$, the smallest margin was $4.9 \times 10^{4}$ for `*n22`, on checks 5 and 6, and $2.5 \times 10^{4}$ for `*nn`, on check 6 |
-| The certificate of DOM-22 passes for the lune, which is evidence for `UNV-29` and not a proof of it | 6.7 | On the same prototype, for the orders tested up to 1000, the enumeration found exactly $2n$ elements, every image of the centre folded back in exactly its depth, and a dense sample of the sphere, with the poles and the walls, folded into the lune |
 | Renormalizing the vertices after step 8 makes them less accurate (DOM-10) | 9.1 | At $(1000, 1000, 1000)$, renormalization raised the largest relative vertex error from $5.7 \times 10^{-11}$ to $8.9 \times 10^{-6}$ and the angle error from $1.9 \times 10^{-13}$ to $2.8 \times 10^{-8}$ |
 
 ## 15. Assumptions, Choices, and Points for the Owner
@@ -999,7 +1017,8 @@ No other document dictates these choices:
 | Six checks with one accessor each, including check 3 on the walls | 8.1, 8.2 |
 | Check 6 kept as a consistency check | 8.2 |
 | The relators in the corner frame, by repeated multiplication, with the residual divided by $n_j$ | 8.2 |
-| Every tolerance of Sections 8.4, 9.3, and 9.4 | 8.4, 9.3, 9.4 |
+| Every tolerance of Sections 8.4 and 9.3 to 9.5, and the floors of the exhaustive certificate | 8.4, 9.3 to 9.5, 12.1 |
+| The tolerance of the fold of the exhaustive certificate, copied from `escher-render` | 12.1 |
 | 256 bits for the reference arithmetic | 12.2 |
 | The sets of triples of Section 12.1, and the weighting of the test "Random triples" toward large orders | 12.1 |
 | `astro-float-num` in place of `astro-float` | 13 |
@@ -1027,7 +1046,7 @@ None of these blocks the crate. Each states what the design does until the owner
 15. The placement of the lune. The design places the lune directly, with its vertices on the second axis and its centre at the origin (Section 6.7), because the rule of `DEC-12` gives no centre for two antipodal vertices. The alternative is a centre at the midpoint of one side, which the view would not centre on the domain.
 16. The angle of the lune from its normals. DOM-20 makes it the one exception to DOM-6, because the vertices do not determine the sides. The alternative is to measure no angle for a lune and to drop check 5 for it, which leaves the angle to check 4 and the certificate alone.
 17. The readings of the checks and their precondition for a spherical domain. The design keeps the six checks and reads each per geometry (Section 8.2), with a vertex that is finite and not the zero vector (DOM-21). The alternative is a separate set of checks for the sphere, which `escher info --check` would print differently.
-18. The tolerances and the limit. The design keeps every tolerance of Section 8.4 and the limit of 1000 for the spherical domains, and leaves the bounds of Section 9.5 to the measurement of the change that adds the tests. The alternative is tolerances of their own for the sphere, which no measurement of the code supports yet.
+18. The tolerances and the limit. The design keeps every tolerance of Section 8.4 and the limit of 1000 for the spherical domains, and sets the bounds of Section 9.5 from the largest errors measured. Every check passes on the spherical domains of Section 9.5 with a margin of at least $2.45 \times 10^{4}$. The alternative is tolerances of their own for the sphere.
 
 ## 16. Security Considerations
 

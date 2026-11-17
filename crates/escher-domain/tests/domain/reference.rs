@@ -145,6 +145,10 @@ impl Reference {
         value.cosh(PRECISION, ROUNDING, &mut self.consts)
     }
 
+    pub(crate) fn acos(&mut self, value: &BigFloat) -> BigFloat {
+        value.acos(PRECISION, ROUNDING, &mut self.consts)
+    }
+
     pub(crate) fn acosh(&mut self, value: &BigFloat) -> BigFloat {
         value.acosh(PRECISION, ROUNDING, &mut self.consts)
     }
@@ -344,6 +348,123 @@ fn polygon(placed: &[[BigFloat; 2]], angles: Vec<BigFloat>) -> Polygon {
         angles,
         area: div(&twice_area, &int(2)).abs(),
         mean,
+    }
+}
+
+pub(crate) fn dot(x: &Vector, y: &Vector) -> BigFloat {
+    add(
+        &add(&mul(&x[0], &y[0]), &mul(&x[1], &y[1])),
+        &mul(&x[2], &y[2]),
+    )
+}
+
+fn unit(x: &Vector) -> Vector {
+    scale(&div(&int(1), &sqrt(&dot(x, x))), x)
+}
+
+fn without(x: &Vector, direction: &Vector) -> Vector {
+    let along = scale(&dot(x, direction), direction);
+    [
+        sub(&x[0], &along[0]),
+        sub(&x[1], &along[1]),
+        sub(&x[2], &along[2]),
+    ]
+}
+
+pub(crate) struct SphericalPolygon {
+    pub(crate) vertices: Vec<Vector>,
+    pub(crate) normals: Vec<Vector>,
+    pub(crate) lengths: Vec<BigFloat>,
+    pub(crate) angles: Vec<BigFloat>,
+    pub(crate) area: BigFloat,
+    pub(crate) centre: Vector,
+}
+
+impl Reference {
+    pub(crate) fn spherical_triangle(&mut self, orders: [u32; 3]) -> SphericalPolygon {
+        let pi = self.pi();
+        let angles = orders.map(|order| div(&pi, &int(order)));
+        let [s0, s1, s2] = [0, 1, 2].map(|index| self.sin(&angles[index]));
+        let [c0, c1, c2] = [0, 1, 2].map(|index| self.cos(&angles[index]));
+        let opposite_one = div(&add(&c1, &mul(&c2, &c0)), &mul(&s2, &s0));
+        let opposite_two = div(&add(&c2, &mul(&c0, &c1)), &mul(&s0, &s1));
+        let opposite_zero = div(&add(&c0, &mul(&c2, &c1)), &mul(&s2, &s1));
+        let sin_of = |cos: &BigFloat| sqrt(&sub(&int(1), &mul(cos, cos)));
+        let placed = [
+            [sin_of(&opposite_one), int(0), opposite_one.clone()],
+            [
+                mul(&c2, &sin_of(&opposite_zero)),
+                mul(&s2, &sin_of(&opposite_zero)),
+                opposite_zero.clone(),
+            ],
+            [int(0), int(0), int(1)],
+        ];
+        let target = unit(&sum(&sum(&placed[0], &placed[1]), &placed[2]));
+        let h = sqrt(&add(
+            &mul(&target[0], &target[0]),
+            &mul(&target[1], &target[1]),
+        ));
+        let (cos_phi, sin_phi) = (div(&target[0], &h), div(&target[1], &h));
+        let (sin_rho, cos_rho) = (h, target[2].clone());
+        let move_to_origin = |x: &Vector| {
+            let turned = [
+                add(&mul(&cos_phi, &x[0]), &mul(&sin_phi, &x[1])),
+                sub(&mul(&cos_phi, &x[1]), &mul(&sin_phi, &x[0])),
+                x[2].clone(),
+            ];
+            let moved = [
+                sub(&mul(&cos_rho, &turned[0]), &mul(&sin_rho, &turned[2])),
+                turned[1].clone(),
+                add(&mul(&cos_rho, &turned[2]), &mul(&sin_rho, &turned[0])),
+            ];
+            [
+                sub(&mul(&cos_phi, &moved[0]), &mul(&sin_phi, &moved[1])),
+                add(&mul(&sin_phi, &moved[0]), &mul(&cos_phi, &moved[1])),
+                moved[2].clone(),
+            ]
+        };
+        let vertices: Vec<Vector> = placed.iter().map(move_to_origin).collect();
+        let normals = (0..3)
+            .map(|index| {
+                let first = unit(&vertices[(index + 2) % 3]);
+                let second = unit(&without(&vertices[index], &first));
+                let off = without(&without(&vertices[(index + 1) % 3], &first), &second);
+                scale(&int(1).neg(), &unit(&off))
+            })
+            .collect();
+        let lengths = vec![
+            self.acos(&opposite_one),
+            self.acos(&opposite_two),
+            self.acos(&opposite_zero),
+        ];
+        let area = sub(&add(&add(&angles[0], &angles[1]), &angles[2]), &pi);
+        let centre = unit(&sum(&sum(&vertices[0], &vertices[1]), &vertices[2]));
+        SphericalPolygon {
+            vertices,
+            normals,
+            lengths,
+            angles: angles.to_vec(),
+            area,
+            centre,
+        }
+    }
+
+    pub(crate) fn lune(&mut self, order: u32) -> SphericalPolygon {
+        let pi = self.pi();
+        let angle = div(&pi, &int(order));
+        let half = div(&angle, &int(2));
+        let (sin, cos) = (self.sin(&half), self.cos(&half));
+        SphericalPolygon {
+            vertices: vec![[int(0), int(1), int(0)], [int(0), int(1).neg(), int(0)]],
+            normals: vec![
+                [cos.clone(), int(0), sin.neg()],
+                [cos.neg(), int(0), sin.neg()],
+            ],
+            lengths: vec![pi.clone(), pi],
+            angles: vec![angle.clone(), angle.clone()],
+            area: mul(&int(2), &angle),
+            centre: [int(0), int(0), int(1)],
+        }
     }
 }
 
