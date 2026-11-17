@@ -1,13 +1,12 @@
 use std::path::PathBuf;
 
-use escher_domain::FundamentalDomain;
 use escher_render::{Colour, ErrorKind, Fill, RenderOptions, RenderStats, Renderer, encode_png};
-use escher_signature::Signature;
 
 use crate::common::{decode_png, domain, one_fill, options};
 use crate::golden_images::{
-    ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE, GoldenImage, compare, golden_options,
-    linear_table,
+    ALLOWED_PIXELS, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE, GoldenImage,
+    TRANSLATION_TOLERANCE, compare, domain_with_aspect, golden_options, linear_table,
+    shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -15,13 +14,7 @@ const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
 const RECIPE: &str = "just update-golden";
 
 fn golden_pixels(image: &GoldenImage) -> Vec<u8> {
-    let signature: Signature = image
-        .signature
-        .parse()
-        .unwrap_or_else(|error| panic!("{} is rejected: {error}", image.signature));
-    let domain = FundamentalDomain::build(&signature)
-        .unwrap_or_else(|error| panic!("{} has no domain: {error}", image.signature));
-    Renderer::new(&domain, golden_options()).render().0
+    Renderer::new(&image.domain(), golden_options()).render().0
 }
 
 fn encoded(pixels: &[u8]) -> Vec<u8> {
@@ -204,4 +197,194 @@ fn render_rows_rejects_a_buffer_that_does_not_fit_the_image() {
             }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Axis {
+    First,
+    Second,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Expected {
+    Equal,
+    WithinAllowance,
+}
+
+struct Period {
+    signature: &'static str,
+    aspect: Option<f64>,
+    word: &'static [usize],
+    axis: Axis,
+    shift: i64,
+    expected: Expected,
+}
+
+const PERIODS: [Period; 8] = [
+    Period {
+        signature: "*2222",
+        aspect: Some(1.0),
+        word: &[1, 3],
+        axis: Axis::First,
+        shift: 128,
+        expected: Expected::Equal,
+    },
+    Period {
+        signature: "*2222",
+        aspect: Some(1.0),
+        word: &[0, 2],
+        axis: Axis::Second,
+        shift: 128,
+        expected: Expected::Equal,
+    },
+    Period {
+        signature: "*2222",
+        aspect: Some(4.0),
+        word: &[1, 3],
+        axis: Axis::First,
+        shift: 256,
+        expected: Expected::Equal,
+    },
+    Period {
+        signature: "*2222",
+        aspect: Some(4.0),
+        word: &[0, 2],
+        axis: Axis::Second,
+        shift: 64,
+        expected: Expected::Equal,
+    },
+    Period {
+        signature: "*442",
+        aspect: None,
+        word: &[2, 1, 0, 1],
+        axis: Axis::First,
+        shift: 128,
+        expected: Expected::WithinAllowance,
+    },
+    Period {
+        signature: "*442",
+        aspect: None,
+        word: &[0, 1, 2, 1],
+        axis: Axis::Second,
+        shift: 128,
+        expected: Expected::WithinAllowance,
+    },
+    Period {
+        signature: "*632",
+        aspect: None,
+        word: &[2, 1, 0, 1, 0, 1],
+        axis: Axis::First,
+        shift: 128,
+        expected: Expected::WithinAllowance,
+    },
+    Period {
+        signature: "*333",
+        aspect: None,
+        word: &[2, 0, 1, 2, 0, 1],
+        axis: Axis::First,
+        shift: 192,
+        expected: Expected::WithinAllowance,
+    },
+];
+
+const PERIOD_SIZE: u32 = 512;
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn euclidean_images_equal_themselves_shifted_by_a_translation_of_the_group() {
+    let [even, odd] = GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+    let options = options(
+        RenderOptions::builder(Fill::Parity([even, odd]))
+            .size(PERIOD_SIZE, PERIOD_SIZE)
+            .samples(GOLDEN_GRID),
+    );
+    let pixel = 8.0 / f64::from(PERIOD_SIZE);
+    let linear = linear_table();
+    let mut rendered: Vec<(&str, Option<u64>, Vec<u8>)> = Vec::new();
+    for period in &PERIODS {
+        let name = format!(
+            "{} aspect {:?}, word {:?}",
+            period.signature, period.aspect, period.word
+        );
+        let domain = domain_with_aspect(period.signature, period.aspect);
+        let found = translation(&domain, period.word);
+        let (along, across) = match period.axis {
+            Axis::First => (found.offset.x, found.offset.y),
+            Axis::Second => (found.offset.y, found.offset.x),
+        };
+        println!(
+            "{name}: offset {:?}, linear defect {:e}, last row defect {:e}, off-axis component {:e}",
+            found.offset, found.linear_defect, found.last_row_defect, across
+        );
+        assert!(found.linear_defect <= TRANSLATION_TOLERANCE, "{name}");
+        assert!(found.last_row_defect <= TRANSLATION_TOLERANCE, "{name}");
+        assert!(across.abs() <= TRANSLATION_TOLERANCE, "{name}");
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "the shift is a whole number of pixels within the image"
+        )]
+        let shift = (along / pixel).round() as i64;
+        assert_eq!(shift.abs(), period.shift, "{name}: {along}");
+        let (columns, rows) = match period.axis {
+            Axis::First => (shift, 0),
+            Axis::Second => (0, -shift),
+        };
+        let key = (period.signature, period.aspect.map(f64::to_bits));
+        let found = rendered
+            .iter()
+            .position(|(signature, aspect, _)| (*signature, *aspect) == key);
+        let index = found.unwrap_or_else(|| {
+            let (pixels, _) = Renderer::new(&domain, options.clone()).render();
+            rendered.push((key.0, key.1, pixels));
+            rendered.len() - 1
+        });
+        let pixels = &rendered[index].2;
+        let (here, there) = shifted_pairs(pixels, PERIOD_SIZE, PERIOD_SIZE, columns, rows);
+        let comparison = compare(&here, &there, GOLDEN_GRID, &linear);
+        println!(
+            "{name}: shifted by {columns} columns and {rows} rows, {comparison:?}, expected {:?}",
+            period.expected
+        );
+        match period.expected {
+            Expected::Equal => assert!(here == there, "{name}: {comparison:?}"),
+            Expected::WithinAllowance => {
+                assert!(comparison.within_allowance(), "{name}: {comparison:?}");
+            }
+        }
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn square_tiling_at_one_sample_per_pixel_has_no_border_pixel_and_at_two_by_two_has_some() {
+    let fill = Colour::from_srgb8(70, 130, 180);
+    let domain = domain_with_aspect("*2222", Some(1.0));
+    let mut counts = [0; 2];
+    for (count, grid) in counts.iter_mut().zip([1, 2]) {
+        let options = options(
+            RenderOptions::builder(Fill::One(fill))
+                .size(512, 512)
+                .samples(grid)
+                .border_width(1.0),
+        );
+        let (pixels, _) = Renderer::new(&domain, options).render();
+        *count = pixels
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .filter(|pixel| **pixel != fill.to_srgb8())
+            .count();
+    }
+    println!(
+        "*2222 aspect 1 at 512 by 512 with border width 1: {} pixels other than the fill with one sample, {} with 2 by 2 samples",
+        counts[0], counts[1]
+    );
+    assert_eq!(counts[0], 0);
+    assert!(counts[1] > 0);
 }

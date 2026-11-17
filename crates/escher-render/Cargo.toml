@@ -1,6 +1,6 @@
 [package]
 name = "escher-render"
-description = "Renders the tiling of a hyperbolic reflection triangle in the Poincare disk as a PNG image for Escher."
+description = "Renders the tiling of a hyperbolic reflection triangle in the Poincare disk, or of a Euclidean reflection triangle or rectangle in the plane, as a PNG image for Escher."
 publish = false
 version.workspace = true
 authors.workspace = true
@@ -13,13 +13,13 @@ readme.workspace = true
 [dependencies]
 escher-domain.workspace = true
 escher-geometry.workspace = true
+escher-signature.workspace = true
 glam.workspace = true
 png.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 astro-float-num.workspace = true
-escher-signature.workspace = true
 proptest.workspace = true
 
 [lints]

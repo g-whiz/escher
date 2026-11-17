@@ -7,6 +7,7 @@ use escher_signature::Signature;
 use glam::{DVec2, DVec3};
 use proptest::test_runner::Config;
 
+use crate::golden_images::domain_with_aspect;
 use crate::reference::{Wall, matrix, vector};
 
 pub(crate) const PLAN_TRIPLES: [[u32; 3]; 6] = [
@@ -66,6 +67,30 @@ pub(crate) const VERTEX_TRIPLES: [[u32; 3]; 25] = [
     [987, 984, 970],
 ];
 
+pub(crate) const EUCLIDEAN_DOMAINS: [(&str, Option<f64>); 7] = [
+    ("*632", None),
+    ("*442", None),
+    ("*333", None),
+    ("*2222", Some(1.0)),
+    ("*2222", Some(1.618)),
+    ("*2222", Some(0.125)),
+    ("*2222", Some(8.0)),
+];
+
+pub(crate) const EUCLIDEAN_DISTANCES: [f64; 4] = [1.0, 4.0, 16.0, 65.0];
+
+pub(crate) const EUCLIDEAN_RANGE: f64 = 65.0;
+
+pub(crate) const EUCLIDEAN_REPLAY_BOUNDS: [[f64; 4]; 7] = [
+    [2e-15, 2e-14, 2e-13, 3e-12],
+    [3e-15, 8e-15, 7e-14, 2e-12],
+    [2e-15, 1e-14, 9e-14, 2e-12],
+    [3e-15, 2e-14, 2e-13, 3e-12],
+    [3e-15, 3e-15, 4e-14, 9e-13],
+    [5e-16, 5e-15, 2e-13, 2e-12],
+    [3e-15, 9e-15, 9e-14, 2e-12],
+];
+
 pub(crate) const REPLAY_BOUNDS: [[f64; 6]; 7] = [
     [4e-13, 4e-11, 3e-9, 4e-7, 4e-5, 4e-3],
     [3e-13, 3e-11, 3e-9, 4e-7, 3e-5, 3e-3],
@@ -110,6 +135,56 @@ pub(crate) fn domain(orders: [u32; 3]) -> FundamentalDomain {
         Ok(domain) => domain,
         Err(error) => panic!("{text} has no domain: {error}"),
     }
+}
+
+pub(crate) fn euclidean_name(index: usize) -> String {
+    match EUCLIDEAN_DOMAINS[index] {
+        (text, None) => text.to_owned(),
+        (text, Some(aspect)) => format!("{text} aspect {aspect}"),
+    }
+}
+
+pub(crate) fn euclidean_domain(index: usize) -> FundamentalDomain {
+    let (text, aspect) = EUCLIDEAN_DOMAINS[index];
+    domain_with_aspect(text, aspect)
+}
+
+pub(crate) fn euclidean_band(distance: f64) -> Option<usize> {
+    EUCLIDEAN_DISTANCES
+        .iter()
+        .position(|&outer| distance <= outer)
+}
+
+pub(crate) struct PlaneSample {
+    pub(crate) domain: usize,
+    pub(crate) distance: usize,
+    pub(crate) angle: u32,
+    pub(crate) point: DVec3,
+}
+
+pub(crate) fn euclidean_fold_set(domain: usize) -> Vec<PlaneSample> {
+    let mut samples = Vec::new();
+    for (distance, &radius) in EUCLIDEAN_DISTANCES.iter().enumerate() {
+        for angle in 0..FOLD_ANGLES {
+            let position = on_circle(radius, angle, FOLD_ANGLES);
+            samples.push(PlaneSample {
+                domain,
+                distance,
+                angle,
+                point: DVec3::new(position.x, position.y, 1.0),
+            });
+        }
+    }
+    samples
+}
+
+pub(crate) fn describe_plane(sample: &PlaneSample) -> String {
+    format!(
+        "{} at distance {} at angle {} of {FOLD_ANGLES}",
+        euclidean_name(sample.domain),
+        EUCLIDEAN_DISTANCES[sample.distance],
+        sample.angle
+    )
 }
 
 pub(crate) fn options(builder: RenderOptionsBuilder) -> RenderOptions {

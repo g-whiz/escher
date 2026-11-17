@@ -202,7 +202,7 @@ The help text has these summaries, and no other text beyond what `clap` generate
 | `--border-colour` | `The border colour, as #rgb or #rrggbb` |
 | `--samples` | `The number of samples along each side of a pixel. The pixel averages N by N samples` |
 | `--max-folds` | `The largest number of folds of one sample. A sample that needs more takes the border colour` |
-| `--background` | `The colour outside the disk, as #rgb or #rrggbb` |
+| `--background` | `The colour outside the disk of a hyperbolic tiling, as #rgb or #rrggbb` |
 | `--threads` | `The number of threads, from 1 to 256. The default is the available parallelism, at most 256` |
 | `--stats` | `Print statistics of the rendering to standard output` |
 | `--set` | `Set a shape parameter, as NAME=VALUE, such as aspect=1.5. The command info lists the parameters of a signature. The option can be given once for each parameter` |
@@ -314,8 +314,8 @@ Without `--stats`, a successful `render` writes nothing to standard output or st
 
 | Order | Label | Value |
 | --- | --- | --- |
-| 1 | `Samples` | The number of samples, including the samples outside the disk |
-| 2 | `Mean folds` | The total number of folds divided by the number of samples inside the disk, rounded down to two digits after the point, or `0.00` when no sample is inside the disk |
+| 1 | `Samples` | The number of samples, including the outside samples of Section 2.1 of `docs/design/render.md` |
+| 2 | `Mean folds` | The total number of folds divided by the number of inside samples, which are the samples that are not outside samples, rounded down to two digits after the point, or `0.00` when every sample is an outside sample |
 | 3 | `Maximum folds` | The largest number of folds of one sample |
 | 4 | `Unconverged samples` | The number of samples that reached the fold cap or met a value that is not finite |
 | 5 | `Time` | The wall-clock time of step 6 in seconds, measured with `std::time::Instant`, in fixed notation with three digits after the point, `{:.3}`, followed by one space and `s` |
@@ -828,7 +828,7 @@ When the write of the information text fails, Section 6.6 applies, the status is
 
 ### 6.8. Render Errors
 
-A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which is the same as that of `info` for the same argument. Every other failure of the steps of Section 4.5 gives one of the diagnostics of this table. In the table, `*732` stands for the canonical signature, which is the `Display` text of `Signature`. A further `caused by` line follows for each further source in the chain of an error, as Section 6.1 states:
+A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which is the same as that of `info` for the same argument. Every other failure of the steps of Section 4.5 gives one of the diagnostics of this table. In the table, `*732` and the placeholder `<signature>` stand for the canonical signature, which is the `Display` text of `Signature`. A further `caused by` line follows for each further source in the chain of an error, as Section 6.1 states:
 
 | Case | Step | Diagnostic |
 | --- | --- | --- |
@@ -839,7 +839,7 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 | Two settings give the same name | 3 | `error: cannot render *2222: setting 2 of --set names the same parameter as setting 1`, with the position of the first setting whose name an earlier setting gave, and the position of that earlier setting, counted from 1 |
 | `build_with` returns `UnsupportedSignature` | 3 | `error: cannot render *532: rendering this signature is not supported`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
 | `build_with` returns any other error kind, such as an unknown parameter name or a value outside the range of its parameter | 3 | `error: cannot render *(1001)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
-| The domain is neither hyperbolic nor Euclidean (CLI-30) | 3 | `error: cannot render *732: rendering this signature is not supported`, with no `caused by` line |
+| The domain is neither hyperbolic nor Euclidean (CLI-30) | 3 | `error: cannot render <signature>: rendering this signature is not supported`, with no `caused by` line. No command reaches this case (Section 8.1) |
 | `escher-render` rejects an option | 4 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
 | The thread pool cannot be built | 5 | `error: cannot render *732`, then `  caused by: cannot start the thread pool`, then `  caused by: ` and the `Display` text of the error of `rayon`. That text appears once, because the diagnostic takes it without the source of the error |
 | `escher-render` returns an error while rendering or encoding | 6, 7 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
@@ -993,6 +993,8 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Thread pool diagnostic | Failure paths | Unit test in `render.rs` | The private function that builds the error of a failed thread pool, given a stand-in error whose `Display` text is that of its inner `std::io::Error`, which is also its source, gives the diagnostic `error: cannot render *732`, then `  caused by: cannot start the thread pool`, then `  caused by: no thread can be started`, with the cause once. A stand-in is needed because the error type of `rayon` has no public constructor | Runs |
 | Euclidean render | Command line of Section 5.4 of the plan | Plain tests, `render` | `render '*442' --size 48x32 --samples 2` gives `Success` and a file whose header holds the requested size, read as the test "Written file" reads it. The files of `render '*2222' --size 64x64 --samples 2` with `--set aspect=1.618` and with no setting differ, and the file with the setting is equal byte for byte with `--threads 1` and with `--threads 4` | Ignored |
 | Setting parser | Range errors, failure paths | Unit tests in `args.rs` | The private parser reads `aspect=1.5` as the name `aspect` and the number 1.5, and `aspect=nan` as a NaN, and rejects `aspect`, `=2`, `aspect=`, `aspect=x`, and `a=b=1`, whose text after the first `=` is not a number, with the message of Section 4.6 | Runs |
+| Repeated setting | Failure paths | Unit tests in `render.rs` | The private function that collects the settings of `--set` gives `setting 3 of --set names the same parameter as setting 1` when setting 3 repeats the name of setting 1, and keeps every setting when no name repeats | Runs |
+| Geometry without a view | Failure paths (CLI-30) | Unit test in `render.rs` | The private predicate of CLI-30 accepts the hyperbolic and the Euclidean geometry and refuses the spherical one. No command reaches the refusal, because `escher-domain` builds no domain with a geometry that has no view, so the unit test covers the rule | Runs |
 | Smoke test | One process-level smoke test of the binary | Plain test, `process` | The binary that Cargo names in `CARGO_BIN_EXE_escher`, run with `render '*732' --size 32x32 -o <path>`, exits with status 0, writes nothing to standard output or standard error, and writes a file that starts with the PNG signature | Ignored |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 

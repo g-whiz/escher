@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 
 const SIGNATURE_HELP: &str = "The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'";
 
@@ -32,7 +32,7 @@ pub(crate) enum Command {
         check: bool,
     },
     #[command(
-        about = "Render the tiling of a signature in orbifold notation in the Poincare disk and write it to a PNG file"
+        about = "Render the tiling of a signature in orbifold notation and write it to a PNG file"
     )]
     Render(RenderArgs),
 }
@@ -100,7 +100,7 @@ pub(crate) struct RenderArgs {
         long,
         value_name = "COLOUR",
         default_value = "#ffffff",
-        help = "The colour outside the disk, as #rgb or #rrggbb"
+        help = "The colour outside the disk of a hyperbolic tiling, as #rgb or #rrggbb"
     )]
     pub(crate) background: String,
     #[arg(
@@ -112,6 +112,20 @@ pub(crate) struct RenderArgs {
     pub(crate) threads: Option<u16>,
     #[arg(long, help = "Print statistics of the rendering to standard output")]
     pub(crate) stats: bool,
+    #[arg(
+        long,
+        value_name = "NAME=VALUE",
+        value_parser = parse_setting,
+        action = ArgAction::Append,
+        help = "Set a shape parameter, as NAME=VALUE, such as aspect=1.5. The command info lists the parameters of a signature. The option can be given once for each parameter"
+    )]
+    pub(crate) set: Vec<Setting>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Setting {
+    pub(crate) name: String,
+    pub(crate) value: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -144,9 +158,55 @@ fn parse_size(text: &str) -> Result<Size, &'static str> {
     })
 }
 
+fn parse_setting(text: &str) -> Result<Setting, &'static str> {
+    let error = "expected a parameter name and a number joined by =, such as aspect=1.5";
+    let (name, value) = text.split_once('=').ok_or(error)?;
+    if name.is_empty() {
+        return Err(error);
+    }
+    Ok(Setting {
+        name: name.to_owned(),
+        value: value.parse().ok().ok_or(error)?,
+    })
+}
+
 fn decimal(text: &str) -> Option<u32> {
     if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
     text.parse().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Setting, parse_setting};
+
+    const MESSAGE: &str = "expected a parameter name and a number joined by =, such as aspect=1.5";
+
+    #[test]
+    fn parse_setting_reads_a_name_and_a_number() {
+        assert_eq!(
+            parse_setting("aspect=1.5"),
+            Ok(Setting {
+                name: "aspect".to_owned(),
+                value: 1.5
+            })
+        );
+    }
+
+    #[test]
+    fn parse_setting_reads_nan_as_a_number() {
+        let Ok(setting) = parse_setting("aspect=nan") else {
+            panic!("nan is a number of the f64 parser");
+        };
+        assert_eq!(setting.name, "aspect");
+        assert!(setting.value.is_nan());
+    }
+
+    #[test]
+    fn parse_setting_rejects_other_forms() {
+        for text in ["aspect", "=2", "aspect=", "aspect=x", "a=b=1"] {
+            assert_eq!(parse_setting(text), Err(MESSAGE), "{text:?}");
+        }
+    }
 }

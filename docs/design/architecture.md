@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-16 |
+| Date | 2026-11-17 |
 | Applies to | The workspace crates of the proof of concept, the conventions between them, and the decisions that bind them |
 
 ## Abstract
@@ -84,7 +84,7 @@ The workspace of the proof of concept has six members under `crates/`. Every mem
 | `escher-geometry` | Linear models and model maps | None | `glam` (`DEC-4`) and `thiserror`, then `num-complex` from `M12` |
 | `escher-group` | Presentations, coset enumeration, low-index search, and colourings | `escher-signature` | None |
 | `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` and `thiserror` |
-| `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, and `escher-group` from `M8`, with `escher-signature` as a dev-dependency | `glam`, `png`, and `thiserror`, and `palette` only if the owner adopts it at `M8` (`DEC-29`) |
+| `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` from `M8` | `glam`, `png`, and `thiserror`, and `palette` only if the owner adopts it at `M8` (`DEC-29`) |
 | `escher-cli` | The binary `escher`, with the commands `info` and `render` | All five, with `escher-group` from `M7` | `clap` with the derive API, `anyhow`, and `rayon` (`DEC-21`) |
 
 The dev-dependencies are `insta`, `proptest`, and `astro-float-num`, the reference-arithmetic crate of `DEC-3`.

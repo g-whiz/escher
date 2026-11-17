@@ -115,6 +115,29 @@ pub(crate) fn from_disk_exact(first: &BigFloat, second: &BigFloat) -> Vector {
     ]
 }
 
+pub(crate) fn plane_distance(x: &Vector, y: &Vector) -> BigFloat {
+    let first = sub(&div(&x[0], &x[2]), &div(&y[0], &y[2]));
+    let second = sub(&div(&x[1], &x[2]), &div(&y[1], &y[2]));
+    sqrt(&add(&mul(&first, &first), &mul(&second, &second)))
+}
+
+pub(crate) fn plane_wall_distance(covector: &Vector, point: &Vector) -> BigFloat {
+    div(&dot(covector, point), &point[2]).abs()
+}
+
+pub(crate) fn plane_border_distance(covectors: &[Vector], point: [f64; 3], pixel: f64) -> BigFloat {
+    let point = vector(point);
+    let mut nearest: Option<BigFloat> = None;
+    for covector in covectors {
+        let pixels = div(&plane_wall_distance(covector, &point), &num(pixel));
+        nearest = Some(match nearest {
+            Some(nearest) if nearest <= pixels => nearest,
+            _ => pixels,
+        });
+    }
+    nearest.expect("a domain has sides")
+}
+
 pub(crate) struct Wall {
     pub(crate) covector: Vector,
     pub(crate) pairing: Matrix,

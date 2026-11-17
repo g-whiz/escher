@@ -13,8 +13,9 @@
 //! Rust, such as in a test, without starting a process.
 //!
 //! The command `escher info <SIGNATURE>` prints the canonical form of the
-//! signature, its geometry, its Euler characteristic, and the values that
-//! depend on them. It then prints a summary of the fundamental domain, or
+//! signature, its geometry, its Euler characteristic, the values that depend
+//! on them, and the shape parameters of the signature with their ranges and
+//! default values. It then prints a summary of the fundamental domain, or
 //! `none` and the reason when the signature has no domain. A malformed
 //! signature produces a diagnostic on standard error that locates the error
 //! in the signature. With the option `--check`, the command also verifies the
@@ -23,12 +24,16 @@
 //!
 //! The command `escher render --output <FILE> <SIGNATURE>` draws the tiling of
 //! the fundamental domain in the Poincare disk, a picture of the whole
-//! hyperbolic plane inside a disk. It draws on a pool of threads that it builds
-//! for the call. It writes the PNG file only after the rendering and the
-//! encoding succeed, and it replaces a file that exists. It fails for a
-//! signature without a domain and for a domain that is not hyperbolic. It
-//! prints nothing on standard output unless the option `--stats` is given,
-//! which prints statistics of the rendering after the file is written.
+//! hyperbolic plane inside a disk, for a hyperbolic domain, and in a window
+//! of the plane for a Euclidean domain. The option `--set NAME=VALUE` sets a
+//! shape parameter of the domain, such as `aspect=1.5` for `*2222`. The
+//! command draws on a pool of threads that it builds for the call. It writes
+//! the PNG file only after the rendering and the encoding succeed, and it
+//! replaces a file that exists. It fails for a signature without a domain, for
+//! a setting that the domain does not accept, and for a domain that is neither
+//! hyperbolic nor Euclidean. It prints nothing on standard output unless the
+//! option `--stats` is given, which prints statistics of the rendering after
+//! the file is written.
 //!
 //! ```
 //! use escher_cli::{Status, run};

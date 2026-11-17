@@ -333,3 +333,35 @@ fn render_repeated_size_option_is_a_usage_error() {
         "16x16"
     ]));
 }
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_setting_without_a_value_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*2222",
+        "-o",
+        NEVER_WRITTEN,
+        "--set",
+        "aspect"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_setting_without_a_name_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*2222",
+        "-o",
+        NEVER_WRITTEN,
+        "--set",
+        "=2"
+    ]));
+}

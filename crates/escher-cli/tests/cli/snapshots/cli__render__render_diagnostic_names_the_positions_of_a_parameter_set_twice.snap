@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"repeated_setting\",\n&[\"*2222\", \"--set\", \"aspect=2\", \"--set\", \"aspect=3\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *2222: setting 2 of --set names the same parameter as setting 1
+--- end

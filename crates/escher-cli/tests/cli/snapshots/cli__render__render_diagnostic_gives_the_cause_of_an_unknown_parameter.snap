@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"unknown_parameter\", &[\"*632\", \"--set\", \"aspect=2\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *632
+  caused by: cannot build fundamental domain: the signature *632 has no shape parameter with one of the given names
+--- end

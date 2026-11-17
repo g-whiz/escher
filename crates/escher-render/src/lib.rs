@@ -1,18 +1,23 @@
-//! Renders the tiling of a fundamental domain of the hyperbolic plane in the
-//! Poincare disk, and encodes the image as a PNG file in memory.
+//! Renders the tiling of a fundamental domain, in the Poincare disk for a
+//! hyperbolic domain and in the plane for a Euclidean one, and encodes the
+//! image as a PNG file in memory.
 //!
 //! The crate draws a [`FundamentalDomain`](escher_domain::FundamentalDomain)
-//! that the crate [`escher_domain`] builds, which is the reflection triangle
-//! of a compact hyperbolic signature `*pqr`. The Poincare disk is centred in
-//! the image, with the centre of the domain at the centre of the disk. A
-//! [`Renderer`] maps each sample of a regular grid in each pixel to a point of
-//! the disk, folds the point into the domain with [`fold`], and colours the
-//! sample with a [`Fill`] colour, the border colour, or the background colour
-//! of its [`RenderOptions`]. It averages the samples of a pixel in linear
-//! light and stores the pixel as 8-bit sRGB. [`encode_png`] turns the pixels
-//! into the bytes of a PNG file. The crate starts no thread and touches no
-//! file, so the caller decides how to split the image into bands of rows and
-//! where to write it.
+//! that the crate [`escher_domain`] builds. It is the reflection triangle of a
+//! compact hyperbolic signature `*pqr`, the reflection triangle of `*632`,
+//! `*442`, or `*333`, or the rectangle of `*2222`. The view follows the
+//! geometry of the domain. For a hyperbolic domain, the Poincare disk is
+//! centred in the image, with the centre of the domain at the centre of the
+//! disk. For a Euclidean domain, the tiling fills the image, the centre of the
+//! domain lies at the centre of the image, and the shorter side of the image
+//! spans 8 units of the plane. A [`Renderer`] maps each sample of a regular
+//! grid in each pixel to a point of the view, folds the point into the domain
+//! with [`fold`], and colours the sample with a [`Fill`] colour, the border
+//! colour, or the background colour of its [`RenderOptions`]. It averages the
+//! samples of a pixel in linear light and stores the pixel as 8-bit sRGB.
+//! [`encode_png`] turns the pixels into the bytes of a PNG file. The crate
+//! starts no thread and touches no file, so the caller decides how to split
+//! the image into bands of rows and where to write it.
 //!
 //! ```
 //! use escher_domain::FundamentalDomain;

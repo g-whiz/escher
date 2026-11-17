@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use escher_domain::{Check, FundamentalDomain, Verification};
+use escher_domain::{Check, FundamentalDomain, Verification, parameters};
 use escher_signature::{Geometry, Rational, Signature};
 
 use crate::diagnostic::SignatureError;
@@ -115,6 +115,18 @@ fn signature_lines(signature: &Signature) -> Lines {
     }
     if let Some(dimension) = signature.deformation_dimension() {
         lines.push(("Deformation dimension", dimension.to_string()));
+    }
+    for spec in parameters(signature) {
+        lines.push((
+            "Parameter",
+            format!(
+                "{}, range {} to {}, default {}",
+                spec.name(),
+                spec.minimum(),
+                spec.maximum(),
+                spec.default_value()
+            ),
+        ));
     }
     lines
 }

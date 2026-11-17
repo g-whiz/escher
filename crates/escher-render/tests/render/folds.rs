@@ -3,12 +3,19 @@ use escher_render::{Fill, RenderOptions, Renderer, fold};
 use glam::DVec3;
 
 use crate::common::{
-    BANDS, DEFAULT_CAP, FOLD_TRIPLES, REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe, domain,
-    fold_set, one_fill, options, pixel_position, reference_walls, rim_set, text,
+    BANDS, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS, EUCLIDEAN_REPLAY_BOUNDS,
+    FOLD_TRIPLES, REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane, domain,
+    euclidean_domain, euclidean_fold_set, euclidean_name, fold_set, one_fill, options,
+    pixel_position, reference_walls, rim_set, text,
 };
+use crate::golden_images::domain_with_aspect;
 use crate::reference::{self, Reference, Worst, count_bound, vector};
 
 const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 6];
+
+const EUCLIDEAN_DECISION_COUNTS: [usize; 4] = [0, 0, 0, 0];
+
+const VERTEX_ASPECTS: u32 = 64;
 
 fn sides_of(
     domain: &escher_domain::FundamentalDomain,
@@ -160,34 +167,164 @@ fn every_fold_converges_within_the_default_cap() {
     assert_eq!(stats.unconverged(), 0);
 }
 
-#[test]
-fn every_vertex_folds_in_zero_steps() {
+fn largest_vertex_ratio(
+    domains: impl IntoIterator<Item = (String, escher_domain::FundamentalDomain)>,
+) -> (f64, String) {
     let mut largest = (0.0_f64, String::new());
-    for triple in FOLD_TRIPLES.into_iter().chain(VERTEX_TRIPLES) {
-        let domain = domain(triple);
+    for (name, domain) in domains {
         for (index, &vertex) in domain.vertices().iter().enumerate() {
             for (side_index, wall) in domain.sides().iter().enumerate() {
                 let covector = wall.covector();
                 let ratio = side(covector, vertex) / (covector.abs().element_sum() * vertex.z);
                 if ratio > largest.0 {
-                    largest = (
-                        ratio,
-                        format!("{} vertex {index} side {side_index}", text(triple)),
-                    );
+                    largest = (ratio, format!("{name} vertex {index} side {side_index}"));
                 }
             }
             let result = fold(&domain, vertex, DEFAULT_CAP, |_| {});
-            assert!(result.converged(), "{} vertex {index}", text(triple));
-            assert_eq!(result.steps(), 0, "{} vertex {index}", text(triple));
+            assert!(result.converged(), "{name} vertex {index}");
+            assert_eq!(result.steps(), 0, "{name} vertex {index}");
             assert_eq!(result.point(), vertex);
         }
     }
-    let (ratio, at) = largest;
-    println!(
-        "largest side value at a vertex over the tolerance scale: {ratio:.3e} at {at}, tolerance {TOLERANCE:e}, margin {:.1}",
-        TOLERANCE / ratio
-    );
-    assert!(8.0 * ratio <= TOLERANCE, "{ratio:e} at {at}");
+    largest
+}
+
+fn vertex_aspects() -> impl Iterator<Item = f64> {
+    (0..VERTEX_ASPECTS).map(|index| {
+        if index + 1 == VERTEX_ASPECTS {
+            8.0
+        } else {
+            0.125 * 64.0_f64.powf(f64::from(index) / f64::from(VERTEX_ASPECTS - 1))
+        }
+    })
+}
+
+#[test]
+fn every_vertex_folds_in_zero_steps() {
+    let hyperbolic = FOLD_TRIPLES
+        .into_iter()
+        .chain(VERTEX_TRIPLES)
+        .map(|triple| (text(triple), domain(triple)));
+    let euclidean = (0..EUCLIDEAN_DOMAINS.len())
+        .map(|index| (euclidean_name(index), euclidean_domain(index)))
+        .chain(core::iter::once(4.0).chain(vertex_aspects()).map(|aspect| {
+            (
+                format!("*2222 aspect {aspect}"),
+                domain_with_aspect("*2222", Some(aspect)),
+            )
+        }));
+    for (set, domains) in [
+        ("", largest_vertex_ratio(hyperbolic)),
+        ("Euclidean ", largest_vertex_ratio(euclidean)),
+    ] {
+        let (ratio, at) = domains;
+        println!(
+            "largest side value at a {set}vertex over the tolerance scale: {ratio:.3e} at {at}, tolerance {TOLERANCE:e}, margin {:.1}",
+            TOLERANCE / ratio
+        );
+        assert!(8.0 * ratio <= TOLERANCE, "{ratio:e} at {at}");
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_within_the_default_cap()
+ {
+    let mut reference = Reference::new();
+    let mut differing = [0_usize; 4];
+    for (index, bounds) in EUCLIDEAN_REPLAY_BOUNDS.iter().enumerate() {
+        let domain = euclidean_domain(index);
+        let walls = reference_walls(&domain);
+        let mut worst: Vec<Worst> = EUCLIDEAN_DISTANCES
+            .iter()
+            .map(|distance| {
+                Worst::new(
+                    format!(
+                        "folded point, plane distance from the replay, {} at distance {distance}",
+                        euclidean_name(index)
+                    ),
+                    512,
+                )
+            })
+            .collect();
+        let mut steps = [(0_u64, 0_u32); 4];
+        for sample in euclidean_fold_set(index) {
+            let (result, sides) = sides_of(&domain, sample.point, DEFAULT_CAP);
+            assert!(
+                result.converged(),
+                "{} does not converge",
+                describe_plane(&sample)
+            );
+            assert_eq!(result.point().z, 1.0, "{}", describe_plane(&sample));
+            let (total, largest) = &mut steps[sample.distance];
+            *total += u64::from(result.steps());
+            *largest = (*largest).max(result.steps());
+            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let distance = reference::plane_distance(&vector(result.point().to_array()), &replayed);
+            worst[sample.distance]
+                .record(&distance, &reference::int(1), || describe_plane(&sample));
+            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
+            assert!(
+                exact.converged,
+                "the exact fold of {} does not converge",
+                describe_plane(&sample)
+            );
+            if exact.sides != sides {
+                println!("{}: the side sequences differ", describe_plane(&sample));
+                differing[sample.distance] += 1;
+            }
+        }
+        for (worst, &bound) in worst.iter().zip(bounds) {
+            worst.assert_at_most(&mut reference, bound);
+        }
+        for (distance, (total, largest)) in EUCLIDEAN_DISTANCES.iter().zip(steps) {
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the total is far below 2 to the power 52"
+            )]
+            let mean = total as f64 / 512.0;
+            println!(
+                "{} at distance {distance}: mean steps {mean:.1}, largest {largest}",
+                euclidean_name(index)
+            );
+        }
+    }
+    for ((distance, count), measured) in EUCLIDEAN_DISTANCES
+        .iter()
+        .zip(differing)
+        .zip(EUCLIDEAN_DECISION_COUNTS)
+    {
+        let bound = count_bound(measured);
+        println!(
+            "distance {distance}: {count} of {} folds differ, bound {bound}",
+            512 * EUCLIDEAN_DOMAINS.len()
+        );
+        assert!(
+            count <= bound,
+            "distance {distance}: {count} folds differ, more than {bound}"
+        );
+    }
+    for index in 0..EUCLIDEAN_DOMAINS.len() {
+        let options = options(RenderOptions::builder(one_fill()));
+        let (_, stats) = Renderer::new(&euclidean_domain(index), options).render();
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the counts are far below 2 to the power 52"
+        )]
+        let mean = stats.folds() as f64 / stats.samples() as f64;
+        println!(
+            "{} at 512 by 512 with 4 by 4 samples: mean steps {mean:.2}, largest {}, {} unconverged, {} outside",
+            euclidean_name(index),
+            stats.largest_fold(),
+            stats.unconverged(),
+            stats.outside()
+        );
+        assert_eq!(stats.unconverged(), 0);
+        assert_eq!(stats.outside(), 0);
+    }
 }
 
 #[test]

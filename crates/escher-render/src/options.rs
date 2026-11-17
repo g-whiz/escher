@@ -46,8 +46,8 @@ impl RenderOptions {
     ///
     /// The defaults are an image of 512 by 512 pixels, a grid of 4 by 4
     /// samples in each pixel, a border 1 pixel wide in
-    /// [`Colour::BLACK`], a [`Colour::WHITE`] background outside the disk,
-    /// and a fold cap of 1500 steps.
+    /// [`Colour::BLACK`], a [`Colour::WHITE`] background, and a fold cap of 1500
+    /// steps.
     pub fn builder(fill: Fill) -> RenderOptionsBuilder {
         RenderOptionsBuilder {
             options: Self {
@@ -102,9 +102,12 @@ impl RenderOptionsBuilder {
     /// Sets the width and the height of the image in pixels.
     ///
     /// The width and the height must each be from 1 to 16384, and the image
-    /// must have at most 67108864 pixels, which is 2 to the power 26. The disk
-    /// is centred in the image and spans the shorter side of the image apart
-    /// from a margin of 1/32 of that side at each end.
+    /// must have at most 67108864 pixels, which is 2 to the power 26.
+    ///
+    /// For a hyperbolic domain, the disk is centred in the image and spans the
+    /// shorter side of the image apart from a margin of 1/32 of that side at
+    /// each end. For a Euclidean domain, the tiling fills the image with no
+    /// margin, and the shorter side spans 8 units of the plane.
     pub fn size(mut self, width: u32, height: u32) -> Self {
         self.options.width = width;
         self.options.height = height;
@@ -140,7 +143,10 @@ impl RenderOptionsBuilder {
         self
     }
 
-    /// Sets the colour of the image outside the disk.
+    /// Sets the colour of the samples outside the view.
+    ///
+    /// For a hyperbolic domain these are the samples outside the disk. A
+    /// Euclidean domain has none.
     pub fn background(mut self, colour: Colour) -> Self {
         self.options.background = colour;
         self

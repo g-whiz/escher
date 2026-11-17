@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*2222\", \"-o\", NEVER_WRITTEN, \"--set\", \"=2\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value '=2' for '--set <NAME=VALUE>': expected a parameter name and a number joined by =, such as aspect=1.5
+
+For more information, try '--help'.
+--- end

@@ -1,5 +1,4 @@
 use escher_domain::{FundamentalDomain, Orientation, Side};
-use escher_geometry::hyperbolic::side;
 use glam::{DMat3, DVec3};
 
 const TOLERANCE: f64 = 4e-15;
@@ -37,11 +36,12 @@ pub struct Fold {
 impl Fold {
     /// Returns the folded point.
     ///
-    /// The fold does not scale the point back onto the hyperboloid, because
-    /// near the limit circle the scale factor is mostly rounding noise. The
-    /// point is finite and has a positive last coordinate when the fold
-    /// converged. A point that needed no step is
-    /// the input, bit for bit.
+    /// For a hyperbolic domain, the fold does not scale the point back onto the
+    /// hyperboloid, because near the limit circle the scale factor is mostly
+    /// rounding noise. For a Euclidean domain, a point whose last coordinate is
+    /// 1 keeps that last coordinate through every step. The point is finite and
+    /// has a positive last coordinate when the fold converged. A point that
+    /// needed no step is the input, bit for bit.
     #[must_use]
     pub fn point(self) -> DVec3 {
         self.point
@@ -65,8 +65,8 @@ impl Fold {
     ///
     /// It is false when the point has a coordinate that is not finite or a
     /// last coordinate that is not positive, at the start or after a step,
-    /// when a side test gives NaN, and when the point
-    /// still lies outside a side after the cap on the number of steps.
+    /// when a side test gives NaN, and when the point still lies outside a side
+    /// after the cap on the number of steps.
     #[must_use]
     pub fn converged(self) -> bool {
         self.converged
@@ -77,26 +77,29 @@ impl Fold {
 /// first side that the point lies outside, until it lies inside every side.
 ///
 /// Use it to find the tile of a point and the copy of the point in the
-/// domain. The point is a vector of the linear model of
-/// [`escher_geometry::hyperbolic`]. The pairing of a side is the isometry
-/// that maps the neighbouring copy of the domain across that side onto the
-/// domain. At each step the fold tests the sides in the order of
-/// [`FundamentalDomain::sides`] and applies the pairing of the first side
-/// whose test is positive beyond a tolerance. After the step it calls `visit`
-/// with the index of that side in the same order. A point within that
-/// tolerance of a side counts as inside it, so a vertex of the domain folds in
-/// zero steps. The tolerance is relative to the size of the side's covector
-/// and of the point, so scaling the point by a power of two changes no decision. The
-/// fold stops without converging when the point still lies outside a side
-/// after `max_folds` steps. It also stops without converging as soon as the
-/// point has a coordinate that is not finite or a last coordinate that is not
-/// positive, because such a vector is not a point of the hyperbolic plane, so
-/// the zero vector and a vector on the other sheet of the hyperboloid fold in
-/// zero steps.
+/// domain. For a hyperbolic domain, the point is a vector of the linear model
+/// of [`escher_geometry::hyperbolic`]. For a Euclidean domain, it is a point of
+/// the affine plane of [`escher_geometry::euclidean`], which has last
+/// coordinate 1. The pairing of a side is the isometry that maps the
+/// neighbouring copy of the domain across that side onto the domain. At each
+/// step the fold tests the sides in the order of [`FundamentalDomain::sides`]
+/// and applies the pairing of the first side whose test is positive beyond a
+/// tolerance. After the step it calls `visit` with the index of that side in
+/// the same order. A point within that tolerance of a side counts as inside it,
+/// so a vertex of the domain folds in zero steps. The tolerance is relative to
+/// the size of the side's covector and of the point, so scaling the point by a
+/// power of two changes no decision. The fold stops without converging when the
+/// point still lies outside a side after `max_folds` steps. It also stops
+/// without converging as soon as the point has a coordinate that is not finite
+/// or a last coordinate that is not positive, because such a vector is not a
+/// point of the plane. So the zero vector and, for a hyperbolic domain, a
+/// vector on the other sheet of the hyperboloid fold in zero steps.
 ///
-/// The function never panics, for any input. The result is accurate up to a
-/// disk radius of `1 - 1e-6`. Beyond that radius the function still returns,
-/// but its result carries no accuracy guarantee.
+/// The function never panics, for any input. For a hyperbolic domain, the
+/// result is accurate up to a disk radius of `1 - 1e-6`. For a Euclidean
+/// domain, it is accurate up to a distance of 65 from the centre of the
+/// domain. Beyond those limits the function still returns, but its result
+/// carries no accuracy guarantee.
 ///
 /// # Examples
 ///
@@ -175,7 +178,7 @@ pub(crate) fn fold_carrying(
         }
         let mut violated = None;
         for (index, wall) in walls.iter().enumerate() {
-            let value = side(wall.covector, point);
+            let value = wall.covector.dot(point);
             if value.is_nan() {
                 return (stop(point, steps, reversals, false), tangents);
             }

@@ -1,16 +1,17 @@
 use core::fmt::Display;
+use std::collections::HashMap;
 use std::io::Write;
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use escher_domain::FundamentalDomain;
+use escher_domain::{FundamentalDomain, ShapeParameters};
 use escher_render::{Colour, Fill, RenderOptions, RenderStats, Renderer, encode_png};
 use escher_signature::{Geometry, Signature};
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
 use rayon::slice::ParallelSliceMut as _;
 
-use crate::args::{Colouring, RenderArgs};
+use crate::args::{Colouring, RenderArgs, Setting};
 use crate::diagnostic::SignatureError;
 
 const MAX_THREADS: usize = 256;
@@ -49,7 +50,9 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
             "--background is not of the form #rgb or #rrggbb",
         )
     })?;
-    let domain = FundamentalDomain::build(&signature).map_err(|error| {
+    let parameters =
+        shape_parameters(&args.set).map_err(|detail| cannot_render(&signature, detail))?;
+    let domain = FundamentalDomain::build_with(&signature, &parameters).map_err(|error| {
         let context = if error.kind() == escher_domain::ErrorKind::UnsupportedSignature {
             format!("cannot render {signature}: {NOT_SUPPORTED}")
         } else {
@@ -57,7 +60,7 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         };
         anyhow::Error::new(error).context(context)
     })?;
-    if domain.geometry() != Geometry::Hyperbolic {
+    if !has_view(domain.geometry()) {
         return Err(cannot_render(&signature, NOT_SUPPORTED));
     }
     let options = RenderOptions::builder(fill)
@@ -97,6 +100,29 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
                 elapsed,
             ),
         ),
+    }
+}
+
+fn shape_parameters(settings: &[Setting]) -> Result<ShapeParameters, String> {
+    let mut parameters = ShapeParameters::new();
+    let mut first_positions: HashMap<&str, usize> = HashMap::new();
+    for (position, setting) in settings.iter().enumerate() {
+        if let Some(earlier) = first_positions.insert(&setting.name, position) {
+            return Err(format!(
+                "setting {} of --set names the same parameter as setting {}",
+                position + 1,
+                earlier + 1
+            ));
+        }
+        parameters.set(setting.name.clone(), setting.value);
+    }
+    Ok(parameters)
+}
+
+const fn has_view(geometry: Geometry) -> bool {
+    match geometry {
+        Geometry::Hyperbolic | Geometry::Euclidean => true,
+        Geometry::Spherical => false,
     }
 }
 
@@ -253,9 +279,13 @@ mod tests {
 
     use escher_render::{Colour, Fill};
 
-    use super::{fill, parse_colour, statistics_text, thread_pool_error};
+    use escher_signature::Geometry;
+
+    use super::{
+        fill, has_view, parse_colour, shape_parameters, statistics_text, thread_pool_error,
+    };
     use crate::Status;
-    use crate::args::Colouring;
+    use crate::args::{Colouring, Setting};
     use crate::diagnostic::report;
 
     #[derive(Debug)]
@@ -374,5 +404,45 @@ mod tests {
             statistics_text(3, 0, u64::MAX, 1, 0, Duration::ZERO)
                 .contains("\nMean folds: 6148914691236517205.00\n")
         );
+    }
+
+    fn setting(name: &str, value: f64) -> Setting {
+        Setting {
+            name: name.to_owned(),
+            value,
+        }
+    }
+
+    #[test]
+    fn shape_parameters_names_the_first_repeated_setting_and_the_earlier_one() {
+        let settings = [
+            setting("aspect", 2.0),
+            setting("other", 1.0),
+            setting("aspect", 3.0),
+            setting("other", 4.0),
+        ];
+        assert_eq!(
+            shape_parameters(&settings),
+            Err("setting 3 of --set names the same parameter as setting 1".to_owned())
+        );
+    }
+
+    #[test]
+    fn shape_parameters_keeps_every_setting_with_a_new_name() {
+        let Ok(parameters) = shape_parameters(&[setting("aspect", 2.0), setting("other", 1.0)])
+        else {
+            panic!("settings with distinct names are kept");
+        };
+        let mut expected = escher_domain::ShapeParameters::new();
+        expected.set("aspect", 2.0);
+        expected.set("other", 1.0);
+        assert_eq!(parameters, expected);
+    }
+
+    #[test]
+    fn has_view_accepts_only_the_hyperbolic_and_the_euclidean_geometry() {
+        assert!(has_view(Geometry::Hyperbolic));
+        assert!(has_view(Geometry::Euclidean));
+        assert!(!has_view(Geometry::Spherical));
     }
 }

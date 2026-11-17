@@ -32,15 +32,6 @@ fn render_diagnostic_marks_a_bad_orbifold() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
-fn render_diagnostic_says_a_euclidean_signature_is_not_supported() {
-    insta::assert_snapshot!(render_snapshot("euclidean", &["*632"]));
-}
-
-#[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_a_spherical_signature_is_not_supported() {
     insta::assert_snapshot!(render_snapshot("spherical", &["*532"]));
 }
@@ -199,6 +190,42 @@ fn render_diagnostic_gives_the_cause_of_a_missing_directory() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn render_diagnostic_names_the_positions_of_a_parameter_set_twice() {
+    insta::assert_snapshot!(render_snapshot(
+        "repeated_setting",
+        &["*2222", "--set", "aspect=2", "--set", "aspect=3"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_an_unknown_parameter() {
+    insta::assert_snapshot!(render_snapshot(
+        "unknown_parameter",
+        &["*632", "--set", "aspect=2"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_a_parameter_outside_its_range() {
+    insta::assert_snapshot!(render_snapshot(
+        "parameter_range",
+        &["*2222", "--set", "aspect=9"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn render_statistics_hold_the_samples_and_masked_values() {
     insta::assert_snapshot!(render_snapshot(
         "statistics",
@@ -247,12 +274,16 @@ fn render_writes_a_png_file_of_the_requested_size() {
     assert_eq!(outcome.status, Status::Success);
     assert_eq!(outcome.stdout, "");
     assert_eq!(outcome.stderr, "");
-    let file = std::fs::read(&output).expect("the output file is written");
+    assert_png_header(&output, 48, 32);
+}
+
+fn assert_png_header(output: &Path, width: u32, height: u32) {
+    let file = std::fs::read(output).expect("the output file is written");
     assert_eq!(file.get(..8), Some(PNG_SIGNATURE));
     assert_eq!(read_u32(&file, 8), 13);
     assert_eq!(file.get(12..16), Some(&b"IHDR"[..]));
-    assert_eq!(read_u32(&file, 16), 48);
-    assert_eq!(read_u32(&file, 20), 32);
+    assert_eq!(read_u32(&file, 16), width);
+    assert_eq!(read_u32(&file, 20), height);
     assert_eq!(file.get(24), Some(&8));
     assert_eq!(file.get(25), Some(&2));
     let types = chunk_types(&file);
@@ -262,6 +293,56 @@ fn render_writes_a_png_file_of_the_requested_size() {
         matches!((srgb, idat), (Some(srgb), Some(idat)) if srgb < idat),
         "{types:?}"
     );
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_a_png_file_of_a_euclidean_tiling() {
+    let output = output_path("euclidean_file");
+    let outcome = run_args(&[
+        "render",
+        "*442",
+        "--size",
+        "48x32",
+        "--samples",
+        "2",
+        "-o",
+        path_text(&output),
+    ]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    assert_png_header(&output, 48, 32);
+}
+
+fn rectangle(test: &str, extra: &[&str]) -> Vec<u8> {
+    let output = output_path(test);
+    let mut args = vec!["render", "*2222", "--size", "64x64", "--samples", "2"];
+    args.extend_from_slice(extra);
+    args.extend_from_slice(&["-o", path_text(&output)]);
+    let outcome = run_args(&args);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    std::fs::read(&output).expect("the output file is written")
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_applies_a_setting_and_writes_the_same_bytes_for_one_thread_and_four() {
+    let square = rectangle("square", &[]);
+    let one = rectangle(
+        "aspect_one_thread",
+        &["--set", "aspect=1.618", "--threads", "1"],
+    );
+    let four = rectangle(
+        "aspect_four_threads",
+        &["--set", "aspect=1.618", "--threads", "4"],
+    );
+    assert_ne!(one, square);
+    assert_eq!(one, four);
 }
 
 fn rendered_with_threads(test: &str, threads: &str) -> Vec<u8> {
@@ -388,8 +469,8 @@ fn render_without_a_domain_changes_no_file() {
 
 #[test]
 #[cfg_attr(miri, ignore = "the interpreter refuses file access")]
-fn render_of_a_euclidean_domain_changes_no_file() {
-    assert_no_file_changes("euclidean_file", &["*2222"]);
+fn render_with_a_parameter_outside_its_range_changes_no_file() {
+    assert_no_file_changes("parameter_range_file", &["*2222", "--set", "aspect=9"]);
 }
 
 #[test]
