@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the shape parameters, the summary of the fundamental domain, and the result of each check of the option `--check`, the options of the command `render`, including the settings of shape parameters, the PNG file that it writes and the statistics that it prints, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
+This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the shape parameters, the summary of the fundamental domain, the result of each check of the option `--check`, and the presentations and the group order by coset enumeration of the option `--presentation`, the options of the command `render`, including the settings of shape parameters, the PNG file that it writes and the statistics that it prints, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
 
 ## 1. Introduction
 
@@ -18,7 +18,7 @@ The proof of concept is a command-line tool, and its first command reports what 
 
 ### 1.2. Purpose
 
-This document fixes the behaviour of `escher` precisely enough that an agent can implement it and a reviewer can check every line of output against it. The crate `escher-signature` parses and classifies a signature, the crate `escher-domain` builds and verifies its fundamental domain, and the crate `escher-render` renders the domain into pixels and encodes them as PNG. This crate turns their results into text, a file, diagnostics, and an exit status.
+This document fixes the behaviour of `escher` precisely enough that an agent can implement it and a reviewer can check every line of output against it. The crate `escher-signature` parses and classifies a signature, the crate `escher-domain` builds and verifies its fundamental domain, the crate `escher-group` derives presentations and enumerates their cosets, and the crate `escher-render` renders the domain into pixels and encodes them as PNG. This crate turns their results into text, a file, diagnostics, and an exit status.
 
 ### 1.3. Audience
 
@@ -26,7 +26,7 @@ The primary readers are the coding agents that implement or extend `escher-cli`.
 
 ### 1.4. Scope
 
-This document covers the command `info` with its argument and its option `--check`, the command `render` with its argument and its options, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. It prints the shape parameters of the signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, and with `--check` the result of each check of its verification. It prints no item that needs a group.
+This document covers the command `info` with its argument and its options `--check` and `--presentation`, the command `render` with its argument and its options, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. It prints the shape parameters of the signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, and with `--check` the result of each check of its verification. With `--presentation`, it prints the Conway presentation of the signature and the side presentation of its domain, and for a spherical signature the group order that coset enumeration finds for each. It prints no item that needs a colouring.
 
 `render` draws, with `escher-render`, the tiling of a signature that `escher-domain` constructs with the shape parameters that the option `--set` gives. It draws the tiling in the Poincare disk for a hyperbolic domain, in the Euclidean plane for a Euclidean one, and as a lit ball for a spherical one, with the viewing rotation, the light, and the shading of its options, and writes it to a PNG file. With `--stats`, it also prints statistics of the rendering.
 
@@ -36,12 +36,14 @@ These topics are owned elsewhere, and this document cites them:
 
 - The grammar of a signature, its canonical form, the classification methods, and the error kinds of `escher-signature` with their `Display` text are specified in `docs/design/signature.md`.
 - The signatures that have a fundamental domain, its construction, its measurements, the checks of its verification with their tolerances, the shape parameters with their names, ranges, and defaults, and the error kinds of `escher-domain` with their `Display` text are specified in `docs/design/domain.md`.
+- The side presentation of a domain, its generators, and its relators are specified in `docs/design/domain.md`.
+- Words, relators, presentations and their text, the Conway presentation of a signature, coset enumeration with its limit, and the error kinds of `escher-group` with their `Display` text are specified in Sections 4 to 8 of `docs/design/group.md`.
 - The rendering, the limits on the render options, the statistics that a rendering counts, the PNG encoding, and the error kinds of `escher-render` with their `Display` text are specified in `docs/design/render.md`.
 - The crates, the data flow, the error model, and the owner's decisions are specified in `docs/design/architecture.md`.
 - The mathematics is stated in `docs/research/orbifold-notation.md` and, for rendering, in `docs/research/rendering.md`.
 - The recipes, the nextest profiles, the hooks, and the dependency policy are specified in `docs/design/tooling.md`.
 
-The lines of `info` that need a group or a colouring belong to later milestones (Section 5.4). So do the options of `render` that later milestones add, such as a colouring id in M8 and `--model` in M12 (Section 3.4 of `docs/design/poc-plan.md`).
+The lines of `info` that need a colouring belong to later milestones (Section 5.4). So do the options of `render` that later milestones add, such as a colouring id in M8 and `--model` in M12 (Section 3.4 of `docs/design/poc-plan.md`).
 
 ## 2. Requirements Language
 
@@ -62,7 +64,12 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md` a
 - parameter lines: The lines of the information text that list the shape parameters, row 10 of Section 5.1.
 - domain summary: The lines of the information text that describe the domain, rows 11 to 16 of Section 5.1 (Section 5.5).
 - check: One numeric condition that `verify()` of `escher-domain` evaluates, with a residual and a tolerance (Section 2.1 of `docs/design/domain.md`).
-- verification lines: The lines of the information text that `--check` adds, rows 17 to 23 of Section 5.1 (Section 5.6).
+- presentation lines: The lines of the information text that `--presentation` adds, rows 17 to 24 of Section 5.1 (Section 5.7).
+- verification lines: The lines of the information text that `--check` adds, rows 25 to 31 of Section 5.1 (Section 5.6).
+- Conway presentation: The presentation that `conway_presentation` of `escher-group` reads from the signature (Section 5 of `docs/design/group.md`).
+- side presentation: The presentation that `side_presentation()` of `escher-domain` reads from the sides of the domain (Section 5.4 of `docs/design/domain.md`).
+- order line: Row 20 or row 24 of Section 5.1, which reports the number of cosets of the trivial subgroup that coset enumeration finds for a presentation (Section 5.7).
+- coset limit: `CosetLimit::DEFAULT` of `escher-group`, the largest number of cosets that one enumeration of `info` defines, written $L$.
 - reversing side: A side of the domain whose `orientation()` is `Orientation::Reversing`. A domain has a reversing side exactly when its `reverses_orientation()` is true, which is the one call that `info` and `render` make to decide (Sections 3.1 and 3.2 of `docs/design/domain.md`).
 - reflection domain: A domain whose every side has the kind `Mirror`, as Section 2.1 of `docs/design/render.md` defines it.
 - rotation domain: A domain with no side of the kind `Mirror`, which `escher-domain` builds for a signature without reflections, such as `732`, as Section 2.1 of `docs/design/render.md` defines it.
@@ -157,20 +164,20 @@ The binary prints nothing itself, so `main.rs` carries no lint exception for `cl
 
 ### 3.5. Private Modules
 
-The library target has the private modules `args`, `info`, `render`, and `diagnostic`, as files named `args.rs`, `info.rs`, `render.rs`, and `diagnostic.rs` (Section 4.5 of `docs/rust-coding-standards.md`). `args` holds the `clap` types and the parsers of `--size`, `--set`, and the triples of `--rotation` and `--light`, `info` builds the information text, including the domain summary and the verification lines, `render` runs the steps of Section 4.5 with the parser of colours and the statistics lines, and `diagnostic` writes the diagnostics.
+The library target has the private modules `args`, `info`, `render`, and `diagnostic`, as files named `args.rs`, `info.rs`, `render.rs`, and `diagnostic.rs` (Section 4.5 of `docs/rust-coding-standards.md`). `args` holds the `clap` types and the parsers of `--size`, `--set`, and the triples of `--rotation` and `--light`, `info` builds the information text, including the domain summary, the presentation lines, and the verification lines, `render` runs the steps of Section 4.5 with the parser of colours and the statistics lines, and `diagnostic` writes the diagnostics.
 
 ## 4. Command Line
 
 ### 4.1. Synopsis
 
 ```text
-escher info [--check] <SIGNATURE>
+escher info [--check] [--presentation] <SIGNATURE>
 escher render [OPTIONS] --output <FILE> <SIGNATURE>
 escher --help
 escher --version
 ```
 
-`-h` is the short form of `--help` and `-V` of `--version`. `escher info --help` prints the help of `info`, and `escher render --help` the help of `render`. `--check` has no short form. `-o` is the short form of `--output`, and no other option of `render` has a short form. The usage line in the help of `info` is the form that `clap` generates, `escher info [OPTIONS] <SIGNATURE>`, and that of `render` is `escher render [OPTIONS] --output <FILE> <SIGNATURE>`.
+`-h` is the short form of `--help` and `-V` of `--version`. `escher info --help` prints the help of `info`, and `escher render --help` the help of `render`. `--check` and `--presentation` have no short form. `-o` is the short form of `--output`, and no other option of `render` has a short form. The usage line in the help of `info` is the form that `clap` generates, `escher info [OPTIONS] <SIGNATURE>`, and that of `render` is `escher render [OPTIONS] --output <FILE> <SIGNATURE>`.
 
 ### 4.2. Parser Settings
 
@@ -196,6 +203,7 @@ The help text has these summaries, and no other text beyond what `clap` generate
 | `info` | `Print the canonical form, the geometry, and other properties of a signature in orbifold notation` |
 | `SIGNATURE` | `The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'` |
 | `--check` | `Verify the fundamental domain of the signature and print the result of each check` |
+| `--presentation` | `Print the generators and relators of the signature and of its fundamental domain, and for a spherical signature the group order by coset enumeration` |
 | `render` | `Render the tiling of a signature in orbifold notation and write it to a PNG file` |
 | `--output` | `The PNG file to write. An existing file is replaced` |
 | `--size` | `The image size in pixels, as WIDTHxHEIGHT` |
@@ -219,7 +227,7 @@ CLI-4. `escher --version` and `escher -V` MUST write the package name, one space
 
 ### 4.3. The `info` Command
 
-`info` takes one required positional argument, the signature, as a `String` named `SIGNATURE`, and the optional flag `--check`. An argument that is not valid UTF-8 is a usage error. The flag may stand before or after the signature. A repeated `--check` is a usage error, because `clap` rejects a flag that is given more than once, and `info` keeps that behaviour.
+`info` takes one required positional argument, the signature, as a `String` named `SIGNATURE`, and the optional flags `--check` and `--presentation`, in either order. An argument that is not valid UTF-8 is a usage error. Each flag may stand before or after the signature. A repeated `--check` or `--presentation` is a usage error, because `clap` rejects a flag that is given more than once, and `info` keeps that behaviour. The argument struct declares `--presentation` after `--check`, so it comes after it in the help.
 
 CLI-5. `info` and `render` MUST pass their argument unchanged to the `FromStr` implementation of `Signature` from `escher-signature`, and MUST NOT trim, normalize, or check it first, because a second reading of the grammar diverges from the one that `docs/design/signature.md` specifies, and the byte spans of the error then no longer match the argument.
 
@@ -227,9 +235,11 @@ On success, `info` writes the information text of Section 5 to standard output. 
 
 `info` takes no setting. It builds the domain with `FundamentalDomain::build`, which gives each shape parameter its default, so the domain summary and the verification lines describe the default shape.
 
-With `--check`, `info` also runs `verify()` on the domain, adds the verification lines of Section 5.6 to the information text, and writes the diagnostic of Section 6.7 when a check fails or the signature has no domain.
+With `--presentation`, `info` also reads the Conway presentation of the signature and the side presentation of its domain, enumerates the cosets of each for a spherical signature within the coset limit, adds the presentation lines of Section 5.7 to the information text, and writes the diagnostic of Section 6.9 when an enumeration finds an order other than the group order.
 
-The `clap` argument struct holds the flag as a `bool`, because the derive API sets a flag through a `bool` field. `info` converts it at once into a private enum with two variants, which the private functions take (TYPE-2 of `docs/rust-coding-standards.md`).
+With `--check`, `info` also runs `verify()` on the domain, adds the verification lines of Section 5.6 to the information text, and writes the diagnostic of Section 6.7 when a check fails or the signature has no domain. With both flags, the presentation lines come before the verification lines.
+
+The `clap` argument struct holds each flag as a `bool`, because the derive API sets a flag through a `bool` field. `info` converts each at once into a private enum with two variants, which the private functions take (TYPE-2 of `docs/rust-coding-standards.md`).
 
 A signature never starts with `-`, so it never collides with an option. An argument that starts with `-` is read as an option, and an unknown option is a usage error.
 
@@ -380,7 +390,7 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 
 ### 5.1. Lines
 
-`info` writes the lines of this table, in this order. Each line is the label, a colon, one space, and the value, followed by a line feed. No other line, blank line, or trailing space appears. The accessors of rows 1 to 9 are those of `Signature` (Sections 3.1 and 9.1 of `docs/design/signature.md`). Row 10 takes its values from `parameters` and `ParameterSpec`, and rows 11 to 23 from `FundamentalDomain`, `Side`, `Verification`, and `Check` (Section 3.1 of `docs/design/domain.md`), and "a domain is built" means that `FundamentalDomain::build` returned `Ok`.
+`info` writes the lines of this table, in this order. Each line is the label, a colon, one space, and the value, followed by a line feed. No other line, blank line, or trailing space appears. The accessors of rows 1 to 9 are those of `Signature` (Sections 3.1 and 9.1 of `docs/design/signature.md`). Row 10 takes its values from `parameters` and `ParameterSpec`, rows 11 to 16 and 25 to 31 from `FundamentalDomain`, `Side`, `Verification`, and `Check` (Section 3.1 of `docs/design/domain.md`), and rows 17 to 24 from `escher-group` and `side_presentation()` (Section 5.7). "A domain is built" means that `FundamentalDomain::build` returned `Ok`.
 
 | Order | Label | Printed when | Value |
 | --- | --- | --- | --- |
@@ -400,17 +410,25 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 | 14 | `Corner angles in degrees` | A domain is built | Each value of `corner_angles()` in degrees, in corner order, in the form of Section 5.2 |
 | 15 | `Side lengths` | A domain is built | Each value of `side_lengths()`, in side order, in the form of Section 5.2 |
 | 16 | `Domain area` | A domain is built | `area()`, in the form of Section 5.2 |
-| 17 | `Check isometries` | `--check` is given and a domain is built | The result of `isometries()`, in the form of Section 5.6 |
-| 18 | `Check pairings` | As row 17 | The result of `pairings()` |
-| 19 | `Check walls` | As row 17 | The result of `walls()` |
-| 20 | `Check relators` | As row 17 | The result of `relators()` |
-| 21 | `Check angles` | As row 17 | The result of `angles()` |
-| 22 | `Check area` | As row 17 | The result of `area()` of `Verification` |
-| 23 | `Verification` | As row 17 | `passed` when `Verification::passed()` is true, and otherwise `failed` |
+| 17 | `Presentation` | `--presentation` is given | The size of the Conway presentation, or `none, ` followed by the `Display` text of the error, in the form of Section 5.7 |
+| 18 | `Generators` | `--presentation` is given and the Conway presentation exists | Its generator names, in the form of Section 5.7 |
+| 19 | `Relators` | As row 18 | Its relators, in the form of Section 5.7 |
+| 20 | `Order by coset enumeration` | As row 18, and the signature is spherical | The order line of the Conway presentation, in the form of Section 5.7 |
+| 21 | `Side presentation` | `--presentation` is given and a domain is built | The size of the side presentation, or `none, ` followed by the `Display` text of the error |
+| 22 | `Side generators` | `--presentation` is given and the side presentation exists | Its generator names |
+| 23 | `Side relators` | As row 22 | Its relators |
+| 24 | `Side order by coset enumeration` | As row 22, and the signature is spherical | The order line of the side presentation |
+| 25 | `Check isometries` | `--check` is given and a domain is built | The result of `isometries()`, in the form of Section 5.6 |
+| 26 | `Check pairings` | As row 25 | The result of `pairings()` |
+| 27 | `Check walls` | As row 25 | The result of `walls()` |
+| 28 | `Check relators` | As row 25 | The result of `relators()` |
+| 29 | `Check angles` | As row 25 | The result of `angles()` |
+| 30 | `Check area` | As row 25 | The result of `area()` of `Verification` |
+| 31 | `Verification` | As row 25 | `passed` when `Verification::passed()` is true, and otherwise `failed` |
 
-CLI-6. `info` MUST print exactly the lines of this table, in this order and under these conditions, because the snapshots of Section 8 and every reader of the text rely on one layout, and an extra or missing line changes what a reader concludes about the signature. The table has no name of the group in another notation, such as an IUC or Schoenflies name, because `DEC-20` omits them until a primary source is read.
+CLI-6. `info` MUST print exactly the lines of this table, in this order and under these conditions, with the presentation lines only with `--presentation` and the verification lines only with `--check`, because the snapshots of Section 8 and every reader of the text rely on one layout, and an extra or missing line changes what a reader concludes about the signature. The table has no name of the group in another notation, such as an IUC or Schoenflies name, because `DEC-20` omits them until a primary source is read.
 
-So a signature without a domain gets the lines of rows 1 to 10 that apply to it and then exactly one more line, the `Domain` line of row 11, with or without `--check`. Rows 17 to 23 follow the order of the checks of Section 8.2 of `docs/design/domain.md`.
+So a signature without a domain gets the lines of rows 1 to 10 that apply to it, the `Domain` line of row 11, and with `--presentation` the lines of rows 17 to 20 that apply to it, with or without `--check`. Rows 25 to 31 follow the order of the checks of Section 8.2 of `docs/design/domain.md`.
 
 ### 5.2. Number Formats
 
@@ -435,9 +453,9 @@ The floating-point values of the domain summary and the verification lines have 
 | Corner angle | 14 | The value of `corner_angles()` in radians converted with `f64::to_degrees`, then written in fixed notation with six digits after the point, `{:.6}` | `25.714286` |
 | Side length | 15 | Fixed notation with six digits after the point, `{:.6}` | `0.545275` |
 | Domain area | 16 | Fixed notation with six digits after the point, `{:.6}` | `0.074800` |
-| Residual and tolerance | 17 to 22 | Scientific notation with one digit after the point, `{:.1e}` of Rust, which writes an infinite value as `inf` | `2.5e-3`, `1.0e-9` |
+| Residual and tolerance | 25 to 30 | Scientific notation with one digit after the point, `{:.1e}` of Rust, which writes an infinite value as `inf` | `2.5e-3`, `1.0e-9` |
 
-Rows 14 and 15 separate the values with a comma and one space. Angles are in degrees on the command line, as Section 5.5 of `docs/design/architecture.md` states.
+Rows 14 and 15 separate the values with a comma and one space. Angles are in degrees on the command line, as Section 5.5 of `docs/design/architecture.md` states. The presentation lines hold no floating-point value, and every count and order in them is an integer in decimal.
 
 ### 5.3. Examples
 
@@ -738,7 +756,7 @@ The information text is not a stable interface, and a machine-readable form is a
 
 CLI-7. A change that alters the information text MUST update its snapshots in the same change, because the snapshot test fails otherwise, and the snapshot diff is how a reviewer sees each change to the text (`DEC-23`, rule TEST-2 of `docs/rust-coding-standards.md`).
 
-`info` prints no line about presentations, colourings, polygons, or colours, and no placeholder for them, apart from the `Parity colouring` line of CLI-33, which states only that the parity colouring does not exist. Each needs a crate or a part of a crate that a later milestone adds. Section 3.4 of `docs/design/poc-plan.md` places them: the presentation in M7 (Section 5.7), and the list of colourings with their colour counts in M8 (Section 5.8). The owner's goal that `info` reports how many polygons the representative set has, and so which colour counts are possible, is met by that list in M8. The domain summary covers exactly the signatures that `escher-domain` constructs (Section 4 of `docs/design/domain.md`).
+`info` prints presentations only with `--presentation` (Section 5.7). It prints no line about colourings, polygons, or colours, and no placeholder for them, apart from the `Parity colouring` line of CLI-33, which states only that the parity colouring does not exist. Each needs a part of a crate that a later milestone adds. Section 3.4 of `docs/design/poc-plan.md` places them: the list of colourings with their colour counts in M8 (Section 5.8). The owner's goal that `info` reports how many polygons the representative set has, and so which colour counts are possible, is met by that list in M8. The domain summary covers exactly the signatures that `escher-domain` constructs (Section 4 of `docs/design/domain.md`).
 
 ### 5.5. Domain Summary
 
@@ -756,7 +774,7 @@ CLI-33. `info` MUST print the line `Parity colouring: none, every side pairing p
 
 When `build` returns an error, the value is `none, ` followed by the `Display` text of that error, for every error kind. The `Display` text starts with `cannot build fundamental domain: ` (Section 10.2 of `docs/design/domain.md`), so the line reads, for example, `Domain: none, cannot build fundamental domain: the signature 3*2 is not supported`. The line holds only the `Display` text of the top error and no text of its source. The text holds the canonical signature or a number, both in printable ASCII, so it needs no replacement of characters.
 
-CLI-16. `info` MUST take the values of rows 10 to 23 from `escher-domain` unchanged, except for the conversion of the angles to degrees and the formats of Section 5.2, and MUST NOT measure or check the domain itself, because a second computation in this crate can differ from what `verify()` checks, and the printed values would then describe another domain than the one that passed.
+CLI-16. `info` MUST take the values of rows 10 to 16 and 25 to 31 from `escher-domain` unchanged, except for the conversion of the angles to degrees and the formats of Section 5.2, and MUST NOT measure or check the domain itself, because a second computation in this crate can differ from what `verify()` checks, and the printed values would then describe another domain than the one that passed.
 
 CLI-17. Without `--check`, `info` MUST print the `Domain` line with `none` and return `Success` for a valid signature for which `build` returns an error, because the signature is still parsed, valid, and classified, and a non-zero status would tell a script that the signature itself is invalid.
 
@@ -764,9 +782,9 @@ The values of rows 14 to 16 are rounded to six digits after the point. Sections 
 
 ### 5.6. Verification Lines
 
-With `--check`, when a domain is built, `info` calls `verify()` once and prints rows 17 to 23 after the domain summary. The information text and the verification lines form one text, which `info` writes in one write.
+With `--check`, when a domain is built, `info` calls `verify()` once and prints rows 25 to 31 after the domain summary and, with `--presentation`, after the presentation lines. The information text and the verification lines form one text, which `info` writes in one write.
 
-The value of each of rows 17 to 22 has this form, where the result is `passed` when `Check::passed()` is true and `failed` otherwise, and the residual and the tolerance have the form of Section 5.2:
+The value of each of rows 25 to 30 has this form, where the result is `passed` when `Check::passed()` is true and `failed` otherwise, and the residual and the tolerance have the form of Section 5.2:
 
 ```text
 <result>, residual <residual>, tolerance <tolerance>
@@ -774,9 +792,215 @@ The value of each of rows 17 to 22 has this form, where the result is `passed` w
 
 For example, a failed relator check prints `Check relators: failed, residual 2.5e-3, tolerance 2.0e-6`. A residual of infinity, which marks a failed structural condition or a computation that gave no finite number (Section 8.1 of `docs/design/domain.md`), prints as `inf`. No residual is NaN.
 
-Row 23 gives the overall result, `Verification: passed` or `Verification: failed`, from `Verification::passed()`.
+Row 31 gives the overall result, `Verification: passed` or `Verification: failed`, from `Verification::passed()`.
 
 CLI-18. With `--check`, `info` MUST print one line for each check that `Verification` reports, with its result, its residual, and its tolerance, in the order of Section 8.2 of `docs/design/domain.md`, and then the overall result, because a reader who sees only the overall result cannot tell which condition failed or by how much, and a line that omits the tolerance cannot be read without the design document.
+
+### 5.7. Presentation Lines
+
+With `--presentation`, `info` prints rows 17 to 24 after the domain summary, or after the `Domain` line when no domain is built. It prints both presentations: the Conway presentation, which comes from the signature alone, and the side presentation, which comes from the domain, so that a reader can compare an independent reading of the group with the domain that `escher-domain` built. This is a proposed default (`DEC-35` of `docs/design/architecture.md`).
+
+`info` takes these steps:
+
+1. Call `conway_presentation` of `escher-group` on the signature once, and print row 17. When it returns a presentation, print rows 18 and 19, and for a spherical signature row 20.
+2. When a domain is built, call `side_presentation()` on it once, and print row 21. When it returns a presentation, print rows 22 and 23, and for a spherical signature row 24.
+
+The value of row 17 or row 21 is the number of generators in decimal, ` generators, `, the number of relators in decimal, and ` relators`, with `generator` when the number of generators is 1 and `relator` when the number of relators is 1, such as `3 generators, 6 relators`. When the call returns an error, the value is `none, ` followed by the `Display` text of that error, and the rows that depend on the presentation do not appear.
+
+The value of row 18 or row 22 is the generator names in their order, separated by a comma and one space, or `none` when the presentation has no generator. The value of row 19 or row 23 is the text of each relator, in the order of the presentation, separated by a comma and one space, or `none` when it has no relator. The text of a relator is the one that `display_relator` of `escher-group` gives (Section 4.4 of `docs/design/group.md`, GRP-3), such as `(r1 r2)^5` or `(g1^-1)^3`, and the names are those of `conway_presentation` (Section 5.1 of `docs/design/group.md`, GRP-6) or of `side_presentation()` (DOM-32 of `docs/design/domain.md`). `display_relator` returns `None` only for a relator that uses a generator that the presentation lacks (Section 3.2 of `docs/design/group.md`), which no relator of the presentation itself does, so `info` never meets it. A name matches `[A-Za-z][A-Za-z0-9]*` (Section 4.3 of `docs/design/group.md`, GRP-5), so the lines need no replacement of characters.
+
+CLI-37. With `--presentation`, `info` MUST print rows 17 to 24 under the conditions of Section 5.1 and in the forms of this section, and MUST print none of them without the flag, because a script that reads the text without the flag must not meet lines that the flag adds, and a reader compares the two presentations only when both appear in the stated order.
+
+CLI-38. `info` MUST print the generator names and the relator texts that `escher-group` gives, unchanged, and MUST NOT reduce, reorder, or rewrite a relator, because the text is what a reader checks against the sources of the presentation, and a second writer of relator text in this crate could differ from the one that the tests of `escher-group` fix.
+
+The order line of row 20 or row 24 reports one coset enumeration of the presentation over the trivial subgroup, with the coset limit $L$, `CosetLimit::DEFAULT` of `escher-group`, which Section 6.3 of `docs/design/group.md` states as 16384. $N$ is the value of `group_order()` of the signature, which is $2/\chi$ for a spherical signature (ON 7.3). The value of the line is chosen in this order:
+
+| Case | Value | Status |
+| --- | --- | --- |
+| $N > L$ | `not run, the group order <N> is above the limit of <L> cosets`, and `info` runs no enumeration | Unchanged |
+| `enumerate` returns a table whose `index()` is $N$ | `<N>, equal to 2/chi` | Unchanged |
+| `enumerate` returns a table whose `index()` $K$ is not $N$ | `<K>, different from 2/chi, which is <N>` | `Failure`, with the diagnostic of Section 6.9 |
+| `enumerate` returns the error kind `CosetLimitReached` | `not found within <L> cosets` | Unchanged |
+| `enumerate` returns any other error | `not run, ` followed by the `Display` text of the error | Unchanged |
+
+Each number is in decimal. "Unchanged" means that the line leaves the status as it would be without `--presentation`.
+
+Every other error of `enumerate` comes from an input limit that `escher-group` checks before a run (Section 15 of `docs/design/group.md`, GRP-19), such as the limit on the letters of the expanded relators. The last row gives it the text `not run, ` and not `not found`, because no run took place. No input reaches that row. A spherical Conway presentation of order $N$ expands to at most $2N + 11$ letters on the prototype of Section 11.1 of `docs/design/group.md`, which is below that limit for $N \le L$, and a side presentation is short. So the design gives no example text for the row, and no test or snapshot covers it.
+
+The first row is sound only because the limit counts every coset that a run defines, including coset 0, the coset of the subgroup itself (Section 6.3 of `docs/design/group.md`, GRP-16). A closed table over the trivial subgroup has one coset for each element, so its index is the group order (Sections 7.9 and 7.15 of `docs/research/colourings.md`), and no run that defines at most $L$ cosets can close a table of $N > L$ cosets. The run is skipped there, because it would only spend time and then report `not found`.
+
+No source read states what a run that reaches the limit shows about the index (item 19 of Section 14.1 of `docs/research/colourings.md`, Section 7.8 of `docs/design/group.md`, GRP-17), so the line says `not found` and claims nothing more. With the rule for one-letter relators, such as `l1` or `w1` (Section 7.5 of `docs/design/group.md`, GRP-26), an enumeration of a spherical Conway presentation defined exactly $N$ cosets on a prototype outside the repository (Section 11.1 of `docs/design/group.md`), so no spherical signature with $N \le L$ is expected to reach that line. No test asserts it, because no source bounds the cosets that an enumeration defines (Section 7.15 of `docs/research/colourings.md`).
+
+CLI-39. `info` MUST print an order line only for a spherical signature, and MUST NOT run an enumeration when the group order is above the coset limit, because only a spherical signature has a group order to compare with, an enumeration of a Euclidean or hyperbolic group cannot finish, and a run that cannot finish within the limit costs time and shows nothing.
+
+A Euclidean or hyperbolic signature gets no order line and runs no enumeration. The test "Infinite groups" of `escher-group` covers that case (Section 10.1 of `docs/design/group.md`).
+
+CLI-41. `info` MUST enumerate with `CosetLimit::DEFAULT` and MUST offer no option that sets the limit, because the gate of CLI-39 and every text of this section depend on one known limit, and an option would add an input whose cost the design has not measured. A later milestone that adds such an option, such as with the colour limit of M8, changes this requirement.
+
+The rows of a signature whose presentation `escher-group` cannot derive, such as one with an infinite order, have the text `Presentation: none, ` followed by the `Display` text of `UnsupportedSignature` of `escher-group`, which Section 8.2 of `docs/design/group.md` fixes (GRP-8 and GRP-22).
+
+These are the lines that `--presentation` adds, after the lines of Section 5.3, for each signature. The texts of the first nine and of `1` and `*(inf)22` were reproduced character for character by a prototype outside the repository, apart from the operation name of the `Display` text of `*(inf)22`, which is that of Section 8.2 of `docs/design/group.md`:
+
+```sh
+escher info --presentation '*532'
+```
+
+```text
+Presentation: 5 generators, 9 relators
+Generators: r1, r2, r3, r4, l1
+Relators: r1^2, (r1 r2)^5, r2^2, (r2 r3)^3, r3^2, (r3 r4)^2, r4^2, l1^-1 r1 l1 r4^-1, l1
+Order by coset enumeration: 120, equal to 2/chi
+Side presentation: 3 generators, 6 relators
+Side generators: s0, s1, s2
+Side relators: s0^2, s1^2, s2^2, (s0 s1)^5, (s1 s2)^3, (s2 s0)^2
+Side order by coset enumeration: 120, equal to 2/chi
+```
+
+The boundary of `*532` gives the reflections `r1` to `r4` and the generator `l1`, with the relators of step 3 of ON 9.1, and the global relator `l1` of step 5, because the boundary is the only feature ([CH] pp. 255 to 257). The side presentation is that of Section 5.4 of `docs/design/domain.md`.
+
+```sh
+escher info --presentation 532
+```
+
+```text
+Presentation: 3 generators, 4 relators
+Generators: g1, g2, g3
+Relators: g1^5, g2^3, g3^2, g1 g2 g3
+Order by coset enumeration: 60, equal to 2/chi
+Side presentation: 4 generators, 5 relators
+Side generators: s0, s1, s2, s3
+Side relators: s0 s1, s2 s3, s1^5, (s2 s0)^2, s3^3
+Side order by coset enumeration: 60, equal to 2/chi
+```
+
+```sh
+escher info --presentation '*2222'
+```
+
+```text
+Presentation: 6 generators, 11 relators
+Generators: r1, r2, r3, r4, r5, l1
+Relators: r1^2, (r1 r2)^2, r2^2, (r2 r3)^2, r3^2, (r3 r4)^2, r4^2, (r4 r5)^2, r5^2, l1^-1 r1 l1 r5^-1, l1
+Side presentation: 4 generators, 8 relators
+Side generators: s0, s1, s2, s3
+Side relators: s0^2, s1^2, s2^2, s3^2, (s0 s1)^2, (s1 s2)^2, (s2 s3)^2, (s3 s0)^2
+```
+
+`*2222` is Euclidean, so neither order line appears.
+
+```sh
+escher info --presentation 2222
+```
+
+```text
+Presentation: 4 generators, 5 relators
+Generators: g1, g2, g3, g4
+Relators: g1^2, g2^2, g3^2, g4^2, g1 g2 g3 g4
+Side presentation: 6 generators, 7 relators
+Side generators: s0, s1, s2, s3, s4, s5
+Side relators: s0 s1, s2 s5, s3 s4, s1^2, (s2 s0)^2, (s3 s5)^2, s4^2
+```
+
+```sh
+escher info --presentation '*732'
+```
+
+```text
+Presentation: 5 generators, 9 relators
+Generators: r1, r2, r3, r4, l1
+Relators: r1^2, (r1 r2)^7, r2^2, (r2 r3)^3, r3^2, (r3 r4)^2, r4^2, l1^-1 r1 l1 r4^-1, l1
+Side presentation: 3 generators, 6 relators
+Side generators: s0, s1, s2
+Side relators: s0^2, s1^2, s2^2, (s0 s1)^7, (s1 s2)^3, (s2 s0)^2
+```
+
+`*732` is hyperbolic, so neither order line appears.
+
+```sh
+escher info --presentation '3*2'
+```
+
+```text
+Presentation: 4 generators, 6 relators
+Generators: g1, r1, r2, l1
+Relators: g1^3, r1^2, (r1 r2)^2, r2^2, l1^-1 r1 l1 r2^-1, g1 l1
+Order by coset enumeration: 24, equal to 2/chi
+```
+
+`3*2` has no domain, so no side line appears. The order 24 is that of the table of ON 8.2.
+
+```sh
+escher info --presentation x
+```
+
+```text
+Presentation: 2 generators, 2 relators
+Generators: z1, w1
+Relators: z1 z1 w1^-1, w1
+Order by coset enumeration: 2, equal to 2/chi
+```
+
+```sh
+escher info --presentation 22
+```
+
+```text
+Presentation: 2 generators, 3 relators
+Generators: g1, g2
+Relators: g1^2, g2^2, g1 g2
+Order by coset enumeration: 2, equal to 2/chi
+Side presentation: 2 generators, 3 relators
+Side generators: s0, s1
+Side relators: s0 s1, s1^2, s0^2
+Side order by coset enumeration: 2, equal to 2/chi
+```
+
+```sh
+escher info --presentation '*'
+```
+
+```text
+Presentation: 2 generators, 3 relators
+Generators: r1, l1
+Relators: r1^2, l1^-1 r1 l1 r1^-1, l1
+Order by coset enumeration: 2, equal to 2/chi
+```
+
+`x`, `22`, and `*` each have the order 2 ([CH] p. 257, ON 4.2). The presentation of `*`, a boundary without corners, rests on `UNV-22` (Section 5.2 of `docs/design/group.md`, GRP-7).
+
+```sh
+escher info --presentation 1
+```
+
+```text
+Presentation: 0 generators, 0 relators
+Generators: none
+Relators: none
+Order by coset enumeration: 1, equal to 2/chi
+```
+
+```sh
+escher info --presentation '*(inf)22'
+```
+
+```text
+Presentation: none, cannot build presentation: the signature *(inf)22 has an infinite order
+```
+
+`*(inf)22` is a frieze and has no domain, so the `Presentation` line is the only line that the flag adds.
+
+This example shows the gate of CLI-39. `*(9000)(9000)` is spherical with the group order 18000, above the limit, and its corner order is above the limit of `escher-domain`, so no side line appears:
+
+```sh
+escher info --presentation '*(9000)(9000)'
+```
+
+```text
+Presentation: 4 generators, 7 relators
+Generators: r1, r2, r3, l1
+Relators: r1^2, (r1 r2)^9000, r2^2, (r2 r3)^9000, r3^2, l1^-1 r1 l1 r3^-1, l1
+Order by coset enumeration: not run, the group order 18000 is above the limit of 16384 cosets
+```
 
 ## 6. Diagnostics
 
@@ -877,7 +1101,7 @@ escher info '2*(12)'
 
 ### 6.5. Usage Errors
 
-On an error of `try_parse_from`, `run` takes the text of `error.render()` as plain text and replaces each control character in it other than the line feed with `?`. When `error.use_stderr()` is false, which is the case for `--help` and `--version`, the text goes to standard output. Otherwise it goes to standard error. A usage error covers an unknown subcommand or option, a missing signature, a repeated `--check` or another repeated option other than `--set`, an argument that is not UTF-8, `escher` with no argument, a missing `--output`, and an option value of `render` whose syntax Section 4.6 does not allow, such as a malformed triple or an unknown shading. Section 7 gives the status of each case, and a failed write of the help or the version text follows Section 6.6.
+On an error of `try_parse_from`, `run` takes the text of `error.render()` as plain text and replaces each control character in it other than the line feed with `?`. When `error.use_stderr()` is false, which is the case for `--help` and `--version`, the text goes to standard output. Otherwise it goes to standard error. A usage error covers an unknown subcommand or option, a missing signature, a repeated `--check`, a repeated `--presentation`, or another repeated option other than `--set`, an argument that is not UTF-8, `escher` with no argument, a missing `--output`, and an option value of `render` whose syntax Section 4.6 does not allow, such as a malformed triple or an unknown shading. Section 7 gives the status of each case, and a failed write of the help or the version text follows Section 6.6.
 
 `clap` copies an unknown argument into its error message with its control characters unchanged. Without the replacement, an argument that starts with `--` and holds an escape sequence reaches standard error unchanged.
 
@@ -1066,14 +1290,30 @@ error: cannot write the output file
 
 Each of these diagnostics gives the status `Failure`. A failure before step 9 creates and changes no file (CLI-21). A write that fails after `std::fs::write` has opened the file can leave it truncated or partly written (Section 12). When `--stats` is given and the write of the statistics lines fails, Section 6.6 applies, and the output file stays written.
 
+### 6.9. Order Errors
+
+With `--presentation`, `info` writes the information text first, and then this diagnostic when an order line reports an index that differs from the group order (Section 5.7):
+
+```text
+error: cannot confirm group order: the presentation gives <K> cosets, and 2/chi is <N>
+```
+
+For the side presentation, the text reads `the side presentation gives` in place of `the presentation gives`. When both order lines differ, the diagnostic names the presentation of row 20 only, because the information text already shows both values. The diagnostic has no echo line and no caret line. No known input produces it: every spherical presentation that the prototype of Section 5.7 enumerated gave $2/\chi$. The test "Order line text" of Section 8.1 reaches it through private functions.
+
+With `--check` as well, `info` writes this diagnostic first and then the diagnostic of Section 6.7, when there is one, each in the form of Section 6.1.
+
+CLI-40. `info` MUST return `Failure` and write the diagnostic of this section when an enumeration of `--presentation` finds an index other than the group order, and every other outcome of the presentation lines MUST leave the status as it would be without the flag, because a different index means that a presentation, the enumeration, or the classification is wrong, and a script that reads the exit status must learn it, while a skipped run, a run that reaches the limit, a run that an input limit refuses, or a missing presentation shows no defect.
+
+When the write of the information text fails, Section 6.6 applies, the status is `Failure`, and no order diagnostic is written.
+
 ## 7. Streams and Exit Status
 
-`run` returns these statuses. Section 3.3 gives their exit statuses, and Sections 4.7, 6.5, 6.6, 6.7, and 6.8 give the streams.
+`run` returns these statuses. Section 3.3 gives their exit statuses, and Sections 4.7, 6.5, 6.6, 6.7, 6.8, and 6.9 give the streams.
 
 | Status | When |
 | --- | --- |
-| `Success` | `info` without `--check` wrote its text, whether or not the signature has a domain. `info --check` wrote its text, and every check passed. `render` wrote the output file, and with `--stats` the statistics lines. `--help` or `--version` wrote the help or the version text |
-| `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`). A write to standard output failed (Section 6.6). With `--check`, a check failed or the signature has no domain (Section 6.7). `render` met a render error (Section 6.8), including a signature without a domain, a bad setting, and the colouring `parity` for a domain without a reversing side |
+| `Success` | `info` without `--check` wrote its text, whether or not the signature has a domain, and with `--presentation` no order line reported an index other than the group order. `info --check` wrote its text, every check passed, and the same holds for `--presentation`. `render` wrote the output file, and with `--stats` the statistics lines. `--help` or `--version` wrote the help or the version text |
+| `Failure` | The argument is a signature error of any kind, including a bad orbifold (`DEC-24`). A write to standard output failed (Section 6.6). With `--check`, a check failed or the signature has no domain (Section 6.7). With `--presentation`, an order line reported an index other than the group order (Section 6.9). `render` met a render error (Section 6.8), including a signature without a domain, a bad setting, and the colouring `parity` for a domain without a reversing side |
 | `Usage` | `clap` reports a usage error (Section 6.5) |
 
 CLI-11. `run` MUST return `Failure` for every signature error, including a bad orbifold, because a caller that gets 0 for an invalid signature treats the missing information as valid (`DEC-24`). A caller that needs the error kind uses `escher-signature` directly.
@@ -1088,14 +1328,14 @@ The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main
 
 A test that can write the output file gets a path from a helper in `common`, in a directory of its own, `CARGO_TARGET_TMPDIR/escher-cli/<test>`. The helper empties that directory first, so a file from an earlier run cannot satisfy a test. The render usage snapshots and the render status tests fail before any file access and pass the fixed path `CARGO_TARGET_TMPDIR/escher-cli/never-written.png`, which a constant in `common` holds and no test creates.
 
-The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1, 5.3, 5.4, 5.5, or 5.6 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2, 5.3, 5.4, 5.5, or 5.6. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`. The fold properties, the reference tests, the border oracle, the symmetric view, the golden images, and the decoding of the pixels of the PNG file of Section 5.3 belong to `escher-render`.
+The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1, 5.3, 5.4, 5.5, 5.6, or 5.7 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2, 5.3, 5.4, 5.5, 5.6, or 5.7. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`. The fold properties, the reference tests, the border oracle, the symmetric view, the golden images, and the decoding of the pixels of the PNG file of Section 5.3 belong to `escher-render`.
 
 | Test | Plan item | Kind and module | Asserts | Under Miri |
 | --- | --- | --- | --- | --- |
 | Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `3*2`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself. Each text includes its `Domain` line, and the texts of `*732`, `*532`, `*632`, and `*236` their domain summaries | Ignored |
 | Domain snapshots | Command line of Sections 5.2, 5.4, and 5.5 of the plan, and a snapshot of the parameter listing | `insta`, `info` | The text and status for `info '*542'`, `info '*433'`, `info '*(1001)32'`, `info '*442'`, `info '*333'`, `info '*2222'`, `info '*332'`, `info '*722'`, `info '*55'`, `info '*22'`, `info --check '*732'`, `info --check '3*2'`, `info --check '*(1000)32'`, `info --check '*2222'`, `info --check '*532'`, `info --check '*55'`, `info --check '*(1000)22'`, and `info --check '*(1001)(1001)'`, which is over the limit of `escher-domain`, and for the rotation domains `info 732`, `info --check 732`, `info 442`, `info 2222`, `info 532`, `info '(12)22'`, `info 55`, and `info 22`. The texts of `*2222` and `2222` hold their `Parameter` lines, and the texts of the rotation domains their `Side pairs` and `Parity colouring` lines. The plan writes the triangle $(3, 3, 4)$, whose canonical signature is `*433` | Ignored |
 | Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Section 12.1 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, a span after the infinity sign, and a span that is the infinity sign, under one caret | Ignored |
-| Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, a missing signature, and a repeated `--check`. The help of `info` shows `--check` | Ignored |
+| Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, a missing signature, a repeated `--check`, and a repeated `--presentation`. The help of `info` shows `--check` and then `--presentation` with its help text of Section 4.2 | Ignored |
 | Version tests | None | Plain tests, `usage` | `--version` and `-V` give `Success`, empty standard error, and standard output equal to the package name, one space, the package version, and a line feed. Each test takes the name and the version from the package when it compiles, so a new version needs no change to the tests | Runs |
 | Echo limit tests | Failure paths | Plain tests, `diagnostics` | The status and the exact diagnostic for a signature of exactly 120 characters, which gets the echo line and the caret line, for one of 121 characters, which gets the byte span, and for one of 42 characters and 124 bytes, built with the infinity sign, which gets the echo line and the caret line because the limit counts characters | Runs |
 | Status tests | Failure paths | Plain tests, `main.rs`, `usage`, and `info` | `Success` for `*732`, `Failure` for `23`, `Usage` for an unknown subcommand and for an argument that is not UTF-8, each with the start of the standard output or standard error that it writes, equal output for `*22(inf)` and the same signature with the infinity sign, and the exit statuses 0, 1, and 2 of the three values of `Status` | Runs |
@@ -1124,10 +1364,15 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Spherical render | Command line of Section 5.5 of the plan | Plain tests, `render` | `render '*532' --size 48x32 --samples 2` gives `Success` and a file whose header holds the requested size, read as the test "Written file" reads it. The files of `render '*532' --size 64x64 --samples 2` with `--threads 1` and with `--threads 4` are equal byte for byte. `--rotation -20,35,0` and `--light=-1,1,2` give `Success`, and the file with `--rotation 20,35,0` differs from the file with the default rotation | Ignored |
 | Triple parser | Failure paths | Unit tests in `args.rs` | The private parser reads `20,35,0`, `-1,1,2`, and `nan,0,0` as three numbers, and rejects `1,2`, `a,b,c`, `1,2,3,4`, `1,,2`, an empty value, and a value with a space before or after an item, with the message of Section 4.6 | Runs |
 | Default colouring | Command line of Section 5.6 of the plan (CLI-34) | Three plain tests, `render` | `render 732 --size 32x32 --samples 1` gives `Success`, and its file equals byte for byte the file with `--colouring one`. The file of `render '*732' --size 32x32 --samples 1` equals byte for byte the file with `--colouring parity`. `render 442`, `render 2222 --set aspect=1.618`, and `render 532`, each at 48 by 32 pixels with 2 samples, give `Success` and a file whose header holds the requested size, read as the test "Written file" reads it | Ignored |
+| Presentation snapshots | Command line of Section 5.7 of the plan | `insta`, `info` | The text and status of `info --presentation` for `*532`, `532`, `*2222`, `2222`, `*732`, `3*2`, `x`, `22`, `*`, `1`, `*(inf)22`, and `*(9000)(9000)`, which is over the coset limit, and of `info --check --presentation '*532'`, whose presentation lines come before its verification lines. Each text holds the lines of Section 5.3 for its signature and then those of Section 5.7 | Ignored |
+| Presentation status tests | Command line of Section 5.7 of the plan, the orders of `x`, `22`, and `*` | Plain tests, `info` | `Success`, empty standard error, and a standard output that ends with `Side order by coset enumeration: 2, equal to 2/chi` and a line feed for `info --presentation 22`, and the same output with the flag after the signature. `Success` and a standard output that ends with `Order by coset enumeration: 2, equal to 2/chi` and a line feed for `info --presentation x` and `info --presentation '*'` | Runs |
+| Order line text | Failure paths | Unit tests in `info.rs` | The private formatter of the size of a presentation writes `1 generator, 1 relator` and `0 generators, 0 relators`. The private formatter of an order line, given the group order, the limit, and the outcome of a run as plain values, writes each value of the table of Section 5.7 except that of the last row, which no test covers, including `60, different from 2/chi, which is 120` and `not run, the group order 60000 is above the limit of 16384 cosets`. The private function that writes the diagnostic of Section 6.9 writes `error: cannot confirm group order: the presentation gives 60 cosets, and 2/chi is 120`, and the variant for the side presentation. Given an outcome with a different index, the private function that builds the presentation lines returns an error after the lines, and the text is written before that error is returned | Runs |
 | Smoke test | One process-level smoke test of the binary | Plain test, `process` | The binary that Cargo names in `CARGO_BIN_EXE_escher`, run with `render '*732' --size 32x32 -o <path>`, exits with status 0, writes nothing to standard output or standard error, and writes a file that starts with the PNG signature | Ignored |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 
 The argument that is not UTF-8 is built with `std::os::unix::ffi::OsStringExt`, and the symbolic link with `std::os::unix::fs::symlink`, so those tests compile only on Unix, which covers Linux, the supported platform.
+
+The presentation lines hold only names, relator texts, and integers, which do not depend on floating-point arithmetic, and the enumeration is a function of its inputs alone (Section 7.9 of `docs/design/group.md`, GRP-18), so the presentation lines need no masking. The domain summaries in the presentation snapshots are those of `*532`, `532`, `*2222`, `2222`, `*732`, and `22`, which the information snapshots and the domain snapshots already hold, so the condition on rounding boundaries of CLI-20 holds for them. The other inputs of the presentation snapshots have no domain.
 
 No known input makes a check fail, so the failed-check path is tested through private functions, as Section 12.1 of `docs/design/signature.md` does for its `Overflow` texts. The test "Failed check text" covers the formatter of one check, the check lines, the `Verification` line, and the count of failed checks built from the rows, the writing of the text before the verdict is returned, and the diagnostic function.
 
@@ -1204,6 +1449,8 @@ The other tests of Section 8.1 run under Miri unchanged, because they use only m
 
 The plain tests that run `info` on `*732` build its domain under Miri, and those that pass `--check` also verify it, so they run the arithmetic of `glam` and the floating-point functions of the standard library in the interpreter. The verification of `*732` needs few matrix products (Section 8.2 of `docs/design/domain.md`), so these tests need no attribute. They assert the status and the start or the end of the output, and no digit of a floating-point value, because the interpreter need not reproduce the last bits of the host library (Section 12.3 of `docs/design/domain.md`). They pass under `just check-miri`.
 
+The tests "Presentation status tests" run under Miri unchanged. They enumerate only presentations of groups of order 2 and build only the domain of `22`, so they run the code of `escher-group` and `side_presentation()` in the interpreter at a small cost. Section 11.1 of `docs/design/group.md` records the times of the enumerations of `x`, `22`, and `*` under Miri on a prototype outside the repository, which are small, and that of `*532`, which is too long. So no plain test of this crate enumerates `*532`, and only the snapshot, which Miri skips, covers it.
+
 Every test of `render` that reaches step 6 of Section 4.5 starts the thread pool, and every such test that succeeds writes the output file. A two-thread pool of `rayon`, run under Miri on a prototype outside the repository on 2026-11-16, made Miri report undefined behaviour inside `crossbeam-epoch` 0.9.21, a dependency of `rayon`. With the option `-Zmiri-tree-borrows`, Miri reported memory leaks instead. The owner accepts this for the proof of concept (`DEC-21`).
 
 CLI-27. Every test that reaches the thread pool MUST carry `#[cfg_attr(miri, ignore = "the thread pool library fails the checks of the interpreter")]`, unless it already carries the attribute of a snapshot test, because without it `just check-miri` fails on a defect that is outside this crate and that the owner has accepted.
@@ -1214,7 +1461,7 @@ The smoke test carries `#[cfg_attr(miri, ignore = "the interpreter cannot start 
 
 ### 9.1. Workspace Dependencies
 
-The crate declares these dependencies, each from one entry in the root `[workspace.dependencies]` table (rule DEP-2 of `docs/rust-coding-standards.md`). The table also holds the entries that `docs/design/signature.md`, `docs/design/geometry.md`, `docs/design/domain.md`, and `docs/design/render.md` specify for the other crates.
+The crate declares these dependencies, each from one entry in the root `[workspace.dependencies]` table (rule DEP-2 of `docs/rust-coding-standards.md`). The table also holds the entries that `docs/design/signature.md`, `docs/design/geometry.md`, `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/render.md` specify for the other crates.
 
 ```toml
 [workspace.dependencies]
@@ -1228,6 +1475,7 @@ clap = { version = "4.6", default-features = false, features = [
     "usage",
 ] }
 escher-domain = { version = "0.1.0", path = "crates/escher-domain" }
+escher-group = { version = "0.1.0", path = "crates/escher-group" }
 escher-render = { version = "0.1.0", path = "crates/escher-render" }
 escher-signature = { version = "0.1.0", path = "crates/escher-signature" }
 insta = { version = "1.49", default-features = false }
@@ -1238,13 +1486,14 @@ rayon = "1.12.0"
 | --- | --- | --- | --- |
 | `escher-signature` | Normal | None | Parses and classifies the signature. The path dependency carries a version (TOOL-25) |
 | `escher-domain` | Normal | None | Lists the shape parameters for the parameter lines, builds and verifies the fundamental domain for the domain summary and `--check`, and builds the domain that `render` draws with the settings. The path dependency carries a version (TOOL-25) |
+| `escher-group` | Normal | None | Derives the Conway presentation, gives the text of the relators, and enumerates the cosets of both presentations for `--presentation`. The path dependency carries a version (TOOL-25). The package declares it in the change that adds `--presentation`, because an unused dependency fails `check-unused-deps` |
 | `escher-render` | Normal | None | Renders the image, counts its statistics, and encodes it as PNG for `render`. The path dependency carries a version (TOOL-25) |
 | `rayon` | Normal | Default | The thread pool of `render` (`DEC-21`, Section 3.5 of `docs/design/architecture.md`) |
 | `clap` | Normal | The list above, without `color`, `env`, and `wrap_help` | The derive API (Section 3.1 of `docs/design/architecture.md`). Without `color`, `anstream` and its dependencies are not built (Section 9.2) |
 | `anyhow` | Normal | Default | The chain of errors that Section 5.8 of `docs/design/architecture.md` requires. Version 1.0.103 fixes RUSTSEC-2026-0190 (Section 10 of `docs/research/rust-ecosystem.md`) |
 | `insta` | Dev | None, so without `colors` | Snapshot tests (rule TEST-2). Without `colors`, `console` is not built (Section 9.2) |
 
-The crate declares neither `escher-geometry` nor `glam`. The measurements of the domain are methods of `FundamentalDomain` that return plain `f64` values, so this crate names no `glam` type (Section 15.2 of `docs/design/domain.md`). `render` passes the domain to `escher-render` unchanged and reads only integers from the statistics, so it names no `glam` type either. `escher-domain` brings `escher-geometry`, `glam`, and `thiserror` into the build of the binary, and `escher-render` brings `png` and its dependencies.
+The crate declares neither `escher-geometry` nor `glam`. The measurements of the domain are methods of `FundamentalDomain` that return plain `f64` values, so this crate names no `glam` type (Section 15.2 of `docs/design/domain.md`). `render` passes the domain to `escher-render` unchanged and reads only integers from the statistics, so it names no `glam` type either. `escher-domain` brings `escher-geometry`, `glam`, and `thiserror` into the build of the binary, and `escher-render` brings `png` and its dependencies. `escher-group` depends on `escher-signature` and `thiserror` only (Section 12 of `docs/design/group.md`), so it adds no external crate to the build.
 
 The crate declares no colour crate and no `png`. The private parser of Section 4.6 reads the two hexadecimal forms of a colour (`DEC-29`), and the tests read the PNG header by hand (Section 8.1).
 
@@ -1293,7 +1542,7 @@ CLI-14. The dev-dependencies of this crate MUST stay inside the dependency polic
 
 ## 10. Unverified Statements
 
-This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-10`, `UNV-22`, `UNV-26`, `UNV-28`, `UNV-29`, `UNV-30`, and `UNV-31` through `escher-domain`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
+This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-10`, `UNV-22`, `UNV-26`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, and `UNV-32` through `escher-domain`, on `UNV-19` and `UNV-22` through `escher-group`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
 
 | Id | How this crate relies on it |
 | --- | --- |
@@ -1304,6 +1553,9 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 | `UNV-28` | `info` prints the summary of a Euclidean triangle, and `render` draws it, from the vertex coordinates that `escher-domain` builds, whose checks and tests its design states |
 | `UNV-29` | `info` prints the summary of a lune, and `render` draws it as a fundamental domain, which no source states. `info --check` reports the checks that test it |
 | `UNV-22`, `UNV-30`, `UNV-31` | `info` prints the summary of a rotation domain, and `render` draws it as a fundamental domain of the rotation subgroup, which rests on the signature of that subgroup, on the lune double, and on the convexity and the vertex cycles of the double. `info --check` reports the checks that test each build |
+| `UNV-19` | The order lines of `--presentation` come from the coset enumeration of `escher-group`, whose steps rest on implementations and lecture notes. A run that reaches the limit prints `not found` and claims nothing about the index (Section 5.7) |
+| `UNV-22` | `--presentation` prints the Conway presentation of a boundary without corners, such as that of `*`, in the reading that Section 5.2 of `docs/design/group.md` records (GRP-7) |
+| `UNV-32` | `--presentation` prints the side presentation of a rotation domain, whose cycle relators as words are the reading of `docs/design/domain.md` (Section 5.4 of that document). The side order line compares the order that they present with the group order |
 | `UNV-1` | `render` relies on the fold to stop for the samples of an image of a reflection triangle, rectangle, or lune. `Unconverged samples` counts the samples for which it does not stop within the fold cap, which on the sphere can happen near a vertex of very high order |
 | `UNV-2` | `render` relies on the fold to stop for the samples of an image of a rotation domain. `Unconverged samples` counts the samples for which it does not stop within the fold cap |
 | `UNV-16` | The ball that `render` draws comes from the lift onto the ball and the Phong reflection model, whose primary paper is unread |
@@ -1349,7 +1601,7 @@ These choices are made here, and no other document dictates them:
 13. The help, version, and usage text of `clap` has each control character other than the line feed replaced with `?` (Section 6.5).
 14. A snapshot holds the status and each stream between fixed marker lines, with a final marker line (Section 8.1).
 15. A `Domain` line for every valid signature, with `none, ` and the `Display` text of the error of `escher-domain` when no domain is built, and the status `Success` for such a signature without `--check` (Section 5.5).
-16. The labels of rows 11 to 23, angles in degrees, and six digits after the point for the domain summary (Sections 5.1 and 5.2).
+16. The labels of rows 11 to 16 and 25 to 31, angles in degrees, and six digits after the point for the domain summary (Sections 5.1 and 5.2).
 17. Every check line shows its result, its residual, and its tolerance in the form `{:.1e}`, and a final `Verification` line gives the overall result (Section 5.6).
 18. With `--check`, a failed check and a missing domain each give `Failure` and a diagnostic (Section 6.7).
 19. The information text is written before the verification diagnostic (Section 6.7).
@@ -1382,6 +1634,13 @@ These choices are made here, and no other document dictates them:
 46. `--colouring` without a default of `clap`, and the default chosen from the domain (CLI-34).
 47. An explicit `--colouring parity` for a domain without a reversing side is an error, and not an image in one colour (CLI-35, `DEC-32`).
 48. `render` refuses no domain for the kinds of its sides, because `escher-render` renders a rotation domain within the bounds of Section 6.8 of `docs/design/render.md` (RND-35).
+49. The flag `--presentation`, with no short form, and its help text (Section 4.2).
+50. The labels, the position after the domain summary, and the forms of rows 17 to 24, with the size of a presentation as counts and `none` for an empty list (Section 5.7).
+51. The values of the order line, with `not run` for a run that the gate prevents and `not found` for a run that reaches the limit, and `not run, ` with the `Display` text for any other error of `enumerate`, which `info` cannot reach and no test covers (Section 5.7).
+52. A different index gives `Failure` with the diagnostic of Section 6.9, and every other outcome of the presentation lines leaves the status unchanged (CLI-40).
+53. When both order lines differ, the diagnostic names the Conway presentation only (Section 6.9).
+54. A side presentation that `escher-domain` refuses prints `none` and its error, and leaves the status unchanged, as a missing domain does without `--check` (Section 5.7).
+55. The presentation lines come before the verification lines, and their diagnostic before the verification diagnostic (Sections 4.3 and 6.9).
 
 ### 11.3. Points for the Owner
 
@@ -1407,12 +1666,16 @@ None of these blocks the implementation:
 18. The `Parity colouring` line (CLI-33). The design prints it only for a domain with no reversing side. The alternative prints a `Parity colouring` line for every built domain, which changes the snapshot of every reflection domain.
 19. `--colouring parity` for a domain without a reversing side (CLI-35, `DEC-32`). The design reports an error and writes no file. The alternative draws the image in the first colour, as `escher-render` does (RND-33 of `docs/design/render.md`).
 20. The fill colours follow the colouring that the domain gives (Section 4.6). So `escher render 732 --colours '#e9c46a,#2a9d8f'` fails, because the default colouring of `732` is `one`. The alternative chooses the colouring from the number of colours given, which adds a second rule for the default.
+21. Both presentations (`DEC-35` of `docs/design/architecture.md`). `--presentation` prints the Conway presentation and the side presentation, so that the two independent readings of the group can be compared (Section 5.7). The alternative prints the Conway presentation only, which drops the check of the domain.
+22. No order line outside the sphere (CLI-39). The design prints no order line for a Euclidean or hyperbolic signature. The alternative prints a line that says that the enumeration was not run, which changes the text of every such signature.
+23. No option for the coset limit (CLI-41). The alternative is an option such as `--max-cosets`, which could arrive with the colour limit `--max-colours` of M8.
+24. Latency at the gate. The gate runs an enumeration for every spherical signature with a group order of at most 16384. On a prototype outside the repository, `escher info --presentation '(16384)(16384)'` took 3.6 seconds in a release build and 17.2 seconds in a debug build, from the start of the command to its end, and `'2*(4096)'` took 2.4 and 6.7 seconds. The largest group order of a domain that `escher-domain` builds is 4000, of `*(1000)22`. The alternative is a lower gate for `info`, such as a group order of at most 4096, which keeps every built domain and prints `not run` for the larger orders. On the prototype, the Conway presentation of `*(1000)22` took 115 milliseconds in a release build and 392 in a debug build.
 
 ## 12. Security Considerations
 
 The threat model is a user who passes a signature, option values, or an output path from an untrusted party to `escher info` or `escher render`. The attacker can choose any argument within the limits of the command line, including invalid UTF-8, control characters, and very long text. The attacker cannot change the binary, its dependencies, or the files of the repository.
 
-The attacks in scope are exhaustion of memory or time through the signature or the options of `render`, injection of terminal escape sequences through the diagnostic, and the choice of the file that `render` overwrites. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states. `escher-domain` limits the largest corner order of a domain, which bounds the cost of `verify()` and of every fold step, as Section 16 of `docs/design/domain.md` states. `escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, which bound the memory of the image and the work of each sample, as Section 13 of `docs/design/render.md` states. This crate adds one limit of its own, 256 threads (Section 4.6). `escher-domain` limits the value of each shape parameter to its range. The settings need no limit on their number or length, because each name is only compared, and a repeated or unknown name fails.
+The attacks in scope are exhaustion of memory or time through the signature or the options of `render`, injection of terminal escape sequences through the diagnostic, and the choice of the file that `render` overwrites. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states. `escher-domain` limits the largest corner order of a domain, which bounds the cost of `verify()` and of every fold step, as Section 16 of `docs/design/domain.md` states. `escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, which bound the memory of the image and the work of each sample, as Section 13 of `docs/design/render.md` states. `escher-group` limits the size of a presentation and the cosets of an enumeration (Section 15 of `docs/design/group.md`, GRP-19 and GRP-20). The coset limit bounds the memory of an enumeration and not its time, so `--presentation` runs an enumeration only for a spherical signature with a group order of at most the limit (CLI-39), whose relators the signature bounds. This crate adds one limit of its own, 256 threads (Section 4.6). `escher-domain` limits the value of each shape parameter to its range. The settings need no limit on their number or length, because each name is only compared, and a repeated or unknown name fails.
 
 The diagnostics of `render` repeat no option value and no path (CLI-26). The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`. The `Domain` line and the diagnostics of Section 6.7 hold only fixed text, numbers, and the canonical signature, which is printable ASCII. The help, version, and usage text that `clap` produces has every control character other than the line feed replaced with `?` (CLI-15).
 
@@ -1428,7 +1691,7 @@ Attacks on the repository, the build machine, or the terminal itself are out of 
 
 The residual risk is that a usage error still echoes every character of an unknown argument that is not a control character, including characters outside ASCII, such as the formatting characters of the Unicode general category Cf. The replacement tests only for the category Cc. A second residual risk is a domain that is wrong by less than the tolerances, which `--check` reports as passed (Section 16 of `docs/design/domain.md`).
 
-The limits of `escher-render` bound memory, but at their maximum values together they allow a rendering that runs for a very long time, which only the user can stop. A write that fails after `std::fs::write` has opened the file, such as on a full disk, leaves the file truncated or partly written. Miri checks no code of `rayon` (Section 9.3).
+The limits of `escher-render` bound memory, but at their maximum values together they allow a rendering that runs for a very long time, which only the user can stop. In the same way, `info --presentation` near the gate runs for seconds (Section 11.3, item 24). A write that fails after `std::fs::write` has opened the file, such as on a full disk, leaves the file truncated or partly written. Miri checks no code of `rayon` (Section 9.3).
 
 ## 13. Operational Considerations
 
@@ -1443,6 +1706,9 @@ The supported platform is Linux. The minimum supported Rust version is the one t
 | The signature has no domain, without `--check` | The `Domain` line with `none`, with `Success` | None needed |
 | The signature has no domain, with `--check` | The diagnostic of Section 6.7, with `Failure` | Run `info` without `--check`, or use a signature that `escher-domain` constructs |
 | A check fails | The check lines with `failed` and the diagnostic of Section 6.7, with `Failure` | None. It is a defect of `escher-domain`, and the residual and the tolerance locate it |
+| An enumeration of `--presentation` finds an index other than the group order | The order line with `different from 2/chi` and the diagnostic of Section 6.9, with `Failure` | None. It is a defect of `escher-group`, `escher-domain`, or `escher-signature`, and the two order lines show which presentation disagrees |
+| An enumeration of `--presentation` reaches the coset limit | The order line `not found within <L> cosets`, with the status unchanged | None in `info`, which has no option for the limit (CLI-41) |
+| An enumeration of `--presentation` is refused by an input limit of `escher-group`, which no input reaches | The order line `not run, ` and the `Display` text of the error, with the status unchanged | None known |
 | A write to standard output fails | The diagnostic of Section 6.6, with `Failure` | Fix the output destination |
 | The reader of standard output closes the pipe | No diagnostic, with `Failure` | None needed |
 | `render` gets a signature without a domain | The diagnostic of Section 6.8, with `Failure` | Use a signature that `escher-domain` constructs, which `escher info` shows in its `Domain` line |
@@ -1478,7 +1744,7 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-3 | 3.4 | `main.rs` only calls `run` and converts the status. |
 | CLI-4 | 4.2 | `--version` and `-V` print the package name and version on standard output with `Success`. |
 | CLI-5 | 4.3 | `info` and `render` pass their argument unchanged to `escher-signature`. |
-| CLI-6 | 5.1 | `info` prints exactly the lines of Section 5.1, in order and under their conditions, with no name of the group in another notation. |
+| CLI-6 | 5.1 | `info` prints exactly the lines of Section 5.1, in order and under their conditions, with the presentation lines only with `--presentation` and no name of the group in another notation. |
 | CLI-7 | 5.4 | A change to the information text updates its snapshots in the same change. |
 | CLI-8 | 6.1 | Every diagnostic goes to standard error. |
 | CLI-9 | 6.2 | The echo line replaces unsafe characters with `?` and holds at most 120 characters. |
@@ -1509,3 +1775,8 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-34 | 4.6 | Without `--colouring`, `render` uses `parity` when the domain has a reversing side, and `one` otherwise. |
 | CLI-35 | 4.5 | `render --colouring parity` for a domain without a reversing side fails at step 4 with its diagnostic and writes no file. |
 | CLI-36 | 4.5 | Withdrawn on 2026-11-17. |
+| CLI-37 | 5.7 | `--presentation` adds rows 17 to 24 under their conditions and in their forms, and nothing appears without the flag. |
+| CLI-38 | 5.7 | The generator names and relator texts are those of `escher-group`, unchanged. |
+| CLI-39 | 5.7 | An order line appears only for a spherical signature, and no enumeration runs when the group order is above the coset limit. |
+| CLI-40 | 6.9 | An index other than the group order gives the diagnostic and `Failure`, and every other outcome leaves the status unchanged, including a run that an input limit refuses, whose order line reads `not run, ` and the error text. |
+| CLI-41 | 5.7 | `info` enumerates with `CosetLimit::DEFAULT` and has no option for the limit. |

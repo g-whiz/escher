@@ -32,7 +32,7 @@ This document covers the six crates of the proof of concept, their dependencies,
 
 These topics are owned elsewhere, and this document cites them:
 
-- The milestones `M1` to `M19`, the research prerequisites `RP-1` to `RP-5`, and the table of unverified statements `UNV-1` to `UNV-31` are defined in `docs/design/poc-plan.md`.
+- The milestones `M1` to `M19`, the research prerequisites `RP-1` to `RP-5`, and the table of unverified statements `UNV-1` to `UNV-32` are defined in `docs/design/poc-plan.md`.
 - The phases after the proof of concept are defined in `docs/design/roadmap.md`.
 - The application programming interface (API) of each crate, beyond the public surface of Section 3.2, is specified in the crate design documents `docs/design/signature.md`, `docs/design/geometry.md`, `docs/design/group.md`, `docs/design/domain.md`, `docs/design/render.md`, and `docs/design/cli.md` (`DEC-1`).
 - The commands, options, output format, exit status, and diagnostics of the binary are specified in `docs/design/cli.md`.
@@ -82,7 +82,7 @@ The workspace of the proof of concept has six members under `crates/`. Every mem
 | --- | --- | --- | --- |
 | `escher-signature` | Parse, validate, canonicalize, and classify a signature | None | `thiserror` |
 | `escher-geometry` | Linear models and model maps | None | `glam` (`DEC-4`) and `thiserror`, then `num-complex` from `M12` |
-| `escher-group` | Presentations, coset enumeration, low-index search, and colourings | `escher-signature` | None |
+| `escher-group` | Presentations, coset enumeration, low-index search, and colourings | `escher-signature` | `thiserror` |
 | `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` and `thiserror` |
 | `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` from `M8` | `glam`, `png`, and `thiserror`, and `palette` only if the owner adopts it at `M8` (`DEC-29`) |
 | `escher-cli` | The binary `escher`, with the commands `info` and `render` | All five, with `escher-group` from `M7` | `clap` with the derive API, `anyhow`, and `rayon` (`DEC-21`) |
@@ -91,7 +91,7 @@ The dev-dependencies are `insta`, `proptest`, and `astro-float-num`, the referen
 
 `escher-domain` and `escher-render` compute with the `glam` types that `escher-geometry` exposes, so each declares `glam` itself, from the one entry in `[workspace.dependencies]` that rule DEP-2 in Section 12 of `docs/rust-coding-standards.md` requires.
 
-Section 5.8 requires an error type in every library crate. The table lists `thiserror` for `escher-signature`, `escher-geometry`, `escher-domain`, and `escher-render`, whose design documents choose it. Whether another library crate implements its error type with `thiserror` is for its design document to decide.
+Section 5.8 requires an error type in every library crate. The table lists `thiserror` for `escher-signature`, `escher-geometry`, `escher-group`, `escher-domain`, and `escher-render`, whose design documents choose it. Whether another library crate implements its error type with `thiserror` is for its design document to decide.
 
 ### 3.2. Public Surface
 
@@ -103,17 +103,19 @@ Each list below is the public surface of one crate as this document designs it, 
 
 `escher-group`:
 
-- `Word`, `Presentation`, and `conway_presentation(&Signature)`.
-- Bounded Todd-Coxeter coset enumeration.
+- `Letter`, `Word`, `Relator` with a base word and an exponent, `Presentation`, and `conway_presentation(&Signature)`, which returns a `Result`.
+- Bounded Todd-Coxeter coset enumeration, `enumerate`, with a `CosetLimit`, which returns a complete and standardized `CosetTable` or an error.
 - The low-index search, as an iterator with a work budget over standard coset tables, one per conjugacy class.
 - `Colouring`, with an id, a colour count, and a coset table, and `colour_of`, which maps a side sequence to a colour.
+
+Section 3 of `docs/design/group.md` specifies the public surface of the first two items. The design branch of the colourings specifies the other two.
 
 `escher-domain`: `FundamentalDomain`, built from a signature, which holds its geometry, its sides, its vertices, and a centre, and `verify()`, which evaluates numerically the items of the checklist of Section 4.8 of `docs/research/fundamental-domains.md` that apply to the domain. Each side holds its unit normal, its covector, its pairing isometry, its partner side, its pairing kind, and its orientation. Section 3 of `docs/design/domain.md` specifies the public surface. These parts of the design belong to the same crate, and `docs/design/domain.md` specifies each one in the change that adds the first signature that needs it:
 
 - `ParameterSpec`, with a name, a range, and a default, and with a kind and a unit from the first parameter that needs them, `ShapeParameters`, `parameters(&Signature)`, and `build_with`, the form of `build` that takes the shape parameters.
 - The pairing kinds of the rotation subgroups, and the vertex cycles that `verify()` walks for a domain without mirrors.
 - Ideal vertices.
-- `side_presentation()`, the presentation that the sides give.
+- `side_presentation()`, the presentation that the sides give, which returns a `Result` with the `Presentation` of `escher-group` (Section 5.4 of `docs/design/domain.md`).
 
 `escher-render`:
 
@@ -128,7 +130,7 @@ Each list below is the public surface of one crate as this document designs it, 
 
 ### 3.3. Dependency Graph
 
-`escher-signature` and `escher-geometry` are the roots and depend on no other member. The column "Internal dependencies" of Section 3.1 gives the other edges, and the graph has no cycle. The graph is that of the completed proof of concept, and a crate declares a dependency from the milestone that first uses it (Section 3 of `docs/design/poc-plan.md` gives the order).
+`escher-signature` and `escher-geometry` are the roots and depend on no other member. The column "Internal dependencies" of Section 3.1 gives the other edges, and the graph has no cycle. `escher-group` depends on `escher-signature` only, so `escher-domain` can depend on it. From milestone `M7`, `escher-domain` and `escher-cli` declare `escher-group`. The graph is that of the completed proof of concept, and a crate declares a dependency from the milestone that first uses it (Section 3 of `docs/design/poc-plan.md` gives the order).
 
 Every path dependency between members carries a version, as TOOL-25 in Section 8 of `docs/design/tooling.md` requires.
 
@@ -181,6 +183,7 @@ The command `info` runs steps 1 to 4 of Section 4.1 and renders no pixels. It ta
 - The area, for a spherical or hyperbolic signature.
 - The parameters, with name, range, and default.
 - A summary of the domain.
+- With `--presentation`, the Conway presentation of the signature and the side presentation of the domain, and for a spherical signature the group order that coset enumeration finds for each (`DEC-35`).
 - The colourings, each with its id and colour count.
 
 ## 5. Cross-Crate Conventions
@@ -216,7 +219,9 @@ The sign follows SymmHub, whose side test is positive outside and whose plane no
 
 ### 5.3. Sides, Pairings, and Generators
 
-Side $i$ carries the isometry $P_i$ that maps the neighbouring copy of the domain across that side onto the domain. This is the "reverse transform" of item 4 of Section 2.4 of `docs/research/symmhub.md`. The abstract generator of side $i$ is the group element whose image of the domain is that neighbour. A tile is $gF$.
+Side $i$ carries the isometry $P_i$ that maps the neighbouring copy of the domain across that side onto the domain. This is the "reverse transform" of item 4 of Section 2.4 of `docs/research/symmhub.md`. The abstract generator of side $i$ is the group element whose image of the domain is that neighbour, which is $P_i^{-1}$. A tile is $gF$.
+
+A word in the generators is read left to right as the product left to right, so the word $s_a s_b$ is the group element $s_a s_b$, and evaluated as matrices it is the matrix product in that order. This is a convention of this document. Every crate that turns a word into an element, or an element into a word, follows this convention. The side presentation of `escher-domain` has one generator for each side under it (Section 5.4 of `docs/design/domain.md`). No source read states the cycle relators of a domain as words in this convention, which is `UNV-32`.
 
 ### 5.4. Colourings
 
@@ -264,13 +269,16 @@ This table records the pick for each topic on which the sources differ:
 | --- | --- | --- |
 | Time coordinate | Last | Sections 2.4 and 14 of `docs/research/geometry-models.md` |
 | Sign of the side test | Outward normals, a positive value is outside | Section 2.4 of `docs/research/symmhub.md`, Section 2.3 of `docs/research/rendering.md` |
-| Cosets | Left cosets | Sections 2.3 and 4.1 of `docs/research/colourings.md` |
+| Cosets of a colouring | Left cosets | Sections 2.3 and 4.1 of `docs/research/colourings.md` |
+| Cosets of a coset table | Right cosets and a right action, with coset 0 the subgroup (`DEC-36`) | Section 7.21 of `docs/research/colourings.md`: every source read uses right cosets and a right action, and none uses left cosets |
 | Band | The strip $\lvert \operatorname{Im} w \rvert < 1$ with $w = \frac{4}{\pi} \operatorname{artanh} z$ | Sections 5.1 and 14 of `docs/research/geometry-models.md`, Section 2.3 of `docs/research/rendering.md` |
 | Disk and half-plane | The connecting maps of [CFKP] through the hemisphere, which connect all five models in one primary source and are already time-last. [BEA] and [RAT] each give a primary map from the half-plane to the disk, and the sources do not agree on one map (Section 4.3 of `docs/research/geometry-models.md`). The design document of `escher-geometry` records the image of the disk centre and tests the round trip | Sections 4.1 and 4.3 of `docs/research/geometry-models.md`, Section 2.3 of `docs/research/rendering.md` |
 | Glyphs | `o` for a handle and `x` for a crosscap, never `o` for a crosscap | Sections 2.5 and 3.3 of `docs/research/orbifold-notation.md` |
 | Reversal of a single boundary | The conditional rule of [CH] | Sections 2.5 and 4.1 of `docs/research/orbifold-notation.md` |
 | Direction of commutator and conjugation | As [CH] gives them for the Conway presentation | Section 9.1 of `docs/research/orbifold-notation.md`, Section 2.5 of `docs/research/fundamental-domains.md` |
 | Twist | One Escher convention | Section 12 and gap G11 in Section 13.2 of `docs/research/fundamental-domains.md`, where the research makes no recommendation |
+
+The coset tables of `escher-group` follow the sources and use right cosets, while Section 5.4 specifies a colouring by left cosets. The conversion between the two, for the rule that turns the side sequence of the fold into a coset, is an open point for the milestone of the colourings, `M8`, under `UNV-17`. This document states no conversion.
 
 Several sources use the band constant $4/\pi$ with this strip, while [B1] prints $2/\pi$ (Section 5.1 of `docs/research/geometry-models.md`). That [B1] is inconsistent is the research's own reasoning, which no source states.
 
@@ -469,12 +477,16 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-30` | Existing output file | Decided by the owner: replaced without asking, with no `--overwrite` option | Section 10.1 |
 | `DEC-31` | Normalization in the fold | No renormalization of the point, inside the fold loop or after it | Section 9.3. A prototype measured that renormalization inside the loop changes the sides that the fold applies near the rim |
 | `DEC-32` | Colouring of a signature without reflections | Until a later milestone adds colourings, a signature without reflections renders in one colour, and `parity` for it is an error of `escher render`. `escher-render` draws `parity` for such a domain in its first colour. `docs/design/cli.md` (CLI-33 to CLI-35) and `docs/design/render.md` (RND-33) specify it | The parity colouring needs a pairing that reverses orientation (Section 5.7), and an image in one colour for an explicit `parity` would hide that the requested colouring was not drawn. `DEC-7` already makes one colour the default when no two-colour colouring exists |
+| `DEC-33` | Coset enumeration | The Felsch strategy, which defines the first undefined entry of the table, scans the relators that a new entry affects, and before it returns a table scans every relator at every coset in a closing pass. The coset limit counts every coset that a run defines, including coset 0, with the default 16384 and the maximum 1048576. Sections 6.3, 7, and 15 of `docs/design/group.md` state the steps and every limit | Defining the first undefined entry meets the hypothesis of the termination theorems for a finite index (Sections 7.12 and 7.15 of `docs/research/colourings.md`). With the closing pass, a returned table rests on the sourced statement that a closed table gives the index (Sections 7.9 and 7.15), and not on the steps that only code states (`UNV-19`). The default is about four times the largest group order of a domain of `M6`, 4000 for `*(1000)22`. No source states what a run that reaches the limit shows (item 19 of Section 14.1 of `docs/research/colourings.md`) |
+| `DEC-34` | Generator names and relator text | ASCII names numbered by kind: `x1`, `y1`, and `a1` for a handle, `g1` for a cone point, `r1` upward across the boundaries and `l1` for each boundary, and `z1` and `w1` for a crosscap, in the Conway presentation, and `s0` upward by side index in the side presentation. A relator is written with its letters separated by one space, an inverse as `name^-1`, and an exponent above 1 as `^n` after the base, with parentheses around any base other than one generator, such as `(r1 r2)^5` and `(g1^-1)^3`. Sections 4.4 and 5.1 of `docs/design/group.md` and Section 5.4 of `docs/design/domain.md` state the full forms | ASCII names need no replacement of characters on the command line. [CH] writes Latin and Greek letters (Section 9.1 of `docs/research/orbifold-notation.md`), which this proposal replaces. Side names from 0 match the side index that the fold records |
+| `DEC-35` | `escher info --presentation` | The Conway presentation of the signature and, when a domain is built, the side presentation, each with the group order by coset enumeration only for a spherical signature whose group order is at most the default coset limit, and no option for the limit. Section 5.7 of `docs/design/cli.md` states the lines | Two independent readings of the group, from the signature and from the domain, can be compared. Only a spherical signature has a group order to compare with, and a run above the limit cannot finish (CLI-39 of `docs/design/cli.md`) |
+| `DEC-36` | Side generators and coset tables | One generator for each side of a domain, with a pair relator for each pair of paired sides. Coset tables over right cosets with a right action, with coset 0 the subgroup and the column of each generator followed by that of its inverse | A colouring finds the generator of a fold step by its side index alone. Every source read uses right cosets and a right action (Section 7.21 of `docs/research/colourings.md`). The conversion to the left cosets of a colouring (Section 5.4) is open for `M8` (Section 5.10) |
 
 ## 11. Security Considerations
 
 The threat model is a user who passes input from an untrusted party to `escher`: the signature, the `name=value` settings, the colours, and the numeric options. The attacker can choose any string within the limits of the command line. The attacker cannot change the binary, its dependencies, or the files of the repository.
 
-The attacks in scope are exhaustion of memory and time. A large order, a long signature, a large image, a high fold cap, or a low-index search over a large index can each consume unbounded resources. Each crate design document therefore states its limits (Section 5.9), and the crate returns an error when an input exceeds one. Orders use checked arithmetic (`DEC-25`), so an overflow is an error.
+The attacks in scope are exhaustion of memory and time. A large order, a long signature, a large image, a high fold cap, a coset enumeration, or a low-index search over a large index can each consume unbounded resources. A limit on the cosets of an enumeration bounds its memory and not its time, so Section 15 of `docs/design/group.md` states the residual time risk and Section 5.7 of `docs/design/cli.md` the gate of `info`. Each crate design document therefore states its limits (Section 5.9), and the crate returns an error when an input exceeds one. Orders use checked arithmetic (`DEC-25`), so an overflow is an error.
 
 The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -503,7 +515,7 @@ Each library crate reports a failure through its `Error` and `ErrorKind` (Sectio
 | Valid signature without a construction | The kind "unsupported signature". `render` exits with a non-zero status (Section 5.8) | None until its milestone in `docs/design/poc-plan.md`. None in the proof of concept for a general non-compact signature (`DEC-19`) |
 | Parameter outside its range | An error of `escher-domain` with its documented kind | Choose a value in the range that `info` lists |
 | Search budget exhausted | A truncated listing, reported as truncated (`DEC-15`) | Lower the maximum colour count |
-| Coset enumeration over its bound | The limit error of `escher-group` | None. The group is infinite or the bound is too low |
+| Coset enumeration over its bound | The limit error of `escher-group`, which claims nothing about the index | None. The error says that the run defined the limit and needed more, and a higher limit may or may not finish. No source read states what such a run shows about the index (item 19 of Section 14.1 of `docs/research/colourings.md`) |
 | Input over a resource limit | The limit error of the crate | Reduce the input |
 | Sample at the fold cap | No error. The sample is counted in `RenderStats` and coloured as Section 9.1 states | Raise the fold cap |
 

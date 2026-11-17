@@ -32,7 +32,7 @@ This document covers the workflow of a milestone, the owner's staging, the resea
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the proposed defaults `DEC-1` to `DEC-32`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the proposed defaults `DEC-1` to `DEC-36`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -53,7 +53,7 @@ This document uses the terms that Section 2.2 of `docs/writing-documentation.md`
 - design branch: A branch named `feature/<name>-design` that changes only documents. It writes or extends the design documents of a milestone, and the research documents where a research prerequisite applies.
 - code branch: A branch in its own worktree that changes code together with its tests and the document updates that Hard Rule 1 of `AGENTS.md` requires.
 - research prerequisite: A design branch, labelled `RP-1` to `RP-5`, that adds to a research document what a milestone needs before its code can start (Section 4).
-- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-31` (Section 7).
+- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-32` (Section 7).
 - stage: One of the three stages of the owner's staging (Section 3.2).
 - proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`. Section 10.1 of that document states the defaults that the owner has decided, which keep their labels.
 - reference arithmetic: The independent high-precision implementation of a few formulas inside a test suite, which Section 7 of `docs/design/architecture.md` defines.
@@ -496,15 +496,15 @@ escher render 532 -o i.png
 escher info --presentation '*532'
 ```
 
-For a spherical signature it also prints "order by coset enumeration: 120, equal to 2/chi".
+For a spherical signature it also prints the line `Order by coset enumeration: 120, equal to 2/chi`, and the same for the side presentation of its domain.
 
 **Scope.** `Word`, `Presentation`, the Conway presentation of a signature (`orbifold-notation.md` 9.1), the side presentation of a domain, and bounded Todd-Coxeter enumeration. The side presentation has Coxeter relators for mirrors, and pairing and vertex-cycle relators otherwise, as `symmhub.md` 14.2 describes SymmHub doing.
 
-**Design documents.** `docs/design/group.md`, and an extension of `domain.md`. Prerequisite RP-1.
+**Design documents.** `docs/design/group.md`, extensions of `domain.md` and `cli.md`, and the changes to `docs/design/architecture.md` and to this plan that the design makes. `domain.md` states the side presentation, and `cli.md` the option `--presentation` of `info`. Prerequisite RP-1.
 
 **Sources.** [CH] pp. 255 to 257. Theorem 6.4.3 of [DAVIS] and the theorems of M6 for side presentations. The polygon theorems of `fundamental-domains.md` 4.9 and 4.10 for the cycle relators of mixed side pairings, from M10 on. `colourings.md` 7.2 for coset tables in GAP, 7.9 to 7.15 for the coset table, Todd-Coxeter enumeration, and its termination, 7.16 for the limits of existing implementations, and 7.20 for worked examples. `colourings.md` 7.15 and 14.1 item 19 record that no source read states what a run that reaches its limit shows. `rust-ecosystem.md` 14, which records that no usable crate exists and that `algebraeon-groups` is under GPL-3.0-only and is not copied.
 
-**Unverified statements relied on.** `UNV-19` (the algorithms without their primary texts) and `UNV-22` (a boundary without corners).
+**Unverified statements relied on.** `UNV-19` (the algorithms without their primary texts), `UNV-22` (a boundary without corners), and `UNV-32` (the relators of a double as words). The side presentations also rest on `UNV-29`, `UNV-30`, and `UNV-31` through the domains of M5 and M6.
 
 **Tests and acceptance.**
 
@@ -515,7 +515,13 @@ For a spherical signature it also prints "order by coset enumeration: 120, equal
 
 **Dependencies and `deny.toml` work.** None.
 
-**Risks.** The enumeration strategy, and blow-up on relator orders that suit it poorly.
+**Risks.** The enumeration strategy, and blow-up on relator orders that suit it poorly. A limit on the cosets bounds the memory of an enumeration and not its time, so `info` enumerates only a spherical signature whose group order is within the limit (`docs/design/cli.md`). No domain of M5 or M6 has a vertex cycle of three or more sides, so no such domain fixes the letter order of the cycle relators (`docs/design/domain.md`, `UNV-32`).
+
+**Split.** Three branches, in this order:
+
+1. The design branch `feature/group-design`, with `docs/design/group.md`, the extensions of `domain.md` and `cli.md`, the changes to `docs/design/architecture.md` and this plan, and the lines of `AGENTS.md` that the documents make false. Every figure of the crates is stated as to be measured.
+2. The branch of the crate `escher-group`, with `Word`, `Relator`, `Presentation`, `conway_presentation`, `CosetTable`, `enumerate`, and all their tests, with the workspace manifest, `README.md`, `AGENTS.md`, the member list of the coding standard, and the Miri list of the tooling design. The measured limits and times go into `docs/design/group.md`.
+3. The branch of `side_presentation` in `escher-domain`, with its tests and its measured residuals, and of `info --presentation` in `escher-cli`, with its snapshots. It declares `escher-group` in both manifests, because an unused dependency fails `check-unused-deps`, and it updates Project Status in `AGENTS.md` for the completion of the milestone.
 
 ### 5.8. M8: Colouring Search With Ids
 
@@ -891,10 +897,10 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-16 | The lift onto the ball, the view scale of the sphere, and the Phong formulas | `rendering.md` 13.1 items 11 and 12, `geometry-models.md` 11.6 | M5 | [PHONG75], [BLINN77] |
 | UNV-17 | Coset colourings are perfect for every orbifold group, the composition order, completeness, and conjugacy | `colourings.md` 4.2, 8.4, 8.7, and 14.1 items 1 to 3 | M8 | [DDL2009], [SCHWARZENBERGER1984], or Lean. [CBGS2008] defines colour types and states none of these (`colourings.md` 3.3 and 14.1 items 1 and 2) |
 | UNV-18 | The parity colouring as the colouring by the two cosets of the orientation-preserving subgroup. That subgroup and its signature are sourced for non-Euclidean crystallographic (NEC) groups with a compact quotient (`colourings.md` 6) | `colourings.md` 6 and 14.2, `rendering.md` 4.6 | M3 | A source that links the colouring to the subgroup, or Lean |
-| UNV-19 | The steps of Todd-Coxeter enumeration and of the low-index search that only implementations state, the safety of the first-in-class pruning on partial tables, the termination of HLT, and what a run that reaches its coset limit shows. Termination for finite index under Mendelsohn's condition, the result of a run that stops, and the absence of a computable bound are stated by lecture notes and papers (`colourings.md` 7.15), whose primary texts were not read | `colourings.md` 7.8 to 7.17, 14.1 items 19 to 23 and 26, and 14.3 | M7, M8 | Chapter 5 and p. 208 of [SIMS1994], Chapter 5 and Section 5.4 of [HOLT2005], or Lean |
+| UNV-19 | The steps of Todd-Coxeter enumeration and of the low-index search that only implementations or the design state, which include the timing of the rule for one-letter relators, the order of the steps when the deduction stack overflows, and the distinct cyclic conjugates, as the column "Code-only part" of Section 7.3 of `docs/design/group.md` lists them, the safety of the first-in-class pruning on partial tables, the termination of HLT, and what a run that reaches its coset limit shows. Termination for finite index under Mendelsohn's condition, the result of a run that stops, and the absence of a computable bound are stated by lecture notes and papers (`colourings.md` 7.15), whose primary texts were not read. On item 23 of `colourings.md` 14.1, a prototype outside the repository gives evidence and no source: a reimplementation of SymPy's Felsch loop that scans every popped deduction with the lists of its caller never finished within 16384 cosets on the side presentations of small finite groups, such as that of `332` of order 12, while scanning with the lists of the letter of the entry, as Note III.22 of [HULPKE2010] states, finished on each. Without a closing pass, the lists of the caller also returned tables in which a relator was not closed (Sections 7.4 and 11.1 of `docs/design/group.md`) | `colourings.md` 7.8 to 7.17, 14.1 items 19 to 23 and 26, and 14.3 | M7, M8 | Chapter 5 and p. 208 of [SIMS1994], Chapter 5 and Section 5.4 of [HOLT2005], or Lean |
 | UNV-20 | Text conventions and the canonical form: the canonical string, the delimiter for orders of 10 or more, the spelling of infinity, and a `1` on its own. The equivalences and the omission of an order of 1 are sourced (`orbifold-notation.md` 3.5 and 4.1) | `orbifold-notation.md` 12 items 1 to 4 | M1, M11 | A project convention. [CBG] and [BH] define none of them |
 | UNV-21 | Geometry and parameters of non-compact signatures with $\chi \ne 0$: whether a signature with $\infty$, $\chi < 0$, and a mirror boundary or a crosscap gives a group, the geometry when $\chi > 0$, the deformation dimension, and the reading of the existence condition for orientation-preserving groups as $\chi < 0$. That condition is sourced in the terms of [BEARDON] (`orbifold-notation.md` 7.1, `fundamental-domains.md` 5.5) | `orbifold-notation.md` 12 item 15, `fundamental-domains.md` 9.8 | M1, M18 | A source, or Lean |
-| UNV-22 | The Conway presentation for a boundary without corners in general, the dictionary between NEC signatures and orbifold signatures, and the signature of the rotation subgroup in orbifold notation for hyperbolic signatures and the spherical groups. The NEC signature, its presentation, and the rotation subgroup of a proper NEC group in NEC terms are sourced (`orbifold-notation.md` 9.2 and 9.3) | `orbifold-notation.md` 12 items 5, 12, and 14, gap G10 | M6, M7 | A re-reading of [CH] (RP-5), a source that states the dictionary, or Lean |
+| UNV-22 | The Conway presentation for a boundary without corners in general, the dictionary between NEC signatures and orbifold signatures, and the signature of the rotation subgroup in orbifold notation for hyperbolic signatures and the spherical groups. The NEC signature, its presentation, and the rotation subgroup of a proper NEC group in NEC terms are sourced (`orbifold-notation.md` 9.2 and 9.3). On a prototype outside the repository, the Conway presentations of `*`, of `n*` for $n$ from 1 to 12, and of `2*`, read with one reflection for a boundary without corners, enumerated to $2/\chi$, which is evidence and no source | `orbifold-notation.md` 12 items 5, 12, and 14, gap G10 | M6, M7 | A re-reading of [CH] (RP-5), a source that states the dictionary, or Lean |
 | UNV-23 | Whether the fold applies to a domain with an ideal vertex. The polygon theorem for such a domain is sourced (`fundamental-domains.md` 4.7) | `rendering.md` 13.1 item 3, `geometry-models.md` 7.6.5 | M18 | A source on the fold, or Lean |
 | UNV-24 | MIT code inside a work under GPL-3.0-or-later | `symmhub.md` 17 item 1 | M15 | The licence texts, and the owner's judgement |
 | UNV-25 | Correct rounding of the reference-arithmetic crate | `rust-ecosystem.md` 21 item 5 | M2 on | One comparison with MPFR |
@@ -904,6 +910,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-29 | The lune of `*nn`, the intersection of two hemispheres whose walls meet at the angle $\pi/n$, is a strict fundamental domain of the group of its two reflections. Theorem 6.4.3 of [DAVIS] covers convex polytopes, and a lune is not one in the sense of p. 75 of [DAVIS] | `fundamental-domains.md` 13.3 item 9 | M5 | A source that proves it, or Lean |
 | UNV-30 | The lune of the angle $2\pi/n$ with its one rotation pairing, including the hemisphere of `22`, is a fundamental domain of the cyclic group of order $n$. The lune of `*nn` is already `UNV-29` | `fundamental-domains.md` 13.3 item 10 | M6 | A source whose polygon theorem admits a lune, or Lean. The exhaustive certificates of `docs/design/domain.md` check each build numerically |
 | UNV-31 | The double of a convex reflection polygon across one wall is convex, and its vertex cycles are the vertex of each end of the doubled side alone and each other vertex with its image, with the corner orders of the reflection polygon | `fundamental-domains.md` 13.3 item 11 | M6 | A source, or Lean. Checks 3, 4, and 5 of `verify()` test each build |
+| UNV-32 | The relators of a double as words: one generator for each side, standing for the inverse of its pairing as Section 5.3 of `docs/design/architecture.md` states, the pair relator $s_i s_p$ for each pair, and for each vertex cycle the generators of the sides that the walk of the cycle applies, in walk order, to the power of the order of the cycle. The polygon theorems state that the pairing relators and the cycle relators present the group (`fundamental-domains.md` 4.1, 4.2, 4.8 item 7, and 4.9), and SymmHub derives its relators in this way in code (`symmhub.md` 14.2), but no source read writes the cycle relators as words in this convention. Every vertex cycle of the domains of M6 visits one or two sides, so a reversed word or the opposite convention passes every numeric test on them | `fundamental-domains.md` 4.8 item 7, `symmhub.md` 14.2 | M7, M8 | A source that states the cycle relators as words in this convention, or Lean. The tests "Relators evaluate" and "Long cycle word" of `docs/design/domain.md` check it numerically |
 
 ## 8. Security Considerations
 
@@ -956,6 +963,7 @@ The tool emits no logs. `--stats` prints its statistics on request.
 - [FWW] The entry in Section 16.2 of `docs/research/geometry-models.md`.
 - [HOLT2005] The entry in Section 15 of `docs/research/colourings.md`.
 - [HT] The entry in Section 16.1 of `docs/research/geometry-models.md`.
+- [HULPKE2010] The entry in Section 15 of `docs/research/colourings.md`.
 - [HUB] The entry in Section 16.4 of `docs/research/geometry-models.md`.
 - [HUMPHREYS] The entry in Section 14 of `docs/research/rendering.md`.
 - [KC24] The entry in Section 16.1 of `docs/research/geometry-models.md`. `rendering.md` cites the same paper as [KOPCZ24].

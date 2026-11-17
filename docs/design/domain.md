@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the crate `escher-domain`, which builds the fundamental domain of an orbifold signature as a polygon in the linear model, with a wall, a pairing isometry, and a partner for each side, and verifies it numerically. It covers the compact hyperbolic reflection triangle `*pqr`, the three Euclidean reflection triangles `*632`, `*442`, and `*333`, the rectangle `*2222` with its shape parameter `aspect`, the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and the lune of `*nn`. It also covers the rotation signatures `pqr`, `632`, `442`, `333`, `2222`, `332`, `432`, `532`, `n22`, and `nn`, whose domain is the double of the reflection domain of the starred signature across one wall, with pairings that are products of two reflections. It defines the public types and operations, the exact set of signatures that have a domain, the shape parameters and their validation, each construction as a numbered algorithm with the source of each step, the placement of the polygon, the measurements of its sides, angles, and area, and the six numeric checks of the verification with their tolerances and the defects that each one detects. It also states the numerical accuracy over the supported orders, the error type, the resource limits, the tests, the dependencies, the unverified statements that the code relies on, the assumptions, and the choices that no other document dictates.
+This document specifies the crate `escher-domain`, which builds the fundamental domain of an orbifold signature as a polygon in the linear model, with a wall, a pairing isometry, and a partner for each side, and verifies it numerically. It covers the compact hyperbolic reflection triangle `*pqr`, the three Euclidean reflection triangles `*632`, `*442`, and `*333`, the rectangle `*2222` with its shape parameter `aspect`, the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and the lune of `*nn`. It also covers the rotation signatures `pqr`, `632`, `442`, `333`, `2222`, `332`, `432`, `532`, `n22`, and `nn`, whose domain is the double of the reflection domain of the starred signature across one wall, with pairings that are products of two reflections. It defines the public types and operations, the exact set of signatures that have a domain, the shape parameters and their validation, each construction as a numbered algorithm with the source of each step, the placement of the polygon, the measurements of its sides, angles, and area, and the six numeric checks of the verification with their tolerances and the defects that each one detects. It specifies the side presentation of a domain, a presentation of `escher-group` with one generator for each side and the relators of the corners or of the vertex cycles. It also states the numerical accuracy over the supported orders, the error type, the resource limits, the tests, the dependencies, the unverified statements that the code relies on, the assumptions, and the choices that no other document dictates.
 
 ## 1. Introduction
 
@@ -26,7 +26,7 @@ The primary readers are the agent that changes the crate and the reviewer who ch
 
 ### 1.4. Scope
 
-This document covers the public surface of the crate, the supported signatures, the shape parameter of `*2222`, the conventions of the sides, the vertices, and the pairings, the construction of the compact hyperbolic reflection triangle, the Euclidean triangle, the rectangle, the spherical triangle, the lune, and the double of each across one wall, their placement, their measurements, the verification, the numerical accuracy, the error type, the resource limits, the tests, and the dependencies.
+This document covers the public surface of the crate, the supported signatures, the shape parameter of `*2222`, the conventions of the sides, the vertices, and the pairings, the construction of the compact hyperbolic reflection triangle, the Euclidean triangle, the rectangle, the spherical triangle, the lune, and the double of each across one wall, their placement, their measurements, the side presentation, the verification, the numerical accuracy, the error type, the resource limits, the tests, and the dependencies.
 
 The supported signatures are the compact hyperbolic `*pqr` with $1/p + 1/q + 1/r < 1$, the Euclidean `*632`, `*442`, `*333`, and `*2222`, the spherical `*332`, `*432`, `*532`, `*n22`, and `*nn`, and the rotation signature of each of them, which is the signature without the star, such as `732` for `*732` (Section 4).
 
@@ -37,7 +37,7 @@ These topics are owned elsewhere or are outside this document:
 - The bilinear form, the side test, the distance, the isometries, the reflection, the wall through two points, and the disk map, with their formulas and tolerances, belong to `escher-geometry` and are specified in `docs/design/geometry.md`. This document calls those functions by name and restates none of their formulas.
 - The lines that `escher info` prints for a domain and for `--check`, their format, and the exit status are specified in `docs/design/cli.md`.
 - Every shape parameter other than `aspect` of `*2222` and `2222`, including the skew of `2222`, and the kind and unit of a `ParameterSpec` that Section 3.2 of the architecture names. A reflection triangle has no free parameter ("triangles are rigid", Section 10.1 of the geometry reference).
-- The side presentation, which needs `escher-group` (Section 3.2 of the architecture).
+- Words, relators, presentations, their text, and coset enumeration, which belong to `escher-group` and are specified in Sections 4 to 7 of `docs/design/group.md`. This document specifies only which presentation a domain gives (Section 5.4).
 - Ideal vertices, the Euclidean and spherical signatures other than those of Section 4, and every other class of signature in the plan. Each returns `UnsupportedSignature` (Section 4).
 - The canonical view, the model, and the margin of `DEC-12`, which belong to `View` in `escher-render`. This crate places only the centre (Section 6.3).
 - The fold with general pairings, its tolerance, its step counts, and the colouring of a domain without a reversing side, which belong to `escher-render` and are specified in `docs/design/render.md`.
@@ -59,6 +59,7 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md` a
 | `docs/design/geometry.md` | the geometry design |
 | `docs/design/signature.md` | the signature design |
 | `docs/design/cli.md` | the command-line design |
+| `docs/design/group.md` | the group design |
 | `docs/research/geometry-models.md` | the geometry reference |
 | `docs/research/fundamental-domains.md` | the domain reference |
 | `docs/research/orbifold-notation.md` | the notation reference |
@@ -90,6 +91,9 @@ It adds these terms:
 - check: One numeric condition that `verify()` evaluates, with a residual and a tolerance.
 - residual: The non-negative number that a check computes, which is 0 for an exact domain, and infinity when a structural condition fails or when the computation gives no finite number. It is never NaN.
 - tolerance: The largest residual for which a check passes.
+- side presentation: The presentation that `side_presentation()` returns, with one generator for each side (Section 5.4).
+- side generator: The generator of side $i$ in the side presentation, named `s<i>`.
+- letter, word, relator: The terms of Section 4 of the group design. A relator has a base word and an exponent of at least 1.
 
 ## 3. Public Surface
 
@@ -114,6 +118,7 @@ impl FundamentalDomain {
     #[must_use] pub fn area(&self) -> f64;
     #[must_use] pub fn reverses_orientation(&self) -> bool;
     #[must_use] pub fn verify(&self) -> Verification;
+    pub fn side_presentation(&self) -> Result<escher_group::Presentation>;
 }
 
 pub struct Side { /* private */ }
@@ -180,13 +185,13 @@ impl ShapeParameters {
 }
 
 #[non_exhaustive]
-pub enum ErrorKind { UnsupportedSignature, LimitExceeded, Numerical, UnknownParameter, ParameterOutOfRange }
+pub enum ErrorKind { UnsupportedSignature, LimitExceeded, Numerical, UnknownParameter, ParameterOutOfRange, InvalidPairing }
 // derives Clone, Copy, Debug, PartialEq, Eq, Hash
 
 pub type Result<T> = core::result::Result<T, Error>;
 ```
 
-The crate does not re-export `glam` (API-10 of the coding standard). A caller that names a `glam` type declares `glam` from the workspace entry, as Section 3.1 of the architecture states for the crates that compute with these types.
+The crate does not re-export `glam` (API-10 of the coding standard). A caller that names a `glam` type declares `glam` from the workspace entry, as Section 3.1 of the architecture states for the crates that compute with these types. In the same way, the crate does not re-export `escher-group`, and a caller that names `Presentation` or enumerates it declares `escher-group` itself.
 
 ### 3.2. Meaning and Invariants
 
@@ -212,6 +217,7 @@ Each item guarantees its invariant by construction, so no caller checks it:
 | `area()` | The area measured from the corner angles, or for a Euclidean domain from the vertices | Section 7. For a spherical domain, in the metric of the unit sphere |
 | `reverses_orientation()` | Whether some side has the orientation `Reversing` | True for every reflection domain and false for every double. It is the one place that decides whether a parity colouring exists, which `escher-cli` reads |
 | `verify()` | The result of the six checks of Section 8.2 | Pure and never panics (DOM-8) |
+| `side_presentation()` | The side presentation of Section 5.4 | Pure and never panics. Returns `InvalidPairing` for a domain whose sides give no presentation (DOM-35), which no domain that `build_with` returns does |
 | `Verification::passed` | Whether every check passed | True exactly when each of the six `Check::passed` is true |
 | `Check::passed` | Whether the residual is within the tolerance | `residual() <= tolerance()`. The residual is never NaN, and an infinite residual fails |
 | `parameters` | The shape parameters of a signature, in a fixed order | Total. One `ParameterSpec` for `*2222` and for `2222`, and an empty list for every other signature, supported or not (Section 6.6) |
@@ -243,14 +249,16 @@ The crate has these private modules, each a file named after the module:
 - `src/spherical.rs`: The constructions of the spherical triangle and the lune of Section 6.7.
 - `src/parameters.rs`: `parameters`, `ParameterSpec`, `ShapeParameters`, the private enum of the parameters with the name, the range, and the default of each, and the validation of Section 6.6.
 - `src/verify.rs`: `Verification`, `Check`, and the checks of Section 8, including the walk of the vertex cycles of check 4, and the translation test of DOM-27, which `src/double.rs` also calls to set the kind of each side.
+- `src/presentation.rs`: `side_presentation` of Section 5.4, which calls the walk of the vertex cycles of `src/verify.rs`, so that check 4 and the cycle relators come from one walk, and the unit test "Long cycle word" of Section 12.1.
 
 ### 3.4. Items Outside This Surface
 
 Section 3.2 of the architecture lists items that this surface does not have, because the supported signatures do not need them:
 
 - The kind and the unit of a `ParameterSpec`. `aspect` is a ratio, so it needs neither. The class that first needs them adds them as accessors, which does not break a caller. The crate sets `publish = false`, so a change affects only the workspace.
-- `side_presentation()`, which needs `escher-group`.
 - Ideal vertices, which the triangle with an ideal corner adds.
+
+`side_presentation()` returns a `Result`, as Section 3.2 of the architecture states. A domain whose sides mix mirrors and paired sides, or whose walk does not close, has no side presentation of Section 5.4, and an infallible function would have to invent one or panic (DOM-35). This is a proposed default of this design (Section 15.3).
 
 `build` and `build_with` are inherent constructors and return a `Result`. `build_with` is a secondary constructor in the sense of API-5 of the coding standard. `ShapeParameters` takes the place of the options struct of API-6, with a private map and the method `set` and not public fields, because the names of the parameters depend on the signature. `build` stays, so that its callers do not change. Section 3.2 of the architecture lets the crate design refine the names and signatures.
 
@@ -323,6 +331,35 @@ The normal of each side points outward, as Section 5.2 of the architecture requi
 Side $j$ carries the isometry $P_j$ that maps the neighbouring copy of the domain across side $j$ onto the domain (Section 5.3 of the architecture). For a mirror side, $P_j$ is the reflection in its wall, `hyperbolic::reflection(normal)`, which is the reflection of equation (6.6) of [DAVIS] (Section 7.4 of the geometry reference) as Section 5.2 of the architecture adopts it. For a Euclidean mirror side, $P_j$ is `euclidean::reflection(covector)`, the reflection of equation (4.1.1) of [RAT] and equation 6.3 of [DAVIS] (Sections 7.4 and 12 of the geometry reference), whose form as a matrix is part of `UNV-26` (Section 14). For a spherical mirror side, $P_j$ is `spherical::reflection(normal)`, the reflection of equation (6.4) of [DAVIS] (Section 7.4 of the geometry reference). The partner of a mirror side is the side itself.
 
 A side of a double carries the product of two reflections of its generating domain, which preserves orientation, and its partner is another side of the double (Section 6.8). The pairing of the partner is the inverse, as item 1 of Section 4.8 of the domain reference and Condition 3.2 (d) of [EPSTEIN-PETRONIO1994] require.
+
+### 5.4. Side Presentation
+
+`side_presentation()` reads a presentation of the group from the sides of the domain, as item 7 of Section 4.8 of the domain reference states it: the pairing relators together with the cycle relators. It returns a `Presentation` of `escher-group`, whose words, relators, text, and validation Sections 4.2 to 4.4 of the group design specify (GRP-3 to GRP-5). The command `escher info --presentation` prints it and enumerates its cosets (`docs/design/cli.md`), and the colourings of a later milestone read the side sequence of the fold as a word in its generators.
+
+DOM-32. `side_presentation()` MUST give the presentation one generator for each side, in side order, named `s` followed by the side index in decimal from 0, such as `s0`, and the generator of side $i$ MUST stand for $P_i^{-1}$, the element of Section 5.3 of the architecture whose image of the domain is the neighbouring copy across side $i$, with a word read left to right as the product left to right, because the renderer records the fold as a sequence of side indexes, and a colouring that reads that sequence as a word needs the side index, the generator, and the order of the product to agree. For a mirror, $P_i^{-1} = P_i$.
+
+DOM-33. For a domain whose every side is a mirror, the relators MUST be $s_j^2$ for each side $j$ in side order, followed by $(s_j s_{j+1})^{n_j}$ for each corner $j$ in corner order, with indexes modulo $m$ and $n_j$ the stored order of corner $j$, because these are the Coxeter relators of the reflection polygon (Theorem 6.4.3 of [DAVIS2008], Section 4.4 of [MASKIT2001], and Proposition 13.3.1(iii) of [TH], in Sections 4.4 and 4.5 of the domain reference and Section 9.4 of the notation reference), and a fixed order makes the text of `escher info` reproducible. Corner $j$ lies between side $j$ and side $j + 1$ (Section 5.1), so a lune gives $(s_0 s_1)^n$ at corner 0 and $(s_1 s_0)^n$ at corner 1, on `UNV-29`.
+
+DOM-34. For a domain with no mirror side, the relators MUST be the pair relator $s_i s_p$ for each side $i$ whose partner $p$ is larger than $i$, in increasing order of $i$, followed by one cycle relator for each vertex cycle, in the order in which the walk of DOM-28 starts the cycles. The base of a cycle relator MUST be the generators of the sides $s$ that the walk applies, in the order in which it applies them, and its exponent the order $m_c$ of the cycle, because the walk is the one that check 4 evaluates, so the relators and the check describe the same cycles, and the presentation is the pairing relators together with the cycle relators (Theorem 12 (3) of [SOLOMYAK2020], Theorem 6.14 (iii) of [SERIES2013], and Theorem 4.14 of [EPSTEIN-PETRONIO1994], in Sections 4.1, 4.2, 4.8, and 4.9 of the domain reference). The pair relator writes $P_p = P_i^{-1}$ (Section 5.3) as a word.
+
+No source read states the cycle relators as words in this convention. That the walk order of the base, with the generator of side $s$ for $P_s^{-1}$, gives the relator of the cycle is the reading of this design, with SymmHub's `groupPresentation` as precedent in code (Section 14.2 of `docs/research/symmhub.md`). It is `UNV-32` (Section 14). A reversed base, and the opposite convention in which the generator of side $i$ stands for $P_i$, present isomorphic groups, so no order or index distinguishes them. Only a numeric evaluation of the words does, and DOM-36 states which test establishes what.
+
+DOM-35. `side_presentation()` MUST return an `Error` of the kind `InvalidPairing`, and MUST NOT panic, for a domain with both mirror and other sides, for a walk of DOM-28 that does not return to its start within $m$ steps, for a cycle whose vertices differ in order or whose copies do not sum to 2, and when `Relator::new` or `Presentation::new` of `escher-group` rejects a relator or the presentation (Sections 4.2 and 4.3 of the group design), because such a domain has no side presentation of this section, and `escher info` prints the result for any signature that it reads. These are the structural conditions of check 4, so a domain that passes check 4 structurally gets a presentation. No domain that `build_with` returns gives this error, and the test "Invalid pairing" reaches it through private access (Section 12.1).
+
+The side presentation keeps a generator for each side of a pair, with the pair relator, as SymmHub does, so the generator of a side is found by the side index alone. Section 15.3 records the alternative of one generator for each pair (`DEC-36`).
+
+These are the side presentations of four domains, in the text of Section 4.4 of the group design:
+
+| Signature | Generators | Relators |
+| --- | --- | --- |
+| `*532` | `s0`, `s1`, `s2` | `s0^2, s1^2, s2^2, (s0 s1)^5, (s1 s2)^3, (s2 s0)^2` |
+| `532` | `s0` to `s3` | `s0 s1, s2 s3, s1^5, (s2 s0)^2, s3^3` |
+| `2222` | `s0` to `s5` | `s0 s1, s2 s5, s3 s4, s1^2, (s2 s0)^2, (s3 s5)^2, s4^2` |
+| `22` | `s0`, `s1` | `s0 s1, s1^2, s0^2` |
+
+The construction gives no relator that is the empty word, and it reduces no relator: a relator of the walk with one letter, such as `s1^5`, stays as it is.
+
+Every vertex cycle of every domain of Section 4 visits one or two sides, as the table of Section 6.8 shows. For a base of one or two letters, the reversed base is a cyclic conjugate of the base, and the pair relator $s_i s_p$ has the same property. So no domain that this crate builds distinguishes the convention of DOM-32 from its reversal or from the opposite convention. A prototype outside the repository confirmed this on every built domain (Section 14).
 
 ## 6. Construction
 
@@ -1051,24 +1088,29 @@ DOM-12. The crate MUST implement `Error` as ERR-1 of the coding standard require
 
 `Error` has these private fields:
 
-- `operation`: A `&'static str`, which is `"build fundamental domain"` for every error of this crate.
-- `detail`: A private enum with one variant for each cause, which carries the data that the text of Section 10.2 shows: the canonical string of the signature, the order over the limit, the identity of a parameter from which its name and range derive, or the error of `escher-geometry` that caused a numerical failure.
+- `operation`: A `&'static str`, which is `"derive side presentation"` for an error of `side_presentation()` and `"build fundamental domain"` for every other error of this crate.
+- `detail`: A private enum with one variant for each cause, which carries the data that the text of Section 10.2 shows: the canonical string of the signature, the order over the limit, the identity of a parameter from which its name and range derive, the error of `escher-geometry` that caused a numerical failure, or the error of `escher-group` that rejected a side presentation.
 
-`kind()` computes the kind from `detail` with a `match` that has no wildcard arm (TYPE-3 and TYPE-7 of the coding standard). `thiserror` derives the `Display` of the private detail. `Display` and `std::error::Error` for `Error` are written by hand, because a derived `source()` can return only a field of `Error`, not the `escher-geometry` error that one variant of the detail holds, and a separate source field beside the detail would hold one fact in two fields. `Display` for `Error` writes `cannot `, the operation, `: `, and the text of the detail. `source()` returns the `escher-geometry` error for a `Numerical` error that one caused, and `None` otherwise. No type from a dependency appears in the public surface of the error (ERR-2).
+`kind()` computes the kind from `detail` with a `match` that has no wildcard arm (TYPE-3 and TYPE-7 of the coding standard). `thiserror` derives the `Display` of the private detail. `Display` and `std::error::Error` for `Error` are written by hand, because a derived `source()` can return only a field of `Error`, not the `escher-geometry` error that one variant of the detail holds, and a separate source field beside the detail would hold one fact in two fields. `Display` for `Error` writes `cannot `, the operation, `: `, and the text of the detail. `source()` returns the `escher-geometry` error for a `Numerical` error that one caused, the `escher-group` error for an `InvalidPairing` error that one caused, and `None` otherwise. No type from a dependency appears in the public surface of the error (ERR-2).
+
+`InvalidPairing` is an error and not a panic for the reason that `Numerical` is: no domain that `build_with` returns produces it, but `side_presentation()` runs on any value of the type, and `escher info` prints its result (DOM-35).
 
 `Numerical` is an error and not a panic. No supported signature is known to produce it, but the construction calls fallible functions of `escher-geometry`, and a panic would stop `escher info`, so returning an error is the sounder option (ERR-5 of the coding standard, Hard Rule 7 of `AGENTS.md`).
 
 ### 10.2. Kinds and Text
 
-DOM-13. `Display` for `Error` MUST be `cannot build fundamental domain: ` followed by the text of the detail in this table, because `escher-cli` prints it and its snapshots fix it.
+DOM-13. `Display` for `Error` MUST be `cannot derive side presentation: ` for the kind `InvalidPairing` and `cannot build fundamental domain: ` for every other kind, followed by the text of the detail in this table, because `escher-cli` prints it and its snapshots fix it.
 
 | Kind | When | Detail carries | Text after the prefix |
 | --- | --- | --- | --- |
+| `InvalidPairing` | DOM-35 | The cause: mixed kinds of side, a walk that does not close, a cycle with unequal orders or copies, or the `escher-group` error | `the domain has both mirror and paired sides`, `the side pairings do not close a vertex cycle`, `a vertex cycle joins corners of different orders`, or `the side relators do not form a presentation` |
 | `UnsupportedSignature` | The predicate of Section 4 fails, which includes every general non-compact signature (`DEC-19`) | The canonical string | `the signature 3*2 is not supported`, with the canonical string of the signature in place of `3*2` |
 | `LimitExceeded` | A corner order of a supported signature exceeds 1000 | The largest corner order | `order 1001 is larger than 1000`, with the largest corner order in place of `1001` |
 | `Numerical` | Step 11 of Section 6.1, step 7 of Section 6.5, step 7 of the triangle or step 4 of the lune of Section 6.7, or step 8 of Section 6.8 | The `escher-geometry` error, if one caused it | `the construction is numerically degenerate` |
 | `UnknownParameter` | Step 3 of DOM-18 | The canonical string | `the signature *632 has no shape parameter with one of the given names`, with the canonical string of the signature in place of `*632` |
 | `ParameterOutOfRange` | Step 4 of DOM-18 | The identity of the parameter, a private enum from which the name, the minimum, and the maximum of its `ParameterSpec` derive, so that `Error` keeps `Eq` | `the parameter aspect is outside its range of 0.125 to 8`, with the name, the minimum, and the maximum in place of `aspect`, `0.125`, and `8` |
+
+The text `a vertex cycle joins corners of different orders` also covers a cycle whose copies do not sum to 2. The texts of `InvalidPairing` name no side and no number, because no supported input reaches them, and the tests that do through private access assert the kind and the prefix.
 
 The texts of `UnknownParameter` and `ParameterOutOfRange` contain no name or value of a setting, because a caller's text may hold any character, and the printed name is that of the `ParameterSpec`. They write each number with the `{}` format of `f64`, which prints the two ends of the range of `aspect` as `0.125` and `8`.
 
@@ -1084,7 +1126,7 @@ The crate limits the largest corner order, which `build_with` checks at step 2 o
 
 ### 12.1. Tests
 
-The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-domain/tests/domain/main.rs`, with the modules `common`, `reference`, `triangles`, `regular`, `properties`, `unsupported`, `euclidean`, `parameters`, `spherical`, and `rotation` (TEST-10). Its root has a `//!` line. The snapshot tests of the domain summary live in `escher-cli`, and the command-line design specifies them.
+The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-domain/tests/domain/main.rs`, with the modules `common`, `reference`, `triangles`, `regular`, `properties`, `unsupported`, `euclidean`, `parameters`, `spherical`, `rotation`, and `presentation` (TEST-10). Its root has a `//!` line. The snapshot tests of the domain summary live in `escher-cli`, and the command-line design specifies them.
 
 The module `common` defines the sets of triples that the tests use:
 
@@ -1095,7 +1137,7 @@ The module `common` defines the sets of triples that the tests use:
 - The set of 294 triples: the orders up to 12 and the 25 named triples with an order above 12.
 - The cone triples: the same triples read as the orders of rotation signatures, such as `732` for $(7, 3, 2)$, whose domains are kites.
 
-Each test names the item of the field "Tests and acceptance" of Section 5.2 of the plan that it serves, or of Section 5.4, 5.5, or 5.6 of the plan where the item says so. The tests "Triangles", "Third side", "Checks at the worst cases", "Relator agreement", and the two tests of $\{7, 3\}$ also assert their smallest number of samples, and print each largest value with its triple and its margin. The test harness captures that output for a test that passes:
+Each test names the item of the field "Tests and acceptance" of Section 5.2 of the plan that it serves, or of Section 5.4, 5.5, 5.6, or 5.7 of the plan where the item says so. The tests "Triangles", "Third side", "Checks at the worst cases", "Relator agreement", and the two tests of $\{7, 3\}$ also assert their smallest number of samples, and print each largest value with its triple and its margin. The test harness captures that output for a test that passes:
 
 | Test | Plan item | Kind and place | Asserts |
 | --- | --- | --- | --- |
@@ -1116,7 +1158,7 @@ Each test names the item of the field "Tests and acceptance" of Section 5.2 of t
 | Conversion | None | Unit test in `triangle.rs` | The private signed conversion of step 1 of Section 6.1 gives exactly 0, $-1$, and $-4294967297$ for those integers, $2^{53}$ for $2^{53} + 1$ by ties to even, $2^{63}$ for `i64::MAX`, and $-2^{63}$ for `i64::MIN`. The unsigned conversion gives exactly 1 and $4294967297$ for those integers, and $2^{64}$ for `u64::MAX`. The test compares exactly, because the sum of the two parts is the only rounding, and IEEE 754 arithmetic fixes the result of that rounding to nearest, bit for bit (TEST-13 of the coding standard) |
 | Numerical | Failure paths | Unit test in `triangle.rs` | The private construction of steps 3 to 11, given the spherical orders $(5, 3, 2)$, fails with the `escher-geometry` error of kind `NotAPoint`, which `build` reports as `Numerical`, because the law of cosines then gives a hyperbolic cosine below 1 |
 | Any signature | Failure paths | `proptest`, `properties` | For any text that parses as a signature, `build` returns without a panic, and a returned domain passes `verify()`. The generated signatures have up to four cone points, so that kites and `2222` occur |
-| Error text | Failure paths | Unit tests in `error.rs` | The `Display` of every kind starts with `cannot build fundamental domain: `, is in lower case apart from the canonical string, and is the text of Section 10.2. `kind()` matches each cause, and `source()` returns the `escher-geometry` error only for a `Numerical` error that one caused |
+| Error text | Failure paths | Unit tests in `error.rs` | The `Display` of `InvalidPairing` starts with `cannot derive side presentation: ` and that of every other kind with `cannot build fundamental domain: `. Each is in lower case apart from the canonical string, and is the text of Section 10.2. `kind()` matches each cause, and `source()` returns the `escher-geometry` error only for a `Numerical` error that one caused, and the `escher-group` error only for an `InvalidPairing` error that one caused |
 | Euclidean table | Relators, of Section 5.4 of the plan | Table test, `euclidean` | `*632`, `*442`, `*333`, and `*2222` build and pass `verify()`. They have 3, 3, 3, and 4 sides and vertices, each side its own partner, and the corner angles of 30, 60, and 90 degrees, 45, 45, and 90 degrees, 60 degrees three times, and 90 degrees four times, within the bound of Section 9.4. Every other spelling of `*632` and `*442`, such as `*236`, builds the domain of its canonical form, with every vertex within twice the vertex bound of Section 9.4 |
 | Euclidean domains | Relators, of Section 5.4 of the plan | Reference test, `euclidean` | Each quantity of Section 9.4 other than the lines of SymmHub is within its bound against the reference of Section 12.2, over the Euclidean domains of Section 9.4. Each check passes, and the test prints the largest residual of each check with its margin, which Section 8.4 records (DOM-19) |
 | SymmHub lines | None | Reference test, `euclidean` | For each Euclidean triangle, every wall agrees within the bound of Section 9.4, up to sign, with one of the three lines that SymmHub's code gives for the triangle (Section 4.3 of `docs/research/rendering.md`), $y = 0$, $-x \sin a_0 + y \cos a_0 = 0$, and $x \sin a_1 + y \cos a_1 = e$ with $a_0 = \alpha_2$, $a_1 = \alpha_0$, and $e = \sin\alpha_0$, each moved by the translation of step 4 of Section 6.5, and each line matches a different side. It prints which line matches each side. This tests the candidate vertices of `UNV-28` |
@@ -1134,6 +1176,13 @@ Each test names the item of the field "Tests and acceptance" of Section 5.2 of t
 | Compensated pairings | None | Reference test, `rotation` | For the doubles of Section 9.6, every entry of every pairing equals the exact product, in the reference arithmetic, of the two reflections that the domain stores, rounded to the nearest `f64` with ties to even (DOM-25). The test decides this by comparing the exact product with the exact midpoints between the entry and its two neighbouring `f64` values. Each pairing is within the bound of the pairing row of Section 9.6 of that exact product, and its isometry defect is within the bound of its row. The test prints the number of entries that differ from the rounded exact product, for the compensated and for the plain product, and both largest errors |
 | Compensated product | None | Unit tests in `double.rs` | The error-free product of $(1 + 2^{-30})^2$ gives the rounding error $2^{-60}$ exactly. The compensated dot product keeps a sum that plain arithmetic cancels. The product of two matrices whose exact product is representable is that product exactly. The expected constants are built from exact quotients such as `1.0 / 1_073_741_824.0`, because the interpreter of Miri perturbs `powi` |
 | Random rotation domains | Properties | `proptest`, `rotation` | For a value of `aspect` within its range, the double of `2222` passes `verify()`, has the angles $\pi$ at $W_0$ and $W_3$ and $\pi/2$ at the other four vertices within the bound of Section 9.6, and has the area 2 within the bound of the area |
+| Side presentation table | None | Table test, `presentation` | The generator names and the relator text of `*532`, `532`, `2222`, and `22` are those of the table of Section 5.4, in the text of the group design. For `*732`, `732`, `*2222`, `*632`, `632`, `*55`, and `55`, the presentation has one generator for each side, named `s0` upward, and as many relators as Section 5.4 gives: twice the number of sides for a reflection domain, and the number of pairs plus the number of vertex cycles for a double. Every domain of "Rotation table" and its starred signature gives `Ok` |
+| Side orders | Side presentations give the same orders, of Section 5.7 of the plan | Integration test, `presentation` | For `*332`, `*432`, `*532`, `332`, `432`, and `532`, for `*n22`, `*nn`, `n22`, and `nn` with $n$ from 2 to 12, and for `*(1000)22`, `*(1000)(1000)`, `(1000)22`, and `(1000)(1000)`: `enumerate` of `escher-group` on the side presentation, over the trivial subgroup, with `CosetLimit::DEFAULT`, returns a table whose `index()` equals `group_order()` of the signature. It prints the time of the slowest case, which this document records once measured |
+| Side order of `22` | Side presentations give the same orders, of Section 5.7 of the plan | Integration test, `presentation` | The assertion of "Side orders" for `22` alone, so that one enumeration of a side presentation runs under Miri |
+| Relators evaluate | None | Integration test, `presentation` | For the 30 named triples, each read as a reflection and as a rotation signature, for `*632`, `*442`, `*333`, `*2222`, `632`, `442`, `333`, and `2222`, and for the spherical signatures of "Exhaustive certificate" and "Exhaustive certificate at the limit": every relator of the side presentation evaluates to the identity under the convention of DOM-32. Each letter $s_i$ is the matrix $P_i^{-1}$, by `hyperbolic::inverse` or `spherical::inverse`, and for a Euclidean domain by the matrix inverse of `glam`. The base is multiplied left to right. A corner relator or a cycle relator is evaluated as check 4 evaluates it: for a hyperbolic domain in the corner frame of the vertex of its corner or of the start vertex of its cycle, with the power by successive multiplication and the residual divided by the exponent, against the tolerance of check 4. A square and a pair relator are evaluated with no frame, as the residual of check 2, against the tolerance of check 2. It prints the largest residual of each kind of relator, with its signature and its margin, which this document records once measured (DOM-19) |
+| Long cycle word | None | Unit test in `presentation.rs` | A domain built through private access, with side pairings that preserve orientation and a vertex cycle that visits at least three sides, gives a cycle relator whose base evaluates under the convention of DOM-32 within the tolerance of check 4, while the reversed base, and the base under the opposite convention in which $s_i$ is $P_i$, each give a residual of more than 8 times that tolerance. The code branch chooses the domain and records it in this row |
+| Index two | None | Integration test, `presentation` | For the reflection domains of the plan triples, of `*632`, `*442`, `*333`, and `*2222`, and of `*532`, `*432`, `*332`, `*722`, and `*55`: `enumerate` of the side presentation over the subgroup generated by the words $s_j s_{j+1}$ of the corners, with `CosetLimit::DEFAULT`, returns a table of index 2. This is evidence for the side presentation of an infinite group by a finite enumeration, and not a source. That these words generate the subgroup of index 2 is unverified (Section 14) |
+| Invalid pairing | Failure paths | Unit tests in `presentation.rs` | Domains built through private access: a reflection triangle with one side turned into a side of the kind `Rotation` paired with another, a double whose partners make the walk of DOM-28 run past $m$ steps, and a double with the order of one vertex of a cycle of two vertices changed. Each gives `InvalidPairing` with its text of Section 10.2, and none panics |
 | Reference self-check | None | Reference test, `reference` | The four known values of Section 12.2 |
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type is `Send`, `Sync`, and `'static` (CONC-1 of the coding standard) |
 | Doctests | None | Doctests | The examples of the crate-level and item documentation |
@@ -1141,6 +1190,12 @@ Each test names the item of the field "Tests and acceptance" of Section 5.2 of t
 DOM-22. The tests "Exhaustive certificate" and "Exhaustive certificate at the limit" MUST cover every lune of their sets and MUST stay while `UNV-29` is open, because no source makes the lune a fundamental domain (Section 6.7), and these tests are the only evidence that its two reflections generate a group of order $2n$ whose copies of the lune cover the sphere.
 
 DOM-31. The tests "Exhaustive certificate" and "Exhaustive certificate at the limit" MUST cover every spherical double of their sets, `332`, `432`, `532`, `n22`, and `nn`, and MUST stay while `UNV-22` or `UNV-30` is open, because no statement in orbifold notation gives the signature of the group that the pairings of a double generate, no source makes the double of a lune a fundamental domain, and the enumeration of the group with `group_order()` elements and the dense sample are the only evidence for both on the sphere.
+
+DOM-36. The test "Relators evaluate" MUST cover every domain of its sets, hyperbolic, Euclidean, and spherical, reflection and rotation, and the test "Long cycle word" MUST exist, and both MUST stay while `UNV-32` is open, because no source states the cycle relators as words in the convention of DOM-32, and a reversed relator or the opposite convention presents a group of the same order, which no enumeration detects.
+
+The two tests establish different things. "Relators evaluate" establishes that every relator of every domain of its sets evaluates to the identity under the convention of DOM-32, within the tolerances of checks 2 and 4. It does not fix the convention: every vertex cycle of these domains visits one or two sides (Section 5.4), so the reversed words and the opposite convention pass it with the same residuals. Its largest residuals are to be measured, and Section 14 records those of a prototype. "Long cycle word" establishes the convention numerically on one domain with a cycle of at least three sides, where the reversed word and the opposite convention fail. That test is a proposed default of this design. The alternative is to defer it to the first milestone that builds a domain with such a cycle, and to rely on "Relators evaluate" alone until then (Section 15.3). Neither test closes `UNV-32`, which a source or a Lean proof closes.
+
+"Relators evaluate" evaluates a hyperbolic corner or cycle relator in the corner frame of check 4, because without the frame the residual at the largest orders fails the tolerance of check 4 by far, as the prototype figures of Section 14 show.
 
 The fold of the two certificate tests is a private copy in the tests of this crate. For every finite point other than the zero vector it applies the same rule as the fold of `escher-render` (Section 5.3 of `docs/design/render.md`). It differs only on degenerate input: it has no stop for a point that is not finite or for the zero vector, and it treats a NaN side value as inside the side, where the fold of `escher-render` returns an unconverged result for each of these. Side $i$ is violated at a point $x$ when $s_i > \tau \, \sigma_i \, \lambda(x)$, where $s_i$ is `spherical::side` of the covector of the side at $x$, $\tau = 4 \times 10^{-15}$ is a copy of the constant of `escher-render`, $\sigma_i = \sum_j \lvert c_{ij} \rvert$ for the covector $c_i$, and $\lambda(x) = \max_j \lvert x_j \rvert$. The fold applies the pairing of the first violated side, and stops when no side is violated. A fold that applies the pairing of the first side with a positive side value does not stop for a point on a wall. On `*33`, the point $(0.14514, 0.95694, 0.25139)$ of side 0 has the side value $+2.78 \times 10^{-17}$, and the reflection maps it to itself bit for bit, so such a fold cycles until the cap. The images of the centre lie far from every wall, so the tolerance does not change their depth.
 
@@ -1184,10 +1239,11 @@ DOM-15. The reference module MUST share no code with `escher-domain` or `escher-
 | Tests | Under Miri | Attribute or configuration |
 | --- | --- | --- |
 | "Triangles", "Third side", "Edge of $\{7, 3\}$", "Circumradius of $\{7, 3\}$", "Relator agreement", "Relators in the domain frame", "Euclidean domains", "SymmHub lines", "Spherical domains", "Rotation domains", the reference part of "Cycle sets", "Compensated pairings", and "Reference self-check" | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
-| "Checks at the worst cases" and "Exhaustive certificate at the limit" | Ignored | `#[cfg_attr(miri, ignore = "the checks of the largest orders run loops too long for the interpreter")]` |
+| "Checks at the worst cases", "Exhaustive certificate at the limit", and "Relators evaluate" | Ignored | `#[cfg_attr(miri, ignore = "the checks of the largest orders run loops too long for the interpreter")]` |
+| "Side orders" and "Index two" | Ignored | `#[cfg_attr(miri, ignore = "the coset enumeration runs loops too long for the interpreter")]` |
 | "Exhaustive certificate" | Ignored, because its reflection domains alone take 332 seconds under Miri, and its doubles add to that. The reason of the row above does not apply, because its orders stop at 12 | `#[cfg_attr(miri, ignore = "the enumeration of the groups runs loops too long for the interpreter")]` |
 | "Random triples", "Rectangle aspect", "Random rotation domains", and "Any signature" | Run with 8 cases and no failure persistence | The helper of DOM-16 |
-| The unit tests, which include "Failing domains" with the three tests of a corner order off by one, the tests of a negated vertex and of NaN entries, and the defects of the doubles with the moved flat vertex, the unit part of "Cycle sets", "Corner order and area", "Conversion", "Exact rectangle", and "Compensated product", and the table tests "Unsupported", "Euclidean table", "Parameters", "Spherical table", "Rotation table", and "Generating domain" | Run unchanged | None |
+| The unit tests, which include "Failing domains" with the three tests of a corner order off by one, the tests of a negated vertex and of NaN entries, and the defects of the doubles with the moved flat vertex, the unit part of "Cycle sets", "Corner order and area", "Conversion", "Exact rectangle", "Compensated product", "Long cycle word", and "Invalid pairing", the table tests "Unsupported", "Euclidean table", "Parameters", "Spherical table", "Rotation table", "Generating domain", and "Side presentation table", and the integration test "Side order of `22`" | Run unchanged | None |
 | The doctests | Not run, because Miri runs the tests through nextest, which runs no doctest | None |
 
 Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`).
@@ -1206,12 +1262,13 @@ DOM-17. The crate MUST declare only the dependencies of this section, each from 
 | --- | --- | --- | --- |
 | `escher-signature` | Normal, with a version on the path dependency (TOOL-25 of `docs/design/tooling.md`) | None | The input type `Signature` and the `Geometry` that `geometry()` returns |
 | `escher-geometry` | Normal, with a version on the path dependency (TOOL-25) | None | The linear model (Section 3.1 of the architecture) |
+| `escher-group` | Normal, public, with a version on the path dependency (TOOL-25) | None | The type `Presentation` that `side_presentation()` returns, and `enumerate` in the tests of Section 12.1 |
 | `glam` | Normal, public | The workspace entry that the geometry design states, which provides `DVec3` and `DMat3` | The types of the public surface (`DEC-4`) |
 | `thiserror` | Normal | Default | Derives the `Display` of the private detail of the error (Section 10.1) |
 | `proptest` | Dev | The workspace entry | The property tests |
 | `astro-float-num` | Dev | `default-features = false`, with `std` | The reference arithmetic (Section 12.2) |
 
-Section 3.1 of the architecture lists `escher-group` as an internal dependency of the crate. The crate declares it only when a function first uses it, as Section 3.3 of the architecture states, because an unused dependency fails `check-unused-deps`.
+The crate declares `escher-group` in the same change as `side_presentation()`, which first uses it, as Section 3.3 of the architecture states, because an unused dependency fails `check-unused-deps`. `escher-group` depends on `escher-signature` only, so the graph has no cycle. `Presentation` appears in a public signature of this crate, so DEP-3 of the coding standard makes `escher-group` a public dependency: a breaking change of `escher-group` is a breaking change of this crate. Both crates set `publish = false`, so the cost stays inside the workspace.
 
 `glam` types appear in the public signatures of this crate, so DEP-3 of the coding standard makes `glam` a public dependency, with the obligations that Section 3.5 of the architecture states: its version is part of the version of this crate, the crate stays below 1.0 while `glam` does, and a breaking upgrade of `glam` is a breaking change of the crate.
 
@@ -1242,6 +1299,9 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | `UNV-30` | That the double of the lune of the angle $\pi/n$, a lune of the angle $2\pi/n$ with one rotation pairing, including the hemisphere of `22`, is a fundamental domain of the cyclic group of order $n$ (item 10 of Section 13.3 of the domain reference) | The exhaustive certificates enumerate the group, check that the images of the centre are distinct and fold back, and fold a dense sample of the sphere into the double (DOM-31). Checks 4, 5, and 6 run on every build |
 | `UNV-31` | That the double of a convex reflection polygon across one wall is convex, with the vertex cycles of the table of Section 6.8 (item 11 of Section 13.3 of the domain reference), and that Definition 2.8 of [EPSTEIN-PETRONIO1994] admits its flat vertices | The convexity term of check 3 tests every vertex against every wall, check 4 walks the cycles and fails structurally when a cycle has unequal orders or copies that do not sum to 2, and check 5 tests every angle, on every build. The test "Failing domains" shows that the convexity term fails a double with a vertex outside a wall that is not adjacent to it (Section 8.3) |
 | `UNV-2` | The termination of the fold of the certificate tests with the rotation pairings of a spherical double, for the images of the centre and the dense sample | Asserts it for those points only, with the steps at least the breadth-first depth. Section 5.3 of `docs/design/render.md` owns the fold of the renderer |
+| `UNV-32` | The cycle relators of a double as words: one generator for each side, the pair relators, and the cycle relators with their bases in walk order, under the convention of DOM-32 (Section 5.4) | The tests "Relators evaluate" and "Long cycle word" evaluate the words numerically (DOM-36), and "Side orders" compares the order that the words present with `group_order()` on the sphere. None of them closes it. A source that states the cycle relators as words in this convention, or a Lean proof, would |
+| `UNV-19` | The steps of the coset enumeration of `escher-group`, in the tests "Side orders", "Side order of `22`", and "Index two" only | Section 13 of the group design states how `escher-group` relies on it. A wrong enumeration fails these tests or passes a wrong presentation of the same order, which "Relators evaluate" would still catch for a wrong relator |
+| None | That the words $s_j s_{j+1}$ of the corners generate the subgroup of index 2 of the orientation-preserving elements, in the test "Index two". Its index 2 is sourced (Section 9.3 of the notation reference) for the hyperbolic and Euclidean reflection groups, and the orders of Section 8.2 of the notation reference give the ratio 2 for the spherical ones | The test asserts the index only. A source or a Lean proof would close it |
 
 The hyperbolic construction does not rely on `UNV-28`, because it uses SymmHub's triangle neither in the code nor as a test oracle (Section 6.3). `UNV-4` concerns the precision of the disk map near the limit circle, and the crate maps to the disk only in the test "Circumradius of $\{7, 3\}$", at a point near the origin.
 
@@ -1265,6 +1325,15 @@ A second prototype outside the repository built the doubles of Section 6.8 from 
 | The vertices of a double lie within the tolerance of the fold | 15.3 | The largest ratio of the test "Vertices" of Section 6.2 of `docs/design/render.md` is $3.22 \times 10^{-16}$ over its named sets, a margin of 12.4, and $4.11 \times 10^{-16}$ over the cone triples of the set of 294, a margin of 9.7. Over all 166,665,495 hyperbolic triples it is $1.224 \times 10^{-15}$ at `(868)(416)5`, a margin of 3.27, and 680,942 doubles exceed one eighth of the tolerance $4 \times 10^{-15}$. No vertex of any double exceeds the tolerance |
 
 The tests of `escher-render` cover two figures of this table with the domains that this crate builds: every fold of the rotation fold sets, including that of `(1000)32`, converges with the compensated products, and the largest ratio at a vertex of `(868)(416)5` is the same as on the prototype (Sections 6.2 and 6.8 of `docs/design/render.md`). The measurements of the crate in Sections 8.4, 9.6, and 12.1 cover the other figures of this prototype: the six checks of the kites over the cone triples of the set of 294, the cycles of two vertices, the Euclidean doubles, the spherical doubles of Section 9.6, the angle of a flat vertex, the effect of the convexity term on the reflection domains (DOM-30), and the fold steps of the certificate tests. The largest residual of check 4 over the cycles of two vertices is $1.094 \times 10^{-8}$, at `(973)(972)(964)`, where the prototype reported at most $1.024 \times 10^{-8}$, at `(995)(987)(976)`.
+
+A third prototype outside the repository built the side presentations of Section 5.4 from the public values of the domains of this crate, with each corner order recovered from the corner angles, enumerated them with its own implementation of the enumeration of Section 7 of the group design, and evaluated their relators. These statements of this design rest on its figures, which no measurement of the code covers. Each figure was measured on that prototype, and each supports only the choice that it names. Every figure of this crate is to be measured, and the code branch records it here:
+
+| Statement | Section | Figures of the prototype |
+| --- | --- | --- |
+| The side presentations give the group order on the sphere (test "Side orders") | 5.4, 12.1 | The 52 spherical domains of the set of "Side orders" other than `*(1000)(1000)` and `(1000)(1000)`, which the prototype did not run, give `group_order()`, and each enumeration defines exactly that many cosets. `*(1000)22` takes 83 ms in a release build and 309 ms in a debug build |
+| The relators evaluate to the identity (test "Relators evaluate") | 12.1 | Largest residual $6 \times 10^{-15}$ at orders up to 12, with exactly 0 for `*732`, `2222`, and `*2222`, and $2.7 \times 10^{-11}$ at the spherical order 1000 |
+| No built domain fixes the convention (DOM-36) | 5.4, 12.1 | Every vertex cycle of every built double visits one or two sides, and the reversed bases and the opposite convention give residuals equal to those of DOM-32 |
+| The hyperbolic relators need the corner frame (DOM-36) | 12.1 | In the domain frame, the residual reaches 3.3 for `(1000)(1000)(1000)` and $4 \times 10^{-2}$ for `*(1000)(1000)(1000)`, where check 4 reports $5.6 \times 10^{-8}$ |
 
 ## 15. Assumptions, Choices, and Points for the Owner
 
@@ -1321,6 +1390,9 @@ No other document dictates these choices:
 | The defects of the doubles in Section 8.3, including the lowered orders of `532` and the moved flat vertex of `2222` | 8.3 |
 | The sets of doubles of Section 9.6 | 9.6, 12.1 |
 | The private enum of the supported classes as two variants, reflection and rotation, over five shapes | 3.3 |
+| The choices of the side presentation that Section 15.3 puts to the owner, in items 29 to 32 | 3.4, 5.4, 10, 12.1 |
+| The order of the relators of the side presentation: squares before corner relators, and pair relators before cycle relators in the order of the walk | 5.4 |
+| The kinds of relator in "Relators evaluate" evaluated as checks 2 and 4 evaluate them, with their tolerances | 12.1 |
 
 ### 15.3. Points for the Owner
 
@@ -1354,6 +1426,10 @@ None of these blocks the crate. Each states what the design does until the owner
 26. The double of the lune on an unverified statement. No source makes it a fundamental domain, so the design builds it on `UNV-30` and certifies it by the tests of DOM-31. The alternative is to leave `nn` unsupported until a source or a Lean proof closes the statement.
 27. The margin of the vertices of a double against the tolerance of the fold. On a prototype, no vertex of a double exceeded the tolerance of the fold over every hyperbolic triple, but the margin over that sweep fell below the factor 8 of TEST-13 of the coding standard, while the named sets stayed above it (Section 14 gives the figures). `docs/design/render.md` owns the tolerance and the test "Vertices", and the tolerance cannot rise without changing the images of the reflection domains. The options are to accept the measured margin over every triple, to restrict the claim of the margin to the named sets, or to compute the image vertices and normals as correctly rounded products too, which no prototype or test measured.
 28. The tolerances of the doubles. The design keeps every tolerance of Section 8.4 and the limit of 1000 for the doubles, and sets the bounds of Section 9.6 from the largest errors measured. Every check passes on the doubles of Section 9.6 with a margin of at least 15.0 (Section 8.4). The alternative is tolerances of their own for the doubles.
+29. One generator for each side (`DEC-36` of the architecture). The side presentation keeps both generators of a pair with the pair relator (Section 5.4), so a colouring finds the generator of a fold step by its side index. The alternative is one generator for each pair, which halves the generators of a double and the columns of its coset tables, and needs a map from a side to a letter and its inverse.
+30. `side_presentation()` returns a `Result` with the kind `InvalidPairing` (DOM-35). The alternative is an infallible function that is total on the domains that `build_with` returns, which would have to invent a presentation or panic for a domain corrupted through private access.
+31. The test "Long cycle word" (DOM-36). No domain that this crate builds fixes the convention of DOM-32, so the design requires one unit test on a domain built through private access with a vertex cycle of at least three sides. The alternative is to defer that test to the first milestone that builds a domain with such a cycle, and to rely on "Relators evaluate" until then, which leaves the convention untested.
+32. The generator names `s0` upward, from the side index (`DEC-34` of the architecture). The alternative is names from 1, which would differ from the side index that the renderer records and `escher info` prints.
 
 ## 16. Security Considerations
 
@@ -1369,6 +1445,8 @@ DOM-3 requires the limit of this table. The input is untrusted, the cost of `ver
 | `aspect` | 0.125 to 8, inclusive | A finite value in a bounded range keeps the rectangle within the scale that the tests of Section 9.4 measure. NaN and infinities are rejected (DOM-18). The range is a choice of this design (Section 15.3) |
 
 The limit is a private constant, and unit tests inside the crate read it. It applies in the same way to the orders of `*n22` and `*nn` and of every rotation signature, and `verify()` of a spherical domain or of a double costs about as many products as at the hyperbolic limit (Section 8.2). `build_with` allocates at most six sides and six vertices, for the double of the rectangle, so the memory of a domain does not depend on the input. The walk of check 4 stops after $m$ steps, so a corrupted partner cannot make it loop. A setting is only compared with the names of the `ParameterSpec` values and stored, and the error text echoes no setting (Section 10.2), so the number and the length of the settings need no limit.
+
+`side_presentation()` builds at most six generators and eight relators, each base of at most six letters, with an exponent of at most 1000, so its memory does not depend on the input beyond the order limit. Its walk stops after $m$ steps, as that of check 4 does. It runs no coset enumeration. The cost of an enumeration of the presentation, and its limits, belong to `escher-group` (Section 15 of the group design).
 
 The other topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -1394,6 +1472,7 @@ Every failure of `build` is an `Error` with an `ErrorKind`. A failed check is no
 | A setting whose name is not a parameter of the signature | `UnknownParameter` | Use a name that `parameters` lists |
 | A value that is not finite or is outside the range of its parameter | `ParameterOutOfRange` | Use a value within the range that `parameters` lists |
 | A degenerate construction | `Numerical` | None. No supported signature is known to produce it, and one that does is a defect of the crate |
+| A domain without a side presentation | `InvalidPairing`, from `side_presentation()` | None. No domain that `build_with` returns produces it, and one that does is a defect of the crate |
 | A check outside its tolerance | `Check::passed` is false | None. It is a defect of the crate, and the residual and the tolerance locate it |
 
 ## 18. References
@@ -1441,7 +1520,7 @@ The tags of the mathematical sources resolve to the reference sections of the re
 | DOM-10 | The vertices are not renormalized after centring | 9.1 |
 | DOM-11 | The values that `build_with` returns are within the bounds of Section 9.3, of Section 9.4 for a Euclidean domain, or of Section 9.5 for a spherical one, and for a double also of Section 9.6 | 9.3 |
 | DOM-12 | `Error` follows ERR-1, with the operation that failed | 10.1 |
-| DOM-13 | The `Display` text of each kind is the one stated | 10.2 |
+| DOM-13 | The `Display` text of each kind is the one stated, with the prefix of `side_presentation()` for `InvalidPairing` | 10.2 |
 | DOM-14 | No test takes an expected value from Table 2 of [HT] | 12.1 |
 | DOM-15 | The reference module shares no code with the crates under test | 12.2 |
 | DOM-16 | Property tests take their configuration from one helper that is Miri-aware | 12.3 |
@@ -1460,3 +1539,8 @@ The tags of the mathematical sources resolve to the reference sections of the re
 | DOM-29 | The angles and the area of a hyperbolic or spherical kite are measured from its two triangles across the doubled wall | 7 |
 | DOM-30 | The stored values and the check residuals of every reflection domain do not depend on the code of the doubles | 8.4 |
 | DOM-31 | The exhaustive certificates cover the spherical doubles and stay while `UNV-22` or `UNV-30` is open | 12.1 |
+| DOM-32 | `side_presentation()` gives one generator for each side, named `s<i>`, for $P_i^{-1}$, with words read left to right as products | 5.4 |
+| DOM-33 | A reflection domain gives the squares $s_j^2$ and then the corner relators $(s_j s_{j+1})^{n_j}$, in that order | 5.4 |
+| DOM-34 | A domain without mirrors gives the pair relators and then the cycle relators, with each base in walk order and the order of the cycle as exponent | 5.4 |
+| DOM-35 | A domain with both kinds of side, a walk that does not close, a cycle with unequal orders or copies, or a presentation that `escher-group` rejects gives `InvalidPairing`, without a panic | 5.4 |
+| DOM-36 | "Relators evaluate" covers every domain of its sets and "Long cycle word" exists, and both stay while `UNV-32` is open | 12.1 |
