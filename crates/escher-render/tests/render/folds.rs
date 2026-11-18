@@ -2,7 +2,7 @@ use escher_geometry::hyperbolic::{
     ORIGIN, boost, from_disk, normalize_point, rotation, side, translation,
 };
 use escher_geometry::spherical;
-use escher_render::{Fill, RenderOptions, Renderer, fold};
+use escher_render::{Fill, RenderOptions, fold};
 use escher_signature::{Geometry, Signature};
 use glam::{DMat3, DVec3};
 
@@ -15,7 +15,7 @@ use crate::common::{
     pixel_position, reference_walls, rim_set, rotation_domain, rotation_text, spherical_domain,
     spherical_fold_set, spherical_rotation_cases, text,
 };
-use crate::golden_images::domain_with_aspect;
+use crate::golden_images::{domain_with_aspect, renderer};
 use crate::reference::{self, Reference, Worst, count_bound, num, vector};
 
 const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 6];
@@ -176,7 +176,7 @@ fn every_fold_converges_within_the_default_cap() {
         }
     }
     let options = options(RenderOptions::builder(one_fill()));
-    let (_, stats) = Renderer::new(&domain([1000, 3, 2]), options).render();
+    let (_, stats) = renderer(&domain([1000, 3, 2]), options).render();
     let inside = stats.samples() - stats.outside();
     #[expect(
         clippy::cast_precision_loss,
@@ -343,7 +343,7 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
     }
     for index in 0..EUCLIDEAN_DOMAINS.len() {
         let options = options(RenderOptions::builder(one_fill()));
-        let (_, stats) = Renderer::new(&euclidean_domain(index), options).render();
+        let (_, stats) = renderer(&euclidean_domain(index), options).render();
         #[expect(
             clippy::cast_precision_loss,
             reason = "the counts are far below 2 to the power 52"
@@ -739,8 +739,12 @@ fn fold_and_render_beyond_the_range_of_accuracy_return_without_a_panic() {
     );
     let fill = one_fill();
     let size = 4096;
-    let options = options(RenderOptions::builder(fill).size(size, size).samples(1));
-    let renderer = Renderer::new(&domain([7, 3, 2]), options);
+    let options = options(
+        RenderOptions::builder(fill.clone())
+            .size(size, size)
+            .samples(1),
+    );
+    let renderer = renderer(&domain([7, 3, 2]), options);
     let Fill::One(colour) = fill else {
         panic!("the rim test uses one fill colour");
     };
@@ -1063,7 +1067,7 @@ fn every_vertex_of_a_rotation_domain_folds_in_zero_steps() {
 
 fn assert_rotation_image_converges(text: &str) {
     let options = options(RenderOptions::builder(one_fill()));
-    let renderer = Renderer::new(&domain_with_aspect(text, None), options);
+    let renderer = renderer(&domain_with_aspect(text, None), options);
     let band_rows = 64;
     let band_bytes = 3 * 512 * band_rows;
     let mut pixels = vec![0; band_bytes * 8];

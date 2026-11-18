@@ -208,12 +208,11 @@ mod tests {
     use crate::colour::{Colour, Fill};
     use crate::golden_images::{
         ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_SIZE, TRANSLATION_TOLERANCE, compare,
-        domain_with_aspect, linear_table, shifted_pairs, translation,
+        domain_with_aspect, linear_table, renderer, shifted_pairs, translation,
     };
     use crate::options::RenderOptions;
     use crate::options::Shading;
     use crate::reference::{Reference, Worst, difference, largest_magnitude, vector};
-    use crate::renderer::Renderer;
 
     const PLAN_TRIPLES: [&str; 6] = ["*732", "*542", "*444", "*433", "*(12)32", "*(1000)32"];
 
@@ -314,7 +313,7 @@ mod tests {
                     .samples(GOLDEN_GRID),
             );
             let view = View::symmetric(&options, &domain);
-            let renderer = Renderer::new(&domain, options).with_view(view);
+            let renderer = renderer(&domain, options).with_view(view);
             let (pixels, _) = renderer.render();
             let (top, bottom) = pixels.split_at(pixels.len() / 2);
             let mirrored: Vec<u8> = bottom
@@ -396,7 +395,7 @@ mod tests {
                 .size(4, 4)
                 .samples(1),
         );
-        let (_, stats) = Renderer::new(&domain("*442"), options).render();
+        let (_, stats) = renderer(&domain("*442"), options).render();
         assert_eq!(stats.samples(), 16);
         assert_eq!(stats.outside(), 0);
         assert_eq!(stats.unconverged(), 0);
@@ -438,7 +437,7 @@ mod tests {
         let columns = (found.offset.x / pixel).round() as i64;
         assert_eq!(columns.abs(), SHIFT, "{:?}", found.offset);
         let view = View::periodic(&options, pixel);
-        let (pixels, _) = Renderer::new(&domain, options).with_view(view).render();
+        let (pixels, _) = renderer(&domain, options).with_view(view).render();
         let (here, there) = shifted_pairs(&pixels, SIZE, SIZE, columns, 0);
         let comparison = compare(&here, &there, GOLDEN_GRID, &linear_table());
         println!(
@@ -694,7 +693,7 @@ mod tests {
                             .shading(shading),
                     );
                     let view = View::rotated(&options, viewing);
-                    Renderer::new(&domain, options).with_view(view).render().0
+                    renderer(&domain, options).with_view(view).render().0
                 };
                 let plain = render(Fill::Parity([first, second]), viewing);
                 let swapped = render(Fill::Parity([second, first]), viewing);

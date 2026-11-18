@@ -216,6 +216,7 @@ dependencies = [
  "astro-float-num",
  "escher-domain",
  "escher-geometry",
+ "escher-group",
  "escher-signature",
  "glam",
  "png",

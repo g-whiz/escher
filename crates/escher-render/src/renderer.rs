@@ -1,12 +1,12 @@
 use escher_domain::FundamentalDomain;
 use escher_signature::Geometry;
-use glam::DVec3;
+use glam::{DVec2, DVec3};
 
 use crate::colour::{Colour, Fill, encode};
 use crate::error::{Error, Result};
 use crate::fold::{Fold, PointSize, Wall, fold_carrying};
 use crate::options::{RenderOptions, Shading};
-use crate::view::View;
+use crate::view::{Lift, View};
 
 /// Renders the tiling of a fundamental domain into 8-bit sRGB pixels, in the
 /// Poincare disk for a hyperbolic domain, in the plane for a Euclidean one,
@@ -49,7 +49,7 @@ use crate::view::View;
 /// let domain = FundamentalDomain::build(&"*732".parse::<Signature>()?)?;
 /// let fill = Fill::Parity([Colour::WHITE, Colour::from_srgb8(70, 130, 180)]);
 /// let options = RenderOptions::builder(fill).size(64, 48).samples(2).build()?;
-/// let renderer = Renderer::new(&domain, options);
+/// let renderer = Renderer::new(&domain, options)?;
 /// let (pixels, stats) = renderer.render();
 /// assert_eq!(pixels.len(), 3 * 64 * 48);
 /// assert_eq!(stats.samples(), 64 * 48 * 4);
@@ -73,10 +73,25 @@ impl Renderer {
     /// the Poincare disk for a hyperbolic domain, the plane for a Euclidean
     /// one, and the ball for a spherical one. It copies what it needs from the
     /// sides of the domain, so it keeps no reference to the domain.
-    #[must_use]
-    pub fn new(domain: &FundamentalDomain, options: RenderOptions) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error of kind
+    /// [`ErrorKind::InvalidOption`](crate::ErrorKind::InvalidOption) when the
+    /// fill is a [`Fill::Cosets`] whose [`CosetFill`](crate::CosetFill) was
+    /// built for a domain with another side presentation, or the domain has
+    /// no side presentation, because the colouring of such a fill does not
+    /// colour the tiles of this domain. A domain with the same side
+    /// presentation, such as the same signature with other shape parameters,
+    /// is accepted. Every other fill gives no error.
+    pub fn new(domain: &FundamentalDomain, options: RenderOptions) -> Result<Self> {
+        if let Fill::Cosets(fill) = &options.fill
+            && domain.side_presentation().ok().as_ref() != Some(fill.presentation())
+        {
+            return Err(Error::other_presentation());
+        }
         let walls = domain.sides().iter().map(|&side| Wall::new(side)).collect();
-        Self::with_walls(walls, domain.geometry(), options)
+        Ok(Self::with_walls(walls, domain.geometry(), options))
     }
 
     fn with_walls(walls: Vec<Wall>, geometry: Geometry, options: RenderOptions) -> Self {
@@ -138,12 +153,14 @@ impl Renderer {
         let grid = self.options.samples;
         let weight = f64::from(grid * grid);
         let mut stats = RenderStats::default();
+        let mut sides = Vec::new();
         for (row, bytes) in (first_row..).zip(pixels.chunks_exact_mut(self.row_bytes)) {
             for (column, pixel) in (0..).zip(bytes.as_chunks_mut::<3>().0) {
                 let mut sum = [0.0; 3];
                 for down in 0..grid {
                     for across in 0..grid {
-                        let colour = self.sample(column, row, across, down, &mut stats);
+                        let position = self.view.position(column, row, across, down);
+                        let colour = self.sample(position, &mut stats, &mut sides);
                         for (total, channel) in sum.iter_mut().zip(colour) {
                             *total += channel;
                         }
@@ -157,32 +174,23 @@ impl Renderer {
         stats
     }
 
-    fn sample(
-        &self,
-        column: u32,
-        row: u32,
-        across: u32,
-        down: u32,
-        stats: &mut RenderStats,
-    ) -> [f64; 3] {
+    fn sample(&self, position: DVec2, stats: &mut RenderStats, sides: &mut Vec<u8>) -> [f64; 3] {
         stats.samples = stats.samples.saturating_add(1);
-        let position = self.view.position(column, row, across, down);
         let Some(lift) = self.view.point(position) else {
             stats.outside = stats.outside.saturating_add(1);
             return self.options.background.linear();
         };
-        let (result, tangents) = fold_carrying(
-            &self.walls,
-            self.size,
-            lift.point,
-            lift.tangents,
-            self.options.max_folds,
-            |_| {},
-        );
+        let (result, tangents) = match &self.options.fill {
+            Fill::Cosets(_) => {
+                sides.clear();
+                self.fold(&lift, |side| sides.push(side_byte(side)))
+            }
+            Fill::One(_) | Fill::Parity(_) => self.fold(&lift, |_| {}),
+        };
         stats.folds = stats.folds.saturating_add(u64::from(result.steps()));
         stats.largest_fold = stats.largest_fold.max(result.steps());
         let colour = if result.converged() {
-            self.converged_colour(result, tangents)
+            self.converged_colour(result, tangents, sides)
         } else {
             stats.unconverged = stats.unconverged.saturating_add(1);
             self.options.border_colour
@@ -192,24 +200,43 @@ impl Renderer {
             (Some(_), Shading::Flat) | (None, _) => colour.linear(),
         }
     }
-}
 
-impl Renderer {
-    fn converged_colour(&self, result: Fold, tangents: [DVec3; 2]) -> Colour {
+    fn fold(&self, lift: &Lift, visit: impl FnMut(usize)) -> (Fold, [DVec3; 2]) {
+        fold_carrying(
+            &self.walls,
+            self.size,
+            lift.point,
+            lift.tangents,
+            self.options.max_folds,
+            visit,
+        )
+    }
+
+    fn converged_colour(&self, result: Fold, tangents: [DVec3; 2], sides: &[u8]) -> Colour {
         if on_border(&self.walls, result.point(), tangents, self.half_width) {
             return self.options.border_colour;
         }
-        match self.options.fill {
-            Fill::One(colour) => colour,
+        match &self.options.fill {
+            Fill::One(colour) => *colour,
             Fill::Parity([even, odd]) => {
                 if result.reversals().is_multiple_of(2) {
-                    even
+                    *even
                 } else {
-                    odd
+                    *odd
                 }
             }
+            Fill::Cosets(fill) => fill.colour(sides),
         }
     }
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "a coset fill is rendered only with a domain that has a side presentation, which has at most 256 sides"
+)]
+fn side_byte(side: usize) -> u8 {
+    u8::try_from(side)
+        .expect("internal error: a side of a domain with a side presentation fits a byte")
 }
 
 const AMBIENT: f64 = 0.25;
@@ -307,8 +334,9 @@ impl RenderStats {
         self.largest_fold
     }
 
-    /// Returns the number of samples whose fold did not converge, which
-    /// take the border colour.
+    /// Returns the number of samples whose fold did not converge.
+    ///
+    /// Each of these samples takes the border colour.
     #[must_use]
     pub fn unconverged(self) -> u64 {
         self.unconverged
@@ -345,10 +373,15 @@ mod tests {
     use glam::{DVec2, DVec3};
 
     use super::{AMBIENT, DIFFUSE, RenderStats, Renderer, on_border, shade};
-    use crate::colour::{Colour, Fill};
-    use crate::fold::{PointSize, Wall, fold_carrying};
+    use escher_group::Colouring;
+
+    use crate::ErrorKind;
+    use crate::colour::{Colour, CosetFill, Fill};
+    use crate::fold::{PointSize, Wall, fold, fold_carrying};
     use crate::golden_images::{
-        ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_IMAGES, compare, domain_with_aspect, linear_table,
+        ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_COSET_FILL, GOLDEN_GRID, GOLDEN_IMAGES,
+        colouring, colourings_of, compare, coset_fill, domain_with_aspect, find_colouring,
+        linear_table, renderer,
     };
     use crate::options::{RenderOptions, Shading};
     use crate::reference::{Reference, Worst, count_bound, error, plane_border_distance, vector};
@@ -456,7 +489,7 @@ mod tests {
             Ok(options) => options,
             Err(error) => panic!("{error}"),
         };
-        let (_, stats) = Renderer::new(&domain("*732"), options).render();
+        let (_, stats) = renderer(&domain("*732"), options).render();
         assert_eq!(stats.samples(), 16);
         assert_eq!(stats.outside(), 4);
         assert_eq!(stats.unconverged(), 0);
@@ -473,8 +506,8 @@ mod tests {
         for image in GOLDEN_IMAGES {
             let text = image.signature;
             let domain = image.domain();
-            let options = image.options();
-            let (pixels, _) = Renderer::new(&domain, options.clone()).render();
+            let options = image.options(&domain);
+            let (pixels, _) = renderer(&domain, options.clone()).render();
             let geometry = domain.geometry();
             let rotation = !domain.reverses_orientation();
             let walls = domain
@@ -851,7 +884,7 @@ mod tests {
             Ok(options) => options,
             Err(error) => panic!("{error}"),
         };
-        Renderer::new(&domain("*532"), options).render().0
+        renderer(&domain("*532"), options).render().0
     }
 
     #[test]
@@ -912,7 +945,7 @@ mod tests {
             Ok(options) => options,
             Err(error) => panic!("{error}"),
         };
-        Renderer::new(&domain("*532"), options).render().0
+        renderer(&domain("*532"), options).render().0
     }
 
     const BRIGHT_SIZE: u32 = 192;
@@ -1132,5 +1165,123 @@ mod tests {
             }
             println!("rim distance {distance}: border share {share:.4} at half width 0.5");
         }
+    }
+
+    const COSET_SIZE: u32 = 64;
+
+    fn coset_renderer(domain: &FundamentalDomain, fill: CosetFill) -> Renderer {
+        let options = match RenderOptions::builder(Fill::Cosets(fill))
+            .size(COSET_SIZE, COSET_SIZE)
+            .samples(1)
+            .border_width(0.0)
+            .shading(Shading::Flat)
+            .build()
+        {
+            Ok(options) => options,
+            Err(error) => panic!("{error}"),
+        };
+        renderer(domain, options)
+    }
+
+    fn sample_sides(renderer: &Renderer, domain: &FundamentalDomain) -> Vec<Option<Vec<usize>>> {
+        let mut folds = Vec::new();
+        for row in 0..COSET_SIZE {
+            for column in 0..COSET_SIZE {
+                let position = renderer.view.position(column, row, 0, 0);
+                let Some(lift) = renderer.view.point(position) else {
+                    folds.push(None);
+                    continue;
+                };
+                let mut sides = Vec::new();
+                let result = fold(domain, lift.point, renderer.options.max_folds, |side| {
+                    sides.push(side);
+                });
+                folds.push(result.converged().then_some(sides));
+            }
+        }
+        folds
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
+    )]
+    fn coset_fill_gives_each_converged_sample_the_colour_of_the_sides_of_its_fold() {
+        let mut cases: Vec<(FundamentalDomain, Colouring)> = COSET_GOLDEN_IMAGES
+            .iter()
+            .filter(|image| matches!(image.signature, "*642" | "532"))
+            .filter_map(|image| {
+                let domain = image.domain();
+                let colouring = colouring(&domain, image.colouring?);
+                Some((domain, colouring))
+            })
+            .collect();
+        assert_eq!(cases.len(), 2);
+        let square = domain("2222");
+        let three = colourings_of(&square, 3);
+        assert_eq!(three.len(), 12);
+        cases.push((square, find_colouring(&three, "3a")));
+        for (domain, colouring) in &cases {
+            let id = colouring.id();
+            let renderer = coset_renderer(domain, coset_fill(domain, colouring.clone()));
+            let (pixels, _) = renderer.render();
+            let mut converged = 0;
+            for (sides, pixel) in sample_sides(&renderer, domain)
+                .into_iter()
+                .zip(pixels.as_chunks::<3>().0)
+            {
+                let Some(sides) = sides else { continue };
+                converged += 1;
+                let sides: Vec<u8> = sides
+                    .into_iter()
+                    .map(|side| u8::try_from(side).unwrap_or(u8::MAX))
+                    .collect();
+                let coset = colouring
+                    .colour_of(&sides)
+                    .unwrap_or_else(|| panic!("{id}: the sides {sides:?} have no colour"));
+                let colour = GOLDEN_COSET_FILL[usize::try_from(coset).unwrap_or(usize::MAX)];
+                assert_eq!(pixel, &colour, "{id}: the sides {sides:?}");
+            }
+            assert!(converged > 0, "{id}");
+        }
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
+    )]
+    fn renderer_refuses_a_coset_fill_of_a_domain_with_another_side_presentation() {
+        let triangle = domain("*732");
+        let fill = coset_fill(&triangle, colouring(&triangle, "2a"));
+        let options = match RenderOptions::builder(Fill::Cosets(fill))
+            .size(4, 4)
+            .build()
+        {
+            Ok(options) => options,
+            Err(error) => panic!("{error}"),
+        };
+        match Renderer::new(&domain_with_aspect("*2222", None), options.clone()) {
+            Ok(_) => panic!("the fill of *732 is accepted for *2222"),
+            Err(error) => {
+                assert_eq!(error.kind(), ErrorKind::InvalidOption);
+                assert_eq!(
+                    error.to_string(),
+                    "cannot build renderer: the coset fill was built for a domain with another side presentation"
+                );
+            }
+        }
+        assert!(Renderer::new(&triangle, options).is_ok());
+        let wide = domain_with_aspect("*2222", Some(4.0));
+        let fill = coset_fill(&wide, colouring(&wide, "2a"));
+        let options = match RenderOptions::builder(Fill::Cosets(fill))
+            .size(4, 4)
+            .build()
+        {
+            Ok(options) => options,
+            Err(error) => panic!("{error}"),
+        };
+        assert!(Renderer::new(&domain_with_aspect("*2222", None), options).is_ok());
     }
 }

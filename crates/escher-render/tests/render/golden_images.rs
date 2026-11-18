@@ -1,15 +1,17 @@
 use escher_domain::{FundamentalDomain, ShapeParameters};
+use escher_group::{Colouring, ColouringId, IndexLimit, SearchBudget, colourings_of_index};
 use escher_signature::Signature;
 use glam::{DMat3, DVec2};
 
 use crate::reference::Reference;
-use crate::{Colour, Fill, RenderOptions, Shading};
+use crate::{Colour, CosetFill, Fill, RenderOptions, Renderer, Shading};
 
 pub(crate) struct GoldenImage {
     pub(crate) signature: &'static str,
     pub(crate) aspect: Option<f64>,
     pub(crate) rotation: [f64; 3],
     pub(crate) shading: Shading,
+    pub(crate) colouring: Option<&'static str>,
     pub(crate) file: &'static str,
 }
 
@@ -18,11 +20,15 @@ impl GoldenImage {
         domain_with_aspect(self.signature, self.aspect)
     }
 
-    pub(crate) fn options(&self) -> RenderOptions {
+    pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
         let [even, odd] =
             GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+        let fill = match self.colouring {
+            None => Fill::Parity([even, odd]),
+            Some(id) => Fill::Cosets(coset_fill(domain, colouring(domain, id))),
+        };
         let [yaw, pitch, roll] = self.rotation.map(f64::to_radians);
-        match RenderOptions::builder(Fill::Parity([even, odd]))
+        match RenderOptions::builder(fill)
             .size(GOLDEN_SIZE, GOLDEN_SIZE)
             .samples(GOLDEN_GRID)
             .border_width(1.0)
@@ -42,6 +48,18 @@ const fn golden(signature: &'static str, aspect: Option<f64>, file: &'static str
         aspect,
         rotation: [0.0; 3],
         shading: Shading::Phong,
+        colouring: None,
+        file,
+    }
+}
+
+const fn coset(signature: &'static str, id: &'static str, file: &'static str) -> GoldenImage {
+    GoldenImage {
+        signature,
+        aspect: None,
+        rotation: [0.0; 3],
+        shading: Shading::Phong,
+        colouring: Some(id),
         file,
     }
 }
@@ -64,6 +82,7 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 20] = [
         aspect: None,
         rotation: [20.0, 35.0, 0.0],
         shading: Shading::Phong,
+        colouring: None,
         file: "5-3-2-rotated.png",
     },
     GoldenImage {
@@ -71,6 +90,7 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 20] = [
         aspect: None,
         rotation: [0.0; 3],
         shading: Shading::Flat,
+        colouring: None,
         file: "5-3-2-flat.png",
     },
     golden("732", None, "rot-7-3-2.png"),
@@ -81,7 +101,77 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 20] = [
     golden("55", None, "rot-5-5.png"),
 ];
 
+pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 6] = [
+    coset("*642", "3a", "cos-6-4-2-3a.png"),
+    coset("*732", "8a", "cos-7-3-2-8a.png"),
+    coset("432", "3a", "cos-rot-4-3-2-3a.png"),
+    coset("532", "5a", "cos-rot-5-3-2-5a.png"),
+    coset("*2222", "4a", "cos-2-2-2-2-4a.png"),
+    coset("*532", "5a", "cos-5-3-2-5a.png"),
+];
+
 pub(crate) const GOLDEN_FILL: [[u8; 3]; 2] = [[245, 222, 179], [70, 130, 180]];
+
+pub(crate) const GOLDEN_COSET_FILL: [[u8; 3]; 8] = [
+    [245, 222, 179],
+    [70, 130, 180],
+    [220, 20, 60],
+    [46, 139, 87],
+    [255, 215, 0],
+    [106, 90, 205],
+    [255, 140, 0],
+    [64, 224, 208],
+];
+
+pub(crate) fn colourings_of(domain: &FundamentalDomain, colours: u32) -> Vec<Colouring> {
+    let presentation = domain
+        .side_presentation()
+        .unwrap_or_else(|error| panic!("the domain has no side presentation: {error}"));
+    let limit = IndexLimit::new(colours)
+        .unwrap_or_else(|error| panic!("{colours} colours are too many: {error}"));
+    let found = colourings_of_index(&presentation, limit, SearchBudget::DEFAULT)
+        .unwrap_or_else(|error| panic!("the search for {colours} colours fails: {error}"));
+    assert!(
+        found.is_complete(),
+        "the search for {colours} colours is not complete"
+    );
+    found.list().to_vec()
+}
+
+pub(crate) fn find_colouring(colourings: &[Colouring], id: &str) -> Colouring {
+    let id: ColouringId = id
+        .parse()
+        .unwrap_or_else(|error| panic!("{id:?} is rejected: {error}"));
+    colourings
+        .iter()
+        .find(|colouring| colouring.id() == id)
+        .cloned()
+        .unwrap_or_else(|| panic!("the domain has no colouring {id}"))
+}
+
+pub(crate) fn colouring(domain: &FundamentalDomain, id: &str) -> Colouring {
+    let colours = id
+        .parse::<ColouringId>()
+        .unwrap_or_else(|error| panic!("{id:?} is rejected: {error}"))
+        .colours();
+    find_colouring(&colourings_of(domain, colours), id)
+}
+
+pub(crate) fn coset_fill(domain: &FundamentalDomain, colouring: Colouring) -> CosetFill {
+    let id = colouring.id();
+    let colours = GOLDEN_COSET_FILL
+        .iter()
+        .take(usize::try_from(colouring.colours()).unwrap_or(usize::MAX))
+        .map(|&[red, green, blue]| Colour::from_srgb8(red, green, blue))
+        .collect();
+    CosetFill::new(domain, colouring, colours)
+        .unwrap_or_else(|error| panic!("the coset fill of {id} is rejected: {error}"))
+}
+
+pub(crate) fn renderer(domain: &FundamentalDomain, options: RenderOptions) -> Renderer {
+    Renderer::new(domain, options)
+        .unwrap_or_else(|error| panic!("the renderer is rejected: {error}"))
+}
 
 pub(crate) const GOLDEN_SIZE: u32 = 192;
 

@@ -25,8 +25,11 @@
 //! options. A [`Renderer`] maps each sample of a regular grid in each pixel to
 //! a point of the view, folds the point into the domain with [`fold`], and
 //! colours the sample with a [`Fill`] colour, the border colour, or the
-//! background colour of its [`RenderOptions`]. It averages the samples of a
-//! pixel in linear light and stores the pixel as 8-bit sRGB.
+//! background colour of its [`RenderOptions`]. A [`Fill`] gives every tile
+//! one colour, two colours by parity, or the colour of its coset in a
+//! [`Colouring`](escher_group::Colouring), through a [`CosetFill`]. The
+//! renderer averages the samples of a pixel in linear light and stores the
+//! pixel as 8-bit sRGB.
 //! [`encode_png`] turns the pixels into the bytes of a PNG file. The crate
 //! starts no thread and touches no file, so the caller decides how to split
 //! the image into bands of rows and where to write it.
@@ -39,7 +42,7 @@
 //! let domain = FundamentalDomain::build(&"*542".parse::<Signature>()?)?;
 //! let fill = Fill::Parity([Colour::WHITE, Colour::from_srgb8(220, 20, 60)]);
 //! let options = RenderOptions::builder(fill).size(32, 32).build()?;
-//! let (pixels, stats) = Renderer::new(&domain, options).render();
+//! let (pixels, stats) = Renderer::new(&domain, options)?.render();
 //! assert_eq!(stats.unconverged(), 0);
 //! let file = encode_png(32, 32, &pixels)?;
 //! assert!(file.starts_with(b"\x89PNG"));
@@ -74,7 +77,7 @@ mod reference;
 #[path = "../tests/render/golden_images.rs"]
 mod golden_images;
 
-pub use colour::{Colour, Fill};
+pub use colour::{Colour, CosetFill, Fill};
 pub use encode::encode_png;
 pub use error::{Error, ErrorKind, Result};
 pub use fold::{Fold, fold};
@@ -84,8 +87,8 @@ pub use renderer::{RenderStats, Renderer};
 #[cfg(test)]
 mod tests {
     use super::{
-        Colour, Error, ErrorKind, Fill, Fold, RenderOptions, RenderOptionsBuilder, RenderStats,
-        Renderer, Shading,
+        Colour, CosetFill, Error, ErrorKind, Fill, Fold, RenderOptions, RenderOptionsBuilder,
+        RenderStats, Renderer, Shading,
     };
 
     fn assert_auto_traits<T: Send + Sync + 'static>() {}
@@ -94,6 +97,7 @@ mod tests {
     fn public_types_are_send_sync_and_static() {
         assert_auto_traits::<Colour>();
         assert_auto_traits::<Fill>();
+        assert_auto_traits::<CosetFill>();
         assert_auto_traits::<RenderOptions>();
         assert_auto_traits::<RenderOptionsBuilder>();
         assert_auto_traits::<Shading>();

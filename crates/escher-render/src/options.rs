@@ -545,7 +545,7 @@ mod tests {
         let red = Colour::from_srgb8(255, 0, 0);
         let fill = Fill::Parity([red, Colour::BLACK]);
         let options = accepted(
-            RenderOptions::builder(fill)
+            RenderOptions::builder(fill.clone())
                 .border_colour(red)
                 .background(Colour::BLACK),
         );

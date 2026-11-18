@@ -1,13 +1,13 @@
 use escher_geometry::hyperbolic::{distance, from_disk, inverse};
 use escher_geometry::{euclidean, spherical};
-use escher_render::{Colour, Fill, RenderOptions, Renderer, Shading, fold};
+use escher_render::{Colour, Fill, RenderOptions, Shading, fold};
 use glam::{DVec2, DVec3};
 
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, PLAN_TRIPLES, domain, euclidean_domain, euclidean_name,
     options, text,
 };
-use crate::golden_images::domain_with_aspect;
+use crate::golden_images::{domain_with_aspect, renderer};
 use crate::reference::count_bound;
 
 const SIZE: u32 = 192;
@@ -42,7 +42,7 @@ fn border_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool
             .samples(1)
             .shading(Shading::Flat),
     );
-    let (pixels, _) = Renderer::new(domain, options).render();
+    let (pixels, _) = renderer(domain, options).render();
     pixels
         .as_chunks::<3>()
         .0
@@ -240,7 +240,7 @@ fn rectangle_borders_and_parities_match_the_grid_of_the_rectangle() {
                     .samples(1)
                     .border_width(2.0 * half_width),
             );
-            let (pixels, _) = Renderer::new(&domain, options).render();
+            let (pixels, _) = renderer(&domain, options).render();
             let mut differing = 0;
             let mut borders = 0;
             for (index, pixel_bytes) in pixels.as_chunks::<3>().0.iter().enumerate() {
@@ -354,7 +354,7 @@ fn fill_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool> 
             .samples(1)
             .shading(Shading::Flat),
     );
-    let (pixels, _) = Renderer::new(domain, options).render();
+    let (pixels, _) = renderer(domain, options).render();
     pixels
         .as_chunks::<3>()
         .0

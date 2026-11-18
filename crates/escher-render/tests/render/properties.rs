@@ -1,10 +1,14 @@
 use core::f64::consts::TAU;
+use std::sync::LazyLock;
 
+use escher_domain::FundamentalDomain;
 use escher_geometry::hyperbolic::{from_disk, side, to_disk};
 use escher_geometry::spherical;
+use escher_group::{Colouring, IndexLimit, Letter, SearchBudget, colourings};
 use escher_render::fold;
 use glam::{DVec2, DVec3};
 use proptest::prelude::{any, prop_assert, prop_assert_eq, prop_assume, proptest};
+use proptest::sample::Index;
 
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
@@ -12,6 +16,7 @@ use crate::common::{
     SPHERICAL_DOMAINS, TOLERANCE, domain, euclidean_band, euclidean_domain, proptest_config,
     rotation_domain, spherical_domain, text,
 };
+use crate::golden_images::domain_with_aspect;
 use crate::reference::{self, Reference, num, vector};
 
 const WALL_CLEARANCE: f64 = 1e-6;
@@ -51,7 +56,7 @@ const ROTATION_DOMAINS: usize =
     FOLD_TRIPLES.len() + EUCLIDEAN_DOMAINS.len() + SPHERICAL_DOMAINS.len();
 
 struct RotationDomain {
-    domain: escher_domain::FundamentalDomain,
+    domain: FundamentalDomain,
     measure: Measure,
     index: usize,
 }
@@ -598,5 +603,121 @@ fn rotation_folds_of_paired_points_on_the_sphere_stay_within_the_pairing_bound()
             }
         }
         worst.assert_at_most(&mut reference, bound);
+    }
+}
+
+struct ColouredDomain {
+    name: &'static str,
+    domain: FundamentalDomain,
+    measure: Measure,
+    colourings: Vec<Colouring>,
+}
+
+const COLOURED_DOMAINS: [(&str, Measure, u32); 7] = [
+    ("*732", Measure::Hyperbolic, 9),
+    ("*642", Measure::Hyperbolic, 6),
+    ("*2222", Measure::Euclidean, 6),
+    ("532", Measure::Spherical, 6),
+    ("432", Measure::Spherical, 6),
+    ("2222", Measure::Euclidean, 6),
+    ("732", Measure::Hyperbolic, 9),
+];
+
+static COLOURED: LazyLock<Vec<ColouredDomain>> = LazyLock::new(|| {
+    COLOURED_DOMAINS
+        .iter()
+        .map(|&(name, measure, colours)| {
+            let domain = domain_with_aspect(name, None);
+            let presentation = domain
+                .side_presentation()
+                .unwrap_or_else(|error| panic!("{name} has no side presentation: {error}"));
+            let limit = IndexLimit::new(colours).unwrap_or_else(|error| panic!("{error}"));
+            let found = colourings(&presentation, limit, SearchBudget::DEFAULT)
+                .unwrap_or_else(|error| panic!("the search of {name} fails: {error}"));
+            assert_eq!(found.complete_to(), colours, "{name}");
+            ColouredDomain {
+                name,
+                domain,
+                measure,
+                colourings: found.list().to_vec(),
+            }
+        })
+        .collect()
+});
+
+const LARGEST_DISK_RADIUS: f64 = 1.0 - 1e-4;
+
+fn coloured_point(measure: Measure, unit: f64, angle: f64) -> DVec3 {
+    match measure {
+        Measure::Hyperbolic => point_in_range(4.0 * unit, angle),
+        Measure::Euclidean => plane_point(EUCLIDEAN_RANGE * unit, angle),
+        Measure::Spherical => sphere_point(2.0 * unit - 1.0, angle, 0),
+    }
+}
+
+fn fold_sides(
+    coloured: &ColouredDomain,
+    reference: &mut Reference,
+    point: DVec3,
+) -> Option<Vec<u8>> {
+    let mut sides = Vec::new();
+    let result = fold(&coloured.domain, point, DEFAULT_CAP, |side| {
+        sides.push(u8::try_from(side).unwrap_or(u8::MAX));
+    });
+    if !result.converged() {
+        return None;
+    }
+    let folded = vector(result.point().to_array());
+    let clear = coloured.domain.sides().iter().all(|wall| {
+        let covector = vector(wall.covector().to_array());
+        coloured
+            .measure
+            .wall_distance(reference, &covector, &folded)
+            >= num(WALL_CLEARANCE)
+    });
+    clear.then_some(sides)
+}
+
+proptest! {
+    #![proptest_config(proptest_config())]
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
+    )]
+    fn each_side_moves_the_coset_colour_by_the_inverse_column_of_its_generator(
+        index in 0..COLOURED_DOMAINS.len(),
+        chosen in any::<Index>(),
+        unit in 0.0..=1.0_f64,
+        angle in 0.0..TAU,
+        side in any::<Index>(),
+    ) {
+        let coloured = &COLOURED[index];
+        let colouring = chosen.get(&coloured.colourings);
+        let side = side.index(coloured.domain.sides().len());
+        let point = coloured_point(coloured.measure, unit, angle);
+        let partner = coloured.domain.sides()[side].partner();
+        let image = coloured.domain.sides()[partner].pairing() * point;
+        if coloured.measure == Measure::Hyperbolic {
+            prop_assume!(to_disk(image).length() <= LARGEST_DISK_RADIUS);
+        }
+        let mut reference = Reference::new();
+        let sides = fold_sides(coloured, &mut reference, point);
+        let image_sides = fold_sides(coloured, &mut reference, image);
+        prop_assume!(sides.is_some() && image_sides.is_some());
+        let colour = sides.and_then(|sides| colouring.colour_of(&sides));
+        let image_colour = image_sides.and_then(|sides| colouring.colour_of(&sides));
+        prop_assert!(colour.is_some());
+        let letter = Letter::inverse_of(u8::try_from(side).unwrap_or(u8::MAX));
+        let expected = colour.and_then(|colour| colouring.table().image(colour, letter));
+        prop_assert_eq!(
+            image_colour,
+            expected,
+            "{} {} side {}",
+            coloured.name,
+            colouring.id(),
+            side
+        );
     }
 }

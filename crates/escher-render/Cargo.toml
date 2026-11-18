@@ -13,6 +13,7 @@ readme.workspace = true
 [dependencies]
 escher-domain.workspace = true
 escher-geometry.workspace = true
+escher-group.workspace = true
 escher-signature.workspace = true
 glam.workspace = true
 png.workspace = true

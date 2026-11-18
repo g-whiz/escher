@@ -1,11 +1,14 @@
 use std::path::PathBuf;
 
-use escher_render::{Colour, ErrorKind, Fill, RenderOptions, RenderStats, Renderer, encode_png};
+use escher_render::{
+    Colour, CosetFill, ErrorKind, Fill, RenderOptions, RenderStats, Renderer, encode_png,
+};
 
 use crate::common::{decode_png, domain, one_fill, options};
 use crate::golden_images::{
-    ALLOWED_PIXELS, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE, GoldenImage,
-    TRANSLATION_TOLERANCE, compare, domain_with_aspect, linear_table, shifted_pairs, translation,
+    ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
+    GoldenImage, TRANSLATION_TOLERANCE, colouring as golden_colouring, colourings_of, compare,
+    coset_fill, domain_with_aspect, linear_table, renderer, shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -13,7 +16,8 @@ const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
 const RECIPE: &str = "just update-golden";
 
 fn golden_pixels(image: &GoldenImage) -> Vec<u8> {
-    Renderer::new(&image.domain(), image.options()).render().0
+    let domain = image.domain();
+    renderer(&domain, image.options(&domain)).render().0
 }
 
 fn encoded(pixels: &[u8]) -> Vec<u8> {
@@ -109,7 +113,7 @@ fn golden_images_match_the_committed_files() {
     let update = std::env::var_os(UPDATE).is_some_and(|value| value == "1");
     let linear = linear_table();
     let mut failures = Vec::new();
-    for image in &GOLDEN_IMAGES {
+    for image in GOLDEN_IMAGES.iter().chain(&COSET_GOLDEN_IMAGES) {
         let pixels = golden_pixels(image);
         let path = directory.join(image.file);
         if update {
@@ -138,7 +142,7 @@ fn render_equals_render_rows_over_any_split_into_bands() {
         .rotation(yaw, pitch, roll),
     );
     for domain in [domain([7, 3, 2]), domain_with_aspect("*532", None)] {
-        assert_bands_equal_the_whole_image(&Renderer::new(&domain, options.clone()));
+        assert_bands_equal_the_whole_image(&renderer(&domain, options.clone()));
     }
 }
 
@@ -168,7 +172,7 @@ fn assert_bands_equal_the_whole_image(renderer: &Renderer) {
 #[test]
 fn render_rows_rejects_a_buffer_that_does_not_fit_the_image() {
     let options = options(RenderOptions::builder(one_fill()).size(512, 512).samples(1));
-    let renderer = Renderer::new(&domain([7, 3, 2]), options);
+    let renderer = renderer(&domain([7, 3, 2]), options);
     let row = 3 * 512;
     let cases: [(u32, usize, &str); 4] = [
         (
@@ -343,7 +347,7 @@ fn euclidean_images_equal_themselves_shifted_by_a_translation_of_the_group() {
             .iter()
             .position(|(signature, aspect, _)| (*signature, *aspect) == key);
         let index = found.unwrap_or_else(|| {
-            let (pixels, _) = Renderer::new(&domain, options.clone()).render();
+            let (pixels, _) = renderer(&domain, options.clone()).render();
             rendered.push((key.0, key.1, pixels));
             rendered.len() - 1
         });
@@ -379,7 +383,7 @@ fn square_tiling_at_one_sample_per_pixel_has_no_border_pixel_and_at_two_by_two_h
                 .samples(grid)
                 .border_width(1.0),
         );
-        let (pixels, _) = Renderer::new(&domain, options).render();
+        let (pixels, _) = renderer(&domain, options).render();
         *count = pixels
             .as_chunks::<3>()
             .0
@@ -403,7 +407,7 @@ fn assert_folds_within_the_group_order(text: &str) {
         panic!("{text} has no group order");
     };
     let options = options(RenderOptions::builder(one_fill()));
-    let (_, stats) = Renderer::new(&domain_with_aspect(text, None), options).render();
+    let (_, stats) = renderer(&domain_with_aspect(text, None), options).render();
     let inside = stats.samples() - stats.outside();
     #[expect(
         clippy::cast_precision_loss,
@@ -437,7 +441,7 @@ fn spherical_golden_domains_fold_every_sample_within_the_group_order() {
         assert_folds_within_the_group_order(text);
     }
     let small = options(RenderOptions::builder(one_fill()).size(4, 4).samples(1));
-    let (_, stats) = Renderer::new(&domain_with_aspect("*532", None), small).render();
+    let (_, stats) = renderer(&domain_with_aspect("*532", None), small).render();
     assert_eq!(stats.samples(), 16);
     assert_eq!(stats.outside(), 4);
 }
@@ -472,11 +476,91 @@ fn parity_fill_of_a_rotation_domain_equals_its_first_colour() {
         let domain = domain_with_aspect(text, None);
         let render = |fill| {
             let options = options(RenderOptions::builder(fill).size(64, 64).samples(2));
-            Renderer::new(&domain, options).render().0
+            renderer(&domain, options).render().0
         };
         assert!(
             render(Fill::Parity([first, second])) == render(Fill::One(first)),
             "{text}"
         );
+    }
+}
+
+fn parity_colouring(domain: &escher_domain::FundamentalDomain) -> escher_group::Colouring {
+    let found = colourings_of(domain, 2);
+    let moves_coset_zero = |colouring: &escher_group::Colouring| {
+        domain.sides().iter().enumerate().all(|(index, side)| {
+            let reverses = side.orientation() == escher_domain::Orientation::Reversing;
+            let index = u8::try_from(index).unwrap_or(u8::MAX);
+            let image = colouring
+                .table()
+                .image(0, escher_group::Letter::generator(index));
+            image == Some(u32::from(reverses))
+        })
+    };
+    let mut parity = found.iter().filter(|colouring| moves_coset_zero(colouring));
+    let colouring = parity
+        .next()
+        .unwrap_or_else(|| panic!("the domain has no parity colouring"));
+    assert!(
+        parity.next().is_none(),
+        "the domain has two parity colourings"
+    );
+    colouring.clone()
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
+)]
+fn coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_parity_fill() {
+    let first = Colour::from_srgb8(245, 222, 179);
+    let second = Colour::from_srgb8(70, 130, 180);
+    let render = |domain: &escher_domain::FundamentalDomain, fill| {
+        let options = options(RenderOptions::builder(fill).size(64, 64).samples(2));
+        renderer(domain, options).render()
+    };
+    for text in ["*732", "*642", "*2222", "*532", "732"] {
+        let domain = domain_with_aspect(text, None);
+        let trivial = golden_colouring(&domain, "1a");
+        let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{text}: {error}"),
+        };
+        assert!(
+            render(&domain, Fill::Cosets(cosets)) == render(&domain, Fill::One(first)),
+            "{text} with 1a"
+        );
+        if !text.starts_with('*') {
+            continue;
+        }
+        let parity = parity_colouring(&domain);
+        let id = parity.id();
+        let cosets = match CosetFill::new(&domain, parity, vec![first, second]) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{text}: {error}"),
+        };
+        assert!(
+            render(&domain, Fill::Cosets(cosets)) == render(&domain, Fill::Parity([first, second])),
+            "{text} with {id}"
+        );
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
+)]
+fn coset_fill_render_equals_render_rows_over_any_split_into_bands() {
+    for (text, id) in [("*642", "3a"), ("532", "5a")] {
+        let domain = domain_with_aspect(text, None);
+        let fill = coset_fill(&domain, golden_colouring(&domain, id));
+        let options = options(
+            RenderOptions::builder(Fill::Cosets(fill))
+                .size(64, 48)
+                .samples(3),
+        );
+        assert_bands_equal_the_whole_image(&renderer(&domain, options));
     }
 }

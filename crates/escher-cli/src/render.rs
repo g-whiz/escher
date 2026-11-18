@@ -82,7 +82,8 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         .build()
         .map_err(|error| thread_pool_error(&signature, &error))?;
     let (width, height) = (options.width(), options.height());
-    let renderer = Renderer::new(&domain, options);
+    let renderer =
+        Renderer::new(&domain, options).with_context(|| format!("cannot render {signature}"))?;
     let start = Instant::now();
     let (pixels, stats) = pool
         .install(|| render_bands(&renderer, width, height))

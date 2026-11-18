@@ -7,8 +7,8 @@ use crate::options::{
 /// A specialized [`Result`](core::result::Result) whose error is [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// The reason why building options, rendering rows, or encoding an image
-/// failed.
+/// The reason why an operation failed. The operations are building options,
+/// a coset fill, or a renderer, rendering rows, and encoding an image.
 ///
 /// Match on [`Error::kind`] to tell the causes apart. The
 /// [`Display`](fmt::Display) text starts with `cannot `, names the operation
@@ -34,6 +34,8 @@ pub struct Error {
 }
 
 const BUILD: &str = "build render options";
+const COSET_FILL: &str = "build coset fill";
+const RENDERER: &str = "build renderer";
 const RENDER: &str = "render rows";
 const ENCODE: &str = "encode image";
 
@@ -76,6 +78,41 @@ impl Error {
 
     pub(crate) fn light_direction() -> Self {
         Self::build(Detail::LightDirection)
+    }
+
+    pub(crate) fn generator_count(generators: usize, sides: usize) -> Self {
+        Self {
+            operation: COSET_FILL,
+            detail: Detail::GeneratorCount { generators, sides },
+        }
+    }
+
+    pub(crate) fn no_presentation(source: escher_domain::Error) -> Self {
+        Self {
+            operation: COSET_FILL,
+            detail: Detail::NoPresentation(source),
+        }
+    }
+
+    pub(crate) fn broken_relator(relator: usize) -> Self {
+        Self {
+            operation: COSET_FILL,
+            detail: Detail::BrokenRelator(relator),
+        }
+    }
+
+    pub(crate) fn other_presentation() -> Self {
+        Self {
+            operation: RENDERER,
+            detail: Detail::OtherPresentation,
+        }
+    }
+
+    pub(crate) fn colour_count(needed: usize, given: usize) -> Self {
+        Self {
+            operation: COSET_FILL,
+            detail: Detail::ColourCount { needed, given },
+        }
     }
 
     pub(crate) fn partial_rows(length: usize, row: usize) -> Self {
@@ -129,7 +166,12 @@ impl Error {
             | Detail::EmptyGrid
             | Detail::NegativeBorder(_)
             | Detail::RotationAngle(_)
-            | Detail::LightDirection => ErrorKind::InvalidOption,
+            | Detail::LightDirection
+            | Detail::NoPresentation(_)
+            | Detail::GeneratorCount { .. }
+            | Detail::BrokenRelator(_)
+            | Detail::ColourCount { .. }
+            | Detail::OtherPresentation => ErrorKind::InvalidOption,
             Detail::LargeSide { .. }
             | Detail::ManyPixels { .. }
             | Detail::LargeGrid(_)
@@ -153,6 +195,7 @@ impl core::error::Error for Error {
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match &self.detail {
             Detail::Encoding(source) => Some(source),
+            Detail::NoPresentation(source) => Some(source),
             Detail::EmptySize { .. }
             | Detail::EmptyGrid
             | Detail::NegativeBorder(_)
@@ -163,6 +206,10 @@ impl core::error::Error for Error {
             | Detail::LargeCap(_)
             | Detail::RotationAngle(_)
             | Detail::LightDirection
+            | Detail::GeneratorCount { .. }
+            | Detail::BrokenRelator(_)
+            | Detail::ColourCount { .. }
+            | Detail::OtherPresentation
             | Detail::PartialRows { .. }
             | Detail::RowsOutside { .. }
             | Detail::WrongImage { .. } => None,
@@ -187,8 +234,10 @@ impl core::error::Error for Error {
 pub enum ErrorKind {
     /// An option has a value that means nothing, such as an empty image, an
     /// empty sample grid, a negative or non-finite border width, a rotation
-    /// angle that is not finite, or a light direction that is zero or not
-    /// finite.
+    /// angle that is not finite, a light direction that is zero or not
+    /// finite, a coset fill whose colouring does not fit the domain or whose
+    /// colours do not fit the colouring, or a coset fill used with a domain
+    /// of another side presentation.
     InvalidOption,
     /// An option is larger than its limit, which bounds the memory and the
     /// time of a render.
@@ -223,6 +272,24 @@ enum Detail {
     RotationAngle(f64),
     #[error("the light direction is zero or not finite")]
     LightDirection,
+    #[error("the domain has no side presentation")]
+    NoPresentation(escher_domain::Error),
+    #[error(
+        "the colouring has {}, and the domain has {}",
+        counted(*generators, "generator", "generators"),
+        counted(*sides, "side", "sides")
+    )]
+    GeneratorCount { generators: usize, sides: usize },
+    #[error(
+        "the colouring needs {}, and {given} {} given",
+        counted(*needed, "colour", "colours"),
+        if *given == 1 { "was" } else { "were" }
+    )]
+    ColourCount { needed: usize, given: usize },
+    #[error("relator {0} of the side presentation of the domain moves a coset of the colouring")]
+    BrokenRelator(usize),
+    #[error("the coset fill was built for a domain with another side presentation")]
+    OtherPresentation,
     #[error("the buffer of {length} bytes does not hold whole rows of {row} bytes")]
     PartialRows { length: usize, row: usize },
     #[error("the rows {first} to {last} are outside the image of {height} rows")]
@@ -237,6 +304,11 @@ enum Detail {
     Encoding(png::EncodingError),
 }
 
+fn counted(count: usize, one: &str, many: &str) -> String {
+    let word = if count == 1 { one } else { many };
+    format!("{count} {word}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Error, ErrorKind};
@@ -246,6 +318,48 @@ mod tests {
     }
 
     fn errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        let mut errors = option_errors();
+        errors.extend(coset_errors());
+        errors.extend(buffer_errors());
+        errors
+    }
+
+    fn coset_errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
+            (
+                Error::generator_count(3, 4),
+                ErrorKind::InvalidOption,
+                "cannot build coset fill: the colouring has 3 generators, and the domain has 4 sides",
+            ),
+            (
+                Error::generator_count(1, 2),
+                ErrorKind::InvalidOption,
+                "cannot build coset fill: the colouring has 1 generator, and the domain has 2 sides",
+            ),
+            (
+                Error::colour_count(3, 2),
+                ErrorKind::InvalidOption,
+                "cannot build coset fill: the colouring needs 3 colours, and 2 were given",
+            ),
+            (
+                Error::colour_count(1, 1),
+                ErrorKind::InvalidOption,
+                "cannot build coset fill: the colouring needs 1 colour, and 1 was given",
+            ),
+            (
+                Error::broken_relator(3),
+                ErrorKind::InvalidOption,
+                "cannot build coset fill: relator 3 of the side presentation of the domain moves a coset of the colouring",
+            ),
+            (
+                Error::other_presentation(),
+                ErrorKind::InvalidOption,
+                "cannot build renderer: the coset fill was built for a domain with another side presentation",
+            ),
+        ]
+    }
+
+    fn option_errors() -> Vec<(Error, ErrorKind, &'static str)> {
         vec![
             (
                 Error::empty_size(0, 512),
@@ -302,6 +416,11 @@ mod tests {
                 ErrorKind::InvalidOption,
                 "cannot build render options: the light direction is zero or not finite",
             ),
+        ]
+    }
+
+    fn buffer_errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
             (
                 Error::partial_rows(1535, 1536),
                 ErrorKind::InvalidBuffer,
@@ -359,5 +478,25 @@ mod tests {
                 assert_eq!(source, None, "{text}");
             }
         }
+    }
+
+    #[test]
+    fn a_domain_without_a_side_presentation_keeps_the_domain_error_as_its_source() {
+        let signature: escher_signature::Signature = match "*".parse() {
+            Ok(signature) => signature,
+            Err(error) => panic!("{error}"),
+        };
+        let Err(cause) = escher_domain::FundamentalDomain::build(&signature) else {
+            panic!("* has a domain");
+        };
+        let cause_text = cause.to_string();
+        let error = Error::no_presentation(cause);
+        assert_eq!(error.kind(), ErrorKind::InvalidOption);
+        assert_eq!(
+            error.to_string(),
+            "cannot build coset fill: the domain has no side presentation"
+        );
+        let source = core::error::Error::source(&error).map(ToString::to_string);
+        assert_eq!(source, Some(cause_text));
     }
 }

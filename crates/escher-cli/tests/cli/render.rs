@@ -452,7 +452,9 @@ fn render_writes_the_same_bytes_for_one_thread_and_four() {
         .samples(2)
         .build()
         .expect("the options are valid");
-    let (pixels, _) = Renderer::new(&domain, options).render();
+    let (pixels, _) = Renderer::new(&domain, options)
+        .expect("the renderer is built")
+        .render();
     let whole_image = encode_png(64, 64, &pixels).expect("the image is encoded");
     assert_eq!(rendered_with_threads("one_thread", "1"), whole_image);
     assert_eq!(rendered_with_threads("four_threads", "4"), whole_image);

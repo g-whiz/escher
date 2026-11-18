@@ -1,3 +1,8 @@
+use escher_domain::FundamentalDomain;
+use escher_group::{Colouring, CosetTable, Presentation};
+
+use crate::error::{Error, Result};
+
 /// An opaque colour, stored in linear light.
 ///
 /// Use it for every colour of an image: the fills, the border, and the
@@ -67,7 +72,7 @@ impl Colour {
 /// let fill = Fill::Parity([Colour::WHITE, Colour::from_srgb8(70, 130, 180)]);
 /// assert_ne!(fill, Fill::One(Colour::WHITE));
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Fill {
     /// Every tile takes the one colour.
@@ -80,6 +85,146 @@ pub enum Fill {
     /// the domain of `732`, every tile takes the first colour, so the image
     /// equals the image with [`Fill::One`] of that colour.
     Parity([Colour; 2]),
+    /// A tile takes the colour of its coset in the colouring of a
+    /// [`CosetFill`].
+    Cosets(CosetFill),
+}
+
+/// A colouring of a tile by its coset of a subgroup of finite index, with one
+/// colour for each coset.
+///
+/// Build it with [`CosetFill::new`] from the domain whose side presentation
+/// gave the colouring, and render it as [`Fill::Cosets`] with a domain that
+/// has the same side presentation. For each sample, the renderer records the
+/// sides that the fold crossed, in order. The sample takes the colour at the
+/// index that [`Colouring::colour_of`](escher_group::Colouring::colour_of)
+/// returns for those sides, so the fundamental domain takes the first colour.
+///
+/// # Examples
+///
+/// ```
+/// use escher_domain::FundamentalDomain;
+/// use escher_group::{IndexLimit, SearchBudget, colourings_of_index};
+/// use escher_render::{Colour, CosetFill, Fill, RenderOptions, Renderer};
+/// use escher_signature::Signature;
+///
+/// let domain = FundamentalDomain::build(&"*642".parse::<Signature>()?)?;
+/// let presentation = domain.side_presentation()?;
+/// let found = colourings_of_index(&presentation, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
+/// let colouring = found.find("3a".parse()?).ok_or("3a is missing")?.clone();
+/// let colours = vec![
+///     Colour::from_srgb8(245, 222, 179),
+///     Colour::from_srgb8(70, 130, 180),
+///     Colour::from_srgb8(220, 20, 60),
+/// ];
+/// let fill = Fill::Cosets(CosetFill::new(&domain, colouring, colours)?);
+/// let options = RenderOptions::builder(fill).size(32, 32).build()?;
+/// let (_, stats) = Renderer::new(&domain, options)?.render();
+/// assert_eq!(stats.unconverged(), 0);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub struct CosetFill {
+    presentation: Presentation,
+    colouring: Colouring,
+    colours: Vec<Colour>,
+}
+
+impl CosetFill {
+    /// Returns the fill that gives coset `c` of the colouring the colour at
+    /// index `c` of `colours`.
+    ///
+    /// The fill keeps the side presentation of the domain, so that
+    /// [`Renderer::new`](crate::Renderer::new) can refuse a domain with
+    /// another one, and keeps no reference to the domain. It accepts the
+    /// colouring only when the colouring is a colouring of that side
+    /// presentation: its table has one generator for each side, and tracing
+    /// each relator from each coset returns to that coset. The check traces
+    /// the base of each relator once from each coset and then follows the
+    /// cycles of that permutation of the cosets, so for each relator it reads
+    /// at most the number of cosets times the length of the base, plus the
+    /// square of the number of cosets. A colouring has at most 64 cosets, and
+    /// for every domain that the crate `escher_domain` builds the whole check
+    /// reads a few thousand table entries at most.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error of kind
+    /// [`ErrorKind::InvalidOption`](crate::ErrorKind::InvalidOption), for the
+    /// first of these causes: the domain has no side presentation, the number
+    /// of generators of the colouring differs from the number of sides of the
+    /// domain, a relator of the side presentation does not return some coset
+    /// of the colouring to itself, or the number of colours differs from the
+    /// number of colours of the colouring.
+    pub fn new(
+        domain: &FundamentalDomain,
+        colouring: Colouring,
+        colours: Vec<Colour>,
+    ) -> Result<Self> {
+        let presentation = domain.side_presentation().map_err(Error::no_presentation)?;
+        let generators = colouring.table().generator_count();
+        let sides = presentation.generator_count();
+        if generators != sides {
+            return Err(Error::generator_count(generators, sides));
+        }
+        if let Some(relator) = broken_relator(&presentation, colouring.table()) {
+            return Err(Error::broken_relator(relator));
+        }
+        let needed = colouring.table().index();
+        if needed != colours.len() {
+            return Err(Error::colour_count(needed, colours.len()));
+        }
+        Ok(Self {
+            presentation,
+            colouring,
+            colours,
+        })
+    }
+
+    pub(crate) fn presentation(&self) -> &Presentation {
+        &self.presentation
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "the renderer uses a coset fill only with a domain of the side presentation that the fill checked, whose sides are the generators of the table, and the table has one colour for each coset"
+    )]
+    pub(crate) fn colour(&self, sides: &[u8]) -> Colour {
+        self.colouring
+            .colour_of(sides)
+            .and_then(|coset| self.colours.get(usize::try_from(coset).ok()?))
+            .copied()
+            .expect(
+                "internal error: every side sequence of the domain of a coset fill has a colour",
+            )
+    }
+}
+
+fn broken_relator(presentation: &Presentation, table: &CosetTable) -> Option<usize> {
+    let cosets = u32::try_from(table.index()).unwrap_or(u32::MAX);
+    presentation.relators().iter().position(|relator| {
+        let images: Option<Vec<u32>> = (0..cosets)
+            .map(|coset| table.trace(coset, relator.base()))
+            .collect();
+        let Some(images) = images else {
+            return true;
+        };
+        (0..cosets).any(|start| {
+            let mut length: u32 = 1;
+            let mut coset = start;
+            loop {
+                match images.get(usize::try_from(coset).unwrap_or(usize::MAX)) {
+                    Some(&next) if next == start => break,
+                    Some(&next) if length < cosets => {
+                        coset = next;
+                        length += 1;
+                    }
+                    _ => return true,
+                }
+            }
+            !relator.exponent().is_multiple_of(length)
+        })
+    })
 }
 
 const DECODE_THRESHOLD: f64 = 0.04045;
@@ -125,8 +270,150 @@ fn to_byte(value: f64) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Colour, decode, decode_unit, encode, encode_unit};
+    use escher_domain::FundamentalDomain;
+    use escher_group::{Colouring, Letter, Presentation, Relator, Word};
+
+    use super::{Colour, CosetFill, decode, decode_unit, encode, encode_unit};
+    use crate::ErrorKind;
+    use crate::golden_images::{colouring, colourings_of, domain_with_aspect};
     use crate::reference::{Reference, Worst, int, mul, num, sub};
+
+    fn rejection(domain: &FundamentalDomain, colouring: &Colouring, count: u8) -> String {
+        let colours = (0..count)
+            .map(|value| Colour::from_srgb8(value, 0, 0))
+            .collect();
+        match CosetFill::new(domain, colouring.clone(), colours) {
+            Ok(_) => panic!("{count} colours are accepted"),
+            Err(error) => {
+                assert_eq!(error.kind(), ErrorKind::InvalidOption);
+                error.to_string()
+            }
+        }
+    }
+
+    #[test]
+    fn coset_fill_refuses_another_number_of_generators_before_another_number_of_colours() {
+        let colouring = colouring(&domain_with_aspect("22", None), "2a");
+        let triangle = domain_with_aspect("*732", None);
+        for count in [1, 2, 3] {
+            assert_eq!(
+                rejection(&triangle, &colouring, count),
+                "cannot build coset fill: the colouring has 2 generators, and the domain has 3 sides",
+            );
+        }
+    }
+
+    #[test]
+    fn coset_fill_refuses_another_number_of_colours_and_keeps_the_colours_in_order() {
+        let lune = domain_with_aspect("22", None);
+        let colouring = colouring(&lune, "2a");
+        assert_eq!(
+            rejection(&lune, &colouring, 1),
+            "cannot build coset fill: the colouring needs 2 colours, and 1 was given",
+        );
+        assert_eq!(
+            rejection(&lune, &colouring, 3),
+            "cannot build coset fill: the colouring needs 2 colours, and 3 were given",
+        );
+        let colours = vec![Colour::WHITE, Colour::BLACK];
+        match CosetFill::new(&lune, colouring, colours.clone()) {
+            Ok(fill) => assert_eq!(fill.colours, colours),
+            Err(error) => panic!("{error}"),
+        }
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the search of the colourings of a hyperbolic triangle runs loops too long for the interpreter"
+    )]
+    fn coset_fill_refuses_a_colouring_of_another_triangle_with_as_many_sides() {
+        let colouring = colouring(&domain_with_aspect("*642", None), "3a");
+        let triangle = domain_with_aspect("*732", None);
+        for count in [2, 3] {
+            assert_eq!(
+                rejection(&triangle, &colouring, count),
+                "cannot build coset fill: relator 3 of the side presentation of the domain moves a coset of the colouring",
+            );
+        }
+    }
+
+    fn renumbered(presentation: &Presentation, order: &[u8]) -> Presentation {
+        let letter = |letter: Letter| {
+            let index = order[usize::from(letter.index())];
+            if letter.is_inverse() {
+                Letter::inverse_of(index)
+            } else {
+                Letter::generator(index)
+            }
+        };
+        let relators = presentation
+            .relators()
+            .iter()
+            .map(|relator| {
+                let base: Word = relator
+                    .base()
+                    .letters()
+                    .iter()
+                    .map(|&each| letter(each))
+                    .collect();
+                match Relator::new(base, relator.exponent()) {
+                    Ok(relator) => relator,
+                    Err(error) => panic!("{error}"),
+                }
+            })
+            .collect();
+        match Presentation::new(presentation.generator_names().to_vec(), relators) {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{error}"),
+        }
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the search of the colourings of a hyperbolic triangle runs loops too long for the interpreter"
+    )]
+    fn coset_fill_refuses_a_colouring_of_the_side_presentation_with_its_sides_renumbered() {
+        let triangle = domain_with_aspect("*642", None);
+        let presentation = match triangle.side_presentation() {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{error}"),
+        };
+        let swapped = renumbered(&presentation, &[0, 2, 1]);
+        let limit = match escher_group::IndexLimit::new(3) {
+            Ok(limit) => limit,
+            Err(error) => panic!("{error}"),
+        };
+        let found = match escher_group::colourings_of_index(
+            &swapped,
+            limit,
+            escher_group::SearchBudget::DEFAULT,
+        ) {
+            Ok(found) => found,
+            Err(error) => panic!("{error}"),
+        };
+        assert!(found.is_complete());
+        let own = colourings_of(&triangle, 3);
+        let foreign: Vec<&Colouring> = found
+            .list()
+            .iter()
+            .filter(|colouring| !own.iter().any(|mine| mine.table() == colouring.table()))
+            .collect();
+        assert_ne!(foreign.len(), 0);
+        for colouring in foreign {
+            let text = rejection(&triangle, colouring, 3);
+            assert!(
+                text.starts_with("cannot build coset fill: relator "),
+                "{}: {text}",
+                colouring.id()
+            );
+        }
+        for colouring in &own {
+            let colours = vec![Colour::WHITE; 3];
+            assert!(CosetFill::new(&triangle, colouring.clone(), colours).is_ok());
+        }
+    }
 
     #[test]
     fn black_and_white_equal_their_constructors() {
