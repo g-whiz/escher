@@ -20,11 +20,12 @@ This document assigns every rule to one of the two classes, following Section 3.
 
 ### 1.1. Scope
 
-This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has five members:
+This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has six members:
 
 - `escher-cli`: a package with a library target that runs the command line, and the binary `escher`, which calls it, as `docs/design/cli.md` specifies.
 - `escher-domain`: a library crate that builds and verifies the fundamental domain of a compact hyperbolic reflection triangle, of the three Euclidean reflection triangles, and of the rectangle with its shape parameter, as `docs/design/domain.md` specifies.
 - `escher-geometry`: a library crate that holds the linear model of the hyperbolic plane, with the map to and from the Poincare disk, and the affine model of the Euclidean plane, over the `glam` types, as `docs/design/geometry.md` specifies.
+- `escher-group`: a library crate that holds words, relators, and presentations, builds the presentation of an orbifold signature, and runs Todd-Coxeter coset enumeration with a limit on the number of cosets, as `docs/design/group.md` specifies.
 - `escher-render`: a library crate that renders the fundamental domain of a compact hyperbolic reflection triangle in the Poincare disk, and that of a Euclidean reflection triangle or of the rectangle in the Euclidean plane, as the pixels of an image, and encodes them as a PNG file, as `docs/design/render.md` specifies.
 - `escher-signature`: a library crate that parses an orbifold signature into its canonical form and computes its exact Euler characteristic, as `docs/design/signature.md` specifies.
 

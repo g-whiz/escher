@@ -4,6 +4,7 @@ members = [
     "crates/escher-cli",
     "crates/escher-domain",
     "crates/escher-geometry",
+    "crates/escher-group",
     "crates/escher-render",
     "crates/escher-signature",
 ]

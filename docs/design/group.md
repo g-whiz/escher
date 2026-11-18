@@ -3,12 +3,12 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-17 |
+| Date | 2026-11-18 |
 | Applies to | `crates/escher-group` |
 
 ## Abstract
 
-This document specifies the crate `escher-group`, which holds finitely presented groups and Todd-Coxeter coset enumeration with a bound on the number of cosets. It defines letters, words, relators with an exponent, and presentations with named generators, the text form of each, and the presentation that Conway's rules read from an orbifold signature. It specifies the coset table that an enumeration returns, the Felsch strategy as numbered steps with the source of each step, the rule for relators of one letter, the closing pass that makes a returned table rest on sourced statements, the limit on cosets and what reaching it shows, and the standard form that makes equal subgroups give equal tables. It also states the error type, the limits on untrusted input with their memory bound and the residual risk on time, the tests with their worked examples, the figures measured on a prototype, the dependencies, the unverified statements that the code relies on, and the choices that no other document dictates.
+This document specifies the crate `escher-group`, which holds finitely presented groups and Todd-Coxeter coset enumeration with a bound on the number of cosets. It defines letters, words, relators with an exponent, and presentations with named generators, the text form of each, and the presentation that Conway's rules read from an orbifold signature. It specifies the coset table that an enumeration returns, the Felsch strategy as numbered steps with the source of each step, the rule for relators of one letter, the closing pass that makes a returned table rest on sourced statements, the limit on cosets and what reaching it shows, and the standard form that makes equal subgroups give equal tables. It also states the error type, the limits on untrusted input with their memory bound and the residual risk on time, the tests with their worked examples, the figures measured on a prototype and on the crate, the dependencies, the unverified statements that the code relies on, and the choices that no other document dictates.
 
 ## 1. Introduction
 
@@ -222,7 +222,7 @@ Every public type is `Send`, `Sync`, and `'static`, except `WordDisplay` and `Re
 
 The crate has these private modules, each a file named after the module:
 
-- `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, the re-exports, and the unit test "Auto traits" of Section 10.1.
+- `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, the re-exports, the unit test "Auto traits" of Section 10.1, and, for the unit tests only, the module `common` of the integration tests, loaded through a `#[path]` attribute.
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
 - `src/word.rs`: `Letter` and `Word`.
 - `src/presentation.rs`: `Relator`, `Presentation`, the name checks, and the display adapters.
@@ -230,7 +230,7 @@ The crate has these private modules, each a file named after the module:
 - `src/table.rs`: `CosetTable`, `CosetLimit`, and the relabelling of Section 6.2.
 - `src/enumerate.rs`: `enumerate`, the steps of Section 7, and the crate-private run statistics.
 
-The integration tests form one binary, `tests/group/main.rs`, with the modules `common`, `examples`, `spherical`, `properties`, and `limits` (TEST-10 of the coding standard).
+The integration tests form one binary, `tests/group/main.rs`, with the modules `common`, `examples`, `spherical`, `properties`, and `limits` (TEST-10 of the coding standard). `main.rs` declares each module under `#[cfg(test)]`, as the integration tests of `escher-domain` do, so that the Clippy options for test code cover the panics of their helpers (TEST-10 of the coding standard). `common` holds the fixtures of Section 10.2, the strategy of random presentations and the strategy of letters that it uses, the `proptest` helper of GRP-28, and the helpers that build generator names, words, signatures, Conway presentations, and coset limits. Each helper exists once, and no test module defines its own copy. `lib.rs` also loads `common`, so the unit tests use the same fixtures, strategies, and helpers as the integration tests.
 
 ## 4. Words, Relators, and Presentations
 
@@ -245,6 +245,8 @@ The generator index of a letter is a `u8`, so a letter names at most 256 generat
 ### 4.2. Relators
 
 GRP-4. `Relator::new` MUST return `InvalidPresentation` for an empty base or an exponent of 0, and `LimitExceeded` for a base of more than 4096 letters, because an empty relator has no text and an expanded length of 0, and an unbounded base makes every later step unbounded.
+
+The checks run in this order, and the first failure is returned: an empty base, an exponent of 0, and the length of the base.
 
 A relator stores its base and exponent and never expands them. A corner or cone order is up to `u32::MAX` (SIG-18 of the signature design), so the relator `g1^4000000000` of `(4000000000)(4000000000)` can be built and printed, and only `enumerate` refuses it, through the limit on expanded letters of Section 15.
 
@@ -345,13 +347,15 @@ One relabelling does both, as the last step of the enumeration (step 11 of Secti
 
 Lemma III.26 of [HULPKE2010] gives a bijection between subgroups of index $n$ and standardized tables, and it is stated for the standard that ignores the inverse columns. No source read states it for the lenlex standard (item 26 of Section 14.1 of the colouring reference). The test "Invariance" of Section 10.1 checks the consequence that this design needs.
 
+The invariance covers the returned table only. When two calls differ only in the order of the relators or of the subgroup generators and both return a table, the two tables are equal. Whether a call finishes within a limit is not invariant, because the number of cosets that a run defines can depend on the order, the spelling, and the length of the relators and of the subgroup generators. Over random presentations, reversing the subgroup generators changed the number of cosets defined in 285 of the 3184 cases that finished in both orders, and reversing the relators changed it in none (Section 11.2). The documentation of `enumerate` states both parts.
+
 ### 6.3. Coset Limit
 
 GRP-16. The enumeration MUST count every coset that it defines against the limit, including coset 0 and the cosets that a coincidence later eliminates, and MUST return `CosetLimitReached` when it needs a new coset after it has defined `limit` cosets, because a count of live cosets falls after each coincidence and so bounds neither the memory nor the time of a run.
 
 SymPy compares its limit with the length of its table, which counts every row defined, dead rows included, by the research's own reading of the code (Section 7.16 of the colouring reference). A table of index $n$ has $n$ rows, each defined once, so with coset 0 counted, a limit below $n$ always returns `CosetLimitReached`. `escher-cli` relies on this when it skips the enumeration of a group whose order is above the limit (CLI-39 of Section 5.7 of `docs/design/cli.md`).
 
-The proposed default is 16384 and the proposed maximum 1048576 (`DEC-33`). The largest group order of a domain that `escher-domain` builds is 4000, for `*(1000)22`, so the default leaves a margin of 4 when the enumeration defines the group order and no more. Section 11.1 records the figures of the prototype that support both values. `CosetLimit::new` returns `LimitExceeded` for 0 or a value above `MAX`.
+The proposed default is 16384 and the proposed maximum 1048576 (`DEC-33`). The largest group order of a domain that `escher-domain` builds is 4000, for `*(1000)22`, so the default leaves a margin of 4 when the enumeration defines the group order and no more. Section 11.1 records the figures of the prototype that support both values, and Section 11.2 those of the crate. `CosetLimit::new` returns `LimitExceeded` for 0 or a value above `MAX`.
 
 ## 7. Coset Enumeration
 
@@ -368,15 +372,17 @@ The known cost of the choice is that a Felsch strategy scans more per definition
 The enumeration keeps these structures, all as flat vectors with indexes and no references between elements:
 
 - The table: one `Vec<u32>`, with entry `row * columns + column` and `u32::MAX` as the undefined marker. A row is appended at each definition, and no row is reused before the relabelling. Section 15 states how its capacity grows.
-- The representatives: a `Vec<u32>` with `p[c] == c` for a live coset ([SYMPY-CT] lines 466-534, Section 7.13 of the colouring reference). The lookup is a loop with path compression.
+- The representatives: a `Vec<u32>` with `p[c] == c` for a live coset ([SYMPY-CT] lines 466-534, Section 7.13 of the colouring reference). The lookup is a loop with path compression. Section 15 states how its capacity grows.
 - The deduction stack: a `Vec<(u32, u16)>` of a coset and a column, with a crate-private cap of 65536 entries (Section 7.6).
-- The coincidence queue: a `VecDeque<u32>`. A coset enters it at most once.
+- The coincidence queue: a `Vec<u32>` with a read position, cleared after each coincidence and the merges that follow from it. A coset enters it only when a merge removes it, so it holds at most the cosets defined. Section 15 states how its capacity grows.
 - The relators: each expanded, cyclically reduced relator and its inverse, stored twice in a row, so a cyclic conjugate is a pair of a relator and an offset with no test for the end. [HAVAS1991] reports the same device with three copies, as implementations expand "each relator out three times to avoid having to check for end of relator during deduction processing" (p. 195, Section 7.12 of the colouring reference).
 - The conjugate lists: for each column $x$, the list $R_x$ of the distinct cyclic conjugates that start with $x$.
 
 GRP-25. The conjugate lists MUST hold each distinct cyclic conjugate once, because a relator such as $(r_1 r_2)^{1000}$ has 2000 cyclic conjugates of which only 2 are distinct, and scanning duplicates multiplies the work by the exponent without changing a table (Section 11.1).
 
-[HULPKE2010] forms "a list of all cyclic permutations of all relators and their inverses" (Note III.22, Section 7.12 of the colouring reference). The prototype gave identical tables with and without duplicates (Section 11.1). SymPy's Felsch enumeration also forms the conjugates as a set before it splits them by first letter, by a reading of [SYMPY-CT] lines 1230-1240 that Section 7.12 of the colouring reference does not record. The lists are built in a fixed order, by relator in input order and then by offset, so the run is deterministic (GRP-18).
+[HULPKE2010] forms "a list of all cyclic permutations of all relators and their inverses" (Note III.22, Section 7.12 of the colouring reference). The prototype gave identical tables with and without duplicates (Section 11.1). SymPy's Felsch enumeration also forms the conjugates as a set before it splits them by first letter, by a reading of [SYMPY-CT] lines 1230-1240 that Section 7.12 of the colouring reference does not record.
+
+Duplicates are removed across the whole presentation, between two relators and between a relator and an inverse, and not only within one relator. The enumeration keys each cyclically reduced word by its least rotation, keeps a set of these keys, and skips a word whose key is already in the set. For a word that it keeps, it lists the conjugates at the offsets below the shortest period of the word, which it finds with the prefix function. The lists are built in a fixed order, by relator in input order, then the relator before its inverse, then by offset, so the run is deterministic (GRP-18).
 
 Columns of involutions are not merged. [HAVAS1991] notes that a table needs $(2g - i) \cdot n$ words when the inverse column of each of $i$ involutions is dropped (p. 192, Section 7.9 of the colouring reference). Uniform columns keep the layout of Section 6.1, and the relator $x^2$ makes the two columns of $x$ equal. The table of this design holds $2g \cdot n$ words.
 
@@ -386,12 +392,12 @@ Columns of involutions are not merged. [HAVAS1991] notes that a table needs $(2g
 
 | Step | What | Source | Code-only part |
 | --- | --- | --- | --- |
-| 1 | Check the limits of Section 15 and the letters of each subgroup generator. Expand each relator, cyclically reduce it, and drop it when empty. Mark the one-letter relators. Form the conjugate lists of Section 7.2 | [HULPKE2010] Note III.22, pp. 75-76, Section 7.12 of the colouring reference | Cyclic reduction first is [SYMPY-CT] lines 1202-1260 and SymmHub (Section 7.19 of the colouring reference), carried by "Worked examples". Distinct conjugates are GRP-25, carried by "Distinct conjugates" |
+| 1 | Check the limits of Section 15 and the letters of each subgroup generator, in the order of Section 8.2. Expand each relator, cyclically reduce it, and drop it when empty. Mark the one-letter relators. Form the conjugate lists of Section 7.2 | [HULPKE2010] Note III.22, pp. 75-76, Section 7.12 of the colouring reference | Cyclic reduction first is [SYMPY-CT] lines 1202-1260 and SymmHub (Section 7.19 of the colouring reference), carried by "Worked examples". Distinct conjugates are GRP-25, carried by "Distinct conjugates" |
 | 2 | Start with coset 0 and every entry undefined. Apply the rule of Section 7.5 to coset 0 | [HULPKE2010] p. 72, Section 7.9 of the colouring reference | The rule of Section 7.5, carried by "One-letter relators" |
-| 3 | Scan and fill each subgroup generator at coset 0. Where a scan has more than one gap, define a new coset at the first undefined position of the forward trace, apply the rule of Section 7.5 to it, and scan again, until the scan completes or deduces. Push every entry written. Then process the deductions (step 6) | Doing this first is [HAVAS1991] p. 193 (Section 7.12 of the colouring reference) | Scan-and-fill is [SYMPY-CT] lines 343-378 and 597-607 (Section 7.11 of the colouring reference), carried by "Worked examples" |
-| 4 | Find the first undefined entry among the live cosets, by rows and within a row by columns. If there is none, go to step 10 | [HULPKE2010] p. 77, [HOLT2013] p. 17, Section 7.12 of the colouring reference | |
+| 3 | Process the deductions that step 2 pushed (step 6). Then scan and fill each subgroup generator at coset 0, in order. Trace the word forwards and backwards until each trace meets an undefined entry or the traces meet. Where more than one gap is left, define a new coset at the first undefined position of the forward trace, apply the rule of Section 7.5 to it, and process the deductions (step 6). Then replace the coset of each trace by its representative, because a coincidence may have removed it, and continue each trace from the position where it stopped. Repeat until the traces meet, which completes correctly or gives a coincidence (step 8), or until one gap is left, which is a deduction written both ways and pushed. After each subgroup generator, process the deductions (step 6). Because the traces resume, filling a word reads each of its letters once | Doing this first is [HAVAS1991] p. 193 (Section 7.12 of the colouring reference) | Scan-and-fill is [SYMPY-CT] lines 343-378 and 597-607 (Section 7.11 of the colouring reference). Processing the deductions after each definition, as step 5 does, and resuming the traces are this design's own. Carried by "Worked examples", "Long subgroup generator", "Long subgroup generators", and "Fill steps" |
+| 4 | Find the first undefined entry among the live cosets, by rows and within a row by columns. If there is none, go to step 10 | [HULPKE2010] p. 77, [HOLT2013] p. 17, Section 7.12 of the colouring reference | The search keeps a cursor that only moves forward. When the cursor passes the last row, one full rescan of the live rows looks for a gap behind it, and the run statistics count each gap that the rescan finds. This avoids a scan from the first row at every definition. Carried by "Closing pass idle", which asserts that the rescan finds no gap |
 | 5 | If `limit` cosets have been defined, return `CosetLimitReached` (GRP-16). Otherwise define a new coset $j$ with $i^x = j$ and $j^{x^{-1}} = i$, apply the rule of Section 7.5 to $j$, push $(i, x)$, and process the deductions | [HOLT2013] p. 15, Section 7.10 of the colouring reference. The count of dead rows follows SymPy (Section 7.16 of the colouring reference) | The reading of SymPy's count is the research's own (Section 7.16 of the colouring reference), carried by "Finite at a larger limit" and "Limit at its value" |
-| 6 | Process the deductions: while the stack is not empty, apply Section 7.6 when it holds the cap or more, and otherwise pop $(a, x)$ and scan as Section 7.4 states. Then go to step 4 | [HULPKE2010] Note III.22, [BROWN2011] p. 4 | The stack is [SYMPY-CT] lines 673-704 (Section 7.12 of the colouring reference), carried by "Worked examples" and "Closing pass idle" |
+| 6 | Process the deductions: while the stack is not empty, apply Section 7.6 when it holds the cap or more, and otherwise pop $(a, x)$ and scan as Section 7.4 states. Then return to the step that started the processing. After step 5 or step 10, that is step 4 | [HULPKE2010] Note III.22, [BROWN2011] p. 4 | The stack is [SYMPY-CT] lines 673-704 (Section 7.12 of the colouring reference), carried by "Worked examples" and "Closing pass idle" |
 | 7 | Scan a word at a coset: trace the longest defined prefix forwards and the longest defined suffix backwards. The scan completes correctly, completes with two different cosets, which is a coincidence (step 8), leaves exactly one gap, which is a deduction written both ways and pushed, or yields nothing | Prose only in [HULPKE2010] p. 75 | The outcomes are [SYMPY-CT] lines 286-379 (Section 7.10 of the colouring reference), carried by "Worked examples" and "Closing pass idle" |
 | 8 | Process a coincidence of $\alpha$ and $\beta$: merge them, which finds their representatives and, when these differ, makes the smaller the representative of the larger and queues the larger. While the queue is not empty, remove its first coset $\gamma$. For each column $x$ with $\delta = \gamma^x$ defined, clear $\delta^{x^{-1}}$, and let $\mu$ and $\nu$ be the representatives of $\gamma$ and $\delta$. Then do the first of these that applies. If $\mu^x$ is defined, merge $\nu$ and $\mu^x$. Otherwise, if $\nu^{x^{-1}}$ is defined, merge $\mu$ and $\nu^{x^{-1}}$. Otherwise set $\mu^x = \nu$ and $\nu^{x^{-1}} = \mu$. Push $(\mu, x)$ for each entry written (GRP-12) | [HOLT2013] p. 17, [HULPKE2010] p. 76, Section 7.13 of the colouring reference | The steps are [SYMPY-CT] lines 538-594. The design pushes $(\mu, x)$ for each entry that it writes, where SymPy pushes $(\delta, x^{-1})$. Carried by "Closing pass idle" |
 | 9 | Overflow of the stack: Section 7.6 | Lookahead is [BROWN2011] p. 4 (Section 7.11 of the colouring reference) | The overflow policy, which differs from [SYMPY-CT] line 54 and lines 673-704 in its order, carried by "Stack cap one" |
@@ -424,7 +430,9 @@ GRP-27. When the deduction stack holds its cap or more at the top of step 6, the
 
 The lookahead is Brown's: "we check all relators at all vertices (but without making new definitions) and take account of any deductions or coincidences that we can discover" ([BROWN2011] p. 4, Section 7.11 of the colouring reference). This design keeps the entries that the lookahead writes on the stack, so that their scans still run, which is how it reads "take account of any deductions". SymPy runs the lookahead first and then empties the stack, which drops the entries that the lookahead pushed ([SYMPY-CT] lines 673-704, Section 7.12 of the colouring reference). The order is a choice of this design (Section 14.2). On the prototype, both orders gave correct tables at small caps (Section 11.1).
 
-The cap is checked only at the top of step 6, so one coincidence or one lookahead can push the stack past the cap. Section 15 states the bound on the memory of the stack that follows.
+The cap is checked only at the top of step 6, so one coincidence or one lookahead can push the stack past the cap. Step 3 runs step 6 after each definition and after each subgroup generator, so the cap is also checked during step 3. Section 15 states the bound on the memory of the stack that follows.
+
+After the lookahead, step 6 checks the cap again before it pops. At a cap of 1, every entry that the lookahead pushes therefore starts another emptying and another lookahead, and no entry is ever popped, so a run at a cap of 1 is Felsch with the lookahead as its only scans. Such runs gave the same tables as the default cap on every input of "Stack cap one", and on every input of "Closing pass idle" for which both runs finish (Section 10.1).
 
 ### 7.7. Closing Pass
 
@@ -432,9 +440,16 @@ GRP-14. `enumerate` MUST return a table only after a closing pass has scanned ev
 
 When "all tables are closed and no deductions are pending", "the columns of the coset table give permutation images for the group generators that are consistent with all relators", which gives a homomorphism to $S_n$ with $[G : S] = n$ equal to the number of rows ([HULPKE2010] p. 75, Section 7.9 of the colouring reference). Holt's Theorem 5.2 gives the action on the right cosets when the process stops with every entry defined ([HOLT2013] p. 16, Section 7.15 of the colouring reference). That the table keeps Holt's properties (R1) to (R3) through coincidences rests on "It can be shown" ([HOLT2013] pp. 16-17), so it is part of `UNV-19`.
 
-The pass runs when step 4 finds no undefined entry. Each scan of a complete table either completes correctly or finds a coincidence. When it finds one, the pass processes it and the pushed deductions and returns to step 4. The crate-private run statistics count the cosets defined and the changes that the pass finds.
+The pass runs when step 4 finds no undefined entry. Each scan of a complete table either completes correctly or finds a coincidence. When it finds one, the pass processes it and the pushed deductions and returns to step 4. The crate-private run statistics count the cosets defined, the merges that joined two classes, the largest deduction stack, the changes that the pass finds, and the gaps that the rescan of step 4 finds.
 
-On the prototype, the closing pass changed nothing in a correct implementation over every input tried, and it found the faults of the variants of Sections 7.3 and 7.4 that the prototype introduced (Section 11.1). The pass is therefore a safeguard against a defect of the code-only steps, and the property test "Closing pass idle" of Section 10.1 is what shows that those steps do their part.
+On the prototype and on the crate, the closing pass changed nothing in a correct implementation over every input tried (Sections 11.1 and 11.2). On the prototype, it found the faults of the variants of Sections 7.3 and 7.4 that the prototype introduced (Section 11.1). The pass is therefore a safeguard against a defect of the code-only steps, and the property test "Closing pass idle" of Section 10.1 is what shows that those steps do their part.
+
+Two branches guard against a failure of (R1) after a coincidence, which is part of `UNV-19` (Section 13):
+
+- The full rescan of step 4, which looks for a gap behind the cursor.
+- The outcome "completes correctly" of a scan of step 7 whose backward trace reaches the position where its forward trace stopped. The same case in scan-and-fill (step 3) is reachable and normal, because there the forward trace stops where the backward trace ended.
+
+A reading of the code finds both unreachable while (R1) holds whenever no coincidence is pending. Neither was reached when each was replaced by a panic and the whole test suite ran with 4000 cases for each property test. The design keeps both, because each turns a failure of (R1) into a correct table instead of a run that does not end. Without the rescan, a closing pass would find an incomplete scan, return to step 4, find no gap, and repeat without end. Without the outcome, the scan would report a coincidence of a coset with itself, which changes nothing, so the closing pass would also repeat without end. The run statistics count each gap that the rescan finds, and "Closing pass idle" asserts that it finds none.
 
 ### 7.8. What Reaching the Limit Shows
 
@@ -446,7 +461,7 @@ The documentation of `CosetLimitReached` states that the run defined the limit a
 
 GRP-18. The returned table MUST be a function of the presentation, the subgroup words, and the limit alone, because callers compare tables across runs, and a table that depends on a hash seed, a thread schedule, or a clock cannot be compared.
 
-The enumeration iterates no hash map, uses no randomness, and starts no thread. The standard form of Section 6.2 also makes the table independent of the order of the relators and of the subgroup generators, which the test "Invariance" checks. That independence relies on Lemma III.26 for the lenlex standard, which is unverified (Section 6.2).
+The enumeration iterates no hash map, uses no randomness, and starts no thread. The standard form of Section 6.2 also makes a returned table independent of the order of the relators and of the subgroup generators, which the test "Invariance" checks. That independence relies on Lemma III.26 for the lenlex standard, which is unverified, and it does not extend to whether a call finishes within its limit (Section 6.2).
 
 The sources give these two facts about cost, and no other (Section 7.2 gives the size of a table):
 
@@ -480,6 +495,8 @@ The error never holds a generator name or a word. It shows positions and numbers
 
 With the prefix, the full texts read, for example, `cannot build presentation: the signature *(inf)22 has an infinite order` and `cannot enumerate cosets: the enumeration defined 16384 cosets without finishing`. Every text is in lower case, with no trailing punctuation (ERR-4 of the coding standard). No text cites a document or a rule identifier.
 
+When an input has more than one fault, each operation returns the first in a fixed order. Section 4.2 gives the order of `Relator::new`, and Section 4.3 that of `Presentation::new`. `enumerate` checks the number of subgroup generators, then each subgroup generator in order, its length before its letters, then the expanded relator letters, and then the table entries. `CosetLimit::new` has one check.
+
 ## 9. Resource Limits
 
 The crate limits the generators, relators, letters, subgroup generators, expanded letters, cosets, and table entries of every input. `Relator::new` and `Presentation::new` check their limits at construction, and `enumerate` checks its limits at step 1 of Section 7.3, before any allocation that depends on them. Section 15 states the values, the memory bound, and the residual risk on time, because Section 5.9 of the architecture places the limits in the Security Considerations.
@@ -494,7 +511,7 @@ Each test names the item of that field that it serves, or None. Every test stays
 
 | Test | Plan item | Kind and place | Asserts | Source |
 | --- | --- | --- | --- | --- |
-| Spherical orders | Spherical types | Table test, `spherical` | The Conway presentation of each of the 7 series for $n$ from 1 to 12 and of the 7 particular types, enumerated over the trivial subgroup at the default limit, has an index equal to `group_order()`. The series are written with one digit below 10 and parentheses from 10, and $n = 1$ as `(1)(1)` for `nn` and `*(1)(1)` for `*nn`, because `11` and `*11` are not signatures. The 91 strings give `1` and 86 other distinct canonical signatures, and the test runs each once | Sections 7.3 and 8.2 of the notation reference |
+| Spherical orders | Spherical types | Table test, `spherical` | The Conway presentation of each of the 7 series for $n$ from 1 to 12 and of the 7 particular types, enumerated over the trivial subgroup at the default limit, has an index equal to `group_order()`. The series are written with one digit from 2 to 9 and in parentheses otherwise, so $n = 1$ is `(1)` in every series, such as `(1)(1)`, `*(1)(1)`, `(1)*`, `(1)x`, `(1)22`, `*(1)22`, and `2*(1)`. The parser rejects `11`, `*11`, `122`, and `*122`, so no series writes $n = 1$ as a digit. The test asserts that the 91 strings give 87 distinct canonical signatures, `1` among them, and runs each once | Sections 7.3 and 8.2 of the notation reference |
 | Order two | Order two | Table test, `spherical` | `x`, `22`, and `*` each enumerate to index 2 | [CH] p. 257, Sections 4.2 and 8.2 of the notation reference |
 | Conway words | None | Unit test in `conway.rs` | The generators and relators of every row of Section 5.4, compared as text. Between them `o3*22` and `3*22x` have every kind of feature, so a reversed commutator, a reversed conjugation, a missing global relator, or a wrong exponent fails | Section 9.1 of the notation reference |
 | Infinite groups | Bound | Table test, `limits` | The Conway presentations of `*632`, `2222`, `o`, and `*732` at a limit of 1000 return `CosetLimitReached` | GRP-16, GRP-17 |
@@ -504,18 +521,31 @@ Each test names the item of that field that it serves, or None. Every test stays
 | One-letter relators | None | Unit test in `enumerate.rs` | The Conway presentations of `*532`, `x`, and `*`, whose global relators `l1`, `w1`, and `l1` are one-letter relators (Section 5.4), each enumerate over the trivial subgroup, and the number of cosets defined, read from the run statistics, equals the group order | GRP-26 |
 | Distinct conjugates | None | Unit test in `enumerate.rs` | The conjugate lists of `(r1 r2)^1000` hold one entry in each of the lists of $r_1$, $r_1^{-1}$, $r_2$, and $r_2^{-1}$ | GRP-25 |
 | Stack cap one | None | Unit test in `enumerate.rs` | With the cap set to 1, the worked examples other than Cox and B_2_4, and the Conway presentation of `*532`, give the same tables as at the default cap | GRP-27 |
-| Closing pass idle | None | `proptest`, unit test in `enumerate.rs` | For random presentations with 2 or 3 generators and relators of up to 6 letters, at a limit of 2000, the closing pass changes nothing in any run, read from the run statistics, both at the default cap and at a cap of 1 | GRP-12, GRP-14, GRP-27 |
+| Closing pass idle | None | `proptest`, unit test in `enumerate.rs` | For random presentations with 2 or 3 generators, 1 to 4 relators of 1 to 6 letters, and 0 to 2 subgroup words of up to 4 letters, the closing pass changes nothing and the rescan of step 4 finds no gap, read from the run statistics, both at the default cap with a limit of 2000 and at a cap of 1 with a limit of 500. When both runs finish, their tables are equal. The cap-1 half runs at 500, because at 1000 the test came close to a minute under `just coverage` (Section 11.2) | GRP-12, GRP-14, GRP-27 |
 | Table laws | None | `proptest`, `properties` | For the same random presentations, a returned table has columns that are permutations, inverse columns that are mutually inverse, every relator tracing every coset to itself, every subgroup generator fixing coset 0, a transitive action, and the standard form | Sections 7.9 and 7.14 of the colouring reference |
 | Invariance | None | `proptest`, `properties` | Over the finite presentations of the fixtures and of the spherical signatures up to order 24, a permutation of the relators, a rotation or an inversion of a relator, and a reordering of the subgroup generators give an equal table | GRP-15, GRP-18 |
 | Word laws | None | `proptest`, `properties` | Free reduction is idempotent, a word followed by its inverse reduces to the empty word, and a cyclically reduced word has no cancelling ends | Section 4.1 |
 | Text form | None | Unit tests in `presentation.rs` | Each rule of Section 4.4, including `(g1^-1)^3`, the empty word `1`, and `None` for a word with a letter outside the generators | GRP-3 |
-| Input limits | None | Unit tests in `presentation.rs` and `enumerate.rs` | Each limit of Section 15 at its value is accepted and one above returns `LimitExceeded`. `Relator::new` with an exponent of 0 and an empty base, and each name rule, return `InvalidPresentation` | GRP-4, GRP-5, GRP-19 |
+| Input limits | None | Unit tests in `presentation.rs`, `table.rs`, and `enumerate.rs` | Each limit of Section 15 at its value is accepted and one above returns `LimitExceeded`. The limit on table entries is tested with 8 generators at `CosetLimit::MAX`, exactly $2^{24}$ entries, which is accepted, and with 9 generators, which is refused with the text `the coset limit 1048576 times 18 columns is more than 16777216 table entries`. The acceptance of exactly 65536 expanded letters is a separate test from the refusal of 65537. `Relator::new` with an exponent of 0 and an empty base, and each name rule, return `InvalidPresentation`. `Presentation::new` checks the generators before the relators | GRP-4, GRP-5, GRP-19 |
 | Error text | None | Unit test in `error.rs` | The `Display` of every kind starts with `cannot build presentation: ` or `cannot enumerate cosets: ` and is in lower case | GRP-22 |
 | Zero generators | None | Unit test in `table.rs` | The presentation with no generator enumerates to a table of index 1 with no column, and `row(0)` is an empty slice | GRP-9 |
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type has the auto traits of Section 3.2 | CONC-1 of the coding standard |
+| Printed permutations | None | Test, `examples` | The permutations that Section 10.2 gives for [HULPKE2010] pp. 72-75 and for [HOLT2013] p. 15 over $\langle yx \rangle$, as the lists of `permutation` | Section 7.20 of the colouring reference |
+| Standard form | None | Unit test in `table.rs` | A relabelling numbers the cosets by first occurrence over all columns, inverse columns included | GRP-15 |
+| Largest table | None | Test, `limits` | The free group on 8 generators at `CosetLimit::MAX`, whose table reaches exactly $2^{24}$ entries, returns `CosetLimitReached`. The test asserts only the error kind. Section 11.2 gives its peak memory, measured outside the test, and "Capacities" and "Queue capacity" pin the capacities | GRP-19, GRP-20 |
+| Long subgroup generator | None | Test `a_long_subgroup_generator_finishes_within_the_index`, `limits` | $\langle x \mid x^2 \rangle$ with the subgroup generator $x^{4096}$ at a limit of 2 gives index 2 | Step 3 of Section 7.3 |
+| Long subgroup generators | None | Test `many_long_subgroup_generators_finish_within_the_index`, `limits` | The Klein four-group $\langle x, y \mid x^2, y^2, (xy)^2 \rangle$ with the five subgroup generators $(xy)^{2048}$, $(xy^{-1})^{2048}$, $(x^{-1}y)^{2048}$, $(x^{-1}y^{-1})^{2048}$, and $(yx)^{2048}$, of 4096 letters each, gives index 4 at a limit of 4, in the given order and reversed | Step 3 of Section 7.3 |
+| Fill steps | None | Unit test `filling_a_subgroup_generator_reads_each_letter_once` in `enumerate.rs` | Read from the run statistics, scan-and-fill reads at most 4096 letters for $\langle x \mid x^2 \rangle$ with the subgroup generator $x^{4096}$ at a limit of 2, which gives index 2, and at most 512 letters for $\langle x \mid x^{512} \rangle$ with $x^{512}$ at a limit of 512, which gives index 512 | Step 3 of Section 7.3 |
+| Capacities | None | Unit test `capacities_stay_within_the_limit` in `enumerate.rs` | $\langle x \mid x^{600} \rangle$ at a limit of 600 gives index 600 with a table capacity of exactly 1200 entries, representatives of exactly 600, and relabelling vectors of exactly 600 labels, 600 orders, and 1200 entries, where a doubling vector gives 2048, 1024, and 1024 | GRP-20 |
+| Queue capacity | None | Unit test `coincidence_queue_stays_within_the_limit` in `enumerate.rs` | Sims's presentation with $n = 8$ at a limit of 138 gives index 63 after at least one merge, with a queue capacity of at most 138, representatives of exactly 138, and a table capacity of exactly 552 | GRP-20 |
+| Fixture rows | None | Unit test `fixture_rows_have_a_column_for_each_letter` in `enumerate.rs` | Every printed row of every fixture of Section 10.2 has two entries for each generator, and no fixture prints more rows than its index | Section 10.2 |
+| No panic | None | `proptest`, `properties` | For 0 to 3 generators, up to 4 relators of 1 to 6 letters with exponents 1 to 3, which may reduce to the empty word, up to 3 subgroup words of up to 5 letters, which may use a generator that the presentation lacks, and limits from 1 to 300, `enumerate` returns a table that obeys the laws of "Table laws", `CosetLimitReached`, or `InvalidWord` | GRP-2, GRP-21 |
+| Empty relators | None | Unit test in `enumerate.rs` | Relators that reduce to the empty word, such as $(x x^{-1})^3$, are dropped, and the table is that of the other relators | Section 4.2 |
+| Reflection numbering | None | Unit test in `conway.rs` | The Conway presentation of `**` numbers its reflections `r1` and `r2` across its two boundaries | GRP-6, GRP-7 |
+| Infinite order | None | Unit test in `conway.rs` | `*(inf)22` and `(inf)(inf)` return `UnsupportedSignature` with the text of Section 8.2 | GRP-8 |
 | Doctests | None | Doctests | The examples of the crate-level documentation | Sections 7.4 and 7.5 of `docs/writing-documentation.md` |
 
-The property tests commit their regression files (TEST-9 of the coding standard). "Closing pass idle" runs as a unit test, because the run statistics are crate-private, and it loads the `proptest` helper of `common` through a `#[path]` module, as `escher-render` loads its golden comparison.
+The property tests commit their regression files (TEST-9 of the coding standard). "Closing pass idle" runs as a unit test, because the run statistics are crate-private, and it loads the `proptest` helper and the strategy of `common` through the `#[path]` module of Section 3.3, as `escher-render` loads its golden comparison.
 
 This design leaves out a property test that the index of a cyclic subgroup times its order equals the order of a finite group, because it relies on Lagrange's theorem, which no section of `docs/research/` states.
 
@@ -551,20 +581,28 @@ The Holt fixture of p. 15 prints $x \mapsto (1,2)$ and $y \mapsto (1,2,3)$ for t
 
 ### 10.3. Defects the Tests Catch
 
-This subsection is non-normative. It lists deliberate defects that a reviewer can introduce to check the tests, with the test that fails:
+This subsection is non-normative. It lists deliberate defects that a reviewer can introduce to check the tests, with the tests that failed when each defect was applied to a copy of the crate and its whole test suite was run. A run that did not end was stopped by a nextest timeout of 60 s:
 
-| Defect | Test that fails |
+| Defect | Tests that fail |
 | --- | --- |
-| Keep the larger coset number in a merge | Worked examples, because coset 0 dies and the table is inconsistent |
-| Do not push the deduction of a scan | Closing pass idle (Section 11.1) |
-| Scan each popped entry with the lists of the caller, as SymPy does | Closing pass idle (Section 11.1) |
-| Standardize over the generator columns only | Worked examples, through the lenlex rows of [GAP] |
+| Keep the larger coset number in a merge | Closing pass idle, Stack cap one, Worked examples, and Finite at a larger limit. No panic and Table laws never end, because the run does not end once coset 0 dies |
+| Do not push the deduction of a scan | Closing pass idle, One-letter relators, Limit at its value, and Finite at a larger limit |
+| Scan each popped entry with the lists of the caller, as SymPy does | Closing pass idle, One-letter relators, Limit at its value, and Finite at a larger limit |
+| Standardize over the generator columns only | Standard form, Worked examples, Printed permutations, No panic, and Table laws |
 | Count live cosets against the limit | Finite at a larger limit |
-| Omit the global relator, use twice the order as a corner exponent, or drop the last `S^2` of a boundary | Conway words |
+| Omit the global relator of the Conway presentation | Conway words, Reflection numbering, One-letter relators, Stack cap one, Limit at its value, Invariance, Order two, Spherical orders, and the single cases `2*3` and `3*2` |
+| Use twice the order as a corner exponent | Conway words, One-letter relators, Stack cap one, Invariance, Spherical orders, and the single cases `2*3` and `3*2` |
 | Omit the rule of Section 7.5 | One-letter relators |
-| Form every cyclic conjugate instead of the distinct ones | Distinct conjugates |
+| Process no deductions in step 3, neither after a definition nor after a subgroup generator | Closing pass idle, Long subgroup generator, and Long subgroup generators |
+| Restart scan-and-fill from coset 0 after each definition | Fill steps |
+| Grow the table, the representatives, and the queue by plain `reserve`, which doubles | Capacities and Queue capacity |
+| Grow the order list of the relabelling by pushes from an empty vector | Capacities |
 
-No test can detect three defects, because on the prototype each left every table and every closing pass unchanged: dropping the scan at $b$ of Section 7.4, dropping the push of a coincidence, and dropping the closing pass in an implementation that has no other defect (Section 11.1). They are not test evidence. The scan at $b$ is redundant because the lists hold the conjugates of every relator and of its inverse, and the closing pass and the pushes stay for the soundness reasons of GRP-12 and GRP-14.
+Forming every cyclic conjugate instead of the distinct ones was not trialled, and "Distinct conjugates" asserts the sizes of the lists directly. Dropping the last `S^2` of a boundary was not trialled either, and "Conway words" compares that relator as text.
+
+No test detects three defects. Each was applied to the crate and no test failed, as on the prototype, where each left every table and every closing pass unchanged: dropping the scan at $b$ of Section 7.4, dropping the push of a coincidence, and dropping the closing pass in an implementation that has no other defect (Section 11.1). They are not test evidence. The scan at $b$ is redundant because the lists hold the conjugates of every relator and of its inverse, and the closing pass and the pushes stay for the soundness reasons of GRP-12 and GRP-14.
+
+No test detects a fourth defect either: resuming the traces of scan-and-fill without replacing their cosets by their representatives, so that a trace can continue from a coset that a coincidence removed. The closing pass keeps every table correct, and no input of the tests makes a resumed coset die. The lookup stays because the row of a removed coset is not updated after the removal, so its entries can be stale.
 
 ### 10.4. Tests Under Miri
 
@@ -572,14 +610,15 @@ No test can detect three defects, because on the prototype each left every table
 
 | Tests | Under Miri | Attribute or configuration |
 | --- | --- | --- |
-| Order two, Conway words, Text form, Input limits, Error text, Zero generators, Distinct conjugates, Auto traits | Run | None |
+| Order two, Conway words, Reflection numbering, Infinite order, Text form, Input limits other than the acceptance of 65536 expanded letters, Error text, Zero generators, Standard form, Distinct conjugates, Empty relators, Auto traits, Long subgroup generator, Fixture rows | Run | None |
 | The single cases `2*3` and `3*2` of "Spherical orders" | Run | Separate tests outside the table test |
-| One case of "Infinite groups" at a limit of 50 | Run | A separate test outside the table test |
+| One case of "Infinite groups", `2222` at a limit of 50 | Run | A separate test outside the table test |
 | Word laws | Run, with fewer cases | The helper of GRP-28 |
-| Spherical orders, Worked examples, Infinite groups, Limit at its value, Finite at a larger limit, One-letter relators, Stack cap one, Closing pass idle, Table laws, Invariance | Skipped | `#[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]` |
+| Spherical orders, Worked examples, Printed permutations, Infinite groups, Limit at its value, Finite at a larger limit, Largest table, One-letter relators, Stack cap one, Closing pass idle, Table laws, Invariance, No panic, Long subgroup generators, Fill steps, Capacities, Queue capacity | Skipped | `#[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]` |
+| The acceptance of exactly 65536 expanded letters in "Input limits" | Skipped | `#[cfg_attr(miri, ignore = "writing out 65536 letters is a loop too long for the interpreter")]` |
 | Doctests | Not run | Miri runs the tests through nextest, which runs no doctest |
 
-The Conway presentation of `*532` and the small worked examples are not run under Miri, because they were too slow there on the prototype (Section 11.1). Each reason in an attribute is in plain words and cites no document.
+The Conway presentation of `*532` and the small worked examples are not run under Miri, because they were too slow there on the prototype (Section 11.1). The acceptance of 65536 expanded letters, "Capacities", and "Fill steps" took more than 100 s each under Miri (Section 11.2), so they are skipped there, and the refusal of 65537 and "Long subgroup generator" run. Each reason in an attribute is in plain words and cites no document.
 
 GRP-28. The property tests MUST take their configuration from one helper in `common`, with the numbers of cases and the failure persistence that Section 4 of `docs/design/tooling.md` states, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and a full set of cases takes too long in the interpreter.
 
@@ -599,14 +638,14 @@ These statements of this design rest on figures that no test of the crate measur
 | Order of the overflow steps | 7.6 | Both orders gave correct tables at caps of 100, 4, and 1. The largest stack in any run was 67 entries. The corpus at a cap of 1 took 195 s, against 0.57 s at the default cap |
 | Default limit | 6.3 | Without the rule of Section 7.5, the spherical sweep enumerated to $2/\chi$ in 1.6 ms in total (11 ms in debug), and the Conway presentation of `*(1000)22` defined 7999 cosets in 115 ms (392 ms in debug) with a peak of 0.57 MiB. The side presentations of the 52 spherical domains that `escher-domain` builds defined exactly $N$ cosets each, in 122 ms in total. `*632`, `2222`, `o`, and `*732` reached a limit of 16384 within 5 ms (36 ms in debug) and 1.2 MiB, and a limit of 1000 within 0.31 ms |
 | Maximum limit | 6.3 | A full index of $2^{20}$ took 1.45 s and 76.00 MiB for $\mathbb{Z}_{32}^4$ with 8 columns, and 1.59 s and 92.01 MiB for $\mathbb{Z}_{16}^5$ with 10 columns |
-| Memory bound | 15 | With the capacity of the table capped at limit times columns, the peaks of the previous row were within the bound that the formula of Section 15 gives for them, 76.5 MiB and 92.5 MiB. With a plain doubling vector, `****` with 16 columns at a limit of 540000 peaked at 98 MiB against a bound of 72.6 MiB from the same formula |
+| Memory bound | 15 | With the capacity of the table capped at limit times columns, the peaks of the previous row were 76.00 MiB and 92.01 MiB, against 76 MiB and 92 MiB for the table, its relabelled copy, and the vectors of $L$ entries. With a plain doubling vector, `****` with 16 columns at a limit of 540000 peaked at 98 MiB, against about 72 MiB for the same terms |
 | Limit counting | 6.3 | With coset 0 counted, `532` finished at a limit of 60 and failed at 59 |
 | Sims's presentation | 10.1 | Cosets defined for $n$ from 3 to 16: 8, 15, 28, 47, 83, 138, 243, 406, 718, 1205, 2138, 3597, 6393, and 10768, against orders from 8 to 255. A limit of one less than the count failed and the count succeeded, for every $n$. $n = 17$ does not finish at 16384 |
 | Worked examples | 10.2 | All 23 fixtures matched in index and, where printed, in the standard table. Cox defined 500 cosets in 0.74 ms (3.0 ms in debug). B_2_4 defined 1225 cosets with 24 coincidences, in 2.0 ms (10.5 ms in debug). The [GAP] table is not the semilenlex one |
 | Holt p. 15 | 10.2 | The printed table is the standard table of $\langle yx \rangle$. For $\langle xy \rangle$ it is $x \mapsto (1,2)$, $y \mapsto (1,3,2)$, numbered from 1 |
 | Invariance | 6.2 | 1400 variants over 22 presentations, by relator permutation, rotation, inversion, and subgroup reordering, gave no different table |
 | Conway text | 5.4 | The generators and relators that the prototype printed for `*532`, `532`, `3*2`, `x`, `*`, and `1` matched the rows of Section 5.4 character for character. Section 5.7 of `docs/design/cli.md` states which texts of `info --presentation` the prototype reproduced |
-| Residual risk on time | 15 | The slowest input found within every limit, 2 generators with 16 random cyclically reduced relators of 4096 letters over the trivial subgroup at the default limit, took 20.3 s and 3.5 MiB and reached the limit. With 4 such relators it took 5.1 s, with 1 it took 1.3 s, and with 128 generators 0.25 s. The Conway presentation of a spherical signature of order $N$ expands to at most $2N + 11$ letters |
+| Residual risk on time | 15 | 2 generators with 16 random cyclically reduced relators of 4096 letters over the trivial subgroup at the default limit took 20.3 s and 3.5 MiB and reached the limit. With 4 such relators it took 5.1 s, with 1 it took 1.3 s, and with 128 generators 0.25 s. The Conway presentation of a spherical signature of order $N$ expands to at most $2N + 11$ letters |
 | Expanded letters | 15 | The relators of `*(1000)32` expand to 2023 letters, and those of `*(1000)22` to 2021. `*(30000)(30000)` expands to 120011 letters and is refused |
 | Tests under Miri | 10.4 | With one thread: the Conway presentation of `*532` 19.7 s, the small worked examples together 15.6 s, "Infinite groups" at a limit of 50 3.8 s, `3*2` 2.7 s, `2*3` 1.7 s, and `x`, `22`, and `*` 1.3 s |
 
@@ -614,16 +653,60 @@ The prototype did not run SymPy or GAP. Its comparisons use the printed tables o
 
 ### 11.2. Figures of the Crate
 
-These figures of the crate itself are to be measured. The change that adds the test that measures each one records the figure in this table:
+These figures come from the crate itself, on a host with 16 cores. Debug figures come from `cargo nextest run -p escher-group`, with each test run alone unless stated. Release figures come from temporary measurement tests that the crate does not keep. Counts of cosets and the largest deduction stack come from the crate-private run statistics. Peak memory is the high-water mark of resident memory (`VmHWM`) of the test process after the call minus the same value before it, because no portable measurement exists inside a test.
 
-| Figure | Test |
-| --- | --- |
-| Time of each test in a debug build | Every test of Section 10.1 |
-| Cosets defined for each worked example | Worked examples |
-| Cosets defined for the Conway presentations of `*532`, `x`, and `*` | One-letter relators |
-| Cosets defined for Sims's presentation for $n$ from 3 to 8, which set the limits of "Finite at a larger limit" | Finite at a larger limit |
-| Time of each test under Miri | Every test that runs under Miri in Section 10.4 |
-| Peak memory at `CosetLimit::MAX`, against the bound of Section 15 | A test that the change chooses, skipped under Miri |
+The cosets defined by each worked example of Section 10.2 and by some Conway presentations, at the default cap and over the subgroup of the fixture:
+
+| Input | Index | Cosets defined | Merges | Largest stack |
+| --- | --- | --- | --- | --- |
+| [BROWN2011] p. 5, $\langle a \rangle$ | 4 | 4 | 0 | 2 |
+| [HULPKE2010] pp. 72-75 | 6 | 6 | 0 | 2 |
+| [HULPKE2010], trivial subgroup | 60 | 60 | 0 | 2 |
+| [GAP], $\langle a, b a b a b^{-1} \rangle$ | 5 | 5 | 0 | 2 |
+| [HOLT2013] p. 15, $\langle xy \rangle$ | 3 | 3 | 0 | 2 |
+| [HOLT2013] p. 15, $\langle yx \rangle$ | 3 | 3 | 0 | 2 |
+| [HOLT2013] pp. 16-17 | 6 | 6 | 0 | 2 |
+| [HOLT2013] p. 17, $\langle a \rangle$ | 2 | 3 | 1 | 3 |
+| [HOLT2013] p. 17, trivial subgroup | 8 | 19 | 11 | 10 |
+| [HOLT2013] pp. 21-22 | 6 | 6 | 0 | 2 |
+| [HOLT2013] pp. 21-22, trivial subgroup | 60 | 60 | 0 | 2 |
+| [HOLT2013] pp. 22-23 | 5 | 5 | 0 | 2 |
+| SymPy "Example 5.1" | 3 | 3 | 0 | 2 |
+| SymPy "Example 5.2" | 4 | 4 | 0 | 2 |
+| SymPy "Example 5.3" | 4 | 7 | 3 | 7 |
+| SymPy "Example 5.4" | 1 | 3 | 2 | 5 |
+| SymPy "Exercises Pg. 161, Q2" | 8 | 9 | 1 | 6 |
+| SymPy [CDHW1973] | 1 | 49 | 48 | 23 |
+| SymPy Cox | 500 | 500 | 0 | 3 |
+| SymPy B_2_4 | 1024 | 1225 | 201 | 67 |
+| [ACE] Appendix B.3 | 12 | 12 | 0 | 2 |
+| Conway `*532` | 120 | 120 | 0 | 7 |
+| Conway `x` | 2 | 2 | 0 | 3 |
+| Conway `*` | 2 | 2 | 0 | 3 |
+| Conway `532` | 60 | 60 | 0 | 2 |
+| Conway `*(1000)22`, 2021 expanded letters | 4000 | 4000 | 0 | 7 |
+| Conway `(1000)22`, 1007 expanded letters | 2000 | 2000 | 0 | 2 |
+| Conway `*(1000)32`, 2023 expanded letters | Limit reached | 16384 | 0 | 5 |
+| Conway `*(4096)22`, 8213 expanded letters | 16384 | 16384 | 0 | 7 |
+
+"Merges" counts the calls of the merge of step 8 that joined two classes, not coincidence events, so it is not comparable with the 24 coincidences of the prototype for B_2_4 (Section 11.1). The largest deduction stack in any measured run was 67, for B_2_4. The closing pass changed nothing and the rescan of step 4 found no gap in every run of this table, in every case of "Closing pass idle", and in the runs at `CosetLimit::MAX` below.
+
+These figures support the statements of this design:
+
+| Figure | Section | Value |
+| --- | --- | --- |
+| One-letter relators | 7.5 | The Conway presentations of `*532`, `x`, and `*` define exactly 120, 2, and 2 cosets, their group orders |
+| Sims's presentation | 10.1 | Cosets defined for $n$ from 3 to 16: 8, 15, 28, 47, 83, 138, 243, 406, 718, 1205, 2138, 3597, 6393, and 10768. For $n = 17$ the run reaches the default limit. Both are identical to the prototype. "Finite at a larger limit" uses the pairs (3, 8), (4, 15), (5, 28), (6, 47), (7, 83), and (8, 138) |
+| Random presentations | 10.1 | 639 of the 1000 presentations of the deterministic runner of the strategy of "Closing pass idle" and "Table laws" finish within a limit of 2000 |
+| Order of the input | 6.2 | Over 5000 presentations of the same strategy from its deterministic runner, at a limit of 2000, reversing only the subgroup generators changed the number of cosets defined, which is the smallest limit at which the run finishes, in 285 of the 3184 cases that finished in both orders. Whether a run finished at 2000 changed in none, and reversing only the relators changed the number of cosets defined in none. Every pair that finished gave equal tables |
+| Debug times of the enumeration | 6.3 | Cox 5.1 ms, B_2_4 15.7 ms, `*532` 0.9 ms, `*(1000)22` 563 ms, `(1000)22` 88 ms, `*(1000)32` to the default limit 78 ms, and `*(4096)22` 9.43 s. `*(4096)22` finishes at exactly 16384, its order, because of the rule of Section 7.5 |
+| Debug time of each test | 10.1 | "Closing pass idle" 2.4 s alone, and 3.6 s and 10.0 s inside the two runs of `just check` and `just coverage`. With its cap-1 half at a limit of 1000 it took 8.0 s alone, 15 to 23 s inside `just check`, and 45 to 51 s under `just coverage`, and at 2000 it took 36 s alone. "Largest table" 0.35 s alone, and 0.49 s and 1.10 s inside the same two runs. "Invariance" 0.39 s, "Table laws" 0.20 s, "Stack cap one" 0.036 s, "Capacities" 0.033 s, "Worked examples" 0.031 s, "Fill steps" 0.027 s, and every other test under 0.025 s |
+| Time of each test under Miri | 10.4 | With one thread, 39 tests run and 18 are skipped. The slowest are the generator limit of `Presentation::new` 4.0 s, the subgroup checks of `enumerate` 4.0 s, "Distinct conjugates" 3.4 s, "Long subgroup generator" 2.7 s, the relator limit of `Presentation::new` 2.6 s, `3*2` 1.6 s, "Word laws" with 8 cases 1.5 s, and `2222` at a limit of 50 1.5 s. Every other test took under 1.4 s. "Capacities" took 138 s and "Fill steps" 102 s, so both are skipped. The acceptance of 65536 expanded letters took 408 s, so it is skipped. A test of the table entries with 256 generators took 24 s, so the test uses 8 and 9 generators. A quadratic check of repeated names took 39 s, so the name check uses a `BTreeMap` |
+| Peak memory at `CosetLimit::MAX` | 15 | In a release build: $\mathbb{Z}_{32}^4$ with 8 columns, index $2^{20}$, 1.12 s and 75.69 MiB against a bound of 76.0 MiB. $\mathbb{Z}_{16}^5$ with 10 columns, index $2^{20}$, 1.09 s and 91.66 MiB against 92.0 MiB. The free group on 8 generators with 16 columns at a limit of 540000, which reaches it, 0.025 s and about 34.9 MiB against 37.1 MiB for the enumeration phase. The same at `CosetLimit::MAX`, the input of "Largest table", 0.046 s and 67.7 MiB against 72 MiB for the enumeration phase, because a run that reaches its limit makes no relabelled copy, so the table and the representatives take 68 MiB |
+| Residual risk on time | 15 | In a release build, on a host with 16 cores that ran other jobs at the same time. At `CosetLimit::MAX`: $\langle x, y \mid x^{1024}, y^{1024}, [x, y] \rangle$ over the trivial subgroup, 2052 expanded letters, index $2^{20}$ in 35.7 s. The same group with the redundant relator $x^{1024}$ added, 3076 letters, 55.4 s, with $x^{4096}$, 6148 letters, 72.3 s, and with $x^{62464}$, 64516 letters, 393.0 s, the slowest finishing input measured. At `CosetLimit::DEFAULT`: the first of these inputs reaches the limit in 0.010 s. 2 generators with 16 random cyclically reduced relators of 4096 letters, 65536 expanded letters, reach the limit in 11.92 s, the slowest input found there. $\mathbb{Z}_{128} \times \mathbb{Z}_{128}$ finishes in 0.026 s, 388 letters, and with a redundant power of $x$ added in 0.56 s at 16260 letters, 1.10 s at 32260 letters, and 2.17 s at 64260 letters, the slowest finishing input found there. $\mathbb{Z}_{32768} \times \mathbb{Z}_2$, whose order is above the limit, takes about 0.27 s, and $\langle x \mid x^{65536} \rangle$ 0.55 s. The time grew about as $N (\alpha + \beta E)$ for $N$ cosets defined and $E$ expanded letters. The padded series at the default limit is linear in $E$ with $\beta$ about 2.1 ns. At the maximum limit $\beta$ is 5.2 to 5.8 ns, because the table of 16 MiB does not fit the cache: $(72.3 - 55.4)$ s over 3072 letters and $2^{20}$ cosets gives 5.2 ns, and 393 s over 64516 letters and $2^{20}$ cosets gives 5.8 ns. Most of the time of a finishing run is the closing pass, which scans every relator at every coset, and the scans of long conjugates. Random long relators cost more for each coset than one long power |
+| Scan-and-fill | 7.3 | In a release build, at `CosetLimit::MAX`. The free group on 2 generators with 256 random reduced subgroup generators of 4096 letters reaches the limit in 0.031 s with a largest stack of 1. A variant that restarts each trace from coset 0 after each definition and processes the deductions only after all subgroup generators took 4.99 s with a largest stack of 1046232. The Klein four-group with the first 250 of those words gives index 2 after 4 cosets defined in 0.005 s, where the variant took 4.27 s and defined 1021474 cosets. In debug builds, the Klein four-group with 5 random subgroup generators of 4096 letters gives index 2 after 4 cosets defined at the default limit, and $\langle x \mid x^2 \rangle$ with $x^{4096}$ gives index 2 after 2 cosets defined at limits of 2 and 4095. The variant returned `CosetLimitReached` on these three inputs, with a largest stack of 16387 on the first |
+
+A test of $\mathbb{Z}_{32}^4$ at `CosetLimit::MAX` that asserts a full index of $2^{20}$ takes 14.1 s alone, 43 s inside `just check`, and 68.8 s under `just coverage`, so "Largest table" uses the free group instead.
 
 ## 12. Dependencies
 
@@ -644,7 +727,7 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | Label | What the code relies on | What the code does |
 | --- | --- | --- |
 | `UNV-19` | The steps that only implementations or this design state: the outcomes of a scan, scan-and-fill, the deduction stack, the coincidence queue, compression and standardization as steps, the overflow policy of Section 7.6, the timing of the rule of Section 7.5, and the distinct cyclic conjugates of Section 7.2 (item 23 of Section 14.1 of the colouring reference) | Ends every run with the closing pass of GRP-14, so a returned table rests on the closed-table statement of [HULPKE2010] p. 75. The worked examples and "Closing pass idle" check the steps (GRP-24) |
-| `UNV-19` | That (R1) to (R3) survive coincidences, which [HOLT2013] states without proof | The same as the previous row |
+| `UNV-19` | That (R1) to (R3) survive coincidences, which [HOLT2013] states without proof | The same as the previous row, and keeps the two branches of Section 7.7 that turn a failure of (R1) into a correct table instead of a run that does not end |
 | `UNV-19` | What a run that reaches its limit shows (item 19 of Section 14.1 of the colouring reference) | Claims nothing about the index (GRP-17) |
 | `UNV-19` | Termination for a finite index under Mendelsohn's condition, from lecture notes whose primary texts were not read (item 21 of Section 14.1 of the colouring reference) | Bounds every run by the coset limit, so termination of a run never depends on it |
 | `UNV-19` | Lemma III.26 for the lenlex standard (item 26 of Section 14.1 of the colouring reference) | The test "Invariance" checks that equal subgroups give equal tables over its corpus |
@@ -683,7 +766,11 @@ Every choice in this table is a proposed default. No other document dictates it,
 | Columns of involutions not merged | Merged columns, which halve the table of a reflection group and complicate every index | 7.2 |
 | A stack cap of 65536, then an empty stack and a lookahead that keeps its pushes | No cap, or SymPy's order of lookahead then empty | 7.6 |
 | The design pushes $(\mu, x)$ in a coincidence | SymPy's push of $(\delta, x^{-1})$, which gave the same results on the prototype | 7.3 |
-| The capacity of the table capped at limit times columns | A plain doubling vector, which exceeds the memory bound | 15 |
+| The capacities of the table, the representatives, and the queue capped at limit times columns, limit, and limit, and the relabelling vectors allocated at their exact sizes | Plain doubling vectors, which exceed the memory bound | 15 |
+| Step 4 with a forward cursor and one final rescan, kept although no run has reached the rescan | A scan from the first row at every definition, or no rescan, which loops without end if (R1) fails | 7.3, 7.7 |
+| The deductions of step 3 processed after each definition and after each subgroup generator | Processing them once after all subgroup generators, which makes a long subgroup generator define a coset for each letter | 7.3 |
+| Scan-and-fill resumes its traces after each definition | A new scan from coset 0 after each definition, which reads a number of letters quadratic in the length of the word | 7.3 |
+| Duplicate conjugates removed across the whole presentation by least rotation | Removal within each relator only | 7.2 |
 | No work budget | A budget in letter steps with its own error kind | 15 |
 | `thiserror` for the error | An error implemented by hand | 12 |
 | The operations `build presentation` and `enumerate cosets`, and positions counted from 1 in error texts | Other wording | 8 |
@@ -695,7 +782,7 @@ Every choice in this table is a proposed default. No other document dictates it,
 
 None of these blocks the crate. Each states what the design does until the owner decides:
 
-1. Time of an enumeration. The input limits do not bound the time of a run, and the slowest input found within every limit took 20.3 s in a release build, as measured on a prototype outside the repository (Section 11.1). `escher-cli` cannot reach such an input. The design accepts this residual risk (Section 15). The alternative is a work budget in letter steps, with its own error kind, which bounds the time of every call.
+1. Time of an enumeration. No limit of the crate bounds the time of a run, which grows about as the cosets defined times the expanded relator letters (Section 15). In a release build, an input within every limit took 393 s at the maximum limit, and the slowest input found at the default limit took 11.9 s. `escher-cli` cannot reach such an input. The design accepts this residual risk and recommends that a caller that takes untrusted input keep the default limit. The alternative is a limit on time or on work, such as a work budget in letter steps with its own error kind, which bounds the time of every call. The owner decides whether such a limit is wanted.
 2. Strategy and limits. The design proposes Felsch with a default limit of 16384 and a maximum of 1048576 (`DEC-33`). The alternative is other values, or HLT as a second strategy.
 3. Cosets. The tables use right cosets, as every source does, while Section 5.10 of the architecture picks left cosets for colourings (`DEC-36`). The alternative is tables of left cosets, which no enumeration source supports.
 4. Names. The design proposes ASCII names numbered by kind (`DEC-34`). The alternative is the letters of [CH], such as `P`, `Q`, and `lambda`, with indexes.
@@ -722,19 +809,39 @@ GRP-19. The crate MUST enforce the limits of this table, return `LimitExceeded` 
 
 The limits are private constants, and unit tests inside the crate read them. Expanded lengths are summed in checked `u64` arithmetic. Limit times columns is at most $2^{24}$, so every index into the table fits `usize` on every target. Entries are `u32`, and the undefined marker `u32::MAX` lies above the largest coset number.
 
-GRP-20. The memory of one call of `enumerate` MUST stay within the bound of this section, and the table MUST grow with its capacity capped at limit times columns, because a vector that doubles its capacity can allocate up to twice what the limit allows, and the bound is what a caller relies on when it chooses a limit.
+GRP-20. The memory of one call of `enumerate` MUST stay within the bound of this section, the table, the representatives, and the coincidence queue MUST grow with their capacities capped at limit times columns, limit, and limit, and the vectors of the relabelling MUST be allocated at their exact sizes, because a vector that doubles its capacity can allocate up to twice what the limit allows, and the bound is what a caller relies on when it chooses a limit.
 
-For a limit $L$, $c$ columns, $E$ expanded relator letters, and a stack cap $S = 65536$, the memory of a call is at most
+For a limit $L$, $c$ columns, $E$ expanded relator letters, $W$ letters of the subgroup generators in total, and $S_{max}$ the largest deduction stack of the run, the memory of a call is at most
 
-$$8 L c + 12 L + 8 S + 24 E$$
+$$\max(4 L c + 8 L + 16 S_{max},\ 8 L c + 12 L) + 24 E + 2 W$$
 
-bytes beyond its inputs, plus 8 bytes for each entry by which the deduction stack exceeds $S$. The terms are the table and its relabelled copy, the representatives with the queue and the label map, the stack, and the stored relators with their conjugate lists. The table grows by `reserve_exact` to the smaller of twice its length and $L c$. At the maxima the bound is about 142 MiB, and at the default limit with the most columns, 512, about 66 MiB.
+bytes beyond its inputs. The run has two phases, and the larger of them sets the first term:
 
-The stack can exceed $S$ by the entries that one coincidence or one lookahead pushes before the next check of the cap (Section 7.6), and this design has no bound on that excess smaller than the number of entries written in that pass. On the prototype, no stack came near $S$, and the measured peaks stayed within the bound with the term $8S$ (Section 11.1).
+- The enumeration: the table of `u32` entries, $4 L c$, the representatives and the coincidence queue, $4 L$ each, and the deduction stack. A stack entry takes 8 bytes, and the stack grows by doubling, so its capacity stays below twice $S_{max}$ and its term is at most $16 S_{max}$.
+- The relabelling of Section 6.2: the stack and the queue are freed before it starts. The table, $4 L c$, and its relabelled copy, at most $4 L c$, stay with the representatives, the label map, and the order list, $4 L$ each.
+- Both phases: the stored relators and their conjugate lists, $24 E$. Each letter is stored as a `u16` four times, the relator and its inverse each written twice in a row, which is 8 bytes. A letter starts at most two distinct conjugates, one of the relator and one of its inverse, each a span of two `u32`, which is 16 bytes.
+- Both phases: the subgroup generators as columns, $2 W$, one `u16` for each letter, at most 2 MiB for 256 words of 4096 letters, kept for the whole call because steps 3 and 10 scan them.
+
+The table, the representatives, and the queue each grow to the smaller of twice their length and their cap, $L c$, $L$, and $L$, and never below what the next entry needs. The queue holds a coset only when a merge removes it, so it never needs more than $L$ entries. The label map has one entry for each coset defined, the order list is allocated with that capacity, and the relabelled copy with the index times $c$ entries. At the maxima the bound is about 143.5 MiB, from 140 MiB for the relabelling, 1.5 MiB for $24 E$, and 2 MiB for $2 W$. At the default limit with the most columns, 512, it is about 68 MiB. The tests "Capacities" and "Queue capacity" pin the capacities, and Section 11.2 gives the measured peaks, such as 75.69 MiB for $\mathbb{Z}_{32}^4$ at `CosetLimit::MAX` against a bound of 76.0 MiB.
+
+Step 1 makes allocations outside the formula, before the table exists:
+
+- For one relator at a time, the relator written out with its exponent as a `Word`, its freely reduced copy, its cyclically reduced copy, and its letters as columns. Each takes 2 bytes for each letter and at most three exist at once, so they take at most 6 bytes for each letter of the longest expanded relator, 384 KiB for 65536 letters.
+- A prefix-function array of `usize` for one word at a time, 8 bytes for each letter, at most 512 KiB for a word of 65536 letters, freed before the next word.
+- A `BTreeSet` of slice references, one for each distinct word, freed at the end of step 1.
+
+$S_{max}$ exceeds the cap of 65536 only by the entries that one coincidence or one lookahead pushes before the next check of the cap (Section 7.6). The design has no smaller bound on that excess than the number of entries that one such pass writes. The largest stack in any measured run of the crate is 67 entries (Section 11.2).
 
 GRP-21. The crate MUST check every arithmetic operation on a size that comes from input, MUST contain no `unsafe` code, and MUST use no recursion, because an overflow gives a wrong table without an error, and the depth of a recursion over words or cosets is set by the input.
 
-The time of a run has no bound from these limits. A coset limit bounds the cosets defined and not the scans per coset, and the sources give no computable bound on the work (Section 7.9). The residual risk is a caller that passes long relators with a high limit. The slowest input found within every limit, 2 generators with 16 random relators of 4096 letters at the default limit, took 20.3 s in a release build, as measured on a prototype outside the repository (Section 11.1). `escher-cli` cannot reach such an input, because the Conway presentation of a spherical signature of order $N$ expands to at most $2N + 11$ letters and the side presentations are short, and it does not enumerate a group whose order is above the limit (CLI-39 of Section 5.7 of `docs/design/cli.md`). A work budget in letter steps is the recorded alternative (item 1 of Section 14.3).
+The time of a run has no bound from these limits, and no limit of the crate bounds it. A coset limit bounds the cosets defined and not the work for each coset, and the sources give no computable bound on the work (Section 7.9). The residual risk is a caller that passes long relators with a high limit. On the crate, the time of a run grew about as $N (\alpha + \beta E)$, for $N$ cosets defined and $E$ expanded relator letters, with $\beta$ of a few nanoseconds (Section 11.2). The worst inputs measured in a release build are these (Section 11.2):
+
+- 393 s at `CosetLimit::MAX` for an input that finishes within every limit, a group of order $2^{20}$ with 64516 expanded letters. The law gives about 7 minutes for $2^{20}$ cosets and 65536 letters.
+- 35.7 s at `CosetLimit::MAX` for $\langle x, y \mid x^{1024}, y^{1024}, [x, y] \rangle$, which has 2052 expanded letters.
+- 11.9 s at `CosetLimit::DEFAULT` for 2 generators with 16 random relators of 4096 letters, which reaches the limit.
+- 2.17 s at `CosetLimit::DEFAULT` for the slowest input found there that finishes.
+
+The design therefore recommends that a caller that takes untrusted input keep the default limit, under which the slowest input found took about 12 s. `escher-cli` cannot reach such an input, because the Conway presentation of a spherical signature of order $N$ expands to at most $2N + 11$ letters and the side presentations are short, and it does not enumerate a group whose order is above the limit (CLI-39 of Section 5.7 of `docs/design/cli.md`). A work budget in letter steps is the recorded alternative (item 1 of Section 14.3).
 
 The other topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -811,7 +918,7 @@ The tags of the mathematical and software sources resolve to the reference secti
 | GRP-17 | No text states that reaching the limit shows an infinite index | 7.8 |
 | GRP-18 | The table is a function of the inputs alone | 7.9 |
 | GRP-19 | The input limits are enforced before any allocation that depends on them | 15 |
-| GRP-20 | The memory of a call stays within the stated bound, with the table capacity capped at limit times columns | 15 |
+| GRP-20 | The memory of a call stays within the stated bound, with capped capacities for the table, the representatives, and the queue, and exact sizes for the relabelling | 15 |
 | GRP-21 | Arithmetic on input sizes is checked, and the crate has no `unsafe` code and no recursion | 15 |
 | GRP-22 | `Error` follows ERR-1, with the operation and the texts of Section 8.2 | 8.1 |
 | GRP-23 | The dependencies are `escher-signature`, `thiserror`, and the dev-dependency `proptest` | 12 |

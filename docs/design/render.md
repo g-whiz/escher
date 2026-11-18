@@ -281,7 +281,7 @@ The crate has these private modules, each a file named after the module:
 Section 3.2 of the architecture lists items that this surface does not have, and Section 3.2 of the architecture lets the crate design refine the names and signatures:
 
 - A public `View` with the model and the placement. Each geometry has one canonical view in this design, which the renderer chooses from the domain. The only option that changes a view is the viewing rotation of the ball, which `RenderOptions` carries as three angles, so a public `View` would give a caller nothing more to choose, and SIMP-1 of the coding standard removes an abstraction that gives no benefit now. The disk case of the private view holds the placement isometry, which is the identity for the canonical view. The change that adds the first option that changes the model or the placement makes it public.
-- A colouring identifier with a list of colours. `Fill` carries its colours until `escher-group` exists.
+- A colouring identifier with a list of colours. `Fill` carries its colours until `escher-group` gives colourings.
 - The lift onto the ball as a public function. It lives in the private view beside its screen tangents, as the tangents of the disk do, because the view is its one caller.
 
 `fold` is public so that the integration tests, which use only the public surface (TEST-1 of the coding standard), can read the side sequence for the reference tests and the border oracle.
