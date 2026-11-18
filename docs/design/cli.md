@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-17 |
+| Date | 2026-11-18 |
 | Applies to | `crates/escher-cli`: the library target, the binary `escher`, and its tests |
 
 ## Abstract
@@ -829,7 +829,7 @@ Every other error of `enumerate` comes from an input limit that `escher-group` c
 
 The first row is sound only because the limit counts every coset that a run defines, including coset 0, the coset of the subgroup itself (Section 6.3 of `docs/design/group.md`, GRP-16). A closed table over the trivial subgroup has one coset for each element, so its index is the group order (Sections 7.9 and 7.15 of `docs/research/colourings.md`), and no run that defines at most $L$ cosets can close a table of $N > L$ cosets. The run is skipped there, because it would only spend time and then report `not found`.
 
-No source read states what a run that reaches the limit shows about the index (item 19 of Section 14.1 of `docs/research/colourings.md`, Section 7.8 of `docs/design/group.md`, GRP-17), so the line says `not found` and claims nothing more. With the rule for one-letter relators, such as `l1` or `w1` (Section 7.5 of `docs/design/group.md`, GRP-26), an enumeration of a spherical Conway presentation defined exactly $N$ cosets on a prototype outside the repository (Section 11.1 of `docs/design/group.md`), so no spherical signature with $N \le L$ is expected to reach that line. No test asserts it, because no source bounds the cosets that an enumeration defines (Section 7.15 of `docs/research/colourings.md`).
+A run that reaches the limit shows nothing about the index, as the handbook of Holt, Eick, and O'Brien states (Section 7.15 of `docs/research/colourings.md`, Section 7.8 of `docs/design/group.md`, GRP-17), so the line says `not found` and claims nothing more. With the rule for one-letter relators, such as `l1` or `w1` (Section 7.5 of `docs/design/group.md`, GRP-26), an enumeration of a spherical Conway presentation defined exactly $N$ cosets on a prototype outside the repository (Section 11.1 of `docs/design/group.md`), so no spherical signature with $N \le L$ is expected to reach that line. No test asserts it, because no source bounds the cosets that an enumeration defines (Section 7.15 of `docs/research/colourings.md`).
 
 CLI-39. `info` MUST print an order line only for a spherical signature, and MUST NOT run an enumeration when the group order is above the coset limit, because only a spherical signature has a group order to compare with, an enumeration of a Euclidean or hyperbolic group cannot finish, and a run that cannot finish within the limit costs time and shows nothing.
 
@@ -1553,7 +1553,7 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 | `UNV-28` | `info` prints the summary of a Euclidean triangle, and `render` draws it, from the vertex coordinates that `escher-domain` builds, whose checks and tests its design states |
 | `UNV-29` | `info` prints the summary of a lune, and `render` draws it as a fundamental domain, which no source states. `info --check` reports the checks that test it |
 | `UNV-22`, `UNV-30`, `UNV-31` | `info` prints the summary of a rotation domain, and `render` draws it as a fundamental domain of the rotation subgroup, which rests on the signature of that subgroup, on the lune double, and on the convexity and the vertex cycles of the double. `info --check` reports the checks that test each build |
-| `UNV-19` | The order lines of `--presentation` come from the coset enumeration of `escher-group`, whose steps rest on implementations and lecture notes. A run that reaches the limit prints `not found` and claims nothing about the index (Section 5.7) |
+| `UNV-19` | The order lines of `--presentation` come from the coset enumeration of `escher-group`, whose reliance on `UNV-19` Section 13 of `docs/design/group.md` states. A run that reaches the limit prints `not found` and claims nothing about the index (Section 5.7) |
 | `UNV-22` | `--presentation` prints the Conway presentation of a boundary without corners, such as that of `*`, in the reading that Section 5.2 of `docs/design/group.md` records (GRP-7) |
 | `UNV-32` | `--presentation` prints the side presentation of a rotation domain, whose cycle relators as words are the reading of `docs/design/domain.md` (Section 5.4 of that document). The side order line compares the order that they present with the group order |
 | `UNV-1` | `render` relies on the fold to stop for the samples of an image of a reflection triangle, rectangle, or lune. `Unconverged samples` counts the samples for which it does not stop within the fold cap, which on the sphere can happen near a vertex of very high order |
