@@ -3,7 +3,9 @@ use proptest::collection::vec;
 use proptest::prelude::{Just, Strategy, any};
 use proptest::test_runner::Config;
 
-use crate::{CosetLimit, Letter, Presentation, Relator, Word, conway_presentation};
+use crate::{
+    CosetLimit, IndexLimit, Letter, Presentation, Relator, SearchBudget, Word, conway_presentation,
+};
 
 pub(crate) fn proptest_config() -> Config {
     if cfg!(miri) {
@@ -79,18 +81,53 @@ pub(crate) struct Fixture {
     pub(crate) rows: &'static [&'static [u32]],
 }
 
+pub(crate) fn presentation(generators: &str, relators: &[(&str, u32)]) -> Presentation {
+    let names = generators.chars().map(String::from).collect();
+    let relators = relators
+        .iter()
+        .map(|&(base, exponent)| {
+            Relator::new(word(generators, base), exponent).expect("a fixture relator is valid")
+        })
+        .collect();
+    Presentation::new(names, relators).expect("a fixture presentation is valid")
+}
+
+pub(crate) fn coxeter(p: u32, q: u32, r: u32) -> Presentation {
+    let [s0, s1, s2] = [0, 1, 2].map(Letter::generator);
+    let relators = [
+        (vec![s0], 2),
+        (vec![s1], 2),
+        (vec![s2], 2),
+        (vec![s0, s1], p),
+        (vec![s1, s2], q),
+        (vec![s2, s0], r),
+    ]
+    .into_iter()
+    .map(|(base, exponent)| {
+        Relator::new(letters(&base), exponent).expect("a Coxeter relator is valid")
+    })
+    .collect();
+    let names = ["s0", "s1", "s2"].map(String::from).to_vec();
+    Presentation::new(names, relators).expect("a Coxeter presentation is valid")
+}
+
+pub(crate) fn index_limit(colours: u32) -> IndexLimit {
+    match IndexLimit::new(colours) {
+        Ok(limit) => limit,
+        Err(error) => panic!("{colours} is not an index limit: {error}"),
+    }
+}
+
+pub(crate) fn budget(steps: u64) -> SearchBudget {
+    match SearchBudget::new(steps) {
+        Ok(budget) => budget,
+        Err(error) => panic!("{steps} is not a search budget: {error}"),
+    }
+}
+
 impl Fixture {
     pub(crate) fn presentation(&self) -> Presentation {
-        let names = self.generators.chars().map(String::from).collect();
-        let relators = self
-            .relators
-            .iter()
-            .map(|&(base, exponent)| {
-                Relator::new(word(self.generators, base), exponent)
-                    .expect("a fixture relator is valid")
-            })
-            .collect();
-        Presentation::new(names, relators).expect("a fixture presentation is valid")
+        presentation(self.generators, self.relators)
     }
 
     pub(crate) fn subgroup(&self) -> Vec<Word> {
@@ -308,6 +345,12 @@ pub(crate) const FIXTURES: &[Fixture] = &[
     },
 ];
 
+pub(crate) const SEARCH_BUDGET: u64 = 1 << 20;
+
+pub(crate) fn small_presentation() -> impl Strategy<Value = (Presentation, u32)> {
+    (random_presentation(), 1_u32..=5).prop_map(|((presentation, _), limit)| (presentation, limit))
+}
+
 pub(crate) fn random_presentation() -> impl Strategy<Value = (Presentation, Vec<Word>)> {
     (2_u8..=3).prop_flat_map(|generators| {
         let relators = vec(vec(letter(generators), 1..=6), 1..=4);
@@ -331,3 +374,198 @@ pub(crate) fn random_presentation() -> impl Strategy<Value = (Presentation, Vec<
         })
     })
 }
+
+pub(crate) type Table = &'static [&'static [u32]];
+
+pub(crate) enum Expected {
+    ClassTables(&'static [Table]),
+    Subgroups {
+        counts: &'static [u64],
+        tables: &'static [Table],
+    },
+    ClassCounts(&'static [u64]),
+    ClassTotal(u64),
+    FixedClasses {
+        word: &'static str,
+        counts: &'static [u64],
+        tables: &'static [Table],
+    },
+}
+
+pub(crate) struct SearchFixture {
+    pub(crate) source: &'static str,
+    pub(crate) generators: &'static str,
+    pub(crate) relators: &'static [(&'static str, u32)],
+    pub(crate) limit: u32,
+    pub(crate) expected: Expected,
+}
+
+impl SearchFixture {
+    pub(crate) fn presentation(&self) -> Presentation {
+        presentation(self.generators, self.relators)
+    }
+
+    pub(crate) fn tables(&self) -> &'static [Table] {
+        match self.expected {
+            Expected::ClassTables(tables)
+            | Expected::Subgroups { tables, .. }
+            | Expected::FixedClasses { tables, .. } => tables,
+            Expected::ClassCounts(_) | Expected::ClassTotal(_) => &[],
+        }
+    }
+}
+
+const S4: &[(&str, u32)] = &[("x", 2), ("y", 3), ("xy", 4)];
+const FREE_PRODUCT: &[(&str, u32)] = &[("x", 2)];
+const HIGMAN: &[(&str, u32)] = &[("TrtRR", 1), ("RsrSS", 1), ("StsTT", 1)];
+
+const SIMS_SUBGROUPS: &[Table] = &[
+    &[&[0, 0, 0, 0]],
+    &[&[0, 0, 1, 1], &[1, 1, 0, 0]],
+    &[&[0, 0, 1, 1], &[2, 2, 0, 0], &[1, 1, 2, 2]],
+    &[&[0, 0, 1, 2], &[1, 1, 2, 0], &[2, 2, 0, 1]],
+    &[&[0, 0, 1, 2], &[2, 2, 2, 0], &[1, 1, 0, 1]],
+    &[&[1, 1, 0, 0], &[0, 0, 1, 1]],
+    &[&[1, 1, 0, 0], &[0, 0, 2, 2], &[2, 2, 1, 1]],
+    &[&[1, 1, 1, 1], &[0, 0, 0, 0]],
+    &[&[1, 1, 1, 2], &[0, 0, 2, 0], &[2, 2, 0, 1]],
+    &[&[1, 1, 2, 1], &[0, 0, 0, 2], &[2, 2, 1, 0]],
+    &[&[1, 1, 2, 2], &[0, 0, 1, 1], &[2, 2, 0, 0]],
+];
+
+pub(crate) const SEARCH_FIXTURES: &[SearchFixture] = &[
+    SearchFixture {
+        source: "Holt Example 5.10 and the SymPy doctest",
+        generators: "xy",
+        relators: S4,
+        limit: 4,
+        expected: Expected::ClassTables(&[
+            &[&[0, 0, 0, 0]],
+            &[&[0, 0, 1, 2], &[1, 1, 2, 0], &[3, 3, 0, 1], &[2, 2, 3, 3]],
+            &[&[0, 0, 1, 2], &[2, 2, 2, 0], &[1, 1, 0, 1]],
+            &[&[1, 1, 0, 0], &[0, 0, 1, 1]],
+        ]),
+    },
+    SearchFixture {
+        source: "Sims Example 6.1",
+        generators: "xy",
+        relators: &[("x", 3), ("y", 3), ("xy", 2)],
+        limit: 4,
+        expected: Expected::ClassTables(&[
+            &[&[0, 0, 0, 0]],
+            &[&[0, 0, 1, 2], &[2, 3, 2, 0], &[3, 1, 0, 1], &[1, 2, 3, 3]],
+            &[&[1, 2, 2, 1], &[2, 0, 0, 2], &[0, 1, 1, 0]],
+        ]),
+    },
+    SearchFixture {
+        source: "Sims Example 9.2 and p. 207",
+        generators: "xy",
+        relators: FREE_PRODUCT,
+        limit: 5,
+        expected: Expected::Subgroups {
+            counts: &[1, 3, 7, 23, 71],
+            tables: SIMS_SUBGROUPS,
+        },
+    },
+    SearchFixture {
+        source: "Sims p. 209",
+        generators: "xy",
+        relators: FREE_PRODUCT,
+        limit: 3,
+        expected: Expected::ClassTables(&[
+            SIMS_SUBGROUPS[0],
+            SIMS_SUBGROUPS[1],
+            SIMS_SUBGROUPS[2],
+            SIMS_SUBGROUPS[3],
+            SIMS_SUBGROUPS[4],
+            SIMS_SUBGROUPS[5],
+            SIMS_SUBGROUPS[7],
+        ]),
+    },
+    SearchFixture {
+        source: "Sims Example 6.2",
+        generators: "ab",
+        relators: &[("a", 2), ("b", 3), ("ab", 7)],
+        limit: 10,
+        expected: Expected::FixedClasses {
+            word: "abaB",
+            counts: &[1, 0, 0, 0, 0, 0, 2, 0, 0, 0],
+            tables: &[
+                &[
+                    &[0, 0, 1, 2],
+                    &[1, 1, 2, 0],
+                    &[3, 3, 0, 1],
+                    &[2, 2, 4, 5],
+                    &[4, 4, 5, 3],
+                    &[6, 6, 3, 4],
+                    &[5, 5, 6, 6],
+                ],
+                &[
+                    &[0, 0, 1, 2],
+                    &[1, 1, 2, 0],
+                    &[3, 3, 0, 1],
+                    &[2, 2, 4, 5],
+                    &[6, 6, 5, 3],
+                    &[5, 5, 3, 4],
+                    &[4, 4, 6, 6],
+                ],
+            ],
+        },
+    },
+    SearchFixture {
+        source: "Sims Example 6.3 at 8",
+        generators: "rst",
+        relators: HIGMAN,
+        limit: 8,
+        expected: Expected::ClassCounts(&[1, 0, 0, 0, 0, 0, 0, 0]),
+    },
+    SearchFixture {
+        source: "Sims Example 6.3 at 12",
+        generators: "rst",
+        relators: HIGMAN,
+        limit: 12,
+        expected: Expected::ClassCounts(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    },
+    SearchFixture {
+        source: "Sims Example 6.4",
+        generators: "ab",
+        relators: &[("a", 11), ("b", 5), ("baBAAA", 1)],
+        limit: 11,
+        expected: Expected::ClassCounts(&[1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1]),
+    },
+    SearchFixture {
+        source: "Sims Example 6.5",
+        generators: "abc",
+        relators: &[
+            ("a", 11),
+            ("b", 5),
+            ("c", 4),
+            ("ac", 3),
+            ("CbcBB", 1),
+            ("baBAAA", 1),
+        ],
+        limit: 12,
+        expected: Expected::ClassCounts(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1]),
+    },
+    SearchFixture {
+        source: "GAP manual 47.10-1",
+        generators: "ab",
+        relators: &[("a", 2), ("b", 3), ("ab", 5)],
+        limit: 10,
+        expected: Expected::ClassTotal(4),
+    },
+    SearchFixture {
+        source: "GAP Chapter 47, six relators",
+        generators: "xyz",
+        relators: &[
+            ("x", 3),
+            ("y", 3),
+            ("z", 5),
+            ("xyxxyy", 2),
+            ("xz", 2),
+            ("yzzz", 2),
+        ],
+        limit: 6,
+        expected: Expected::ClassCounts(&[1, 0, 0, 0, 4, 6]),
+    },
+];

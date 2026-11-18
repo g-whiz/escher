@@ -18,6 +18,19 @@
 //! the index. Every input is checked against the limits of the crate before
 //! it is used.
 //!
+//! The crate also runs the low-index subgroup search. The search finds every
+//! subgroup of index up to an [`IndexLimit`] and reads each as a
+//! [`Colouring`] of the tiles by its cosets. [`count_colourings`] counts the
+//! colourings and their conjugacy classes of each colour count in a
+//! [`ColouringCounts`]. [`colourings`] lists them in a [`Colourings`], and
+//! [`colourings_of_index`] lists those of one colour count in a
+//! [`ColouringsOfIndex`]. Each colouring has a [`ColouringId`], such as `3a`,
+//! that does not depend on the limits of the search.
+//! [`Colouring::colour_of`] gives the colour of a tile from the sides that
+//! its fold crossed. A search that reaches its [`SearchBudget`] returns a
+//! result and not an error. The result says up to which colour count it is
+//! complete, or, for one colour count, whether it is.
+//!
 //! ```
 //! use escher_group::{CosetLimit, Letter, Word, conway_presentation, enumerate};
 //! use escher_signature::Signature;
@@ -44,10 +57,12 @@
 //!
 //! The crate is pure Rust with no platform-specific code.
 
+mod colouring;
 mod conway;
 mod enumerate;
 mod error;
 mod presentation;
+mod search;
 mod table;
 mod word;
 
@@ -55,18 +70,21 @@ mod word;
 #[path = "../tests/group/common.rs"]
 mod common;
 
+pub use colouring::{Colouring, ColouringCounts, ColouringId, Colourings, ColouringsOfIndex};
 pub use conway::conway_presentation;
 pub use enumerate::enumerate;
 pub use error::{Error, ErrorKind, Result};
 pub use presentation::{Presentation, Relator, RelatorDisplay, WordDisplay};
+pub use search::{IndexLimit, SearchBudget, colourings, colourings_of_index, count_colourings};
 pub use table::{CosetLimit, CosetTable};
 pub use word::{Letter, Word};
 
 #[cfg(test)]
 mod tests {
     use super::{
-        CosetLimit, CosetTable, Error, ErrorKind, Letter, Presentation, Relator, RelatorDisplay,
-        Word, WordDisplay,
+        Colouring, ColouringCounts, ColouringId, Colourings, ColouringsOfIndex, CosetLimit,
+        CosetTable, Error, ErrorKind, IndexLimit, Letter, Presentation, Relator, RelatorDisplay,
+        SearchBudget, Word, WordDisplay,
     };
 
     fn assert_auto_traits<T: Send + Sync + 'static>() {}
@@ -83,6 +101,13 @@ mod tests {
         assert_auto_traits::<CosetTable>();
         assert_auto_traits::<Error>();
         assert_auto_traits::<ErrorKind>();
+        assert_auto_traits::<IndexLimit>();
+        assert_auto_traits::<SearchBudget>();
+        assert_auto_traits::<ColouringCounts>();
+        assert_auto_traits::<Colourings>();
+        assert_auto_traits::<ColouringsOfIndex>();
+        assert_auto_traits::<Colouring>();
+        assert_auto_traits::<ColouringId>();
         assert_borrowing_auto_traits::<WordDisplay<'_>>();
         assert_borrowing_auto_traits::<RelatorDisplay<'_>>();
     }

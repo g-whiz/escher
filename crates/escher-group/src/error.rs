@@ -5,13 +5,17 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 const BUILD: &str = "build presentation";
 const ENUMERATE: &str = "enumerate cosets";
+const SEARCH: &str = "search subgroups";
+const READ_ID: &str = "read colouring id";
 
-/// The reason why a presentation could not be built or its cosets could not
-/// be enumerated.
+/// The reason why a presentation could not be built, its cosets could not be
+/// enumerated, its subgroups could not be searched, or a colouring id could
+/// not be read.
 ///
 /// Match on [`Error::kind`] to tell the causes apart. The
 /// [`Display`](core::fmt::Display) text starts with
-/// `cannot build presentation: ` or `cannot enumerate cosets: ` and is meant
+/// `cannot build presentation: `, `cannot enumerate cosets: `,
+/// `cannot search subgroups: `, or `cannot read colouring id: ` and is meant
 /// for a person, not for matching. It shows positions, counted from 1,
 /// numbers, and the text of an unsupported signature, and never a generator
 /// name or a word.
@@ -50,6 +54,20 @@ impl Error {
         }
     }
 
+    pub(crate) fn search(detail: Detail) -> Self {
+        Self {
+            operation: SEARCH,
+            detail,
+        }
+    }
+
+    pub(crate) fn read_id(detail: Detail) -> Self {
+        Self {
+            operation: READ_ID,
+            detail,
+        }
+    }
+
     /// Returns the cause of the error as an [`ErrorKind`].
     #[must_use]
     pub fn kind(&self) -> ErrorKind {
@@ -63,6 +81,7 @@ impl Error {
             Detail::LimitExceeded(_) => ErrorKind::LimitExceeded,
             Detail::CosetLimitReached(_) => ErrorKind::CosetLimitReached,
             Detail::UnsupportedSignature(_) => ErrorKind::UnsupportedSignature,
+            Detail::InvalidColouringId => ErrorKind::InvalidColouringId,
         }
     }
 }
@@ -90,14 +109,17 @@ pub enum ErrorKind {
     /// A subgroup generator uses a generator that the presentation does not
     /// have.
     InvalidWord,
-    /// An input is over one of the limits of the crate, or a coset limit is
-    /// not between 1 and [`CosetLimit::MAX`](crate::CosetLimit::MAX).
+    /// An input is over one of the limits of the crate, or a coset limit, an
+    /// index limit, or a search budget is out of its range.
     ///
     /// The limits are 256 generators and 1024 relators in a presentation,
     /// 4096 letters in a relator base, 256 subgroup generators of at most
     /// 4096 letters each, 65536 letters in the relators written out with
     /// their exponents, and 16777216 table entries, which is the coset limit
-    /// times twice the number of generators.
+    /// times twice the number of generators. A coset limit is between 1 and
+    /// [`CosetLimit::MAX`](crate::CosetLimit::MAX), an index limit between 1
+    /// and [`IndexLimit::MAX`](crate::IndexLimit::MAX), and a search budget
+    /// between 1 and [`SearchBudget::MAX`](crate::SearchBudget::MAX).
     LimitExceeded,
     /// The enumeration defined as many cosets as its limit allows and needed
     /// another.
@@ -107,6 +129,9 @@ pub enum ErrorKind {
     /// The signature has a cone point or a corner of infinite order, for
     /// which the crate builds no presentation.
     UnsupportedSignature,
+    /// A text is not a colouring id: a colour count from 1 to 64 in decimal
+    /// without a leading zero, followed by 1 to 4 lower-case letters.
+    InvalidColouringId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -129,6 +154,10 @@ pub(crate) enum Detail {
     CosetLimitReached(u32),
     #[error("the signature {0} has an infinite order")]
     UnsupportedSignature(String),
+    #[error(
+        "the colouring id is not a colour count from 1 to 64 followed by 1 to 4 lower-case letters"
+    )]
+    InvalidColouringId,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,12 +170,15 @@ pub(crate) enum Limit {
     Expanded(u64),
     Cosets(u32),
     TableEntries { limit: u32, columns: usize },
+    Index(u32),
+    Budget(u64),
 }
 
 impl fmt::Display for Limit {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         use crate::enumerate::{MAX_EXPANDED, MAX_SUBGROUP_GENERATORS, MAX_TABLE_ENTRIES};
         use crate::presentation::{MAX_BASE, MAX_GENERATORS, MAX_RELATORS};
+        use crate::search::{MAX_INDEX, MAX_STEPS};
         use crate::table::MAX_COSETS;
         match *self {
             Self::BaseLetters => write!(
@@ -185,6 +217,14 @@ impl fmt::Display for Limit {
                 formatter,
                 "the coset limit {limit} times {columns} columns is more than {MAX_TABLE_ENTRIES} table entries"
             ),
+            Self::Index(index) => write!(
+                formatter,
+                "the index limit {index} is not between 1 and {MAX_INDEX}"
+            ),
+            Self::Budget(steps) => write!(
+                formatter,
+                "the search budget {steps} is not between 1 and {MAX_STEPS}"
+            ),
         }
     }
 }
@@ -194,7 +234,7 @@ mod tests {
     use super::{Detail, Error, ErrorKind, Limit};
 
     fn every_error() -> Vec<(Error, ErrorKind, &'static str)> {
-        vec![
+        let mut errors = vec![
             (
                 Error::build(Detail::EmptyBase),
                 ErrorKind::InvalidPresentation,
@@ -281,6 +321,33 @@ mod tests {
                 ErrorKind::UnsupportedSignature,
                 "cannot build presentation: the signature *(inf)22 has an infinite order",
             ),
+        ];
+        errors.extend(search_errors());
+        errors
+    }
+
+    fn search_errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
+            (
+                Error::search(Detail::LimitExceeded(Limit::Index(0))),
+                ErrorKind::LimitExceeded,
+                "cannot search subgroups: the index limit 0 is not between 1 and 64",
+            ),
+            (
+                Error::search(Detail::LimitExceeded(Limit::Budget(0))),
+                ErrorKind::LimitExceeded,
+                "cannot search subgroups: the search budget 0 is not between 1 and 68719476736",
+            ),
+            (
+                Error::search(Detail::LimitExceeded(Limit::Expanded(120_011))),
+                ErrorKind::LimitExceeded,
+                "cannot search subgroups: the relators expand to 120011 letters, more than 65536",
+            ),
+            (
+                Error::read_id(Detail::InvalidColouringId),
+                ErrorKind::InvalidColouringId,
+                "cannot read colouring id: the colouring id is not a colour count from 1 to 64 followed by 1 to 4 lower-case letters",
+            ),
         ]
     }
 
@@ -296,8 +363,14 @@ mod tests {
         for (error, _, _) in every_error() {
             let shown = error.to_string();
             assert!(
-                shown.starts_with("cannot build presentation: ")
-                    || shown.starts_with("cannot enumerate cosets: "),
+                [
+                    "cannot build presentation: ",
+                    "cannot enumerate cosets: ",
+                    "cannot search subgroups: ",
+                    "cannot read colouring id: ",
+                ]
+                .iter()
+                .any(|prefix| shown.starts_with(prefix)),
                 "{shown}"
             );
             assert_eq!(shown, shown.to_lowercase(), "{shown}");

@@ -1377,10 +1377,10 @@ Each test names the item of the field "Tests and acceptance" of Section 5.3, 5.4
 | Border subset | Every border pixel of the `pqr` image is a border pixel of the `*pqr` image in the same view | Integration test, `borders` | For each domain of the rotation domain set, with `2222` also at `aspect` 4, render it and its reflection domain with the same options: `Fill::One`, one sample per pixel, and `Shading::Flat`, at 193 by 193 pixels for a Euclidean domain and 192 by 192 pixels otherwise. Count only the pixels within disk or ball radius 0.9 for a hyperbolic or spherical domain. A border pixel is a pixel that is not the fill colour. The number of border pixels of the rotation domain that are not border pixels of the reflection domain is within the count bound of Section 6.8, the rotation domain has at least one border pixel, and it has at most as many border pixels as its reflection domain. The test prints both counts of each domain |
 | One-colour parity | None | Integration test, `images` | For `732` and `55` at 64 by 64 pixels with a 2 by 2 grid, the image with `Fill::Parity` of two different colours equals, byte for byte, the image with `Fill::One` of its first colour. The comparison is exact, because each sample takes the same colour by the same instructions (RND-33) |
 | Coset fill checks | Failure paths | Unit tests in `colour.rs` | For the domain of `*732` and the colouring `2a` of the side presentation of `22`, which has 2 generators, `CosetFill::new` gives `the colouring has 2 generators, and the domain has 3 sides`, also with the wrong number of colours. For the domain of `22` and its colouring `2a`, one colour gives `the colouring needs 2 colours, and 1 was given`, three colours give `the colouring needs 2 colours, and 3 were given`, and two colours give a fill that keeps them in order. Each error has the kind `InvalidOption` and the operation `build coset fill` |
-| Coset sample | Fold properties | Unit test in `renderer.rs` | For `*642` with `3a`, `532` with `5a`, which are candidate ids (Section 8.4), and `2222` with a colouring of 3 colours, at 64 by 64 pixels with one sample per pixel and a border width of 0, the colour of every converged sample of `Fill::Cosets` is the colour at the index that `colour_of` gives for the side sequence that the public `fold` visits for the point of that sample. A fill given a domain with more sides than its colouring has generators takes the border colour and counts every sample that folds through a side without a generator in `unconverged()`, without a panic |
+| Coset sample | Fold properties | Unit test in `renderer.rs` | For `*642` with `3a`, `532` with `5a`, which are ids of Section 8.4, and `2222` with a colouring of 3 colours, one of its 12 colourings of 3 colours in 4 classes of 3, at 64 by 64 pixels with one sample per pixel and a border width of 0, the colour of every converged sample of `Fill::Cosets` is the colour at the index that `colour_of` gives for the side sequence that the public `fold` visits for the point of that sample. A fill given a domain with more sides than its colouring has generators takes the border colour and counts every sample that folds through a side without a generator in `unconverged()`, without a panic |
 | Exact permutation | Fold properties | `proptest`, `properties` | For `*732`, `*642`, `*2222`, `532`, `432`, and `2222` with every colouring of up to 6 colours, and `732` with every colouring of up to 9 colours, which include colourings whose subgroups are not normal, a point $x$ drawn as "Pairing" draws it, and a side $i$: the coset colour of $P_i^{-1} x$ equals the image of the coset colour of $x$ under the inverse column of the generator of side $i$ in the table of the colouring. The coset colour of a point is the value of `colour_of` for the side sequence of its fold. A case is discarded when either fold does not converge or when its folded point lies, in `f64`, within the clearance of "Pairing" of a wall of the domain. The assertion of the exact permutation, and not only that each side permutes the colours, is what fails for the trace without the inversion on a rotation domain (Section 5.12) |
 | One and parity by cosets | None | Integration test, `images` | For `*732`, `*642`, `*2222`, `*532`, and `732` at 64 by 64 pixels with a 2 by 2 grid, the image of `Fill::Cosets` with the colouring `1a` and one colour equals the image of `Fill::One` with that colour, byte for byte, and for `*732`, `*642`, `*2222`, and `*532` the image of `Fill::Cosets` with the parity colouring and two colours equals the image of `Fill::Parity` with the same colours, byte for byte. The statistics are equal in both cases. The test finds the parity colouring among the colourings of 2 colours as the one in which the generator of side $i$ moves coset 0 exactly when side $i$ reverses orientation. The comparison is exact, because each sample takes a bit-identical colour from the same fold |
-| Coset bands | None | Integration test, `images` | As "Bands", for `*642` with `3a` and for `532` with `5a`, the candidate ids of Section 8.4, at 64 by 48 pixels with a 3 by 3 grid: `render` equals, byte for byte, the concatenation of `render_rows` over the splits of "Bands", and the merged statistics equal those of `render` (RND-38) |
+| Coset bands | None | Integration test, `images` | As "Bands", for `*642` with `3a` and for `532` with `5a`, ids of the coset golden images of Section 8.4, at 64 by 48 pixels with a 3 by 3 grid: `render` equals, byte for byte, the concatenation of `render_rows` over the splits of "Bands", and the merged statistics equal those of `render` (RND-38) |
 | Coset golden images | Golden images | Integration test, `images` | Section 8.4 |
 | Doctests | None | Doctests | The examples of the crate-level and item documentation |
 
@@ -1496,13 +1496,24 @@ The coset golden images use `Fill::Cosets` with the first $k$ of eight distinct 
 | Image | Colouring | File | What it fixes |
 | --- | --- | --- | --- |
 | `*642` | `3a`, 3 colours | `cos-6-4-2-3a.png` | A colouring whose subgroup is not normal on a reflection domain, from Bulatov's colour counts of `*642` (Section 4.4 of the colourings reference) |
-| `*732` | `8a`, 8 colours | `cos-7-3-2-8a.png` | The largest colour count of the golden images, and the only class with 8 colours of `*732` on the colouring prototype, which is in Frettloh's row `(7^3)` (Section 5.6 of the colourings reference) |
+| `*732` | `8a`, 8 colours | `cos-7-3-2-8a.png` | The largest colour count of the golden images, and the only class with 8 colours of `*732`, which is in Frettloh's row `(7^3)` (Section 5.6 of the colourings reference) |
 | `432` | `3a`, 3 colours | `cos-rot-4-3-2-3a.png` | A chiral colouring on a spherical rotation domain |
 | `532` | `5a`, 5 colours | `cos-rot-5-3-2-5a.png` | A chiral colouring on a spherical rotation domain |
 | `*2222` | `4a`, 4 colours, with the default `aspect` | `cos-2-2-2-2-4a.png` | A Euclidean colouring |
 | `*532` | `5a`, 5 colours, with the default rotation, light, and shading | `cos-5-3-2-5a.png` | A colouring on the ball, shaded |
 
-The ids are candidates that the colouring prototype measured, when it gave one id to each conjugacy class. The change that implements the coset fill confirms each id under the ids of GRP-37 of the group design, which rank every subgroup, and confirms that each image of `432` and `532` changes beyond the allowance under the defect "Trace without the inversion" of the table below, which makes it the golden image of a chiral colouring. A candidate that fails either condition is replaced by an id that meets it, and this table is updated in that change.
+Each id is that of the first member of its conjugacy class under the ids of GRP-37 of the group design, which rank every subgroup. The classes have these members in the order of their ids:
+
+| Image | Members of the class |
+| --- | --- |
+| `*642` `3a` | `3a`, `3b`, and `3c`, the only class with 3 colours |
+| `*732` `8a` | `8a` to `8h` |
+| `432` `3a` | `3a`, `3b`, and `3c` |
+| `532` `5a` | `5a` to `5e` |
+| `*2222` `4a` | `4a` and `4h`. The normal subgroup `4c` is a class of its own |
+| `*532` `5a` | `5a` to `5e` |
+
+Each image of `432` and `532` is to change beyond the allowance under the defect "Trace without the inversion" of the table below, which makes it the golden image of a chiral colouring. An id that fails this condition is replaced by an id that meets it, and the two tables of this section name the replacement.
 
 RND-20. The golden-image test MUST decode the committed file with `png`, convert both images to linear light through a table of the 256 byte values that the reference transfer function of Section 8.3 gives, and pass only when at most the allowed number of pixels differ and each differing pixel differs in each channel by at most one sample weight plus the linear-light size of one 8-bit step at the larger of the two stored values of that channel, because samples are averaged in linear light and stored as 8-bit sRGB, so a sample that changes colour moves the stored value by an amount that depends on the colours, a limit in stored units would be too loose for dark values and too tight for bright ones, and an integration test cannot read the linear value of a `Colour`.
 
@@ -1569,7 +1580,7 @@ The same procedure gave these counts for the rotation golden images:
 
 The first defect changes no pixel of a golden image of a reflection domain. The second changes no pixel of a Euclidean rotation image, for the reason that the defect "Tangent not carried" changes no Euclidean reflection image. It changes 828 pixels of `rot-5-5`, the smallest count of any defect tried that changes an image, which is still far above the allowance of 16 pixels.
 
-The coset fill has these deliberate defects, each in `colour_of` of `escher-group` or in the renderer. The column "Expected to fail" gives the tests that the colouring prototype or its reasoning predicts to fail, and the change that implements the coset fill applies each defect alone and records the tests that failed and the pixels that changed:
+The coset fill has these deliberate defects, each in `colour_of` of `escher-group` or in the renderer. The column "Expected to fail" gives the tests that the colouring prototype or its reasoning predicts to fail. Applying each defect alone gives the tests that fail and the pixels that change:
 
 | Defect | Expected to fail |
 | --- | --- |
@@ -1865,7 +1876,7 @@ No other document dictates these choices:
 | The coset colour only after the border estimate, so a border sample runs no trace | 5.12 |
 | A sample without a coset colour takes the border colour and counts in `unconverged()` | 5.12 |
 | The texts of `build coset fill` without an id | 7.2 |
-| Six coset golden images with candidate ids, two of them on rotation domains for a chiral colouring | 8.4 |
+| Six coset golden images, each with the id of the first member of its class, two of them on rotation domains for a chiral colouring | 8.4 |
 | The exact permutation of the colours by each side, and not only that each side permutes them | 8.1 |
 
 ### 12.3. Points for the Owner

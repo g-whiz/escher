@@ -14,11 +14,13 @@ comput = "comput"
 flate = "flate"
 
 [default.extend-identifiers]
-# Mathematical notation, names quoted from cited code and data, and a fragment
-# of the shell name pattern in the shebang checks.
+# Mathematical notation, a relator of a cited presentation written as letters,
+# names quoted from cited code and data, and a fragment of the shell name
+# pattern in the shebang checks.
 Hom = "Hom"
 LOD = "LOD"
 ba = "ba"
+baBAAA = "baBAAA"
 cfor = "cfor"
 iy = "iy"
 iz = "iz"

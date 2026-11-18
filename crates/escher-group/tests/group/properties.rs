@@ -1,14 +1,22 @@
 use std::collections::VecDeque;
 
+use std::collections::BTreeSet;
+use std::sync::LazyLock;
+
 use escher_group::{
-    CosetLimit, CosetTable, ErrorKind, Letter, Presentation, Relator, Word, conway_presentation,
+    Colouring, Colourings, CosetLimit, CosetTable, ErrorKind, Letter, Presentation, Relator,
+    SearchBudget, Word, colourings, colourings_of_index, conway_presentation, count_colourings,
     enumerate,
 };
 use proptest::collection::vec;
 use proptest::prelude::{any, prop_assert, prop_assert_eq};
 use proptest::proptest;
 
-use crate::common::{FIXTURES, letter, names, proptest_config, random_presentation};
+use crate::common::{
+    FIXTURES, SEARCH_BUDGET, budget, conway, coxeter, index_limit, letter, names, proptest_config,
+    random_presentation, small_presentation,
+};
+use crate::search::{class_tables, relabelled, rows};
 use crate::spherical::spherical_signatures;
 
 fn expanded(relator: &Relator) -> Word {
@@ -255,4 +263,224 @@ proptest! {
             prop_assert_eq!(original.ok(), changed.ok(), "{}", label);
         }
     }
+}
+
+fn search(presentation: &Presentation, limit: u32, steps: u64) -> Colourings {
+    match colourings(presentation, index_limit(limit), budget(steps)) {
+        Ok(found) => found,
+        Err(error) => panic!("the search fails: {error}"),
+    }
+}
+
+fn of_count(found: &Colourings, colours: u32) -> Vec<Colouring> {
+    found
+        .list()
+        .iter()
+        .filter(|colouring| colouring.colours() == colours)
+        .cloned()
+        .collect()
+}
+
+fn class_laws(found: &Colourings, presentation: &Presentation, limit: u32) -> Result<(), String> {
+    let mut seen = BTreeSet::new();
+    for colouring in found.list() {
+        check_laws(colouring.table(), presentation, &[])?;
+        if colouring.colours() > limit
+            || colouring.table().index()
+                != usize::try_from(colouring.colours()).map_err(|error| error.to_string())?
+        {
+            return Err(format!("{} has the wrong number of rows", colouring.id()));
+        }
+        if !seen.insert(rows(colouring.table())) {
+            return Err(format!("{} repeats a table", colouring.id()));
+        }
+    }
+    for class in class_tables(found) {
+        let own = rows(class.table());
+        let bases = u32::try_from(own.len()).map_err(|error| error.to_string())?;
+        let expansion: BTreeSet<Vec<Vec<u32>>> =
+            (0..bases).map(|base| relabelled(&own, base)).collect();
+        let members: BTreeSet<Vec<Vec<u32>>> = found
+            .list()
+            .iter()
+            .filter(|colouring| colouring.class() == class.id())
+            .map(|colouring| rows(colouring.table()))
+            .collect();
+        if expansion != members {
+            return Err(format!(
+                "the members of {} are not its relabellings",
+                class.id()
+            ));
+        }
+        if expansion.first() != Some(&own) {
+            return Err(format!(
+                "the class table {} is not the least of its class",
+                class.id()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn appended_conjugate(presentation: &Presentation, target: usize, by: usize) -> Presentation {
+    let mut relators = presentation.relators().to_vec();
+    if !relators.is_empty() {
+        let source = &relators[target % relators.len()];
+        relators.push(rotated(source, by, false));
+    }
+    match Presentation::new(presentation.generator_names().to_vec(), relators) {
+        Ok(presentation) => presentation,
+        Err(error) => panic!("{error}"),
+    }
+}
+
+proptest! {
+    #![proptest_config(proptest_config())]
+
+    #[test]
+    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
+    fn classes_are_least_and_hold_their_relabellings((presentation, limit) in small_presentation()) {
+        let found = search(&presentation, limit, SEARCH_BUDGET);
+        prop_assert_eq!(class_laws(&found, &presentation, limit), Ok(()));
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
+    fn equal_presentations_give_equal_colourings(
+        (presentation, limit) in small_presentation(),
+        relator_keys in vec(any::<u32>(), 4),
+        target in any::<usize>(),
+        by in any::<usize>(),
+        invert in any::<bool>(),
+        append in any::<bool>(),
+    ) {
+        let variant = if append {
+            appended_conjugate(&presentation, target, by)
+        } else {
+            let mut relators = shuffled(presentation.relators(), &relator_keys);
+            let position = target % relators.len();
+            relators[position] = rotated(&relators[position], by, invert);
+            match Presentation::new(presentation.generator_names().to_vec(), relators) {
+                Ok(variant) => variant,
+                Err(error) => panic!("{error}"),
+            }
+        };
+        let original = search(&presentation, limit, SEARCH_BUDGET);
+        let changed = search(&variant, limit, SEARCH_BUDGET);
+        if original.complete_to() == limit && changed.complete_to() == limit {
+            prop_assert_eq!(original.list(), changed.list());
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
+    fn budgets_and_limits_change_only_how_far_a_call_is_complete(
+        (presentation, limit) in small_presentation(),
+        other_limit in 1_u32..=5,
+        smaller in 1_u64..=20_000,
+        extra in 0_u64..=200_000,
+    ) {
+        let low = search(&presentation, limit, smaller);
+        let high = search(&presentation, limit, smaller + extra);
+        prop_assert!(high.complete_to() >= low.complete_to());
+        let other = search(&presentation, other_limit, smaller + extra);
+        for (left, right) in [(&low, &high), (&low, &other), (&high, &other)] {
+            for colours in 1..=left.complete_to().min(right.complete_to()) {
+                prop_assert_eq!(of_count(left, colours), of_count(right, colours));
+            }
+            let above = |found: &Colourings| found.list().iter().all(|colouring| colouring.colours() <= found.complete_to());
+            prop_assert!(above(left) && above(right));
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
+    fn counts_and_single_colour_counts_agree_with_the_list((presentation, limit) in small_presentation()) {
+        let found = search(&presentation, limit, SEARCH_BUDGET);
+        let counts = count_colourings(&presentation, index_limit(limit), budget(SEARCH_BUDGET));
+        prop_assert!(counts.is_ok());
+        if let Ok(counts) = counts
+            && found.complete_to() == limit
+            && counts.complete_to() == limit
+        {
+            for colours in 1..=limit {
+                let listed = of_count(&found, colours);
+                let classes = listed.iter().filter(|colouring| colouring.class() == colouring.id()).count();
+                prop_assert_eq!(counts.colourings(colours), u64::try_from(listed.len()).ok());
+                prop_assert_eq!(counts.classes(colours), u64::try_from(classes).ok());
+                let single = colourings_of_index(&presentation, index_limit(colours), budget(SEARCH_BUDGET));
+                prop_assert!(single.is_ok());
+                if let Ok(single) = single
+                    && single.is_complete()
+                {
+                    prop_assert_eq!(single.list(), listed.as_slice());
+                }
+            }
+            prop_assert_eq!(counts.colourings(limit + 1), None);
+            prop_assert_eq!(counts.colourings(0), None);
+        }
+    }
+}
+
+fn relator_sides(presentation: &Presentation) -> Vec<Vec<u8>> {
+    presentation
+        .relators()
+        .iter()
+        .filter(|relator| {
+            relator
+                .base()
+                .letters()
+                .iter()
+                .all(|letter| !letter.is_inverse())
+        })
+        .map(|relator| {
+            (0..relator.exponent())
+                .flat_map(|_| relator.base().letters().iter().map(|letter| letter.index()))
+                .collect()
+        })
+        .collect()
+}
+
+static WORD_CASES: LazyLock<Vec<(Presentation, Colourings)>> = LazyLock::new(word_cases);
+
+fn word_cases() -> Vec<(Presentation, Colourings)> {
+    let conway_2222 = conway("2222");
+    let reflections = coxeter(6, 4, 2);
+    let reflection_colourings = search(&reflections, 8, u64::from(u32::MAX));
+    let rotation_colourings = search(&conway_2222, 6, u64::from(u32::MAX));
+    vec![
+        (reflections, reflection_colourings),
+        (conway_2222, rotation_colourings),
+    ]
+}
+
+proptest! {
+    #![proptest_config(proptest_config())]
+
+    #[test]
+    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
+    fn a_relator_inside_a_side_sequence_keeps_the_colour(
+        choice in any::<usize>(),
+        first in vec(0_u8..4, 0..=6),
+        last in vec(0_u8..4, 0..=6),
+    ) {
+        for (presentation, found) in WORD_CASES.iter() {
+            let generators = u8::try_from(presentation.generator_count()).unwrap_or(u8::MAX);
+            let first: Vec<u8> = first.iter().map(|side| side % generators).collect();
+            let last: Vec<u8> = last.iter().map(|side| side % generators).collect();
+            prop_assert!(!found.list().is_empty());
+            let colouring = &found.list()[choice % found.list().len()];
+            let plain: Vec<u8> = first.iter().chain(&last).copied().collect();
+            for relator in relator_sides(presentation) {
+                let padded: Vec<u8> = first.iter().chain(&relator).chain(&last).copied().collect();
+                prop_assert_eq!(colouring.colour_of(&padded), colouring.colour_of(&plain), "{}", colouring.id());
+            }
+        }
+    }
+}
+
+#[test]
+fn search_budgets_are_built_from_steps() {
+    assert_eq!(budget(5).get(), 5);
+    assert_eq!(SearchBudget::default().get(), 1 << 28);
 }

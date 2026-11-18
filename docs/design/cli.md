@@ -317,13 +317,13 @@ The colouring depends on the domain, so step 4 comes after the domain is built i
 
 CLI-35. When the colouring is `parity` and the domain has no reversing side, `render` MUST stop at step 4 with the diagnostic of Section 6.8 and write no file, because every element of the group of such a domain preserves orientation, so the parity of the reversals has one class only and no parity colouring exists for it (Section 5.7 of `docs/design/architecture.md`), and an image in one colour would hide that the requested colouring was not drawn (`DEC-32`).
 
-To resolve a colouring id with the colour count $k$, step 4 calls `side_presentation()` on the domain once, then `colourings_of_index` of `escher-group` with $k$ as its `IndexLimit` and `SearchBudget::DEFAULT`, which runs only the search of the colourings with exactly $k$ colours (GRP-35 of `docs/design/group.md`), and then `find` with the id on the result. It has these outcomes:
+To resolve a colouring id with the colour count $k$, step 4 calls `side_presentation()` on the domain once. It then calls `colourings_of_index` of `escher-group` with $k$ as its `IndexLimit` and `SearchBudget::DEFAULT`, which searches only the colourings with exactly $k$ colours (GRP-35 of `docs/design/group.md`), and calls `find` with the id on the resulting `ColouringsOfIndex`. The outcomes are:
 
 | Outcome | Result |
 | --- | --- |
 | `find` returns the colouring | Step 4 goes on with it |
-| `complete_to()` is $k$, and `find` returns none | Stop, with the diagnostic of Section 6.8 that the colouring does not exist, which gives the length of the list, the number of colourings with $k$ colours |
-| `complete_to()` is 0, because the search stopped at a search limit | Stop, with the diagnostic of Section 6.8 that the search stopped at a limit, which claims nothing about the existence of the id |
+| `is_complete()` is true, and `find` returns none | Stop, with the diagnostic of Section 6.8 that the colouring does not exist, which gives `list().len()`, the number of colourings with $k$ colours |
+| `is_complete()` is false, because the search stopped at a limit | Stop, with the diagnostic of Section 6.8 that the search stopped at a limit, which claims nothing about the existence of the id |
 | `side_presentation()` or `colourings_of_index` returns an error | Stop, with `error: cannot render <signature>` and a `caused by` line with the `Display` text of the error |
 
 This resolution is the proposed default `DEC-44` of `docs/design/architecture.md`.
@@ -394,7 +394,7 @@ The aliases `one` and `parity` keep the fills `Fill::One` and `Fill::Parity` of 
 
 CLI-48. `render` MUST draw `one` and `parity` with `Fill::One` and `Fill::Parity`, and with the same colours `--colouring 1a` MUST give the bytes of `--colouring one`, and the id of the parity colouring the bytes of `--colouring parity`, because a user who copies an id from the lines of `info` expects the picture of its alias, and `info` names the aliases in its `Colouring` lines (Section 5.8). The parity colouring is the colouring with 2 colours in which the generator of side $i$ moves coset 0 exactly when side $i$ is a reversing side (`UNV-18`).
 
-On a prototype outside the repository, which gave one id to each conjugacy class, the parity colouring was the last colouring with 2 colours of each reflection domain that it tried: `2a` for `*732`, `*532`, and `*333`, `2c` for `*632`, `2g` for `*642` and `*442`, and `2o` for `*2222`. These ids are to be confirmed under the ids of GRP-37 by the change that implements the colouring lines. The test "Colouring aliases" of Section 8.1 asserts both equalities of CLI-48 on the files.
+Under the ids of GRP-37, the parity colouring is the last colouring with 2 colours of each reflection domain, and Section 7.15 of `docs/design/group.md` gives its id for each signature, such as `2g` for `*642`. The test "Colouring aliases" of Section 8.1 asserts both equalities of CLI-48 on the files.
 
 The default colours are a table of 12 colours in the module `render`, with no colour crate, as the owner decided (`DEC-29` and `DEC-39`):
 
@@ -535,7 +535,7 @@ Rows 14 and 15 separate the values with a comma and one space. Angles are in deg
 
 The examples follow the canonical form that `docs/design/signature.md` defines. Each value cites the section of ON that gives it or its formula. The deformation dimension applies the formula of ON 10.1 with the reading of the Euler characteristic of the underlying surface that Section 15.1 of `docs/design/signature.md` records. The domain summary and the `Domain` line follow Section 5.5, the colouring lines Section 5.8, and the verification lines Section 5.6.
 
-The colouring lines of these examples hold the default colour limit of 12. A value in angle brackets, such as `<count>`, is to be measured by the change that implements the colouring lines, which writes the measured value in its place. The other numbers of colourings come from a prototype outside the repository, which counted the conjugacy classes of subgroups and the size of some classes (Section 5.8). The numbers with 1 and 2 colours equal its counts of classes, and that change confirms every number.
+The colouring lines of these examples hold the default colour limit of 12. Every number of colourings in them was measured with `count_colourings` and `colourings` of `escher-group` on the side presentation of the domain, with the default budget. A prototype outside the repository counted the conjugacy classes of subgroups and the size of some classes (Section 5.8), and the classes that the crate finds equal its counts.
 
 This example shows a compact hyperbolic signature with a domain:
 
@@ -554,11 +554,11 @@ Domain: 3 mirror sides
 Corner angles in degrees: 25.714286, 60.000000, 90.000000
 Side lengths: 0.545275, 0.620672, 0.283128
 Domain area: 0.074800
-Colourings: <count>, complete to 12 colours
+Colourings: 19, complete to 12 colours
 Colourings with 1 colour: 1
 Colourings with 2 colours: 1
 Colourings with 8 colours: 8
-Colourings with 9 colours: <count>
+Colourings with 9 colours: 9
 ```
 
 The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. Section 5.1 of `docs/design/poc-plan.md` states all three values. The prototype of the colouring search found subgroups of `*732` up to 12 colours only with 1, 2, 8, and 9 colours, and the 8 subgroups with 8 colours in one conjugacy class. The corner angles are $180/7$, 60, and 90 degrees, in the corner order of Section 5.1 of `docs/design/domain.md`. A 256-bit computation of the exact triangle gave the side lengths 0.5452748318, 0.6206717376, and 0.2831281534 and the area $\pi/42 = 0.0747998251$, so the printed values are correct to the digits shown. `Domain area` is the area of the triangle measured from its angles, and `Area` is the exact value from the Euler characteristic, so the two agree to the digits shown.
@@ -580,13 +580,13 @@ Domain: 3 mirror sides
 Corner angles in degrees: 36.000000, 60.000000, 90.000000
 Side lengths: 0.553574, 0.652358, 0.364864
 Domain area: 0.104720
-Colourings: <count>, complete to 12 colours
+Colourings: 46, complete to 12 colours
 Colourings with 1 colour: 1
 Colourings with 2 colours: 1
 Colourings with 5 colours: 5
 Colourings with 6 colours: 6
-Colourings with 10 colours: <count>
-Colourings with 12 colours: <count>
+Colourings with 10 colours: 15
+Colourings with 12 colours: 18
 ```
 
 ON 6.4 gives the Euler characteristic $1/60$ and the order 120, which the table of ON 8.2 lists. The area comes from ON 7.3. The domain is the spherical triangle with the angles $\pi/5$, $\pi/3$, and $\pi/2$, in the corner order of the domain design. A 256-bit computation of the exact triangle on a prototype outside the repository gave the side lengths 0.5535743589, 0.6523581398, and 0.3648638281, in side order, and the area $\pi/30 = 0.1047197551$, so the printed values are correct to the digits shown. The snapshot of Section 8.1 fixes every printed value of the other spherical inputs. A spherical signature has no `Deformation dimension` line, and no `Parameter` line, because no spherical signature has a shape parameter. The prototype of the colouring search found subgroups of `*532` up to 12 colours only with 1, 2, 5, 6, 10, and 12 colours, with one conjugacy class of 5 subgroups with 5 colours and one of 6 subgroups with 6 colours.
@@ -610,10 +610,10 @@ Parity colouring: none, every side pairing preserves orientation
 Corner angles in degrees: 51.428571, 90.000000, 120.000000, 90.000000
 Side lengths: 0.545275, 0.545275, 0.283128, 0.283128
 Domain area: 0.149600
-Colourings: <count>, complete to 12 colours
+Colourings: 32, complete to 12 colours
 Colourings with 1 colour: 1
-Colourings with 7 colours: <count>
-Colourings with 8 colours: <count>
+Colourings with 7 colours: 14
+Colourings with 8 colours: 8
 Colourings with 9 colours: 9
 ```
 
@@ -706,15 +706,15 @@ Domain: 3 mirror sides
 Corner angles in degrees: 30.000000, 60.000000, 90.000000
 Side lengths: 1.000000, 1.154701, 0.577350
 Domain area: 0.288675
-Colourings: <count>, complete to 12 colours
+Colourings: 180, complete to 12 colours
 Colourings with 1 colour: 1
 Colourings with 2 colours: 3
-Colourings with 3 colours: <count>
-Colourings with 4 colours: <count>
-Colourings with 6 colours: <count>
-Colourings with 8 colours: <count>
-Colourings with 9 colours: <count>
-Colourings with 12 colours: <count>
+Colourings with 3 colours: 6
+Colourings with 4 colours: 5
+Colourings with 6 colours: 32
+Colourings with 8 colours: 12
+Colourings with 9 colours: 27
+Colourings with 12 colours: 94
 ```
 
 ON 8.1 lists `*632` among the 17 Euclidean signatures. A Euclidean signature has no `Area` line, because `area_over_pi()` returns no value for it, and no `Deformation dimension` line. The domain is the triangle with the angles $\pi/6$, $\pi/3$, and $\pi/2$, scaled to the unit of `DEC-17`, in which side 0 has length 1. The angles, the length of side 0, and the area follow from the construction of Section 6.5 of `docs/design/domain.md`. The snapshot of Section 8.1 fixes the lengths of sides 1 and 2. The prototype of the colouring search found subgroups of `*632` up to 12 colours only with 1, 2, 3, 4, 6, 8, 9, and 12 colours.
@@ -735,15 +735,15 @@ Domain: 4 mirror sides
 Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000
 Side lengths: 1.000000, 1.000000, 1.000000, 1.000000
 Domain area: 1.000000
-Colourings: <count>, complete to <limit> colours
+Colourings: 1035, complete to 12 colours
 Colourings with 1 colour: 1
 Colourings with 2 colours: 15
-Colourings with 3 colours: <count>
-Colourings with 4 colours: <count>
+Colourings with 3 colours: 6
+Colourings with 4 colours: 67
 ...
 ```
 
-The domain is the square of the default `aspect`, with area 1 in the unit of `DEC-17`. `info` takes no setting (Section 4.3), so it prints the square for every invocation. The prototype of the colouring search found 343 conjugacy classes of `*2222` up to 12 colours, with subgroups at every colour count from 1 to 12, so the text has a line for each of them, and `...` stands for the lines with 5 to 12 colours. Each class holds one or more subgroups, so the number of colourings is larger, and whether the search reaches a search limit before 12 colours, which `<limit>` and the end of the first line show, is to be measured.
+The domain is the square of the default `aspect`, with area 1 in the unit of `DEC-17`. `info` takes no setting (Section 4.3), so it prints the square for every invocation. A prototype of the colouring search outside the repository counted 343 conjugacy classes of `*2222` up to 12 colours. The subgroups have every colour count from 1 to 12, so the text has a `Colourings with` line for each of them, and `...` stands for the lines with 5 to 12 colours. Each class holds one or more subgroups, so the number of colourings, 1035, is larger. The search completes 12 colours without reaching a search limit.
 
 These two commands show a frieze, with the infinite order in its two spellings. They print the same text:
 
@@ -820,11 +820,11 @@ Domain: 3 mirror sides
 Corner angles in degrees: 25.714286, 60.000000, 90.000000
 Side lengths: 0.545275, 0.620672, 0.283128
 Domain area: 0.074800
-Colourings: <count>, complete to 12 colours
+Colourings: 19, complete to 12 colours
 Colourings with 1 colour: 1
 Colourings with 2 colours: 1
 Colourings with 8 colours: 8
-Colourings with 9 colours: <count>
+Colourings with 9 colours: 9
 Check isometries: passed, residual <residual>, tolerance 1.0e-9
 Check pairings: passed, residual <residual>, tolerance 1.0e-9
 Check walls: passed, residual <residual>, tolerance 1.0e-9
@@ -1141,7 +1141,7 @@ CLI-45. For every built domain, `info` MUST print row 17 and the rows 18 in the 
 
 CLI-46. `--max-colours` MUST set the colour limit of rows 17 to 19 together, with the default 12 and the range of Section 4.3, and with `--colourings` rows 17 and 18 MUST come from the same call as the rows 19, because the counts and the list then describe one search, and a count that came from another call could disagree with the list beside it. The colour limit changes no id: an id with $k$ colours is the same for every limit of at least $k$ (GRP-37, GRP-39).
 
-`colourings` stops at its limit on the colourings that one call stores (GRP-36 of `docs/design/group.md`), and `count_colourings` stores none, so only its step budget stops it. With `--colourings`, row 17 can therefore name a lower colour count than without the flag, for the same signature and limit. Every count of a colour count that both complete is the same, because the result of each colour count up to `complete_to()` depends on the presentation alone (GRP-39).
+`colourings` stops at its limit on the colourings that one call stores (GRP-36 of `docs/design/group.md`), and `count_colourings` stores none, so only its step budget stops it. With `--colourings`, row 17 can therefore name a lower colour count than without the flag, for the same signature and limit. Every colour count that both complete has the same count, because the result for each colour count up to `complete_to()` depends on the presentation alone (GRP-39).
 
 CLI-47. When the search reaches a search limit, `info` MUST print the third form of row 17 and MUST print no line about a colour count above $m$, and every outcome of the colouring lines, including a search limit and an error, MUST leave the status as it would be without them, because a search that stopped at a limit shows nothing about the colour counts that it did not complete, as an enumeration that reaches its coset limit shows nothing about the index (Section 5.7), and the signature and its domain are still valid.
 
@@ -1198,11 +1198,23 @@ Colouring: 3b, 3 colours
 Colouring: 3c, 3 colours
 ```
 
-Singerman's seven colourings with 2 colours of `*642` (Section 6 of `docs/research/colourings.md`) and Bulatov's colouring with 3 colours (Section 4.4 of that document) appear here. The prototype found one conjugacy class of 3 subgroups with 3 colours, and gave the parity colouring the last id with 2 colours. The change that implements the colouring lines confirms the id of the parity colouring under the ids of GRP-37.
+Singerman's seven colourings with 2 colours of `*642` (Section 6 of `docs/research/colourings.md`) and Bulatov's colouring with 3 colours (Section 4.4 of that document) appear here. The 3 subgroups with 3 colours form one conjugacy class, and the parity colouring has the last id with 2 colours, under the ids of GRP-37 as on the prototype.
 
 Without `--colourings`, the same commands print only the first lines, up to the last `Colourings with` line.
 
-A search that stops at a limit prints the third form of row 17. On the prototype, which kept one colouring for each conjugacy class, the search of `*664` up to 12 colours stopped at its limit of 4096 classes after it completed 11 colours, and those of `*666`, `*866`, `*888`, `664`, and `666` stopped after 10, 11, 11, 9, and 8 colours. The step budget stopped `*(1000)(1000)(1000)`, `(1000)(1000)(1000)`, `*(998)(981)(961)`, and `(998)(981)(961)` after 8, 7, 10, and 9 colours. With one colouring for each subgroup, the search keeps more colourings, so the colour count at which each stops is to be measured. The form of the line is:
+A search that stops at a limit prints the third form of row 17. Up to 12 colours, these searches stop at a limit:
+
+| Signature | Complete to, without `--colourings` | Complete to, with `--colourings` | Limit that stops it |
+| --- | --- | --- | --- |
+| `*664`, `*666`, `*866`, `*888` | 12, no stop | 11 | The limit on the stored colourings, with `--colourings` |
+| `664` | 11 | 10 | The step budget without `--colourings`, and the limit on the stored colourings with it |
+| `666` | 10 | 9 | The step budget without `--colourings`, and the limit on the stored colourings with it |
+| `*(1000)(1000)(1000)` | 8 | 8 | The step budget |
+| `(1000)(1000)(1000)` | 7 | 7 | The step budget |
+| `*(998)(981)(961)` | 10 | 10 | The step budget |
+| `(998)(981)(961)` | 9 | 9 | The step budget |
+
+The form of the line is:
 
 ```text
 Colourings: <n>, complete to <m> colours, the search stopped at a limit before <m + 1> colours
@@ -1210,12 +1222,10 @@ Colourings: <n>, complete to <m> colours, the search stopped at a limit before <
 
 The status stays as it is without the colouring lines (CLI-47).
 
-These figures of the prototype, which kept one colouring for each conjugacy class, show the cost that the colouring lines add to `info`:
+These figures of `escher-group`, measured in a release build on one thread with the side presentation of each domain, show the cost that the colouring lines add to `info` up to 12 colours:
 
-- The search up to 12 colours took under 15 ms in a release build for every family of built domains, except the searches that reached the step budget, about 0.54 s each, and `*(1000)(1000)2`, 0.42 s. A debug build took about 13 times as long.
-- The number of `Colouring` lines up to 12 colours, one for each class, was 343 for `*2222`, 259 for `2222`, 190 for `*642`, 162 for `642`, 98 for `*442`, and at most 60 for every other family that completed 12 colours, apart from the lines of `*(1000)(1000)2`, 1508.
-
-With one colouring for each subgroup, the counts are larger and the times are to be measured by the change that implements the colouring lines.
+- The search took at most 6.3 ms, with or without `--colourings`, for every family of built domains other than those that this list names. It took 0.07 to 0.33 s for `*664`, `*666`, `*866`, and `*888`, about 1.2 s for `664` and `666` without `--colourings`, about 1.2 s for `*(1000)(1000)(1000)`, `(1000)(1000)(1000)`, `*(998)(981)(961)`, and `(998)(981)(961)`, which reach the step budget, and 0.33 s for `*(1000)(1000)2`.
+- The number of `Colouring` lines, one for each colouring, is 1035 for `*2222`, 1123 for `2222`, 961 for `*642`, 1203 for `642`, 325 for `*442`, and 14002 for `*(1000)(1000)2`.
 
 ## 6. Diagnostics
 
@@ -1369,7 +1379,7 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 | The colouring is `parity` and the domain has no reversing side (CLI-35) | 4 | `error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation` |
 | `side_presentation()` returns an error for a colouring id | 4 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
 | The colouring id names no colouring of the domain (CLI-43) | 4 | `error: cannot render *642: the colouring 3d does not exist, because the signature has 3 colourings with 3 colours`, with the id, the number of colourings with its colour count, and that count. The words are `1 colouring with` and `no colouring with` for the numbers 1 and 0, and `1 colour` for the colour count 1 |
-| The search for a colouring id reaches a search limit before it finds the id (CLI-43) | 4 | `error: cannot render *664: the search for the colouring 12a stopped at a limit before it found it`, with the id |
+| The search for a colouring id reaches a search limit before it finds the id (CLI-43) | 4 | `error: cannot render *666: the search for the colouring 12a stopped at a limit before it found it`, with the id |
 | `colourings_of_index` returns an error | 4 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-group` |
 | A colouring id with more than 12 colours and no `--colours` (CLI-44) | 4 | `error: cannot render *732: the colouring 15a needs 15 colours, more than the 12 default colours, so give 15 colours with --colours`, with the id and, twice, its colour count |
 | `--colours` has the wrong number of items | 4 | `error: cannot render *732: the colouring parity needs 2 colours, and 3 were given`, with the colouring, which is `one`, `parity`, or the id, the number it needs, and the number of items. The words are `1 colour` and `1 was given` for the number 1 |
@@ -1499,14 +1509,14 @@ escher render '*732' --colouring 15a -o tiling.png
 error: cannot render *732: the colouring 15a needs 15 colours, more than the 12 default colours, so give 15 colours with --colours
 ```
 
-This example shows a search that stops at a limit before it finds the id. On the prototype, which kept one colouring for each conjugacy class, the search of `*664` stopped at its limit of 4096 classes within 12 colours, and whether the search of exactly 12 colours that `render` runs stops there too is to be measured:
+This example shows a search that stops at a limit before it finds the id. The search for the colourings of exactly 12 colours of `*666` stops at the limit on the stored colourings, so `is_complete()` is false. That of `*664` completes with 51213 colourings and finds `12a`. Those of `*866`, `*888`, `664`, and `666` stop as that of `*666` does:
 
 ```sh
-escher render '*664' --colouring 12a -o tiling.png
+escher render '*666' --colouring 12a -o tiling.png
 ```
 
 ```text
-error: cannot render *664: the search for the colouring 12a stopped at a limit before it found it
+error: cannot render *666: the search for the colouring 12a stopped at a limit before it found it
 ```
 
 This example shows two colours for a colouring with 3 colours:
@@ -1988,7 +1998,7 @@ None of these blocks the implementation:
 
     A prototype outside the repository took 3.6 s and 17.2 s for `(16384)(16384)`, and 2.4 s and 6.7 s for `2*(4096)`. The largest group order of a domain that `escher-domain` builds is 4000, of `*(1000)22`. The alternative is a lower gate for `info`, such as a group order of at most 4096, which keeps every built domain and prints `not run` for the larger orders.
 25. The status of an enumeration that reaches the coset limit (CLI-40). Such a run prints the line `not found within 16384 cosets` and leaves the exit status at 0. Every spherical presentation measured with a group order within the limit finishes at exactly its order (Section 5.7), so a run that reaches the limit there may itself indicate a defect, such as a dropped relator that makes the group infinite. The alternative is exit status 1 in that case. The design keeps status 0, because no source read guarantees that an enumeration finishes within the group order (Section 7.15 of `docs/research/colourings.md`).
-26. Long colouring listings (Section 5.8). With one colouring for each subgroup, `--colourings` prints more lines than the counts of conjugacy classes that the prototype measured, 343 for `*2222` up to 12 colours, and the lines of some families exceed a thousand. The design prints the counts by default and the list only with the flag, as the owner decided on 2026-11-18. The alternative marks the class of each colouring in its `Colouring` line from `Colouring::class` of `escher-group`, such as `3b, 3 colours, class 3a`, which would let a reader skip the conjugates.
+26. Long colouring listings (Section 5.8). With one colouring for each subgroup, `--colourings` prints more lines than the counts of conjugacy classes that the prototype measured. Up to 12 colours it prints 1035 lines for `*2222`, against 343 classes, and the lines of `*2222`, `2222`, `642`, and `*(1000)(1000)2` exceed a thousand (Section 5.8). The design prints the counts by default and the list only with the flag, as the owner decided on 2026-11-18. The alternative marks the class of each colouring in its `Colouring` line from `Colouring::class` of `escher-group`, such as `3b, 3 colours, class 3a`, which would let a reader skip the conjugates.
 27. The default colours (CLI-44). Entries 3 to 12 come from a prototype in the OKLCH colour space and were not checked for colour-vision deficiency. A colouring with more than 12 colours needs `--colours`. The alternatives are other entries after such a check, or more entries, which the prototype found hard to keep distinct: at a smallest OKLab distance of 0.06, it found no more than 56 colours.
 28. The colour limit of `info` (Section 4.3). The default is 12, and `--max-colours` accepts up to `IndexLimit::MAX`. A search can reach the step budget near the top of that range for the signatures with corner orders near 1000 (Section 5.8), and `info` has no option for the budget. The alternative is an option for the budget, which adds an input whose cost is not bounded.
 29. The status of a search that stops at a limit (CLI-47). `info` prints the third form of row 17 and keeps the status, and `render` with an id gives `Failure`. The alternative for `info` is a status of its own, which a script would have to tell from a failed check.

@@ -121,9 +121,9 @@ pub(crate) fn run(
 }
 
 pub(crate) struct Prepared {
-    columns: usize,
-    data: Vec<u16>,
-    relators: Vec<Span>,
+    pub(crate) columns: usize,
+    pub(crate) data: Vec<u16>,
+    pub(crate) relators: Vec<Span>,
     pub(crate) lists: Vec<Vec<Span>>,
     one_letter: Vec<u16>,
     subgroup: Vec<Vec<u16>>,
@@ -136,7 +136,7 @@ pub(crate) struct Span {
 }
 
 impl Span {
-    fn letters(self, data: &[u16]) -> &[u16] {
+    pub(crate) fn letters(self, data: &[u16]) -> &[u16] {
         let start = index(self.start);
         data.get(start..start + index(self.len)).unwrap_or_default()
     }
@@ -165,15 +165,7 @@ fn check_limits(presentation: &Presentation, subgroup: &[Word], limit: CosetLimi
             return Err(Error::enumerate(Detail::SubgroupLetter(position)));
         }
     }
-    let mut expanded: u64 = 0;
-    for relator in presentation.relators() {
-        expanded = expanded.saturating_add(relator.expanded_len());
-    }
-    if expanded > MAX_EXPANDED {
-        return Err(Error::enumerate(Detail::LimitExceeded(Limit::Expanded(
-            expanded,
-        ))));
-    }
+    check_expanded(presentation).map_err(Error::enumerate)?;
     let columns = 2 * generators;
     let entries = u64::from(limit.get()).saturating_mul(u64::try_from(columns).unwrap_or(u64::MAX));
     if entries > MAX_TABLE_ENTRIES {
@@ -187,12 +179,27 @@ fn check_limits(presentation: &Presentation, subgroup: &[Word], limit: CosetLimi
     Ok(())
 }
 
+pub(crate) fn check_expanded(presentation: &Presentation) -> core::result::Result<(), Detail> {
+    let mut expanded: u64 = 0;
+    for relator in presentation.relators() {
+        expanded = expanded.saturating_add(relator.expanded_len());
+    }
+    if expanded > MAX_EXPANDED {
+        return Err(Detail::LimitExceeded(Limit::Expanded(expanded)));
+    }
+    Ok(())
+}
+
 pub(crate) fn prepare(
     presentation: &Presentation,
     subgroup: &[Word],
     limit: CosetLimit,
 ) -> Result<Prepared> {
     check_limits(presentation, subgroup, limit)?;
+    Ok(build(presentation, subgroup))
+}
+
+pub(crate) fn build(presentation: &Presentation, subgroup: &[Word]) -> Prepared {
     let columns = 2 * presentation.generator_count();
     let mut data = Vec::new();
     let mut words = Vec::new();
@@ -250,14 +257,14 @@ pub(crate) fn prepare(
                 .collect()
         })
         .collect();
-    Ok(Prepared {
+    Prepared {
         columns,
         data,
         relators,
         lists,
         one_letter,
         subgroup,
-    })
+    }
 }
 
 fn push_doubled(data: &mut Vec<u16>, letters: impl Iterator<Item = u16> + Clone) -> Span {
@@ -734,7 +741,7 @@ impl<'a> State<'a> {
     }
 }
 
-fn grow_within<T>(vector: &mut Vec<T>, extra: usize, most: usize) {
+pub(crate) fn grow_within<T>(vector: &mut Vec<T>, extra: usize, most: usize) {
     let needed = vector.len() + extra;
     if needed > vector.capacity() {
         let target = (2 * vector.len()).max(needed).min(most).max(needed);

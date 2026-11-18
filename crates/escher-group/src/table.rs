@@ -170,6 +170,18 @@ impl CosetTable {
         )
     }
 
+    pub(crate) fn from_entries(cosets: usize, generators: usize, entries: Vec<u32>) -> Self {
+        Self {
+            cosets,
+            generators,
+            entries,
+        }
+    }
+
+    pub(crate) fn entries(&self) -> &[u32] {
+        &self.entries
+    }
+
     pub(crate) fn standard(
         columns: usize,
         rows: usize,
