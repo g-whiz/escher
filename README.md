@@ -8,7 +8,7 @@ The repository holds the tooling, the documents that set its standards, the rese
 
 | Crate | Purpose |
 | --- | --- |
-| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, with the side pairs of a rotation domain and the colourings of its tiling, with `--colourings` lists those colourings with their ids, with `--check` verifies that domain, and with `--presentation` prints the presentations of the group and, for a spherical signature, counts the elements of the group by coset enumeration, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle, of a Euclidean or spherical reflection signature with a fundamental domain, or of the rotation signature of any of these, to a PNG file. It is not published. |
+| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, with the side pairs of a rotation domain and the colourings of its tiling, with `--colourings` lists those colourings with their ids, with `--check` verifies that domain, and with `--presentation` prints the presentations of the group and, for a spherical signature, counts the elements of the group by coset enumeration, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle, of a Euclidean or spherical reflection signature with a fundamental domain, or of the rotation signature of any of these, to a PNG file, with one colour, two colours by parity, or a colouring given by its id. It is not published. |
 | `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, of the Euclidean reflection triangles `*632`, `*442`, and `*333`, of the rectangle `*2222`, whose shape parameter `aspect` sets the ratio of its sides, of the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and of the lune `*nn`, with a wall and a reflection for each side. For the rotation signature of each of them, the signature without the star, such as `732`, it builds the double of that domain across one wall, whose sides are paired by rotations and, for `2222`, a translation. It measures the side lengths, corner angles, and area of the domain, checks it numerically, and reads a presentation of the group from its sides, with one generator for each side. It is not published. |
 | `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model, of the Euclidean plane, and of the sphere, over the vector and matrix types of `glam`: points, distances, walls and lines, reflections and other isometries, and the map between the hyperboloid and the Poincare disk. It is not published. |
 | `escher-group` | A library of finitely presented groups: words, relators, and presentations with named generators, the presentation that Conway's rules read from an orbifold signature, Todd-Coxeter coset enumeration with a limit on the number of cosets, which returns a coset table in a standard form, and the low-index subgroup search, which counts or lists the colourings of a tiling, one for each subgroup of finite index, each with an id such as `3a`. It is not published. |
@@ -163,6 +163,24 @@ escher render '*532' --rotation 20,35,0 -o ball.png
 ```
 
 The option `--rotation` turns the ball by three angles in degrees, `YAW,PITCH,ROLL`. The option `--light` sets the direction of the light as `X,Y,Z`, with `X` to the right, `Y` up, and `Z` toward the viewer. The option `--shading` takes `phong`, the default, or `none` for a flat disk. These three options change only a spherical tiling, but `escher render` checks their values for every signature, so a bad value is an error for any tiling.
+
+The option `--colouring` takes `one`, `parity`, or a colouring id from the `Colouring` lines of `escher info --colourings`. This command lists the colourings of `*642` with up to 3 colours:
+
+```sh
+escher info --colourings --max-colours 3 '*642'
+```
+
+This command draws its colouring `3a` in the first three of 12 built-in colours:
+
+```sh
+escher render '*642' --colouring 3a -o three.png
+```
+
+This command draws the same colouring in colours of its own. `--colours` takes exactly one colour for each colour of the colouring, and a colouring with more than 12 colours needs it:
+
+```sh
+escher render '*642' --colouring 3a --colours '#dc143c,#ffd700,#000080' -o three.png
+```
 
 By default, the tiles have black borders 1 pixel wide. When a side pairing of the domain reverses orientation, as for every reflection signature, the tiles alternate between two fill colours by parity. Otherwise, as for a rotation signature, every tile has one fill colour, and `--colouring parity` is an error. A hyperbolic or spherical tiling has a white background outside the disk or the ball. The options `--size`, `--colouring`, `--colours`, `--border-width`, `--border-colour`, `--background`, and `--samples` change the image, and `escher render --help` lists these and the other options.
 

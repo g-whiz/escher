@@ -46,15 +46,22 @@
 //! `--set NAME=VALUE` sets a shape parameter of the domain, such as
 //! `aspect=1.5` for `*2222`. The command draws on a pool of threads that it
 //! builds for the call. It writes the PNG file only after the rendering and
-//! the encoding succeed, and it replaces a file that exists. Without the
-//! option `--colouring`, it colours the tiles by the parity of reflections
-//! when a side pairing of the domain reverses orientation, and in one colour
-//! otherwise, as for the domain of `732`. It fails for a signature without a
-//! domain, for a setting that the domain does not accept, and for the
-//! colouring `parity` of a domain whose side pairings all preserve
-//! orientation. It prints nothing on standard output unless the option
-//! `--stats` is given, which prints statistics of the rendering after the file
-//! is written.
+//! the encoding succeed, and it replaces a file that exists. The option
+//! `--colouring` takes `one`, `parity`, or a colouring id that
+//! `escher info --colourings` lists, such as `3a`. Without it, the command
+//! colours the tiles by the parity of reflections when a side pairing of the
+//! domain reverses orientation, and in one colour otherwise, as for the domain
+//! of `732`. For an id, it gives each tile the colour of its coset in that
+//! colouring. The option `--colours` gives one colour for each colour of the
+//! colouring, and without it the command takes the first colours of a
+//! built-in list of 12. It fails for a signature without a domain, for a
+//! setting that the domain does not accept, for the colouring `parity` of a
+//! domain whose side pairings all preserve orientation, for an id that names
+//! no colouring of the domain or whose search stops at a limit, for an id
+//! with more than 12 colours without `--colours`, and for a number of colours
+//! that differs from that of the colouring. It prints nothing on standard
+//! output unless the option `--stats` is given, which prints statistics of the
+//! rendering after the file is written.
 //!
 //! ```
 //! use escher_cli::{Status, run};
@@ -235,6 +242,11 @@ fn count_of_colours(count: u64) -> String {
     } else {
         format!("{count} colours")
     }
+}
+
+#[cfg(test)]
+fn colouring_id(text: &str) -> escher_group::ColouringId {
+    text.parse().expect("the id is valid")
 }
 
 fn write_stdout(stdout: &mut dyn Write, text: &str) -> anyhow::Result<()> {

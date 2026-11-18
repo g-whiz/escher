@@ -339,6 +339,70 @@ fn render_unknown_colouring_is_a_usage_error() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn render_colouring_id_with_upper_case_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--colouring",
+        "3A"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_colouring_id_with_leading_zero_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--colouring",
+        "03a"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_colouring_id_with_too_many_colours_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--colouring",
+        "65a"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_colouring_id_with_too_many_letters_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--colouring",
+        "3abcde"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn render_zero_threads_is_a_usage_error() {
     insta::assert_snapshot!(snapshot(&[
         "render",

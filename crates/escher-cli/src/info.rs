@@ -676,7 +676,7 @@ mod tests {
     use core::num::NonZeroU64;
 
     use escher_domain::FundamentalDomain;
-    use escher_group::{ColouringId, CosetLimit, IndexLimit, SearchBudget, conway_presentation};
+    use escher_group::{CosetLimit, IndexLimit, SearchBudget, conway_presentation};
     use escher_signature::Signature;
 
     use super::{
@@ -976,21 +976,20 @@ mod tests {
         assert_eq!(count_label(8), "Colourings with 8 colours");
     }
 
-    fn id(text: &str) -> ColouringId {
-        text.parse().expect("the id is valid")
-    }
-
     #[test]
     fn listed_text_marks_the_aliases() {
         assert_eq!(
-            listed_text(id("1a"), Some(Alias::One)),
+            listed_text(crate::colouring_id("1a"), Some(Alias::One)),
             "1a, 1 colour, alias one"
         );
         assert_eq!(
-            listed_text(id("2g"), Some(Alias::Parity)),
+            listed_text(crate::colouring_id("2g"), Some(Alias::Parity)),
             "2g, 2 colours, alias parity"
         );
-        assert_eq!(listed_text(id("3a"), None), "3a, 3 colours");
+        assert_eq!(
+            listed_text(crate::colouring_id("3a"), None),
+            "3a, 3 colours"
+        );
     }
 
     fn colouring_text(signature: &str, steps: u64, listing: Listing) -> String {

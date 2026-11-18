@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", NEVER_WRITTEN, \"--colouring\", \"65a\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value '65a' for '--colouring <COLOURING>': expected one, parity, or a colouring id such as 3a
+
+For more information, try '--help'.
+--- end

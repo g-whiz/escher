@@ -6,7 +6,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use escher_domain::{FundamentalDomain, ShapeParameters};
-use escher_render::{Colour, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png};
+use escher_group::{ColouringId, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index};
+use escher_render::{
+    Colour, CosetFill, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png,
+};
 use escher_signature::Signature;
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
 use rayon::slice::ParallelSliceMut as _;
@@ -16,6 +19,21 @@ use crate::count_of_colours;
 use crate::diagnostic::SignatureError;
 
 const MAX_THREADS: usize = 256;
+
+const DEFAULT_COLOURS: [[u8; 3]; 12] = [
+    [0xe9, 0xc4, 0x6a],
+    [0x2a, 0x9d, 0x8f],
+    [0x91, 0x36, 0x71],
+    [0x91, 0xab, 0x3b],
+    [0x3b, 0x70, 0xc2],
+    [0xff, 0xa2, 0x89],
+    [0x77, 0x42, 0x96],
+    [0xc2, 0x98, 0x10],
+    [0x07, 0x7d, 0xa0],
+    [0xfe, 0x9c, 0xb5],
+    [0x51, 0x9a, 0x47],
+    [0x4f, 0x51, 0xaa],
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Statistics {
@@ -57,25 +75,23 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         };
         anyhow::Error::new(error).context(context)
     })?;
-    let fill = colouring(args.colouring, domain.reverses_orientation())
-        .and_then(|colouring| fill(colouring, args.colours.as_deref()))
+    let colouring = colouring(args.colouring, domain.reverses_orientation())
         .map_err(|detail| cannot_render(&signature, detail))?;
-    let [yaw, pitch, roll] = args.rotation;
-    let options = RenderOptions::builder(fill)
-        .size(args.size.width, args.size.height)
-        .samples(args.samples)
-        .border_width(args.border_width)
-        .border_colour(border_colour)
-        .background(background)
-        .max_folds(args.max_folds)
-        .rotation(yaw.to_radians(), pitch.to_radians(), roll.to_radians())
-        .light(args.light.into())
-        .shading(match args.shading {
-            ShadingChoice::Phong => Shading::Phong,
-            ShadingChoice::Flat => Shading::Flat,
-        })
-        .build()
-        .with_context(|| format!("cannot render {signature}"))?;
+    let colours = fill_colours(colouring, args.colours.as_deref())
+        .map_err(|detail| cannot_render(&signature, detail))?;
+    let options_with = |fill| {
+        render_options(args, fill, border_colour, background)
+            .with_context(|| format!("cannot render {signature}"))
+    };
+    options_with(Fill::One(border_colour))?;
+    let fill = fill(
+        &domain,
+        &signature,
+        colouring,
+        colours,
+        SearchBudget::DEFAULT,
+    )?;
+    let options = options_with(fill)?;
     let threads = args.threads.map_or_else(default_threads, usize::from);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
@@ -106,6 +122,29 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
             ),
         ),
     }
+}
+
+fn render_options(
+    args: &RenderArgs,
+    fill: Fill,
+    border_colour: Colour,
+    background: Colour,
+) -> escher_render::Result<RenderOptions> {
+    let [yaw, pitch, roll] = args.rotation;
+    RenderOptions::builder(fill)
+        .size(args.size.width, args.size.height)
+        .samples(args.samples)
+        .border_width(args.border_width)
+        .border_colour(border_colour)
+        .background(background)
+        .max_folds(args.max_folds)
+        .rotation(yaw.to_radians(), pitch.to_radians(), roll.to_radians())
+        .light(args.light.into())
+        .shading(match args.shading {
+            ShadingChoice::Phong => Shading::Phong,
+            ShadingChoice::Flat => Shading::Flat,
+        })
+        .build()
 }
 
 fn shape_parameters(settings: &[Setting]) -> Result<ShapeParameters, String> {
@@ -180,34 +219,109 @@ fn colouring(
     }
 }
 
-fn fill(colouring: Colouring, colours: Option<&str>) -> Result<Fill, String> {
-    let Some(text) = colours else {
-        let first = Colour::from_srgb8(0xe9, 0xc4, 0x6a);
-        return Ok(match colouring {
-            Colouring::One => Fill::One(first),
-            Colouring::Parity => Fill::Parity([first, Colour::from_srgb8(0x2a, 0x9d, 0x8f)]),
-        });
+fn fill(
+    domain: &FundamentalDomain,
+    signature: &Signature,
+    colouring: Colouring,
+    colours: Vec<Colour>,
+    budget: SearchBudget,
+) -> anyhow::Result<Fill> {
+    let wrong_count = |colours: Vec<Colour>| {
+        cannot_render(
+            signature,
+            format!(
+                "internal error: the colouring {colouring} was given {} colours",
+                colours.len()
+            ),
+        )
     };
-    let items: Vec<&str> = text.split(',').collect();
-    match (colouring, items.as_slice()) {
-        (Colouring::One, &[colour]) => Ok(Fill::One(fill_colour(1, colour)?)),
-        (Colouring::Parity, &[first, second]) => Ok(Fill::Parity([
-            fill_colour(1, first)?,
-            fill_colour(2, second)?,
-        ])),
-        (Colouring::One | Colouring::Parity, _) => {
-            let needed = match colouring {
-                Colouring::One => 1,
-                Colouring::Parity => 2,
-            };
-            Err(format!(
-                "the colouring {} needs {}, and {} given",
-                colouring.name(),
-                count_of_colours(u64::try_from(needed).unwrap_or(u64::MAX)),
-                given(items.len())
+    match colouring {
+        Colouring::One => <[Colour; 1]>::try_from(colours)
+            .map(|[colour]| Fill::One(colour))
+            .map_err(wrong_count),
+        Colouring::Parity => <[Colour; 2]>::try_from(colours)
+            .map(Fill::Parity)
+            .map_err(wrong_count),
+        Colouring::Id(id) => {
+            let found = resolve(domain, signature, id, budget)?;
+            Ok(Fill::Cosets(
+                CosetFill::new(domain, found, colours)
+                    .with_context(|| format!("cannot render {signature}"))?,
             ))
         }
     }
+}
+
+fn resolve(
+    domain: &FundamentalDomain,
+    signature: &Signature,
+    id: ColouringId,
+    budget: SearchBudget,
+) -> anyhow::Result<escher_group::Colouring> {
+    let context = || format!("cannot render {signature}");
+    let presentation = domain.side_presentation().with_context(context)?;
+    let colours = IndexLimit::new(id.colours()).with_context(context)?;
+    let found = colourings_of_index(&presentation, colours, budget).with_context(context)?;
+    found_colouring(&found, id).map_err(|detail| cannot_render(signature, detail))
+}
+
+fn found_colouring(
+    found: &ColouringsOfIndex,
+    id: ColouringId,
+) -> Result<escher_group::Colouring, String> {
+    match found.find(id) {
+        Some(colouring) => Ok(colouring.clone()),
+        None if found.is_complete() => Err(missing_text(id, found.list().len())),
+        None => Err(format!(
+            "the search for the colouring {id} stopped at a limit before it found it"
+        )),
+    }
+}
+
+fn missing_text(id: ColouringId, count: usize) -> String {
+    let colourings = match count {
+        0 => "no colouring".to_owned(),
+        1 => "1 colouring".to_owned(),
+        _ => format!("{count} colourings"),
+    };
+    format!(
+        "the colouring {id} does not exist, because the signature has {colourings} with {}",
+        count_of_colours(u64::from(id.colours()))
+    )
+}
+
+fn fill_colours(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Colour>, String> {
+    let needed = colouring.colours();
+    let Some(text) = colours else {
+        return usize::try_from(needed)
+            .ok()
+            .and_then(|needed| DEFAULT_COLOURS.get(..needed))
+            .map(|entries| {
+                entries
+                    .iter()
+                    .map(|&[red, green, blue]| Colour::from_srgb8(red, green, blue))
+                    .collect()
+            })
+            .ok_or_else(|| {
+                format!(
+                    "the colouring {colouring} needs {needed} colours, more than the {} default colours, so give {needed} colours with --colours",
+                    DEFAULT_COLOURS.len()
+                )
+            });
+    };
+    let items: Vec<&str> = text.split(',').collect();
+    if u64::try_from(items.len()).ok() != Some(u64::from(needed)) {
+        return Err(format!(
+            "the colouring {colouring} needs {}, and {} given",
+            count_of_colours(u64::from(needed)),
+            given(items.len())
+        ));
+    }
+    items
+        .iter()
+        .enumerate()
+        .map(|(position, item)| fill_colour(position + 1, item))
+        .collect()
 }
 
 fn fill_colour(position: usize, text: &str) -> Result<Colour, String> {
@@ -282,11 +396,18 @@ fn statistics_text(
 mod tests {
     use std::time::Duration;
 
-    use escher_render::{Colour, Fill};
+    use escher_domain::FundamentalDomain;
+    use escher_group::SearchBudget;
+    use escher_render::Colour;
+    use escher_signature::Signature;
 
-    use super::{fill, parse_colour, shape_parameters, statistics_text, thread_pool_error};
+    use super::{
+        DEFAULT_COLOURS, fill_colours, missing_text, parse_colour, resolve, shape_parameters,
+        statistics_text, thread_pool_error,
+    };
     use crate::Status;
     use crate::args::{Colouring, Setting};
+    use crate::colouring_id;
     use crate::diagnostic::report;
 
     #[derive(Debug)]
@@ -350,36 +471,151 @@ mod tests {
     }
 
     #[test]
-    fn fill_reports_the_position_of_the_first_bad_colour() {
+    fn fill_colours_reports_the_position_of_the_first_bad_colour() {
         assert_eq!(
-            fill(Colouring::Parity, Some("red,#e9c")),
+            fill_colours(Colouring::Parity, Some("red,#e9c")),
             Err("colour 1 of --colours is not of the form #rgb or #rrggbb".to_owned())
         );
         assert_eq!(
-            fill(Colouring::Parity, Some("#e9c,")),
+            fill_colours(Colouring::Parity, Some("#e9c,")),
             Err("colour 2 of --colours is not of the form #rgb or #rrggbb".to_owned())
         );
     }
 
     #[test]
-    fn fill_names_one_colour_in_the_singular() {
+    fn fill_colours_names_one_colour_in_the_singular() {
         assert_eq!(
-            fill(Colouring::One, Some("#e9c,#2a9")),
+            fill_colours(Colouring::One, Some("#e9c,#2a9")),
             Err("the colouring one needs 1 colour, and 2 were given".to_owned())
         );
         assert_eq!(
-            fill(Colouring::Parity, Some("#e9c")),
+            fill_colours(Colouring::Parity, Some("#e9c")),
             Err("the colouring parity needs 2 colours, and 1 was given".to_owned())
         );
     }
 
     #[test]
-    fn fill_reads_the_colours_in_order() {
-        let Ok(Fill::Parity([first, second])) = fill(Colouring::Parity, Some("#123,#fed")) else {
-            panic!("two colours give a parity fill");
-        };
-        assert_eq!(first.to_srgb8(), [0x11, 0x22, 0x33]);
-        assert_eq!(second.to_srgb8(), [0xff, 0xee, 0xdd]);
+    fn fill_colours_names_the_id_of_a_wrong_count() {
+        assert_eq!(
+            fill_colours(id("3a"), Some("#e9c,#2a9")),
+            Err("the colouring 3a needs 3 colours, and 2 were given".to_owned())
+        );
+    }
+
+    #[test]
+    fn fill_colours_reads_the_colours_in_order() {
+        let colours = fill_colours(id("3a"), Some("#123,#fed,#000000")).map(|colours| {
+            colours
+                .into_iter()
+                .map(Colour::to_srgb8)
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(
+            colours,
+            Ok(vec![[0x11, 0x22, 0x33], [0xff, 0xee, 0xdd], [0, 0, 0]])
+        );
+    }
+
+    fn id(text: &str) -> Colouring {
+        Colouring::Id(colouring_id(text))
+    }
+
+    fn srgb8(colours: Result<Vec<Colour>, String>) -> Result<Vec<[u8; 3]>, String> {
+        colours.map(|colours| colours.into_iter().map(Colour::to_srgb8).collect())
+    }
+
+    const DESIGN_COLOURS: [&str; 12] = [
+        "#e9c46a", "#2a9d8f", "#913671", "#91ab3b", "#3b70c2", "#ffa289", "#774296", "#c29810",
+        "#077da0", "#fe9cb5", "#519a47", "#4f51aa",
+    ];
+
+    fn design_colours(count: usize) -> Vec<[u8; 3]> {
+        DESIGN_COLOURS[..count]
+            .iter()
+            .map(|text| {
+                parse_colour(text)
+                    .map(Colour::to_srgb8)
+                    .expect("the colour is valid")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn default_colours_are_the_twelve_colours_of_the_palette() {
+        assert_eq!(DEFAULT_COLOURS.to_vec(), design_colours(12));
+    }
+
+    #[test]
+    fn fill_colours_takes_the_first_default_colours() {
+        for count in 1..=12_usize {
+            assert_eq!(
+                srgb8(fill_colours(id(&format!("{count}a")), None)),
+                Ok(design_colours(count)),
+                "{count}"
+            );
+        }
+        assert_eq!(
+            srgb8(fill_colours(Colouring::One, None)),
+            Ok(vec![[0xe9, 0xc4, 0x6a]])
+        );
+        assert_eq!(
+            srgb8(fill_colours(Colouring::Parity, None)),
+            Ok(vec![[0xe9, 0xc4, 0x6a], [0x2a, 0x9d, 0x8f]])
+        );
+    }
+
+    #[test]
+    fn fill_colours_asks_for_the_colours_of_more_than_twelve() {
+        assert_eq!(
+            fill_colours(id("13b"), None),
+            Err("the colouring 13b needs 13 colours, more than the 12 default colours, so give 13 colours with --colours".to_owned())
+        );
+    }
+
+    #[test]
+    fn missing_text_counts_the_colourings_in_words() {
+        assert_eq!(
+            missing_text(colouring_id("3d"), 3),
+            "the colouring 3d does not exist, because the signature has 3 colourings with 3 colours"
+        );
+        assert_eq!(
+            missing_text(colouring_id("2b"), 1),
+            "the colouring 2b does not exist, because the signature has 1 colouring with 2 colours"
+        );
+        assert_eq!(
+            missing_text(colouring_id("1b"), 0),
+            "the colouring 1b does not exist, because the signature has no colouring with 1 colour"
+        );
+    }
+
+    fn domain(text: &str) -> FundamentalDomain {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        FundamentalDomain::build(&signature).expect("the signature has a domain")
+    }
+
+    fn resolved(text: &str, colouring: &str, steps: u64) -> Result<String, String> {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        let budget = SearchBudget::new(steps).expect("the budget is valid");
+        resolve(&domain(text), &signature, colouring_id(colouring), budget)
+            .map(|found| found.id().to_string())
+            .map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn resolve_finds_an_id_and_names_one_that_does_not_exist() {
+        assert_eq!(resolved("22", "2a", 10_000), Ok("2a".to_owned()));
+        assert_eq!(
+            resolved("22", "2b", 10_000),
+            Err("cannot render 22: the colouring 2b does not exist, because the signature has 1 colouring with 2 colours".to_owned())
+        );
+    }
+
+    #[test]
+    fn resolve_claims_nothing_when_the_search_stops_at_a_limit() {
+        assert_eq!(
+            resolved("*632", "2a", 100),
+            Err("cannot render *632: the search for the colouring 2a stopped at a limit before it found it".to_owned())
+        );
     }
 
     #[test]

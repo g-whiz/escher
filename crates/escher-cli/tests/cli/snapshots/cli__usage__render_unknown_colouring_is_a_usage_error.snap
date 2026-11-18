@@ -1,12 +1,11 @@
 ---
 source: crates/escher-cli/tests/cli/usage.rs
-expression: "snapshot(&[\"render\", \"*732\", \"-o\", \"tiling.png\", \"--colouring\", \"three\"])"
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", NEVER_WRITTEN, \"--colouring\", \"three\"])"
 ---
 status: Usage
 --- stdout
 --- stderr
-error: invalid value 'three' for '--colouring <COLOURING>'
-  [possible values: one, parity]
+error: invalid value 'three' for '--colouring <COLOURING>': expected one, parity, or a colouring id such as 3a
 
 For more information, try '--help'.
 --- end

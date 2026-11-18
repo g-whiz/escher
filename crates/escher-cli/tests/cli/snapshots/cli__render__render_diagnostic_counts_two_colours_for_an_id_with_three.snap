@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"two_colours_for_id\",\n&[\"*642\", \"--colouring\", \"3a\", \"--colours\", \"#e9c46a,#2a9d8f\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *642: the colouring 3a needs 3 colours, and 2 were given
+--- end

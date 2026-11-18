@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
+use core::fmt;
+
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
-use escher_group::IndexLimit;
+use escher_group::{ColouringId, IndexLimit};
 
 const SIGNATURE_HELP: &str = "The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'";
 
@@ -53,7 +55,7 @@ pub(crate) enum Command {
     #[command(
         about = "Render the tiling of a signature in orbifold notation and write it to a PNG file"
     )]
-    Render(RenderArgs),
+    Render(Box<RenderArgs>),
 }
 
 #[derive(Debug, Args)]
@@ -77,13 +79,14 @@ pub(crate) struct RenderArgs {
     pub(crate) size: Size,
     #[arg(
         long,
-        value_enum,
-        help = "One colour for every tile, or two colours by parity. The default is parity when a side pairing of the domain reverses orientation, and one otherwise"
+        value_name = "COLOURING",
+        value_parser = parse_colouring,
+        help = "One colour for every tile, two colours by parity, or the id of a colouring that the command info --colourings lists, such as 3a. The default is parity when a side pairing of the domain reverses orientation, and one otherwise"
     )]
     pub(crate) colouring: Option<Colouring>,
     #[arg(
         long,
-        help = "The fill colours, separated by commas, each as #rgb or #rrggbb. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'"
+        help = "The fill colours, separated by commas, each as #rgb or #rrggbb, one for each colour of the colouring. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'"
     )]
     pub(crate) colours: Option<String>,
     #[arg(
@@ -177,17 +180,29 @@ pub(crate) struct Size {
     pub(crate) height: u32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Colouring {
     One,
     Parity,
+    Id(ColouringId),
 }
 
 impl Colouring {
-    pub(crate) const fn name(self) -> &'static str {
+    pub(crate) fn colours(self) -> u32 {
         match self {
-            Self::One => "one",
-            Self::Parity => "parity",
+            Self::One => 1,
+            Self::Parity => 2,
+            Self::Id(id) => id.colours(),
+        }
+    }
+}
+
+impl fmt::Display for Colouring {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::One => formatter.write_str("one"),
+            Self::Parity => formatter.write_str("parity"),
+            Self::Id(id) => fmt::Display::fmt(id, formatter),
         }
     }
 }
@@ -218,6 +233,18 @@ fn parse_setting(text: &str) -> Result<Setting, &'static str> {
         name: name.to_owned(),
         value: value.parse().ok().ok_or(error)?,
     })
+}
+
+fn parse_colouring(text: &str) -> Result<Colouring, &'static str> {
+    match text {
+        "one" => Ok(Colouring::One),
+        "parity" => Ok(Colouring::Parity),
+        _ => text
+            .parse()
+            .ok()
+            .map(Colouring::Id)
+            .ok_or("expected one, parity, or a colouring id such as 3a"),
+    }
 }
 
 fn parse_max_colours(text: &str) -> Result<IndexLimit, String> {
@@ -254,7 +281,40 @@ fn decimal(text: &str) -> Option<u32> {
 mod tests {
     use escher_group::IndexLimit;
 
-    use super::{Setting, parse_max_colours, parse_setting, parse_triple};
+    use super::{
+        Colouring, Setting, parse_colouring, parse_max_colours, parse_setting, parse_triple,
+    };
+
+    fn id(text: &str) -> Colouring {
+        Colouring::Id(crate::colouring_id(text))
+    }
+
+    #[test]
+    fn parse_colouring_reads_the_aliases_and_the_ids() {
+        assert_eq!(parse_colouring("one"), Ok(Colouring::One));
+        assert_eq!(parse_colouring("parity"), Ok(Colouring::Parity));
+        for text in ["1a", "3a", "12dk", "64zzzz"] {
+            let colouring = parse_colouring(text);
+            assert_eq!(colouring, Ok(id(text)), "{text:?}");
+            assert_eq!(
+                colouring.map(|colouring| colouring.to_string()),
+                Ok(text.to_owned())
+            );
+        }
+    }
+
+    #[test]
+    fn parse_colouring_rejects_other_forms() {
+        for text in [
+            "three", "3", "03a", "3A", "65a", "0a", "3abcde", "", " 3a", "3a ", " one", "one ",
+        ] {
+            assert_eq!(
+                parse_colouring(text),
+                Err("expected one, parity, or a colouring id such as 3a"),
+                "{text:?}"
+            );
+        }
+    }
 
     #[test]
     fn parse_max_colours_reads_the_default_and_the_range() {

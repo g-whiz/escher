@@ -3,7 +3,8 @@ use std::path::Path;
 
 use escher_cli::{Status, run};
 use escher_domain::FundamentalDomain;
-use escher_render::{Colour, Fill, RenderOptions, Renderer, encode_png};
+use escher_group::{IndexLimit, SearchBudget, colourings_of_index};
+use escher_render::{Colour, CosetFill, Fill, RenderOptions, Renderer, encode_png};
 use escher_signature::Signature;
 
 use crate::common::{FailingWriter, NEVER_WRITTEN, output_path, path_text, run_args, snapshot};
@@ -102,6 +103,54 @@ fn render_diagnostic_gives_the_position_of_a_colour_name() {
     insta::assert_snapshot!(render_snapshot(
         "colour_name",
         &["*732", "--colours", "#e9c46a,red"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_says_a_colouring_id_does_not_exist() {
+    insta::assert_snapshot!(render_snapshot(
+        "missing_id",
+        &["*642", "--colouring", "3d"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_asks_for_the_colours_of_an_id_with_more_than_twelve() {
+    insta::assert_snapshot!(render_snapshot(
+        "fifteen_colours",
+        &["*732", "--colouring", "15a"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_counts_two_colours_for_an_id_with_three() {
+    insta::assert_snapshot!(render_snapshot(
+        "two_colours_for_id",
+        &["*642", "--colouring", "3a", "--colours", "#e9c46a,#2a9d8f"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_says_the_search_for_an_id_stopped_at_a_limit() {
+    insta::assert_snapshot!(render_snapshot(
+        "search_limit",
+        &["*666", "--colouring", "12a"]
     ));
 }
 
@@ -417,22 +466,34 @@ fn render_applies_a_setting_and_writes_the_same_bytes_for_one_thread_and_four() 
     assert_eq!(one, four);
 }
 
-fn rendered_with_threads(test: &str, threads: &str) -> Vec<u8> {
+fn rendered(test: &str, args: &[&str]) -> Vec<u8> {
     let output = output_path(test);
-    let outcome = run_args(&[
-        "render",
-        "*732",
-        "--size",
-        "64x64",
-        "--samples",
-        "2",
-        "--threads",
-        threads,
-        "-o",
-        path_text(&output),
-    ]);
-    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    let mut all = vec!["render"];
+    all.extend_from_slice(args);
+    all.extend_from_slice(&["-o", path_text(&output)]);
+    let outcome = run_args(&all);
+    assert_eq!(
+        outcome.status,
+        Status::Success,
+        "{args:?}: {}",
+        outcome.stderr
+    );
     std::fs::read(&output).expect("the output file is written")
+}
+
+fn rendered_with_threads(test: &str, threads: &str) -> Vec<u8> {
+    rendered(
+        test,
+        &[
+            "*732",
+            "--size",
+            "64x64",
+            "--samples",
+            "2",
+            "--threads",
+            threads,
+        ],
+    )
 }
 
 #[test]
@@ -458,6 +519,70 @@ fn render_writes_the_same_bytes_for_one_thread_and_four() {
     let whole_image = encode_png(64, 64, &pixels).expect("the image is encoded");
     assert_eq!(rendered_with_threads("one_thread", "1"), whole_image);
     assert_eq!(rendered_with_threads("four_threads", "4"), whole_image);
+}
+
+fn rendered_colouring_with_threads(test: &str, threads: &str) -> Vec<u8> {
+    rendered(
+        test,
+        &[
+            "*642",
+            "--colouring",
+            "3a",
+            "--size",
+            "64x64",
+            "--samples",
+            "2",
+            "--threads",
+            threads,
+        ],
+    )
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_the_same_bytes_of_a_colouring_for_one_thread_and_four() {
+    let signature: Signature = "*642".parse().expect("the signature is valid");
+    let domain = FundamentalDomain::build(&signature).expect("the domain is built");
+    let presentation = domain
+        .side_presentation()
+        .expect("the domain has a side presentation");
+    let found = colourings_of_index(
+        &presentation,
+        IndexLimit::new(3).expect("the limit is valid"),
+        SearchBudget::DEFAULT,
+    )
+    .expect("the search runs");
+    let colouring = found
+        .find("3a".parse().expect("the id is valid"))
+        .expect("the colouring 3a exists")
+        .clone();
+    let colours = vec![
+        Colour::from_srgb8(0xe9, 0xc4, 0x6a),
+        Colour::from_srgb8(0x2a, 0x9d, 0x8f),
+        Colour::from_srgb8(0x91, 0x36, 0x71),
+    ];
+    let fill =
+        Fill::Cosets(CosetFill::new(&domain, colouring, colours).expect("the fill is valid"));
+    let options = RenderOptions::builder(fill)
+        .size(64, 64)
+        .samples(2)
+        .build()
+        .expect("the options are valid");
+    let (pixels, _) = Renderer::new(&domain, options)
+        .expect("the renderer is built")
+        .render();
+    let whole_image = encode_png(64, 64, &pixels).expect("the image is encoded");
+    assert_eq!(
+        rendered_colouring_with_threads("colouring_one_thread", "1"),
+        whole_image
+    );
+    assert_eq!(
+        rendered_colouring_with_threads("colouring_four_threads", "4"),
+        whole_image
+    );
 }
 
 #[test]
@@ -792,6 +917,72 @@ fn render_writes_a_png_file_of_each_geometry_of_a_rotation_domain() {
     }
 }
 
+fn alias_file(test: &str, signature: &str, colouring: &str) -> Vec<u8> {
+    rendered(
+        test,
+        &[
+            signature,
+            "--colouring",
+            colouring,
+            "--size",
+            "48x32",
+            "--samples",
+            "2",
+        ],
+    )
+}
+
+fn parity_id(signature: &str) -> String {
+    let outcome = run_args(&["info", "--colourings", "--max-colours", "2", signature]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    let ids: Vec<&str> = outcome
+        .stdout
+        .lines()
+        .filter_map(|line| line.strip_prefix("Colouring: "))
+        .filter_map(|value| value.strip_suffix(", 2 colours, alias parity"))
+        .collect();
+    let [id] = ids.as_slice() else {
+        panic!("{signature} has one parity colouring: {}", outcome.stdout);
+    };
+    (*id).to_owned()
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_draws_the_trivial_colouring_as_one() {
+    for (test, signature) in [("trivial_reflection", "*732"), ("trivial_rotation", "732")] {
+        assert_eq!(
+            alias_file(&format!("{test}_id"), signature, "1a"),
+            alias_file(&format!("{test}_alias"), signature, "one"),
+            "{signature}"
+        );
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_draws_the_parity_colouring_as_parity() {
+    for (test, signature) in [
+        ("parity_hyperbolic", "*732"),
+        ("parity_kite", "*642"),
+        ("parity_rectangle", "*2222"),
+        ("parity_sphere", "*532"),
+    ] {
+        let id = parity_id(signature);
+        assert_eq!(
+            alias_file(&format!("{test}_id"), signature, &id),
+            alias_file(&format!("{test}_alias"), signature, "parity"),
+            "{signature} {id}"
+        );
+    }
+}
+
 fn first_error_line(args: &[&str]) -> (Status, String) {
     let never_written = Path::new(NEVER_WRITTEN);
     if !cfg!(miri) {
@@ -858,6 +1049,84 @@ fn render_with_a_colour_name_returns_failure() {
             "error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb"
                 .to_owned()
         )
+    );
+}
+
+#[test]
+fn render_with_a_missing_colouring_id_returns_failure() {
+    assert_eq!(
+        first_error_line(&["22", "--colouring", "2b"]),
+        (
+            Status::Failure,
+            "error: cannot render 22: the colouring 2b does not exist, because the signature has 1 colouring with 2 colours"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_with_one_colour_for_an_id_with_two_returns_failure() {
+    assert_eq!(
+        first_error_line(&["22", "--colouring", "2a", "--colours", "#e9c46a"]),
+        (
+            Status::Failure,
+            "error: cannot render 22: the colouring 2a needs 2 colours, and 1 was given".to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_with_a_malformed_colouring_id_returns_usage() {
+    assert_eq!(
+        first_error_line(&["*732", "--colouring", "3A"]),
+        (
+            Status::Usage,
+            "error: invalid value '3A' for '--colouring <COLOURING>': expected one, parity, or a colouring id such as 3a"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_with_a_colouring_id_reports_a_bad_colour_before_the_search() {
+    assert_eq!(
+        first_error_line(&["*666", "--colouring", "12a", "--colours", "oops"]),
+        (
+            Status::Failure,
+            "error: cannot render *666: the colouring 12a needs 12 colours, and 1 was given"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_with_a_colouring_id_reports_more_than_twelve_colours_before_the_search() {
+    assert_eq!(
+        first_error_line(&["*666", "--colouring", "13a"]),
+        (
+            Status::Failure,
+            "error: cannot render *666: the colouring 13a needs 13 colours, more than the 12 default colours, so give 13 colours with --colours"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_with_a_colouring_id_reports_an_empty_size_before_the_search() {
+    let outcome = run_args(&[
+        "render",
+        "*666",
+        "--colouring",
+        "12a",
+        "--size",
+        "0x0",
+        "-o",
+        NEVER_WRITTEN,
+    ]);
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot render *666\n  caused by: cannot build render options: the image size 0x0 is empty\n"
     );
 }
 

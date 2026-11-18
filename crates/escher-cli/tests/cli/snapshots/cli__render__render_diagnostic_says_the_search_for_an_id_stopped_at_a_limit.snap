@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"search_limit\", &[\"*666\", \"--colouring\", \"12a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *666: the search for the colouring 12a stopped at a limit before it found it
+--- end

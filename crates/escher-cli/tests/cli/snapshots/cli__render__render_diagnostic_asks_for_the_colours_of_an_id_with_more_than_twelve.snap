@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"fifteen_colours\", &[\"*732\", \"--colouring\", \"15a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the colouring 15a needs 15 colours, more than the 12 default colours, so give 15 colours with --colours
+--- end
