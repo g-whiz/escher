@@ -2,6 +2,7 @@ use escher_domain::{ErrorKind, FundamentalDomain, ShapeParameters, parameters};
 
 use crate::common::{assert_same_domain, signature};
 use crate::euclidean::VERTEX_BOUND;
+use crate::shared::{NAMED_POLYGONS, corner_orders};
 
 const OUT_OF_RANGE: [f64; 7] = [
     0.1249,
@@ -128,4 +129,132 @@ fn set_returns_the_value_that_it_replaces() {
     assert_eq!(settings.set("aspect", 2.0), None);
     assert_eq!(settings.set("aspect", 3.0), Some(2.0));
     assert_eq!(settings.set("other", 4.0), None);
+}
+
+const POLYGON_RANGE: [f64; 6] = [
+    0.4999,
+    3.5001,
+    0.0,
+    f64::NAN,
+    f64::INFINITY,
+    f64::NEG_INFINITY,
+];
+
+fn listed(text: &str) -> Vec<(String, f64, f64, f64)> {
+    parameters(&signature(text))
+        .iter()
+        .map(|spec| {
+            (
+                spec.name().to_owned(),
+                spec.minimum(),
+                spec.maximum(),
+                spec.default_value(),
+            )
+        })
+        .collect()
+}
+
+fn names(text: &str) -> Vec<String> {
+    listed(text).into_iter().map(|(name, ..)| name).collect()
+}
+
+#[test]
+fn parameters_of_polygons_have_their_names_ranges_and_rounded_defaults() {
+    let length = |name: &str, default| (name.to_owned(), 0.5, 3.5, default);
+    assert_eq!(listed("*3222"), [length("cornerpair1.length", 0.658)]);
+    assert_eq!(listed("*2223"), listed("*3222"));
+    assert_eq!(listed("*3322"), [length("cornerpair1.length", 0.867)]);
+    assert_eq!(listed("*3333"), [length("slice1.length", 1.317)]);
+    assert_eq!(
+        listed("*22222"),
+        [
+            length("cornerpair1.length", 1.061),
+            length("cornerpair2.length", 1.061)
+        ]
+    );
+    assert_eq!(names("*5432"), ["slice1.length"]);
+    assert_eq!(
+        names("*222222"),
+        [
+            "cornerpair1.length",
+            "cornerpair2.length",
+            "cornerpair3.length"
+        ]
+    );
+    assert_eq!(
+        names("*2222222"),
+        [
+            "cornerpair1.length",
+            "cornerpair2.length",
+            "cornerpair3.length",
+            "slice1.length"
+        ]
+    );
+}
+
+#[test]
+fn parameters_of_every_named_polygon_list_the_corner_pairs_then_the_slices() {
+    for text in NAMED_POLYGONS {
+        let orders = corner_orders(&signature(text));
+        let listed = names(text);
+        assert_eq!(listed.len(), orders.len() - 3, "{text}");
+        let pairs = listed
+            .iter()
+            .take_while(|name| name.starts_with("cornerpair"))
+            .count();
+        let expected: Vec<String> = (1..=pairs)
+            .map(|number| format!("cornerpair{number}.length"))
+            .chain((1..=listed.len() - pairs).map(|number| format!("slice{number}.length")))
+            .collect();
+        assert_eq!(listed, expected, "{text}");
+    }
+    for text in ["3333", "3222", "22222", "*222222222", "*(1001)222"] {
+        assert!(parameters(&signature(text)).is_empty(), "{text}");
+    }
+}
+
+#[test]
+fn build_with_rejects_a_length_outside_the_range() {
+    for (text, name) in [("*3333", "slice1.length"), ("*22222", "cornerpair2.length")] {
+        for value in POLYGON_RANGE {
+            assert_eq!(
+                error_of(text, &settings(name, value)),
+                Some((
+                    ErrorKind::ParameterOutOfRange,
+                    format!(
+                        "cannot build fundamental domain: the parameter {name} is outside its range of 0.5 to 3.5"
+                    )
+                )),
+                "{text} {value}"
+            );
+        }
+        for value in [0.5, 3.5] {
+            let built = FundamentalDomain::build_with(&signature(text), &settings(name, value));
+            match built {
+                Ok(domain) => assert!(domain.verify().passed(), "{text} {value}"),
+                Err(error) => assert_eq!(error.kind(), ErrorKind::Numerical, "{text} {value}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn build_with_rejects_a_name_that_the_polygon_does_not_have() {
+    for (text, name) in [
+        ("*3333", "slice1.Length"),
+        ("*3333", "slice2.length"),
+        ("*3333", "cornerpair1.length"),
+        ("*22222", "slice1.length"),
+    ] {
+        assert_eq!(
+            error_of(text, &settings(name, 2.0)),
+            Some((
+                ErrorKind::UnknownParameter,
+                format!(
+                    "cannot build fundamental domain: the signature {text} has no shape parameter with one of the given names"
+                )
+            )),
+            "{text} {name}"
+        );
+    }
 }

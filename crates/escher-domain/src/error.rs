@@ -4,7 +4,7 @@ use escher_signature::Signature;
 
 use crate::parameters::Parameter;
 use crate::presentation::MAX_SIDES;
-use crate::triangle::LARGEST_ORDER;
+use crate::triangle::{LARGEST_ORDER, MOST_ORDERS};
 
 /// A specialized [`Result`](core::result::Result) whose error is [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
@@ -58,6 +58,20 @@ impl Error {
         }
     }
 
+    pub(crate) fn too_many_orders(count: usize) -> Self {
+        Self {
+            operation: OPERATION,
+            detail: Detail::TooManyOrders(count),
+        }
+    }
+
+    pub(crate) fn refused() -> Self {
+        Self {
+            operation: OPERATION,
+            detail: Detail::Refused,
+        }
+    }
+
     pub(crate) fn numerical(source: Option<escher_geometry::Error>) -> Self {
         Self {
             operation: OPERATION,
@@ -98,8 +112,8 @@ impl Error {
     pub fn kind(&self) -> ErrorKind {
         match self.detail {
             Detail::UnsupportedSignature(_) => ErrorKind::UnsupportedSignature,
-            Detail::LimitExceeded(_) => ErrorKind::LimitExceeded,
-            Detail::Numerical(_) => ErrorKind::Numerical,
+            Detail::LimitExceeded(_) | Detail::TooManyOrders(_) => ErrorKind::LimitExceeded,
+            Detail::Numerical(_) | Detail::Refused => ErrorKind::Numerical,
             Detail::UnknownParameter(_) => ErrorKind::UnknownParameter,
             Detail::ParameterOutOfRange(_) => ErrorKind::ParameterOutOfRange,
             Detail::InvalidPairing(_) | Detail::RejectedPresentation(_) => {
@@ -122,7 +136,9 @@ impl core::error::Error for Error {
             Detail::RejectedPresentation(source) => Some(source),
             Detail::UnsupportedSignature(_)
             | Detail::LimitExceeded(_)
+            | Detail::TooManyOrders(_)
             | Detail::Numerical(None)
+            | Detail::Refused
             | Detail::UnknownParameter(_)
             | Detail::ParameterOutOfRange(_)
             | Detail::InvalidPairing(_) => None,
@@ -150,27 +166,35 @@ impl core::error::Error for Error {
 pub enum ErrorKind {
     /// The crate does not build a fundamental domain for the signature.
     ///
-    /// Only a reflection domain and its double have one. A reflection domain
-    /// is a triangle, the rectangle, or the lune, and its sides are mirrors.
-    /// The signature of a triangle has the form `*pqr` with three finite
-    /// corner orders. It is hyperbolic when their reciprocals sum to less than
-    /// 1, or it is one of the Euclidean signatures `*632`, `*442`, and `*333`,
-    /// or one of the spherical signatures `*332`, `*432`, `*532`, and `*n22`.
-    /// The signature of the rectangle is `*2222`, and that of the lune is
-    /// `*nn`. A corner of order `n` is a corner where two mirrors meet at the
-    /// angle `pi / n`. The double of a reflection domain is the domain together
-    /// with its mirror image across one of its walls. Its signature has the
-    /// same orders as cone points, the centres of rotation, and no mirror
-    /// boundary, such as `732`, `2222`, or `nn`.
+    /// Only a reflection domain and the double of a reflection triangle,
+    /// rectangle, or lune have one. A reflection domain is a triangle, a
+    /// hyperbolic polygon, the rectangle, or the lune, and its sides are
+    /// mirrors. The signature of a triangle has the form `*pqr` with three
+    /// finite corner orders. It is hyperbolic when their reciprocals sum to
+    /// less than 1, or it is one of the Euclidean signatures `*632`, `*442`,
+    /// and `*333`, or one of the spherical signatures `*332`, `*432`, `*532`,
+    /// and `*n22`. The signature of a hyperbolic polygon has four or more
+    /// finite corner orders and is hyperbolic, such as `*3333`. The signature
+    /// of the rectangle is `*2222`, and that of the lune is `*nn`. A corner of
+    /// order `n` is a corner where two mirrors meet at the angle `pi / n`. The
+    /// double of a reflection domain is the domain together with its mirror
+    /// image across one of its walls. Its signature has the same orders as
+    /// cone points, the centres of rotation, and no mirror boundary, such as
+    /// `732`, `2222`, or `nn`.
     UnsupportedSignature,
-    /// A corner or cone order of a supported signature is larger than 1000,
-    /// the largest order for which the accuracy of the domain is established.
+    /// The signature has more than eight corner orders, or a corner or cone
+    /// order above 1000, beyond which the accuracy of the domain is not
+    /// established.
     LimitExceeded,
     /// Rounding made the construction degenerate, such as a sum of vertices
-    /// that is not a point of the hyperbolic plane or of the sphere, or a wall
-    /// that cannot be found or is not finite.
+    /// that is not a point of the hyperbolic plane or of the sphere, a wall
+    /// that cannot be found or is not finite, or a hyperbolic polygon that
+    /// failed a check of
+    /// [`FundamentalDomain::verify`](crate::FundamentalDomain::verify).
     ///
-    /// No supported signature is known to produce it.
+    /// A hyperbolic polygon gives it when its shape parameters are too
+    /// extreme for the construction to meet the tolerances of the checks. No
+    /// other supported signature is known to give it.
     Numerical,
     /// A setting names no shape parameter of the signature.
     ///
@@ -201,8 +225,12 @@ enum Detail {
     UnsupportedSignature(String),
     #[error("order {0} is larger than {LARGEST_ORDER}")]
     LimitExceeded(u32),
+    #[error("the signature has {0} orders, more than {MOST_ORDERS}")]
+    TooManyOrders(usize),
     #[error("the construction is numerically degenerate")]
     Numerical(Option<escher_geometry::Error>),
+    #[error("the shape is too extreme to build accurately")]
+    Refused,
     #[error("the signature {0} has no shape parameter with one of the given names")]
     UnknownParameter(String),
     #[error(
@@ -260,7 +288,7 @@ mod tests {
         }
     }
 
-    fn errors() -> [Error; 6] {
+    fn errors() -> [Error; 10] {
         [
             Error::unsupported(&signature("3*2")),
             Error::limit_exceeded(1001),
@@ -268,6 +296,10 @@ mod tests {
             Error::numerical(None),
             Error::unknown_parameter(&signature("*236")),
             Error::parameter_out_of_range(Parameter::Aspect),
+            Error::too_many_orders(9),
+            Error::refused(),
+            Error::parameter_out_of_range(Parameter::Slice(1)),
+            Error::parameter_out_of_range(Parameter::CornerPair(2)),
         ]
     }
 
@@ -309,6 +341,10 @@ mod tests {
                 "cannot build fundamental domain: the construction is numerically degenerate",
                 "cannot build fundamental domain: the signature *632 has no shape parameter with one of the given names",
                 "cannot build fundamental domain: the parameter aspect is outside its range of 0.125 to 8",
+                "cannot build fundamental domain: the signature has 9 orders, more than 8",
+                "cannot build fundamental domain: the shape is too extreme to build accurately",
+                "cannot build fundamental domain: the parameter slice1.length is outside its range of 0.5 to 3.5",
+                "cannot build fundamental domain: the parameter cornerpair2.length is outside its range of 0.5 to 3.5",
             ],
         );
         let texts = pairing_errors().map(|error| error.to_string());
@@ -336,6 +372,10 @@ mod tests {
                 ErrorKind::Numerical,
                 ErrorKind::UnknownParameter,
                 ErrorKind::ParameterOutOfRange,
+                ErrorKind::LimitExceeded,
+                ErrorKind::Numerical,
+                ErrorKind::ParameterOutOfRange,
+                ErrorKind::ParameterOutOfRange,
             ],
         );
         assert_eq!(
@@ -346,11 +386,11 @@ mod tests {
 
     #[test]
     fn source_is_the_geometry_error_only_for_a_numerical_error_that_one_caused() {
-        let [unsupported, limit, caused, uncaused, unknown, out_of_range] = errors();
-        let source = core::error::Error::source(&caused).map(ToString::to_string);
-        assert_eq!(source, Some(geometry_error().to_string()));
-        for error in [unsupported, limit, uncaused, unknown, out_of_range] {
-            assert!(core::error::Error::source(&error).is_none(), "{error}");
+        let caused = Error::numerical(Some(geometry_error()));
+        for error in errors() {
+            let source = core::error::Error::source(&error).map(ToString::to_string);
+            let expected = (error == caused).then(|| geometry_error().to_string());
+            assert_eq!(source, expected, "{error}");
         }
     }
 

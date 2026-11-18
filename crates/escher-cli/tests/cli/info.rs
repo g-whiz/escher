@@ -48,7 +48,7 @@ fn info_prints_a_hyperbolic_signature_with_a_cone_point_and_a_corner() {
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
 fn info_prints_a_signature_with_one_deformation_parameter() {
-    insta::assert_snapshot!(snapshot(&["info", "*3333"]));
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*3333"]));
 }
 
 #[test]

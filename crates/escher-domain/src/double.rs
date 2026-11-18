@@ -137,12 +137,12 @@ fn accurate_dot(left: [f64; 3], right: [f64; 3]) -> f64 {
     sum + error
 }
 
-fn two_product(left: f64, right: f64) -> (f64, f64) {
+pub(crate) fn two_product(left: f64, right: f64) -> (f64, f64) {
     let product = left * right;
     (product, left.mul_add(right, -product))
 }
 
-fn two_sum(left: f64, right: f64) -> (f64, f64) {
+pub(crate) fn two_sum(left: f64, right: f64) -> (f64, f64) {
     let sum = left + right;
     let part = sum - left;
     (sum, (left - (sum - part)) + (right - part))

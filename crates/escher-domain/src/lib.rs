@@ -29,13 +29,20 @@
 //! [`parameters`](parameters()) lists, sets the ratio of its sides. The
 //! signature `*nn`, with `n` from 2 to 1000, has a lune, the region of the
 //! sphere between two half great circles that meet at two antipodal vertices
-//! at the angle `pi / n`. A signature without a mirror boundary has a domain
-//! when its cone orders are the corner orders of one of these, such as `732`,
-//! `632`, `2222`, `532`, `n22`, and `nn`.
+//! at the angle `pi / n`. A hyperbolic signature with four to eight corners,
+//! such as `*3333` or `*5432`, has a polygon of the hyperbolic plane with
+//! those corners in the order of the signature. A polygon with `n` corners
+//! has `n - 3` shape parameters, which are lengths from 0.5 to 3.5. The crate
+//! returns the polygon only when it passes its checks. A signature without a
+//! mirror boundary has a domain when its cone orders are the corner orders of
+//! a triangle, the rectangle, or a lune, such as `732`, `632`, `2222`, `532`,
+//! `n22`, and `nn`. It has none when they are the corner orders of a
+//! hyperbolic polygon.
 //!
-//! Every other signature gives an [`Error`], because it is unsupported or an
-//! order is above 1000. [`FundamentalDomain::verify`] checks a domain
-//! numerically, and [`FundamentalDomain::side_presentation`] reads a
+//! Every other signature gives an [`Error`]. The causes are an unsupported
+//! signature, more than eight corner orders, an order above 1000, and a
+//! polygon that fails its checks. [`FundamentalDomain::verify`] checks a
+//! domain numerically, and [`FundamentalDomain::side_presentation`] reads a
 //! [`Presentation`](escher_group::Presentation) of its group from its sides.
 //! The crate [`escher_group`] defines that type.
 //!
@@ -68,9 +75,11 @@ mod error;
 mod parameters;
 mod polygon;
 mod presentation;
+mod sheets;
 mod spherical;
 mod triangle;
 mod verify;
+mod walk;
 
 #[cfg(test)]
 extern crate self as escher_domain;

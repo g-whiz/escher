@@ -145,6 +145,14 @@ impl Reference {
         value.cosh(PRECISION, ROUNDING, &mut self.consts)
     }
 
+    pub(crate) fn sinh(&mut self, value: &BigFloat) -> BigFloat {
+        value.sinh(PRECISION, ROUNDING, &mut self.consts)
+    }
+
+    pub(crate) fn asinh(&mut self, value: &BigFloat) -> BigFloat {
+        value.asinh(PRECISION, ROUNDING, &mut self.consts)
+    }
+
     pub(crate) fn acos(&mut self, value: &BigFloat) -> BigFloat {
         value.acos(PRECISION, ROUNDING, &mut self.consts)
     }

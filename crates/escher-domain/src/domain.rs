@@ -6,11 +6,13 @@ use glam::{DMat3, DVec3};
 
 use crate::double::double;
 use crate::error::{Error, Result};
-use crate::parameters::{Parameter, ShapeParameters, validate, value};
+use crate::parameters::{ShapeParameters, validate};
 use crate::polygon::{Polygon, rectangle, triangle};
+use crate::sheets::{Cuts, side_lengths};
 use crate::spherical::{lune, triangle as spherical_triangle};
-use crate::triangle::{LARGEST_ORDER, Shape, Supported, construct, supported};
+use crate::triangle::{Shape, Supported, admitted, construct};
 use crate::verify::Verification;
+use crate::walk;
 
 /// The fundamental domain of a symmetry group of the hyperbolic plane, the
 /// Euclidean plane, or the sphere, a polygon whose copies under the group
@@ -31,9 +33,11 @@ use crate::verify::Verification;
 /// The crate builds a reflection triangle for a signature `*pqr`, a triangle
 /// whose sides are mirrors, the walls in which the group reflects, and whose
 /// corners have the angles `pi / p`, `pi / q`, and `pi / r`. It builds a
-/// reflection rectangle for `*2222`, and a lune for `*nn`, the region of the
-/// sphere between two half great circles that are mirrors and meet at the angle
-/// `pi / n` at two antipodal vertices. In a reflection domain, vertex `j` is
+/// reflection polygon of the hyperbolic plane for a signature with four to
+/// eight corners, such as `*3333`, a reflection rectangle for `*2222`, and a
+/// lune for `*nn`, the region of the sphere between two half great circles
+/// that are mirrors and meet at the angle `pi / n` at two antipodal vertices.
+/// In a reflection domain, vertex `j` is
 /// corner `j` of the canonical signature, which lists the largest order first.
 /// Side `j` joins vertex `j - 1` and vertex `j`, with indexes modulo the number
 /// of sides, so vertex `j` lies between side `j` and side `j + 1`. The vertices
@@ -134,7 +138,9 @@ pub(crate) fn triangle_angles(
 
 fn plane(shape: Shape) -> Plane {
     match shape {
-        Shape::HyperbolicTriangle { area, .. } => Plane::Hyperbolic { area },
+        Shape::HyperbolicTriangle { area, .. } | Shape::HyperbolicPolygon { area, .. } => {
+            Plane::Hyperbolic { area }
+        }
         Shape::EuclideanTriangle { .. } | Shape::Rectangle => Plane::Euclidean,
         Shape::SphericalTriangle { area, .. } | Shape::Lune { area, .. } => {
             Plane::Spherical { area }
@@ -187,28 +193,38 @@ impl FundamentalDomain {
     /// orders and no boundary. With a boundary, it must be one of these:
     ///
     /// - A hyperbolic triangle `*pqr`, whose corner orders have reciprocals
-    ///   that sum to less than 1. Each corner order must be at most 1000.
+    ///   that sum to less than 1.
+    /// - A hyperbolic polygon `*p1...pn` with four to eight corners, such as
+    ///   `*3333` or `*5432`, whose shape parameters are lengths.
     /// - A Euclidean triangle, which is `*632`, `*442`, or `*333`.
     /// - The Euclidean rectangle `*2222`, whose shape parameter `aspect` is
     ///   the length of side 0 divided by the length of side 1.
-    /// - A spherical triangle, which is `*332`, `*432`, `*532`, or `*n22`
-    ///   with `n` at most 1000.
-    /// - A lune `*nn`, with `n` at most 1000.
+    /// - A spherical triangle, which is `*332`, `*432`, `*532`, or `*n22`.
+    /// - A lune `*nn`.
     ///
-    /// Without a boundary, its cone orders must be the corner orders of one of
-    /// these, such as `732`, `2222`, or `nn`, and its domain is the double of
-    /// the domain of that signature, which is the domain together with its
-    /// mirror image across the wall of side 1. The double of a triangle is a
-    /// kite with four sides, that of the rectangle has six, and that of a lune
-    /// has two. The double of `2222` has the shape parameter `aspect` of the
-    /// rectangle that it doubles.
+    /// Each corner order must be at most 1000. Without a boundary, its cone
+    /// orders must be the corner orders of one of these other than a
+    /// hyperbolic polygon, such as `732`, `2222`, or `nn`, and its domain is
+    /// the double of the domain of that signature, which is the domain
+    /// together with its mirror image across the wall of side 1. The double of
+    /// a triangle is a kite with four sides, that of the rectangle has six,
+    /// and that of a lune has two. The double of `2222` has the shape
+    /// parameter `aspect` of the rectangle that it doubles.
     ///
     /// The reflection triangle of a Euclidean signature has side 0 of length 1,
     /// and the reflection rectangle has area 1. A spherical domain lies on the
-    /// unit sphere and has no shape parameter. Each name of a setting must be
-    /// the name of a parameter that [`parameters`](crate::parameters()) lists
-    /// for the signature, and each value must lie in the range of that
-    /// parameter. A parameter without a setting takes its default value.
+    /// unit sphere and has no shape parameter. A hyperbolic polygon has its
+    /// corners in the order of the canonical signature, with corner `j` at
+    /// vertex `j`, and is placed with its centre at the origin and vertex 0 on
+    /// the positive first axis. Each name of a setting must be the name of a
+    /// parameter that [`parameters`](crate::parameters()) lists for the
+    /// signature, and each value must lie in the range of that parameter. A
+    /// parameter without a setting takes its default value.
+    ///
+    /// A hyperbolic polygon is returned only when it passes every check of
+    /// [`verify`](FundamentalDomain::verify), because some settings near the
+    /// ends of the ranges give a shape that rounding keeps from meeting the
+    /// tolerances of the checks.
     ///
     /// # Examples
     ///
@@ -223,19 +239,28 @@ impl FundamentalDomain {
     /// assert!((lengths[0] - 0.5).abs() < 1e-15);
     /// assert!((lengths[1] - 2.0).abs() < 1e-15);
     /// assert!((domain.area() - 1.0).abs() < 1e-15);
+    ///
+    /// let mut settings = ShapeParameters::new();
+    /// settings.set("slice1.length", 2.5);
+    /// let polygon = FundamentalDomain::build_with(&"*3333".parse::<Signature>()?, &settings)?;
+    /// for angle in polygon.corner_angles() {
+    ///     assert!((angle - core::f64::consts::PI / 3.0).abs() < 1e-12);
+    /// }
+    /// assert!(polygon.verify().passed());
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
     /// # Errors
     ///
-    /// Checks in this order and returns the first error that applies:
+    /// Returns the first of these errors that applies, in this order:
     ///
     /// 1. An error of kind
     ///    [`ErrorKind::UnsupportedSignature`](crate::ErrorKind::UnsupportedSignature)
     ///    for a signature that is none of those above.
     /// 2. An error of kind
     ///    [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) for a
-    ///    corner or cone order above 1000.
+    ///    signature with more than eight corner orders, and then for a corner
+    ///    or cone order above 1000.
     /// 3. An error of kind
     ///    [`ErrorKind::UnknownParameter`](crate::ErrorKind::UnknownParameter)
     ///    when a setting names no parameter of the signature.
@@ -245,46 +270,54 @@ impl FundamentalDomain {
     ///    of its parameter.
     /// 5. An error of kind
     ///    [`ErrorKind::Numerical`](crate::ErrorKind::Numerical) when rounding
-    ///    makes the construction degenerate, which no supported signature is
-    ///    known to do.
+    ///    makes the construction degenerate, or when a hyperbolic polygon
+    ///    fails a check of [`verify`](FundamentalDomain::verify).
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
-        let supported = supported(signature).ok_or_else(|| Error::unsupported(signature))?;
-        let shape = supported.shape();
-        let largest = shape.orders().into_iter().fold(0, u32::max);
-        if largest > LARGEST_ORDER {
-            return Err(Error::limit_exceeded(largest));
-        }
-        validate(signature, supported, parameters)?;
-        let aspect = value(parameters, Parameter::Aspect);
+        let supported = admitted(signature)?;
+        let cuts = supported.shape().cuts();
+        let values = validate(signature, supported, cuts.as_ref(), parameters)?;
         match supported {
-            Supported::Reflection(shape) => Self::reflection(shape, aspect),
+            Supported::Reflection(shape) => Self::reflection(shape, cuts.as_ref(), &values),
             Supported::Rotation(shape) => double(
-                &Self::reflection(shape.with_half_area(), aspect)?,
+                &Self::reflection(shape.with_half_area(), cuts.as_ref(), &values)?,
                 plane(shape),
             ),
         }
     }
 
-    fn reflection(shape: Shape, aspect: f64) -> Result<Self> {
+    fn reflection(shape: Shape, cuts: Option<&Cuts>, values: &[f64]) -> Result<Self> {
+        let orders = shape.orders();
         let polygon = match shape {
             Shape::HyperbolicTriangle { orders, .. } => construct(orders).map(|triangle| Polygon {
                 sides: triangle.sides.to_vec(),
                 vertices: triangle.vertices.to_vec(),
                 centre: triangle.centre,
             }),
+            Shape::HyperbolicPolygon { .. } => cuts
+                .and_then(|cuts| side_lengths(&orders, cuts, values))
+                .ok_or(None)
+                .and_then(|lengths| walk::construct(&orders, &lengths)),
             Shape::EuclideanTriangle { orders } => triangle(orders),
-            Shape::Rectangle => rectangle(aspect),
+            Shape::Rectangle => match values {
+                &[aspect] => rectangle(aspect),
+                _ => Err(None),
+            },
             Shape::SphericalTriangle { orders, .. } => spherical_triangle(orders),
             Shape::Lune { order, .. } => lune(order),
         }
         .map_err(Error::numerical)?;
-        Ok(Self {
+        let domain = Self {
             plane: plane(shape),
-            corners: shape.orders().into_iter().map(Corner::single).collect(),
+            corners: orders.into_iter().map(Corner::single).collect(),
             sides: polygon.sides,
             vertices: polygon.vertices,
             centre: polygon.centre,
-        })
+        };
+        let guarded = matches!(shape, Shape::HyperbolicPolygon { .. });
+        if guarded && !domain.verify().passed() {
+            return Err(Error::refused());
+        }
+        Ok(domain)
     }
 
     /// Returns the geometry of the signature, which is
@@ -398,8 +431,8 @@ impl FundamentalDomain {
     ///
     /// Every angle is NaN for a hyperbolic domain with fewer than three
     /// vertices and for a spherical domain whose number of vertices is not
-    /// two, three, or four. An angle of a Euclidean domain is NaN when a neighbour of
-    /// its vertex coincides with the vertex.
+    /// two, three, or four. An angle of a Euclidean domain is NaN when a
+    /// neighbour of its vertex coincides with the vertex.
     #[must_use]
     pub fn corner_angles(&self) -> Vec<f64> {
         self.angles()
@@ -847,7 +880,7 @@ mod tests {
     use escher_signature::Signature;
 
     use super::FundamentalDomain;
-    use crate::triangle::LARGEST_ORDER;
+    use crate::triangle::{LARGEST_ORDER, MOST_ORDERS, admitted};
     use crate::{ErrorKind, ShapeParameters};
 
     fn signature(text: &str) -> Signature {
@@ -869,11 +902,56 @@ mod tests {
     }
 
     #[test]
+    fn reflection_refuses_settings_of_another_shape() {
+        let shape = |text| match admitted(&signature(text)) {
+            Ok(supported) => supported.shape(),
+            Err(error) => panic!("{text}: {error}"),
+        };
+        let polygon = shape("*3333");
+        let cuts = polygon.cuts();
+        assert!(FundamentalDomain::reflection(polygon, cuts.as_ref(), &[1.317]).is_ok());
+        let numerical =
+            |built: crate::Result<FundamentalDomain>| built.map_err(|error| error.kind()).err();
+        assert_eq!(
+            numerical(FundamentalDomain::reflection(polygon, None, &[1.317])),
+            Some(ErrorKind::Numerical)
+        );
+        assert_eq!(
+            numerical(FundamentalDomain::reflection(shape("*2222"), None, &[])),
+            Some(ErrorKind::Numerical)
+        );
+    }
+
+    #[test]
     fn build_checks_support_before_the_limit() {
-        let over = LARGEST_ORDER + 1;
-        let unsupported = signature(&format!("*({over})({over})({over})({over})"));
+        let unsupported = signature(&format!("({})*32", LARGEST_ORDER + 1));
         let kind = FundamentalDomain::build(&unsupported).map_err(|error| error.kind());
         assert_eq!(kind.err(), Some(ErrorKind::UnsupportedSignature));
+    }
+
+    #[test]
+    fn build_checks_the_number_of_orders_before_the_largest_order() {
+        let most = "2".repeat(MOST_ORDERS);
+        assert!(FundamentalDomain::build(&signature(&format!("*{most}"))).is_ok());
+        for text in [
+            format!("*2{most}"),
+            format!("*({}){most}", LARGEST_ORDER + 1),
+        ] {
+            let error = FundamentalDomain::build(&signature(&text)).err();
+            assert_eq!(
+                error.as_ref().map(crate::Error::kind),
+                Some(ErrorKind::LimitExceeded),
+                "{text}"
+            );
+            assert_eq!(
+                error.map(|error| error.to_string()),
+                Some(format!(
+                    "cannot build fundamental domain: the signature has {} orders, more than {MOST_ORDERS}",
+                    MOST_ORDERS + 1
+                )),
+                "{text}"
+            );
+        }
     }
 
     #[test]

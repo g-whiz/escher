@@ -4,10 +4,12 @@
 //!
 //! The crate draws a [`FundamentalDomain`](escher_domain::FundamentalDomain)
 //! that the crate [`escher_domain`] builds. The domain is the reflection
-//! triangle of a compact hyperbolic signature `*pqr`, the reflection triangle
-//! of `*632`, `*442`, or `*333`, the rectangle of `*2222`, the spherical
-//! reflection triangle of `*332`, `*432`, `*532`, or `*n22`, or the lune of
-//! `*nn`, which is the region between two half great circles of the sphere.
+//! triangle of a compact hyperbolic signature `*pqr`, the reflection polygon
+//! of a compact hyperbolic signature with four to eight corners, such as
+//! `*3333`, the reflection triangle of `*632`, `*442`, or `*333`, the
+//! rectangle of `*2222`, the spherical reflection triangle of `*332`, `*432`,
+//! `*532`, or `*n22`, or the lune of `*nn`, which is the region between two
+//! half great circles of the sphere.
 //! It can also be the domain of the signature without the star, such as `732`
 //! for `*732`, whose group has no reflections. That domain is two copies of
 //! the reflection domain joined across one side, and its side pairings are

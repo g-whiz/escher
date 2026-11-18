@@ -830,7 +830,7 @@ mod tests {
         let Some(Supported::Reflection(Shape::HyperbolicTriangle {
             orders: label_orders,
             area,
-        })) = supported(&signature)
+        })) = supported(&signature).ok()
         else {
             panic!("{signature} is not a supported hyperbolic triangle");
         };
@@ -1385,7 +1385,7 @@ mod tests {
     }
 
     fn labelled_kite(orders: [u32; 3], label: &str) -> FundamentalDomain {
-        let Some(Supported::Rotation(shape)) = supported(&signature(label)) else {
+        let Some(Supported::Rotation(shape)) = supported(&signature(label)).ok() else {
             panic!("{label} is not a rotation signature");
         };
         let (plane, polygon) = match shape {
@@ -1405,7 +1405,10 @@ mod tests {
                 Ok(polygon) => (Plane::Spherical { area }, polygon),
                 Err(error) => panic!("{orders:?} has no triangle: {error:?}"),
             },
-            Shape::EuclideanTriangle { .. } | Shape::Rectangle | Shape::Lune { .. } => {
+            Shape::HyperbolicPolygon { .. }
+            | Shape::EuclideanTriangle { .. }
+            | Shape::Rectangle
+            | Shape::Lune { .. } => {
                 panic!("{label} is not a kite")
             }
         };

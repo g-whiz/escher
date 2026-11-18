@@ -7,6 +7,8 @@ mod euclidean;
 #[cfg(test)]
 mod parameters;
 #[cfg(test)]
+mod polygons;
+#[cfg(test)]
 mod presentation;
 #[cfg(test)]
 mod properties;

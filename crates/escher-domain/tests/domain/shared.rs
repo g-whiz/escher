@@ -30,3 +30,68 @@ pub(crate) fn relator_texts(presentation: &Presentation) -> Vec<String> {
         .map(|relator| relator_text(presentation, relator))
         .collect()
 }
+
+pub(crate) const NAMED_POLYGONS: [&str; 22] = [
+    "*3222",
+    "*3322",
+    "*3333",
+    "*4444",
+    "*5432",
+    "*99994",
+    "*22222",
+    "*33333",
+    "*222222",
+    "*444444",
+    "*2222222",
+    "*8765432",
+    "*22222222",
+    "*33333333",
+    "*44444444",
+    "*(12)(12)(12)(12)(12)(12)(12)(12)",
+    "*(12)(12)333333",
+    "*(1000)222",
+    "*(1000)2222",
+    "*(1000)(1000)(1000)(1000)",
+    "*(1000)2222222",
+    "*(1000)(1000)(1000)(1000)(1000)(1000)(1000)(1000)",
+];
+
+const SMALL_POLYGON_ORDERS: [(usize, u32); 5] = [(4, 7), (5, 7), (6, 6), (7, 5), (8, 4)];
+
+pub(crate) fn corner_orders(signature: &Signature) -> Vec<u32> {
+    match signature.boundaries() {
+        [boundary] => boundary
+            .corner_orders()
+            .iter()
+            .map(|order| match order.finite() {
+                Some(order) => order,
+                None => panic!("{signature} has an infinite corner order"),
+            })
+            .collect(),
+        _ => panic!("{signature} has no single boundary"),
+    }
+}
+
+pub(crate) fn small_polygons() -> Vec<Signature> {
+    let mut canonical = std::collections::BTreeMap::new();
+    for (count, largest) in SMALL_POLYGON_ORDERS {
+        let mut orders = vec![2; count];
+        loop {
+            let text: String = core::iter::once('*'.to_string())
+                .chain(orders.iter().map(ToString::to_string))
+                .collect();
+            let parsed = signature(&text);
+            if parsed.geometry() == escher_signature::Geometry::Hyperbolic {
+                canonical.entry(parsed.to_string()).or_insert(parsed);
+            }
+            let Some(position) = orders.iter().position(|&order| order < largest) else {
+                break;
+            };
+            orders[position] += 1;
+            for order in &mut orders[..position] {
+                *order = 2;
+            }
+        }
+    }
+    canonical.into_values().collect()
+}

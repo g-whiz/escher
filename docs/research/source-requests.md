@@ -136,6 +136,7 @@ Notes on the sources above:
 | Riskus, A., "Approximation of a cubic Bezier curve by circular arcs and vice versa", Information Technology and Control 35(4), 371-378, 2006. | None recorded | Not recorded | Conversion between arcs and Bezier curves. | Background. | `export-and-animation.md` Section 8.3. |
 | Ungar, A. A., "Analytic Hyperbolic Geometry and Albert Einstein's Special Theory of Relativity", World Scientific, 2008. | None recorded | Book | Gyrovector formulas with the curvature as a parameter. | Background for morphs between geometries. | `export-and-animation.md` Section 8.3. |
 | Cook, R., Porter, T., and L. Carpenter, "Distributed ray tracing", SIGGRAPH 1984. | None recorded | ACM returned HTTP 403 | Temporal sampling for motion blur. | Background. | `export-and-animation.md` Section 8.3. |
+| Hida, Y., Li, X. S., and Bailey, D. H., "Algorithms for Quad-Double Precision Floating Point Arithmetic", Proceedings of the 15th IEEE Symposium on Computer Arithmetic (ARITH-15), 2001, pp. 155-162. | None recorded | Not yet fetched. The citation rests on memory. | The algorithms for the double-double sum, product, quotient, and square root. | The unverified statement of Section 14 of `docs/design/domain.md` that the double-double operations of `escher-domain` follow this paper. | `docs/design/domain.md` (`QD`) Sections 6.10, 14, and 18.2. |
 
 Notes on the sources above:
 

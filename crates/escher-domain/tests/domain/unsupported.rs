@@ -2,13 +2,9 @@ use escher_domain::{ErrorKind, FundamentalDomain};
 
 use crate::common::signature;
 
-const UNSUPPORTED: [&str; 19] = [
-    "*22222",
+const UNSUPPORTED: [&str; 26] = [
     "3*2",
     "3*3",
-    "*3333",
-    "3222",
-    "22222",
     "4*3",
     "2*22",
     "*(inf)32",
@@ -16,28 +12,42 @@ const UNSUPPORTED: [&str; 19] = [
     "*(inf)(inf)",
     "(inf)(inf)",
     "*22(inf)",
+    "*(inf)222",
+    "(inf)222",
     "1",
     "*",
     "o",
     "*732*",
     "7*32",
     "x732",
+    "(1001)*32",
+    "3222",
+    "22222",
+    "3333",
+    "(1000)222",
+    "22222222",
+    "(1001)222",
+    "222222222",
+    "(1001)(1001)(1001)(1001)",
 ];
+
+fn error_of(text: &str) -> Option<(ErrorKind, String)> {
+    FundamentalDomain::build(&signature(text))
+        .err()
+        .map(|error| (error.kind(), error.to_string()))
+}
 
 #[test]
 fn build_rejects_every_unsupported_signature() {
     for text in UNSUPPORTED {
         let canonical = signature(text).to_string();
-        let error = FundamentalDomain::build(&signature(text)).err();
         assert_eq!(
-            error.as_ref().map(escher_domain::Error::kind),
-            Some(ErrorKind::UnsupportedSignature),
-            "{text}"
-        );
-        assert_eq!(
-            error.map(|error| error.to_string()),
-            Some(format!(
-                "cannot build fundamental domain: the signature {canonical} is not supported"
+            error_of(text),
+            Some((
+                ErrorKind::UnsupportedSignature,
+                format!(
+                    "cannot build fundamental domain: the signature {canonical} is not supported"
+                )
             )),
             "{text}"
         );
@@ -50,19 +60,33 @@ fn build_rejects_an_order_above_the_limit() {
         "*(1001)32",
         "*(1001)22",
         "*(1001)(1001)",
+        "*(1001)222",
+        "*(1001)(1001)(1001)(1001)",
         "(1001)32",
         "(1001)22",
         "(1001)(1001)",
     ] {
-        let error = FundamentalDomain::build(&signature(text)).err();
         assert_eq!(
-            error.as_ref().map(escher_domain::Error::kind),
-            Some(ErrorKind::LimitExceeded),
+            error_of(text),
+            Some((
+                ErrorKind::LimitExceeded,
+                "cannot build fundamental domain: order 1001 is larger than 1000".to_owned()
+            )),
             "{text}"
         );
+    }
+}
+
+#[test]
+fn build_rejects_more_than_eight_orders_before_the_order_limit() {
+    for text in ["*222222222", "*(1001)22222222"] {
         assert_eq!(
-            error.map(|error| error.to_string()).as_deref(),
-            Some("cannot build fundamental domain: order 1001 is larger than 1000"),
+            error_of(text),
+            Some((
+                ErrorKind::LimitExceeded,
+                "cannot build fundamental domain: the signature has 9 orders, more than 8"
+                    .to_owned()
+            )),
             "{text}"
         );
     }
@@ -74,23 +98,13 @@ fn build_accepts_the_order_at_the_limit() {
         "*(1000)32",
         "*(1000)22",
         "*(1000)(1000)",
+        "*(1000)222",
+        "*22222222",
         "(1000)32",
         "(1000)22",
         "(1000)(1000)",
     ] {
         let built = FundamentalDomain::build(&signature(text));
         assert!(built.is_ok(), "{text}: {built:?}");
-    }
-}
-
-#[test]
-fn build_rejects_an_unsupported_signature_over_the_limit_as_unsupported() {
-    for text in ["*(1001)(1001)(1001)(1001)", "(1001)(1001)(1001)(1001)"] {
-        let error = FundamentalDomain::build(&signature(text)).err();
-        assert_eq!(
-            error.map(|error| error.kind()),
-            Some(ErrorKind::UnsupportedSignature),
-            "{text}"
-        );
     }
 }
