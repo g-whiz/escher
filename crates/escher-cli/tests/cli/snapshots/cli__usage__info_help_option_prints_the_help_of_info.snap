@@ -12,7 +12,8 @@ Arguments:
   <SIGNATURE>  The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'
 
 Options:
-      --check  Verify the fundamental domain of the signature and print the result of each check
-  -h, --help   Print help
+      --check         Verify the fundamental domain of the signature and print the result of each check
+      --presentation  Print the generators and relators of the signature and of its fundamental domain, and for a spherical signature the group order by coset enumeration
+  -h, --help          Print help
 --- stderr
 --- end

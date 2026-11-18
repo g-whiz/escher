@@ -575,3 +575,155 @@ fn info_check_prints_the_residual_of_each_check_beside_its_label() {
         .collect();
     assert_eq!(check_lines, expected_lines);
 }
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_a_reflection_triangle_on_the_sphere() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "*532"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_a_spherical_kite() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "532"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_the_rectangle() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "*2222"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_the_doubled_rectangle() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "2222"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_a_hyperbolic_triangle() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "*732"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_a_spherical_signature_without_a_domain() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "3*2"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_the_projective_plane() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "x"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_the_doubled_hemisphere() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "22"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_a_boundary_without_corners() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "*"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_the_trivial_signature() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "1"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_a_frieze() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "*(inf)22"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_a_group_order_above_the_coset_limit() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "*(9000)(9000)"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_check_presentation_prints_the_presentations_before_the_checks() {
+    insta::assert_snapshot!(snapshot(&["info", "--check", "--presentation", "*532"]));
+}
+
+#[test]
+fn info_presentation_confirms_the_order_of_the_doubled_hemisphere() {
+    for args in [
+        ["info", "--presentation", "22"],
+        ["info", "22", "--presentation"],
+    ] {
+        let outcome = run_args(&args);
+        assert_eq!(outcome.status, Status::Success, "{args:?}");
+        assert_eq!(outcome.stderr, "", "{args:?}");
+        assert!(
+            outcome
+                .stdout
+                .ends_with("\nSide order by coset enumeration: 2, equal to 2/chi\n"),
+            "{args:?}: {}",
+            outcome.stdout
+        );
+    }
+}
+
+#[test]
+fn info_presentation_confirms_the_order_of_signatures_without_a_domain() {
+    for signature in ["x", "*"] {
+        let outcome = run_args(&["info", "--presentation", signature]);
+        assert_eq!(outcome.status, Status::Success, "{signature}");
+        assert_eq!(outcome.stderr, "", "{signature}");
+        assert!(
+            outcome
+                .stdout
+                .ends_with("\nOrder by coset enumeration: 2, equal to 2/chi\n"),
+            "{signature}: {}",
+            outcome.stdout
+        );
+    }
+}

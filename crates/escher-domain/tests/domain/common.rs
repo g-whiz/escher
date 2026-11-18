@@ -1,10 +1,10 @@
 use astro_float_num::BigFloat;
 use escher_domain::{Check, FundamentalDomain, ShapeParameters};
-use escher_signature::Signature;
 use glam::DVec3;
 use proptest::test_runner::Config;
 
 use crate::reference::{Vector, vector};
+pub(crate) use crate::shared::{built, signature};
 
 pub(crate) const EXAMPLE_TRIPLES: [[u32; 3]; 6] = [
     [7, 3, 2],
@@ -97,20 +97,6 @@ pub(crate) fn text(orders: [u32; 3]) -> String {
 
 pub(crate) fn cone_text(orders: [u32; 3]) -> String {
     orders.into_iter().map(order_text).collect()
-}
-
-pub(crate) fn built(text: &str) -> FundamentalDomain {
-    match FundamentalDomain::build(&signature(text)) {
-        Ok(domain) => domain,
-        Err(error) => panic!("{text} has no domain: {error}"),
-    }
-}
-
-pub(crate) fn signature(text: &str) -> Signature {
-    match text.parse() {
-        Ok(signature) => signature,
-        Err(error) => panic!("{text:?} is rejected: {error}"),
-    }
 }
 
 pub(crate) fn domain(orders: [u32; 3]) -> FundamentalDomain {

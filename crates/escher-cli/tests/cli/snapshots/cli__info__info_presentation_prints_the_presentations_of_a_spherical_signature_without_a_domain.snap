@@ -1,0 +1,19 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"3*2\"])"
+---
+status: Success
+--- stdout
+Signature: 3*2
+Geometry: spherical
+Euler characteristic: 1/12
+Compact: yes
+Group order: 24
+Area: pi/6
+Domain: none, cannot build fundamental domain: the signature 3*2 is not supported
+Presentation: 4 generators, 6 relators
+Generators: g1, r1, r2, l1
+Relators: g1^3, r1^2, (r1 r2)^2, r2^2, l1^-1 r1 l1 r2^-1, g1 l1
+Order by coset enumeration: 24, equal to 2/chi
+--- stderr
+--- end

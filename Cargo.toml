@@ -33,6 +33,7 @@ clap = { version = "4.6", default-features = false, features = [
 ] }
 escher-domain = { version = "0.1.0", path = "crates/escher-domain" }
 escher-geometry = { version = "0.1.0", path = "crates/escher-geometry" }
+escher-group = { version = "0.1.0", path = "crates/escher-group" }
 escher-render = { version = "0.1.0", path = "crates/escher-render" }
 escher-signature = { version = "0.1.0", path = "crates/escher-signature" }
 glam = { version = "0.34.3", default-features = false, features = [

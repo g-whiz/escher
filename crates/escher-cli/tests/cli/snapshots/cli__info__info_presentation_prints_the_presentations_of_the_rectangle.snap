@@ -1,0 +1,23 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"*2222\"])"
+---
+status: Success
+--- stdout
+Signature: *2222
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Parameter: aspect, range 0.125 to 8, default 1
+Domain: 4 mirror sides
+Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000
+Side lengths: 1.000000, 1.000000, 1.000000, 1.000000
+Domain area: 1.000000
+Presentation: 6 generators, 11 relators
+Generators: r1, r2, r3, r4, r5, l1
+Relators: r1^2, (r1 r2)^2, r2^2, (r2 r3)^2, r3^2, (r3 r4)^2, r4^2, (r4 r5)^2, r5^2, l1^-1 r1 l1 r5^-1, l1
+Side presentation: 4 generators, 8 relators
+Side generators: s0, s1, s2, s3
+Side relators: s0^2, s1^2, s2^2, s3^2, (s0 s1)^2, (s1 s2)^2, (s2 s3)^2, (s3 s0)^2
+--- stderr
+--- end

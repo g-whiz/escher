@@ -25,7 +25,11 @@
 //! diagnostic on standard error that locates the error in the signature. With
 //! the option `--check`, the command also verifies the domain, prints the
 //! result of each check, and fails when a check fails or the signature has no
-//! domain.
+//! domain. With the option `--presentation`, it prints the generators and the
+//! relators of a presentation of the group read from the signature, and of
+//! one read from the sides of the domain. For a spherical signature, it also
+//! counts the elements of the group of each presentation by coset
+//! enumeration, and fails when a count differs from the group order.
 //!
 //! The command `escher render --output <FILE> <SIGNATURE>` draws the tiling of
 //! the fundamental domain in the Poincare disk, a picture of the whole
@@ -108,8 +112,10 @@ pub enum Status {
     /// The command wrote its output, or it printed the help or the version.
     Success,
     /// The signature is not valid, a write to standard output failed, the
-    /// option `--check` found a failed check or no domain to verify, or the
-    /// command `render` could not render the signature or write its file.
+    /// option `--check` found a failed check or no domain to verify, the
+    /// option `--presentation` counted a group order that differs from that of
+    /// the signature, or the command `render` could not render the signature
+    /// or write its file.
     Failure,
     /// The command line itself is wrong, such as an unknown subcommand or a
     /// missing argument.
@@ -172,15 +178,29 @@ fn run_args(args: Vec<OsString>, stdout: &mut dyn Write, stderr: &mut dyn Write)
         Ok(cli) => cli,
         Err(error) => return usage(&error, stdout, stderr),
     };
-    let result = match cli.command {
-        Command::Info { signature, check } => {
-            info::info(&signature, info::Verify::from_flag(check), stdout)
-        }
-        Command::Render(render_args) => render::render(&render_args, stdout),
+    let errors = match cli.command {
+        Command::Info {
+            signature,
+            check,
+            presentation,
+        } => info::info(
+            &signature,
+            info::Verify::from_flag(check),
+            info::Presentations::from_flag(presentation),
+            stdout,
+        ),
+        Command::Render(render_args) => render::render(&render_args, stdout)
+            .err()
+            .into_iter()
+            .collect(),
     };
-    match result {
-        Ok(()) => Status::Success,
-        Err(error) => diagnostic::report(&error, stderr),
+    if errors.is_empty() {
+        Status::Success
+    } else {
+        for error in &errors {
+            diagnostic::report(error, stderr);
+        }
+        Status::Failure
     }
 }
 

@@ -85,7 +85,7 @@ The workspace of the proof of concept has six members under `crates/`. Every mem
 | `escher-group` | Presentations, coset enumeration, low-index search, and colourings | `escher-signature` | `thiserror` |
 | `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` and `thiserror` |
 | `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` from `M8` | `glam`, `png`, and `thiserror`, and `palette` only if the owner adopts it at `M8` (`DEC-29`) |
-| `escher-cli` | The binary `escher`, with the commands `info` and `render` | All five, with `escher-group` from `M7` | `clap` with the derive API, `anyhow`, and `rayon` (`DEC-21`) |
+| `escher-cli` | The binary `escher`, with the commands `info` and `render` | `escher-signature`, `escher-domain`, `escher-render`, and `escher-group` from `M7` | `clap` with the derive API, `anyhow`, and `rayon` (`DEC-21`) |
 
 The dev-dependencies are `insta`, `proptest`, and `astro-float-num`, the reference-arithmetic crate of `DEC-3`.
 

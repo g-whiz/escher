@@ -1,0 +1,13 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"--presentation\", \"*732\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: the argument '--presentation' cannot be used multiple times
+
+Usage: escher info [OPTIONS] <SIGNATURE>
+
+For more information, try '--help'.
+--- end

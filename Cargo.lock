@@ -170,6 +170,7 @@ dependencies = [
  "anyhow",
  "clap",
  "escher-domain",
+ "escher-group",
  "escher-render",
  "escher-signature",
  "insta",
@@ -182,6 +183,7 @@ version = "0.1.0"
 dependencies = [
  "astro-float-num",
  "escher-geometry",
+ "escher-group",
  "escher-signature",
  "glam",
  "proptest",

@@ -30,6 +30,11 @@ pub(crate) enum Command {
             help = "Verify the fundamental domain of the signature and print the result of each check"
         )]
         check: bool,
+        #[arg(
+            long,
+            help = "Print the generators and relators of the signature and of its fundamental domain, and for a spherical signature the group order by coset enumeration"
+        )]
+        presentation: bool,
     },
     #[command(
         about = "Render the tiling of a signature in orbifold notation and write it to a PNG file"

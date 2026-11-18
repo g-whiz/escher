@@ -1,6 +1,8 @@
+use core::num::NonZeroU64;
 use std::io::Write;
 
 use escher_domain::{Check, FundamentalDomain, PairingKind, Verification, parameters};
+use escher_group::{CosetLimit, ErrorKind, Presentation, conway_presentation, enumerate};
 use escher_signature::{Geometry, Rational, Signature};
 
 use crate::diagnostic::SignatureError;
@@ -14,6 +16,22 @@ pub(crate) enum Verify {
 impl Verify {
     pub(crate) const fn from_flag(check: bool) -> Self {
         if check { Self::Run } else { Self::Skip }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Presentations {
+    Skip,
+    Print,
+}
+
+impl Presentations {
+    pub(crate) const fn from_flag(presentation: bool) -> Self {
+        if presentation {
+            Self::Print
+        } else {
+            Self::Skip
+        }
     }
 }
 
@@ -59,13 +77,27 @@ impl CheckRow {
     }
 }
 
-pub(crate) fn info(text: &str, verify: Verify, stdout: &mut dyn Write) -> anyhow::Result<()> {
-    let signature: Signature = text
-        .parse()
-        .map_err(|error| SignatureError::new(text, error))?;
+pub(crate) fn info(
+    text: &str,
+    verify: Verify,
+    presentations: Presentations,
+    stdout: &mut dyn Write,
+) -> Vec<anyhow::Error> {
+    let signature: Signature = match text.parse() {
+        Ok(signature) => signature,
+        Err(error) => return vec![anyhow::Error::new(SignatureError::new(text, error))],
+    };
     let mut lines = signature_lines(&signature);
     let domain = FundamentalDomain::build(&signature);
     push_domain_summary(&mut lines, domain.as_ref());
+    let mut errors = Vec::new();
+    if presentations == Presentations::Print {
+        errors.extend(push_presentations(
+            &mut lines,
+            &signature,
+            domain.as_ref().ok(),
+        ));
+    }
     let verdict = match (verify, domain) {
         (Verify::Skip, _) => Ok(()),
         (Verify::Run, Err(error)) => Err(anyhow::Error::new(error).context(CANNOT_VERIFY)),
@@ -78,16 +110,215 @@ pub(crate) fn info(text: &str, verify: Verify, stdout: &mut dyn Write) -> anyhow
             )
         }
     };
-    write_text(stdout, &lines, verdict)
+    errors.extend(verdict.err());
+    write_text(stdout, &lines, errors)
 }
 
 fn write_text(
     stdout: &mut dyn Write,
     lines: &Lines,
-    verdict: anyhow::Result<()>,
-) -> anyhow::Result<()> {
-    crate::write_stdout(stdout, &joined(lines))?;
-    verdict
+    errors: Vec<anyhow::Error>,
+) -> Vec<anyhow::Error> {
+    match crate::write_stdout(stdout, &joined(lines)) {
+        Ok(()) => errors,
+        Err(error) => vec![error],
+    }
+}
+
+struct Labels {
+    size: &'static str,
+    generators: &'static str,
+    relators: &'static str,
+    order: &'static str,
+    subject: &'static str,
+}
+
+const CONWAY: Labels = Labels {
+    size: "Presentation",
+    generators: "Generators",
+    relators: "Relators",
+    order: "Order by coset enumeration",
+    subject: "presentation",
+};
+
+const SIDE: Labels = Labels {
+    size: "Side presentation",
+    generators: "Side generators",
+    relators: "Side relators",
+    order: "Side order by coset enumeration",
+    subject: "side presentation",
+};
+
+#[derive(Debug)]
+enum Fault {
+    Mismatch(anyhow::Error),
+    Internal(anyhow::Error),
+}
+
+impl Fault {
+    fn into_error(self) -> anyhow::Error {
+        match self {
+            Self::Mismatch(error) | Self::Internal(error) => error,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Outcome {
+    AboveLimit,
+    Index(u64),
+    LimitReached,
+    Refused(String),
+}
+
+fn push_presentations(
+    lines: &mut Lines,
+    signature: &Signature,
+    domain: Option<&FundamentalDomain>,
+) -> Vec<anyhow::Error> {
+    let order = signature.group_order();
+    let conway = push_presentation(
+        lines,
+        &CONWAY,
+        conway_presentation(signature).map_err(|error| error.to_string()),
+        order,
+    );
+    let side = domain.and_then(|domain| {
+        push_presentation(
+            lines,
+            &SIDE,
+            domain
+                .side_presentation()
+                .map_err(|error| error.to_string()),
+            order,
+        )
+    });
+    reported(conway, side)
+}
+
+fn reported(conway: Option<Fault>, side: Option<Fault>) -> Vec<anyhow::Error> {
+    match (conway, side) {
+        (Some(Fault::Mismatch(error)), Some(Fault::Mismatch(_))) => vec![error],
+        (conway, side) => conway
+            .into_iter()
+            .chain(side)
+            .map(Fault::into_error)
+            .collect(),
+    }
+}
+
+fn push_presentation(
+    lines: &mut Lines,
+    labels: &Labels,
+    presentation: Result<Presentation, String>,
+    group_order: Option<NonZeroU64>,
+) -> Option<Fault> {
+    let presentation = match presentation {
+        Ok(presentation) => presentation,
+        Err(text) => {
+            lines.push((labels.size, format!("none, {text}")));
+            return None;
+        }
+    };
+    let relators: Option<Vec<String>> = presentation
+        .relators()
+        .iter()
+        .map(|relator| {
+            presentation
+                .display_relator(relator)
+                .map(|text| text.to_string())
+        })
+        .collect();
+    let Some(relators) = relators else {
+        return Some(Fault::Internal(anyhow::anyhow!(
+            "internal error: a relator of the {} names a generator that it does not have",
+            labels.subject
+        )));
+    };
+    lines.push((
+        labels.size,
+        size_text(presentation.generator_count(), relators.len()),
+    ));
+    lines.push((
+        labels.generators,
+        list_or_none(presentation.generator_names()),
+    ));
+    lines.push((labels.relators, list_or_none(&relators)));
+    let order = group_order?;
+    let limit = CosetLimit::DEFAULT;
+    let outcome = enumerate_order(&presentation, order, limit);
+    push_order(lines, labels, order.get(), limit.get(), &outcome)
+}
+
+fn enumerate_order(presentation: &Presentation, order: NonZeroU64, limit: CosetLimit) -> Outcome {
+    if order.get() > u64::from(limit.get()) {
+        return Outcome::AboveLimit;
+    }
+    match enumerate(presentation, &[], limit) {
+        Ok(table) => Outcome::Index(u64::try_from(table.index()).unwrap_or(u64::MAX)),
+        Err(error) => match error.kind() {
+            ErrorKind::CosetLimitReached => Outcome::LimitReached,
+            _ => Outcome::Refused(error.to_string()),
+        },
+    }
+}
+
+fn push_order(
+    lines: &mut Lines,
+    labels: &Labels,
+    order: u64,
+    limit: u32,
+    outcome: &Outcome,
+) -> Option<Fault> {
+    lines.push((labels.order, order_text(order, limit, outcome)));
+    match *outcome {
+        Outcome::Index(index) if index != order => Some(Fault::Mismatch(order_mismatch(
+            labels.subject,
+            index,
+            order,
+        ))),
+        Outcome::AboveLimit | Outcome::Index(_) | Outcome::LimitReached | Outcome::Refused(_) => {
+            None
+        }
+    }
+}
+
+fn order_text(order: u64, limit: u32, outcome: &Outcome) -> String {
+    match outcome {
+        Outcome::AboveLimit => {
+            format!("not run, the group order {order} is above the limit of {limit} cosets")
+        }
+        Outcome::Index(index) if *index == order => format!("{order}, equal to 2/chi"),
+        Outcome::Index(index) => format!("{index}, different from 2/chi, which is {order}"),
+        Outcome::LimitReached => format!("not found within {limit} cosets"),
+        Outcome::Refused(text) => format!("not run, {text}"),
+    }
+}
+
+fn order_mismatch(subject: &str, index: u64, order: u64) -> anyhow::Error {
+    anyhow::anyhow!(
+        "cannot confirm group order: the {subject} gives {index} cosets, and 2/chi is {order}"
+    )
+}
+
+fn size_text(generators: usize, relators: usize) -> String {
+    format!(
+        "{generators} {}, {relators} {}",
+        if generators == 1 {
+            "generator"
+        } else {
+            "generators"
+        },
+        if relators == 1 { "relator" } else { "relators" }
+    )
+}
+
+fn list_or_none(items: &[String]) -> String {
+    if items.is_empty() {
+        "none".to_owned()
+    } else {
+        items.join(", ")
+    }
 }
 
 fn signature_lines(signature: &Signature) -> Lines {
@@ -272,7 +503,16 @@ fn area_text(area_over_pi: Rational) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{CheckRow, Verdict, check_text, failed_checks, push_verification, write_text};
+    use core::num::NonZeroU64;
+
+    use escher_group::{CosetLimit, conway_presentation};
+    use escher_signature::Signature;
+
+    use super::{
+        CONWAY, CheckRow, Fault, Outcome, SIDE, Verdict, check_text, enumerate_order,
+        failed_checks, order_mismatch, order_text, push_order, push_verification, reported,
+        size_text, write_text,
+    };
     use crate::Status;
     use crate::diagnostic::report;
 
@@ -338,8 +578,10 @@ mod tests {
         let mut lines = vec![("Signature", "*732".to_owned())];
         let verdict = push_verification(&mut lines, &rows, Verdict::Failed);
         let mut stdout = Vec::new();
-        let error = write_text(&mut stdout, &lines, verdict)
-            .expect_err("a failed check fails the verification");
+        let errors = write_text(&mut stdout, &lines, verdict.err().into_iter().collect());
+        let [error] = &errors[..] else {
+            panic!("a failed check gives one error, not {errors:?}");
+        };
         assert_eq!(
             String::from_utf8(stdout).expect("standard output is UTF-8"),
             "Signature: *732\n\
@@ -352,10 +594,193 @@ mod tests {
              Verification: failed\n"
         );
         let mut stderr = Vec::new();
-        assert_eq!(report(&error, &mut stderr), Status::Failure);
+        assert_eq!(report(error, &mut stderr), Status::Failure);
         assert_eq!(
             String::from_utf8(stderr).expect("standard error is UTF-8"),
             "error: cannot verify fundamental domain: 1 of 6 checks failed\n"
+        );
+    }
+
+    #[test]
+    fn size_text_uses_the_singular_for_one() {
+        assert_eq!(size_text(1, 1), "1 generator, 1 relator");
+        assert_eq!(size_text(0, 0), "0 generators, 0 relators");
+        assert_eq!(size_text(3, 6), "3 generators, 6 relators");
+    }
+
+    #[test]
+    fn order_text_writes_each_outcome() {
+        let cases = [
+            (120, Outcome::Index(120), "120, equal to 2/chi"),
+            (
+                120,
+                Outcome::Index(60),
+                "60, different from 2/chi, which is 120",
+            ),
+            (
+                60_000,
+                Outcome::AboveLimit,
+                "not run, the group order 60000 is above the limit of 16384 cosets",
+            ),
+            (120, Outcome::LimitReached, "not found within 16384 cosets"),
+        ];
+        for (order, outcome, text) in cases {
+            assert_eq!(order_text(order, 16_384, &outcome), text, "{outcome:?}");
+        }
+    }
+
+    #[test]
+    fn order_mismatch_diagnostic_names_the_presentation() {
+        for (subject, text) in [
+            (
+                CONWAY.subject,
+                "error: cannot confirm group order: the presentation gives 60 cosets, and 2/chi is 120\n",
+            ),
+            (
+                SIDE.subject,
+                "error: cannot confirm group order: the side presentation gives 60 cosets, and 2/chi is 120\n",
+            ),
+        ] {
+            let mut stderr = Vec::new();
+            assert_eq!(
+                report(&order_mismatch(subject, 60, 120), &mut stderr),
+                Status::Failure
+            );
+            assert_eq!(
+                String::from_utf8(stderr).expect("standard error is UTF-8"),
+                text
+            );
+        }
+    }
+
+    #[test]
+    fn only_a_different_index_gives_an_error() {
+        let outcomes = [
+            Outcome::Index(120),
+            Outcome::AboveLimit,
+            Outcome::LimitReached,
+            Outcome::Refused("cannot enumerate cosets: a limit".to_owned()),
+        ];
+        for outcome in outcomes {
+            let mut lines = Vec::new();
+            assert!(
+                push_order(&mut lines, &CONWAY, 120, 16_384, &outcome).is_none(),
+                "{outcome:?}"
+            );
+            assert_eq!(lines.len(), 1, "{outcome:?}");
+        }
+    }
+
+    #[test]
+    fn a_different_index_is_written_before_its_diagnostic() {
+        let mut lines = vec![("Signature", "*532".to_owned())];
+        let errors: Vec<anyhow::Error> =
+            push_order(&mut lines, &SIDE, 120, 16_384, &Outcome::Index(60))
+                .into_iter()
+                .map(Fault::into_error)
+                .collect();
+        let mut stdout = Vec::new();
+        let errors = write_text(&mut stdout, &lines, errors);
+        assert_eq!(
+            String::from_utf8(stdout).expect("standard output is UTF-8"),
+            "Signature: *532\n\
+             Side order by coset enumeration: 60, different from 2/chi, which is 120\n"
+        );
+        let [error] = &errors[..] else {
+            panic!("a different index gives one error, not {errors:?}");
+        };
+        let mut stderr = Vec::new();
+        assert_eq!(report(error, &mut stderr), Status::Failure);
+        assert_eq!(
+            String::from_utf8(stderr).expect("standard error is UTF-8"),
+            "error: cannot confirm group order: the side presentation gives 60 cosets, and 2/chi is 120\n"
+        );
+    }
+
+    fn conway_mismatch() -> Fault {
+        Fault::Mismatch(order_mismatch(CONWAY.subject, 60, 120))
+    }
+
+    fn side_mismatch() -> Fault {
+        Fault::Mismatch(order_mismatch(SIDE.subject, 30, 120))
+    }
+
+    fn internal(subject: &str) -> Fault {
+        Fault::Internal(anyhow::anyhow!("internal error: {subject}"))
+    }
+
+    #[test]
+    fn faults_of_both_presentations_are_reported_in_order_except_two_mismatches() {
+        let conway_text =
+            "cannot confirm group order: the presentation gives 60 cosets, and 2/chi is 120";
+        let side_text =
+            "cannot confirm group order: the side presentation gives 30 cosets, and 2/chi is 120";
+        let cases: [(Option<Fault>, Option<Fault>, &[&str]); 9] = [
+            (None, None, &[]),
+            (Some(conway_mismatch()), None, &[conway_text]),
+            (None, Some(side_mismatch()), &[side_text]),
+            (
+                Some(conway_mismatch()),
+                Some(side_mismatch()),
+                &[conway_text],
+            ),
+            (
+                Some(internal("conway")),
+                Some(side_mismatch()),
+                &["internal error: conway", side_text],
+            ),
+            (
+                Some(conway_mismatch()),
+                Some(internal("side")),
+                &[conway_text, "internal error: side"],
+            ),
+            (
+                Some(internal("conway")),
+                Some(internal("side")),
+                &["internal error: conway", "internal error: side"],
+            ),
+            (Some(internal("conway")), None, &["internal error: conway"]),
+            (None, Some(internal("side")), &["internal error: side"]),
+        ];
+        for (conway, side, expected) in cases {
+            let case = format!("{conway:?} and {side:?}");
+            let texts: Vec<String> = reported(conway, side)
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            assert_eq!(texts, expected, "{case}");
+        }
+    }
+
+    fn conway(text: &str) -> escher_group::Presentation {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        conway_presentation(&signature).expect("the signature has a presentation")
+    }
+
+    #[test]
+    fn enumeration_runs_at_the_limit_and_is_skipped_above_it() {
+        let presentation = conway("22");
+        let limit = CosetLimit::new(2).expect("2 is a valid limit");
+        let two = NonZeroU64::new(2).expect("2 is not zero");
+        let three = NonZeroU64::new(3).expect("3 is not zero");
+        assert_eq!(
+            enumerate_order(&presentation, two, limit),
+            Outcome::Index(2)
+        );
+        assert_eq!(
+            enumerate_order(&presentation, three, limit),
+            Outcome::AboveLimit
+        );
+    }
+
+    #[test]
+    fn enumeration_that_reaches_the_limit_is_not_found() {
+        let presentation = conway("*632");
+        let limit = CosetLimit::new(10).expect("10 is a valid limit");
+        let ten = NonZeroU64::new(10).expect("10 is not zero");
+        assert_eq!(
+            enumerate_order(&presentation, ten, limit),
+            Outcome::LimitReached
         );
     }
 }

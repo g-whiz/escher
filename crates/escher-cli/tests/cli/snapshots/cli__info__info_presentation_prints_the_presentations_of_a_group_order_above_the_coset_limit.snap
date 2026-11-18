@@ -1,0 +1,19 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"*(9000)(9000)\"])"
+---
+status: Success
+--- stdout
+Signature: *(9000)(9000)
+Geometry: spherical
+Euler characteristic: 1/9000
+Compact: yes
+Group order: 18000
+Area: pi/4500
+Domain: none, cannot build fundamental domain: order 9000 is larger than 1000
+Presentation: 4 generators, 7 relators
+Generators: r1, r2, r3, l1
+Relators: r1^2, (r1 r2)^9000, r2^2, (r2 r3)^9000, r3^2, l1^-1 r1 l1 r3^-1, l1
+Order by coset enumeration: not run, the group order 18000 is above the limit of 16384 cosets
+--- stderr
+--- end

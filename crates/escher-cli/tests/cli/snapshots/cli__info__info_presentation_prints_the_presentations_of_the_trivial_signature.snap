@@ -1,0 +1,19 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"1\"])"
+---
+status: Success
+--- stdout
+Signature: 1
+Geometry: spherical
+Euler characteristic: 2
+Compact: yes
+Group order: 1
+Area: 4pi
+Domain: none, cannot build fundamental domain: the signature 1 is not supported
+Presentation: 0 generators, 0 relators
+Generators: none
+Relators: none
+Order by coset enumeration: 1, equal to 2/chi
+--- stderr
+--- end

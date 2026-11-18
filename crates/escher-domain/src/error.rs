@@ -3,17 +3,21 @@ use core::fmt;
 use escher_signature::Signature;
 
 use crate::parameters::Parameter;
+use crate::presentation::MAX_SIDES;
 use crate::triangle::LARGEST_ORDER;
 
 /// A specialized [`Result`](core::result::Result) whose error is [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// The reason why no fundamental domain was built for a signature.
+/// The reason why no fundamental domain was built for a signature, or why a
+/// domain gave no side presentation.
 ///
 /// Match on [`Error::kind`] to tell the causes apart. The
-/// [`Display`](fmt::Display) text starts with
-/// `cannot build fundamental domain: `, states the cause, and is meant for a
-/// person, not for matching.
+/// [`Display`](fmt::Display) text states the cause and is meant for a person,
+/// not for matching. It starts with `cannot derive side presentation: ` for an
+/// error of
+/// [`FundamentalDomain::side_presentation`](crate::FundamentalDomain::side_presentation)
+/// and with `cannot build fundamental domain: ` for every other error.
 ///
 /// # Examples
 ///
@@ -37,6 +41,7 @@ pub struct Error {
 }
 
 const OPERATION: &str = "build fundamental domain";
+const PRESENTATION: &str = "derive side presentation";
 
 impl Error {
     pub(crate) fn unsupported(signature: &Signature) -> Self {
@@ -74,6 +79,20 @@ impl Error {
         }
     }
 
+    pub(crate) fn invalid_pairing(defect: PairingDefect) -> Self {
+        Self {
+            operation: PRESENTATION,
+            detail: Detail::InvalidPairing(defect),
+        }
+    }
+
+    pub(crate) fn rejected_presentation(source: escher_group::Error) -> Self {
+        Self {
+            operation: PRESENTATION,
+            detail: Detail::RejectedPresentation(source),
+        }
+    }
+
     /// Returns the cause of the error as an [`ErrorKind`].
     #[must_use]
     pub fn kind(&self) -> ErrorKind {
@@ -83,6 +102,9 @@ impl Error {
             Detail::Numerical(_) => ErrorKind::Numerical,
             Detail::UnknownParameter(_) => ErrorKind::UnknownParameter,
             Detail::ParameterOutOfRange(_) => ErrorKind::ParameterOutOfRange,
+            Detail::InvalidPairing(_) | Detail::RejectedPresentation(_) => {
+                ErrorKind::InvalidPairing
+            }
         }
     }
 }
@@ -97,11 +119,13 @@ impl core::error::Error for Error {
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match &self.detail {
             Detail::Numerical(Some(source)) => Some(source),
+            Detail::RejectedPresentation(source) => Some(source),
             Detail::UnsupportedSignature(_)
             | Detail::LimitExceeded(_)
             | Detail::Numerical(None)
             | Detail::UnknownParameter(_)
-            | Detail::ParameterOutOfRange(_) => None,
+            | Detail::ParameterOutOfRange(_)
+            | Detail::InvalidPairing(_) => None,
         }
     }
 }
@@ -157,6 +181,18 @@ pub enum ErrorKind {
     /// The value of a setting is NaN, infinite, or outside the range of its
     /// shape parameter.
     ParameterOutOfRange,
+    /// The sides of the domain give no side presentation.
+    ///
+    /// The domain mixes mirror sides with sides that are paired with other
+    /// sides, it has a different number of corners than of sides, it has more
+    /// than 256 sides, the side pairings do not lead around a vertex back to
+    /// it, the corners of a vertex cycle differ in order or do not join two
+    /// corners of the reflection domain in total, or the relators that the
+    /// sides give are not a valid presentation. No domain that
+    /// [`FundamentalDomain::build`](crate::FundamentalDomain::build) or
+    /// [`FundamentalDomain::build_with`](crate::FundamentalDomain::build_with)
+    /// returns gives this error.
+    InvalidPairing,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -176,13 +212,31 @@ enum Detail {
         .0.maximum()
     )]
     ParameterOutOfRange(Parameter),
+    #[error("{0}")]
+    InvalidPairing(PairingDefect),
+    #[error("the side relators do not form a presentation")]
+    RejectedPresentation(escher_group::Error),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub(crate) enum PairingDefect {
+    #[error("the domain has both mirror and paired sides")]
+    MixedSides,
+    #[error("the domain has a different number of corners than of sides")]
+    CornerCount,
+    #[error("the domain has more than {MAX_SIDES} sides")]
+    TooManySides,
+    #[error("the side pairings do not close a vertex cycle")]
+    OpenCycle,
+    #[error("a vertex cycle joins corners of different orders")]
+    CycleOrders,
 }
 
 #[cfg(test)]
 mod tests {
     use escher_signature::Signature;
 
-    use super::{Error, ErrorKind};
+    use super::{Error, ErrorKind, PairingDefect};
     use crate::parameters::Parameter;
 
     fn signature(text: &str) -> Signature {
@@ -199,6 +253,13 @@ mod tests {
         }
     }
 
+    fn group_error() -> escher_group::Error {
+        match escher_group::Relator::new(escher_group::Word::new(), 2) {
+            Ok(relator) => panic!("an empty base gives the relator {relator:?}"),
+            Err(error) => error,
+        }
+    }
+
     fn errors() -> [Error; 6] {
         [
             Error::unsupported(&signature("3*2")),
@@ -210,10 +271,24 @@ mod tests {
         ]
     }
 
+    fn pairing_errors() -> [Error; 6] {
+        [
+            Error::invalid_pairing(PairingDefect::MixedSides),
+            Error::invalid_pairing(PairingDefect::CornerCount),
+            Error::invalid_pairing(PairingDefect::TooManySides),
+            Error::invalid_pairing(PairingDefect::OpenCycle),
+            Error::invalid_pairing(PairingDefect::CycleOrders),
+            Error::rejected_presentation(group_error()),
+        ]
+    }
+
     #[test]
     fn display_of_each_kind_starts_with_the_operation_and_is_lower_case() {
-        let prefix = "cannot build fundamental domain: ";
-        for error in errors() {
+        let cases = errors()
+            .map(|error| (error, "cannot build fundamental domain: "))
+            .into_iter()
+            .chain(pairing_errors().map(|error| (error, "cannot derive side presentation: ")));
+        for (error, prefix) in cases {
             let text = error.to_string();
             assert!(text.starts_with(prefix), "{text}");
             let rest = text.replace("*632", "");
@@ -236,6 +311,18 @@ mod tests {
                 "cannot build fundamental domain: the parameter aspect is outside its range of 0.125 to 8",
             ],
         );
+        let texts = pairing_errors().map(|error| error.to_string());
+        assert_eq!(
+            texts,
+            [
+                "cannot derive side presentation: the domain has both mirror and paired sides",
+                "cannot derive side presentation: the domain has a different number of corners than of sides",
+                "cannot derive side presentation: the domain has more than 256 sides",
+                "cannot derive side presentation: the side pairings do not close a vertex cycle",
+                "cannot derive side presentation: a vertex cycle joins corners of different orders",
+                "cannot derive side presentation: the side relators do not form a presentation",
+            ],
+        );
     }
 
     #[test]
@@ -251,6 +338,10 @@ mod tests {
                 ErrorKind::ParameterOutOfRange,
             ],
         );
+        assert_eq!(
+            pairing_errors().map(|error| error.kind()),
+            [ErrorKind::InvalidPairing; 6]
+        );
     }
 
     #[test]
@@ -259,6 +350,16 @@ mod tests {
         let source = core::error::Error::source(&caused).map(ToString::to_string);
         assert_eq!(source, Some(geometry_error().to_string()));
         for error in [unsupported, limit, uncaused, unknown, out_of_range] {
+            assert!(core::error::Error::source(&error).is_none(), "{error}");
+        }
+    }
+
+    #[test]
+    fn source_is_the_group_error_only_for_a_rejected_presentation() {
+        let [mixed, corners, sides, open, orders, rejected] = pairing_errors();
+        let source = core::error::Error::source(&rejected).map(ToString::to_string);
+        assert_eq!(source, Some(group_error().to_string()));
+        for error in [mixed, corners, sides, open, orders] {
             assert!(core::error::Error::source(&error).is_none(), "{error}");
         }
     }

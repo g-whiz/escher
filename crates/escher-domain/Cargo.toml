@@ -12,6 +12,7 @@ readme.workspace = true
 
 [dependencies]
 escher-geometry.workspace = true
+escher-group.workspace = true
 escher-signature.workspace = true
 glam.workspace = true
 thiserror.workspace = true

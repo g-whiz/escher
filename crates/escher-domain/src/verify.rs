@@ -517,6 +517,21 @@ fn relators(domain: &FundamentalDomain) -> f64 {
     if !vertices_are_points(domain) {
         return f64::INFINITY;
     }
+    match side_kinds(domain) {
+        SideKinds::Mirrors => corner_relators(domain),
+        SideKinds::Paired => cycle_relators(domain),
+        SideKinds::Mixed => f64::INFINITY,
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SideKinds {
+    Mirrors,
+    Paired,
+    Mixed,
+}
+
+pub(crate) fn side_kinds(domain: &FundamentalDomain) -> SideKinds {
     let mirrors = domain
         .sides
         .iter()
@@ -526,34 +541,83 @@ fn relators(domain: &FundamentalDomain) -> f64 {
         })
         .count();
     if mirrors == domain.sides.len() {
-        corner_relators(domain)
+        SideKinds::Mirrors
     } else if mirrors == 0 {
-        cycle_relators(domain)
+        SideKinds::Paired
     } else {
-        f64::INFINITY
+        SideKinds::Mixed
     }
 }
 
-fn corner_relators(domain: &FundamentalDomain) -> f64 {
-    let count = domain.sides.len();
-    largest((0..count).map(|corner| {
-        let order = domain.corners[corner].order;
-        let (first, second) = (
-            domain.sides[corner].pairing,
-            domain.sides[(corner + 1) % count].pairing,
-        );
-        let rotation = match domain.plane {
-            Plane::Hyperbolic { .. } => {
-                let frame = hyperbolic::translation(domain.vertices[corner]);
-                hyperbolic::inverse(frame) * first * second * frame
-            }
-            Plane::Euclidean | Plane::Spherical { .. } => first * second,
-        };
-        power_residual(rotation, order)
-    }))
+pub(crate) struct CornerPair {
+    pub(crate) corner: usize,
+    pub(crate) sides: [usize; 2],
+    pub(crate) order: u32,
 }
 
-fn power_residual(rotation: DMat3, order: u32) -> f64 {
+pub(crate) fn corner_pairs(domain: &FundamentalDomain) -> Option<Vec<CornerPair>> {
+    let count = domain.sides.len();
+    if domain.corners.len() != count {
+        return None;
+    }
+    Some(
+        domain
+            .corners
+            .iter()
+            .enumerate()
+            .map(|(corner, details)| CornerPair {
+                corner,
+                sides: [corner, (corner + 1) % count],
+                order: details.order,
+            })
+            .collect(),
+    )
+}
+
+fn corner_relators(domain: &FundamentalDomain) -> f64 {
+    let Some(pairs) = corner_pairs(domain) else {
+        return f64::INFINITY;
+    };
+    let residuals: Option<Vec<f64>> = pairs
+        .iter()
+        .map(|pair| {
+            let [first, second] = pair.sides.map(|side| domain.sides[side].pairing);
+            let vertex = *domain.vertices.get(pair.corner)?;
+            Some(framed_power_residual(
+                domain.plane,
+                vertex,
+                &[first, second],
+                pair.order,
+            ))
+        })
+        .collect();
+    residuals.map_or(f64::INFINITY, largest)
+}
+
+pub(crate) fn framed_power_residual(
+    plane: Plane,
+    vertex: DVec3,
+    factors: &[DMat3],
+    order: u32,
+) -> f64 {
+    let rotation = match plane {
+        Plane::Hyperbolic { .. } => {
+            let frame = hyperbolic::translation(vertex);
+            factors
+                .iter()
+                .fold(hyperbolic::inverse(frame), |product, factor| {
+                    product * *factor
+                })
+                * frame
+        }
+        Plane::Euclidean | Plane::Spherical { .. } => factors
+            .iter()
+            .fold(DMat3::IDENTITY, |product, factor| product * *factor),
+    };
+    power_residual(rotation, order)
+}
+
+pub(crate) fn power_residual(rotation: DMat3, order: u32) -> f64 {
     let mut power = rotation;
     for _ in 1..order {
         power *= rotation;
@@ -562,66 +626,97 @@ fn power_residual(rotation: DMat3, order: u32) -> f64 {
 }
 
 fn cycle_relators(domain: &FundamentalDomain) -> f64 {
-    let count = domain.sides.len();
-    let mut visited = vec![false; count];
+    let Ok(cycles) = vertex_cycles(domain) else {
+        return f64::INFINITY;
+    };
     let mut numeric = Vec::new();
-    for start in 0..count {
-        if visited[start] {
-            continue;
-        }
-        let Some(cycle) = vertex_cycle(domain, start) else {
-            return f64::INFINITY;
-        };
-        let order = domain.corners[start].order;
-        let mut copies = 0;
-        for &vertex in &cycle.vertices {
-            visited[vertex] = true;
-            copies += domain.corners[vertex].copies;
-            if domain.corners[vertex].order != order {
-                return f64::INFINITY;
-            }
-        }
-        if copies != 2 {
-            return f64::INFINITY;
-        }
-        let vertex = domain.vertices[start];
+    for cycle in cycles {
+        let vertex = domain.vertices[cycle.start];
         numeric.push(
             largest_coordinate(cycle.transformation * vertex - vertex)
                 / endpoint_scale(domain, vertex),
         );
-        let rotation = match domain.plane {
-            Plane::Hyperbolic { .. } => {
-                let frame = hyperbolic::translation(vertex);
-                hyperbolic::inverse(frame) * cycle.transformation * frame
-            }
-            Plane::Euclidean | Plane::Spherical { .. } => cycle.transformation,
-        };
-        numeric.push(power_residual(rotation, order));
+        numeric.push(framed_power_residual(
+            domain.plane,
+            vertex,
+            &[cycle.transformation],
+            cycle.order,
+        ));
     }
     largest(numeric)
 }
 
-struct Cycle {
+pub(crate) struct Cycle {
+    pub(crate) start: usize,
+    pub(crate) order: u32,
+    pub(crate) sides: Vec<usize>,
+    pub(crate) transformation: DMat3,
+}
+
+struct Walk {
     vertices: Vec<usize>,
+    sides: Vec<usize>,
     transformation: DMat3,
 }
 
-fn vertex_cycle(domain: &FundamentalDomain, start: usize) -> Option<Cycle> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CycleDefect {
+    Open,
+    Orders,
+}
+
+pub(crate) fn vertex_cycles(domain: &FundamentalDomain) -> Result<Vec<Cycle>, CycleDefect> {
+    let count = domain.sides.len();
+    let mut visited = vec![false; count];
+    let mut cycles = Vec::new();
+    for start in 0..count {
+        if visited[start] {
+            continue;
+        }
+        let walk = vertex_cycle(domain, start).ok_or(CycleDefect::Open)?;
+        let order = domain.corners.get(start).ok_or(CycleDefect::Orders)?.order;
+        let mut copies = 0_u32;
+        for &vertex in &walk.vertices {
+            visited[vertex] = true;
+            let corner = domain.corners.get(vertex).ok_or(CycleDefect::Orders)?;
+            if corner.order != order {
+                return Err(CycleDefect::Orders);
+            }
+            copies = copies.saturating_add(corner.copies);
+        }
+        if copies != 2 {
+            return Err(CycleDefect::Orders);
+        }
+        cycles.push(Cycle {
+            start,
+            order,
+            sides: walk.sides,
+            transformation: walk.transformation,
+        });
+    }
+    Ok(cycles)
+}
+
+fn vertex_cycle(domain: &FundamentalDomain, start: usize) -> Option<Walk> {
     let count = domain.sides.len();
     let mut vertices = Vec::new();
+    let mut sides = Vec::new();
     let mut transformation = DMat3::IDENTITY;
     let mut vertex = start;
     for _ in 0..count {
         vertices.push(vertex);
-        let side = domain.sides[(vertex + 1) % count];
+        let index = (vertex + 1) % count;
+        let side = domain.sides[index];
+        sides.push(index);
         transformation = side.pairing * transformation;
         vertex = side.partner;
         if vertex >= count {
             return None;
         }
         if vertex == start {
-            return Some(Cycle {
+            return Some(Walk {
                 vertices,
+                sides,
                 transformation,
             });
         }
@@ -682,6 +777,7 @@ mod tests {
     use crate::domain::{Corner, FundamentalDomain, PairingKind, Plane, Side};
     use crate::double::double;
     use crate::polygon::Polygon;
+    use crate::shared::{built, signature};
     use crate::triangle::{Shape, Supported, construct, supported};
 
     const BASES: [[u32; 3]; 3] = [[7, 3, 2], [4, 4, 4], [1000, 3, 2]];
@@ -731,20 +827,6 @@ mod tests {
             sides: triangle.sides.to_vec(),
             vertices: triangle.vertices.to_vec(),
             centre: triangle.centre,
-        }
-    }
-
-    fn signature(text: &str) -> Signature {
-        match text.parse() {
-            Ok(signature) => signature,
-            Err(error) => panic!("{text:?} is rejected: {error}"),
-        }
-    }
-
-    fn built(text: &str) -> FundamentalDomain {
-        match FundamentalDomain::build(&signature(text)) {
-            Ok(domain) => domain,
-            Err(error) => panic!("{text} has no domain: {error}"),
         }
     }
 
@@ -1117,6 +1199,19 @@ mod tests {
         let mut corrupted = domain([7, 3, 2]);
         corrupted.vertices.pop();
         assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "vertex removed");
+    }
+
+    #[test]
+    fn verify_fails_on_a_domain_with_a_corner_removed() {
+        for text in ["*732", "*2222", "*532", "732", "2222", "22"] {
+            let mut corrupted = built(text);
+            corrupted.corners.pop();
+            assert_infinite_failures(
+                &corrupted,
+                &READ_THE_COUNTS,
+                &format!("{text} corner removed"),
+            );
+        }
     }
 
     #[test]

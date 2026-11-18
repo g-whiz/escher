@@ -1,0 +1,16 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"*(inf)22\"])"
+---
+status: Success
+--- stdout
+Signature: *(inf)22
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: no
+Frieze: yes
+General non-compact: no
+Domain: none, cannot build fundamental domain: the signature *(inf)22 is not supported
+Presentation: none, cannot build presentation: the signature *(inf)22 has an infinite order
+--- stderr
+--- end

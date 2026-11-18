@@ -1,0 +1,415 @@
+use std::time::{Duration, Instant};
+
+use escher_domain::FundamentalDomain;
+use escher_geometry::{hyperbolic, spherical};
+use escher_group::{CosetLimit, Letter, Presentation, Relator, Word, enumerate};
+use escher_signature::Geometry;
+use glam::DMat3;
+
+use crate::common::{EXAMPLE_TRIPLES, built, cone_text, order_text, signature, text, triangles};
+use crate::shared::{relator_text, relator_texts};
+
+const PAIRING_TOLERANCE: f64 = 1e-9;
+
+const RELATOR_TOLERANCE: f64 = 2e-6;
+
+const LARGEST_SMALL_ORDER: u32 = 12;
+
+const LIMIT_ORDER: u32 = 1000;
+
+fn presentation(text: &str) -> (FundamentalDomain, Presentation) {
+    let domain = built(text);
+    match domain.side_presentation() {
+        Ok(presentation) => (domain, presentation),
+        Err(error) => panic!("{text} has no side presentation: {error}"),
+    }
+}
+
+fn side_names(count: usize) -> Vec<String> {
+    (0..count).map(|side| format!("s{side}")).collect()
+}
+
+fn lune(order: u32) -> String {
+    let order = order_text(order);
+    format!("{order}{order}")
+}
+
+fn reflection(rotation: &str) -> String {
+    format!("*{rotation}")
+}
+
+fn spherical_rotations(orders: impl Iterator<Item = u32> + Clone) -> Vec<String> {
+    let mut texts: Vec<String> = ["332", "432", "532"].map(str::to_owned).to_vec();
+    texts.extend(orders.clone().map(|order| cone_text([order, 2, 2])));
+    texts.extend(orders.map(lune));
+    texts
+}
+
+fn with_reflections(rotations: &[String]) -> Vec<String> {
+    let mut texts: Vec<String> = rotations.iter().map(|text| reflection(text)).collect();
+    texts.extend(rotations.iter().cloned());
+    texts
+}
+
+fn spherical_signatures() -> Vec<String> {
+    with_reflections(&spherical_rotations(2..=LARGEST_SMALL_ORDER))
+}
+
+fn limit_signatures() -> Vec<String> {
+    with_reflections(&[cone_text([LIMIT_ORDER, 2, 2]), lune(LIMIT_ORDER)])
+}
+
+#[test]
+fn side_presentations_have_the_documented_text() {
+    let cases: [(&str, &[&str]); 4] = [
+        (
+            "*532",
+            &[
+                "s0^2",
+                "s1^2",
+                "s2^2",
+                "(s0 s1)^5",
+                "(s1 s2)^3",
+                "(s2 s0)^2",
+            ],
+        ),
+        ("532", &["s0 s1", "s2 s3", "s1^5", "(s2 s0)^2", "s3^3"]),
+        (
+            "2222",
+            &[
+                "s0 s1",
+                "s2 s5",
+                "s3 s4",
+                "s1^2",
+                "(s2 s0)^2",
+                "(s3 s5)^2",
+                "s4^2",
+            ],
+        ),
+        ("22", &["s0 s1", "s1^2", "s0^2"]),
+    ];
+    for (text, relators) in cases {
+        let (domain, presentation) = presentation(text);
+        assert_eq!(
+            presentation.generator_names(),
+            side_names(domain.sides().len()),
+            "{text}"
+        );
+        assert_eq!(relator_texts(&presentation), relators, "{text}");
+    }
+}
+
+#[test]
+fn side_presentations_have_one_generator_for_each_side_and_their_relators() {
+    let cases = [
+        ("*732", 3, 6),
+        ("732", 4, 5),
+        ("*2222", 4, 8),
+        ("*632", 3, 6),
+        ("632", 4, 5),
+        ("*55", 2, 4),
+        ("55", 2, 3),
+    ];
+    for (text, generators, relators) in cases {
+        let (domain, presentation) = presentation(text);
+        assert_eq!(domain.sides().len(), generators, "{text}");
+        assert_eq!(
+            presentation.generator_names(),
+            side_names(generators),
+            "{text}"
+        );
+        assert_eq!(presentation.relators().len(), relators, "{text}");
+    }
+    let rotations = [
+        "732", "542", "444", "433", "(12)32", "632", "442", "333", "2222", "332", "432", "532",
+        "222", "722", "22", "55",
+    ];
+    for rotation in rotations {
+        for text in [rotation.to_owned(), reflection(rotation)] {
+            let domain = built(&text);
+            if let Err(error) = domain.side_presentation() {
+                panic!("{text} has no side presentation: {error}");
+            }
+        }
+    }
+}
+
+fn assert_side_order(text: &str) -> Duration {
+    let (_, presentation) = presentation(text);
+    let Some(order) = signature(text).group_order() else {
+        panic!("{text} has no group order");
+    };
+    let started = Instant::now();
+    let table = match enumerate(&presentation, &[], CosetLimit::DEFAULT) {
+        Ok(table) => table,
+        Err(error) => panic!("{text}: {error}"),
+    };
+    let elapsed = started.elapsed();
+    assert_eq!(
+        u64::try_from(table.index()).ok(),
+        Some(order.get()),
+        "{text}"
+    );
+    elapsed
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the coset enumeration runs loops too long for the interpreter"
+)]
+fn side_presentations_give_the_group_order_on_the_sphere() {
+    let mut texts = spherical_signatures();
+    texts.extend(limit_signatures());
+    assert_eq!(texts.len(), 54);
+    let mut slowest = (Duration::ZERO, String::new());
+    for text in texts {
+        let elapsed = assert_side_order(&text);
+        if elapsed > slowest.0 {
+            slowest = (elapsed, text);
+        }
+    }
+    println!(
+        "slowest side order: {} in {:.3} ms",
+        slowest.1,
+        slowest.0.as_secs_f64() * 1e3
+    );
+}
+
+#[test]
+fn side_presentation_of_22_gives_its_group_order() {
+    assert_side_order("22");
+}
+
+#[derive(Clone, Copy)]
+enum Kind {
+    Square,
+    Corner,
+    Pair,
+    Cycle,
+}
+
+impl Kind {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Square => "square",
+            Self::Corner => "corner",
+            Self::Pair => "pair",
+            Self::Cycle => "cycle",
+        }
+    }
+
+    const fn tolerance(self) -> f64 {
+        match self {
+            Self::Square | Self::Pair => PAIRING_TOLERANCE,
+            Self::Corner | Self::Cycle => RELATOR_TOLERANCE,
+        }
+    }
+
+    const fn index(self) -> usize {
+        match self {
+            Self::Square => 0,
+            Self::Corner => 1,
+            Self::Pair => 2,
+            Self::Cycle => 3,
+        }
+    }
+}
+
+const KINDS: [Kind; 4] = [Kind::Square, Kind::Corner, Kind::Pair, Kind::Cycle];
+
+fn sides_of(base: &Word) -> Vec<usize> {
+    base.letters()
+        .iter()
+        .map(|&letter| {
+            assert_eq!(letter, Letter::generator(letter.index()), "{base:?}");
+            usize::from(letter.index())
+        })
+        .collect()
+}
+
+fn letter_matrix(domain: &FundamentalDomain, side: usize) -> DMat3 {
+    let pairing = domain.sides()[side].pairing();
+    match domain.geometry() {
+        Geometry::Hyperbolic => hyperbolic::inverse(pairing),
+        Geometry::Spherical => spherical::inverse(pairing),
+        Geometry::Euclidean => pairing.inverse(),
+    }
+}
+
+fn largest_entry_from_identity(matrix: DMat3) -> f64 {
+    (matrix - DMat3::IDENTITY)
+        .to_cols_array()
+        .into_iter()
+        .map(f64::abs)
+        .fold(0.0, f64::max)
+}
+
+fn relator_residual(
+    domain: &FundamentalDomain,
+    relator: &Relator,
+    kind: Kind,
+    vertex: usize,
+) -> f64 {
+    let product = sides_of(relator.base())
+        .into_iter()
+        .fold(DMat3::IDENTITY, |product, side| {
+            product * letter_matrix(domain, side)
+        });
+    let framed = match kind {
+        Kind::Corner | Kind::Cycle => domain.geometry() == Geometry::Hyperbolic,
+        Kind::Square | Kind::Pair => false,
+    };
+    let element = if framed {
+        let frame = hyperbolic::translation(domain.vertices()[vertex]);
+        hyperbolic::inverse(frame) * product * frame
+    } else {
+        product
+    };
+    let exponent = relator.exponent();
+    let mut power = element;
+    for _ in 1..exponent {
+        power *= element;
+    }
+    let residual = largest_entry_from_identity(power);
+    match kind {
+        Kind::Square | Kind::Pair => residual,
+        Kind::Corner | Kind::Cycle => residual / f64::from(exponent),
+    }
+}
+
+fn classified(domain: &FundamentalDomain, presentation: &Presentation) -> Vec<(Kind, usize)> {
+    let count = domain.sides().len();
+    let relators = presentation.relators();
+    if domain.reverses_orientation() {
+        assert_eq!(relators.len(), 2 * count);
+        relators
+            .iter()
+            .enumerate()
+            .map(|(position, relator)| {
+                if position < count {
+                    (Kind::Square, position)
+                } else {
+                    let first = sides_of(relator.base())[0];
+                    assert_eq!(first, position - count);
+                    (Kind::Corner, first)
+                }
+            })
+            .collect()
+    } else {
+        let pairs = domain
+            .sides()
+            .iter()
+            .enumerate()
+            .filter(|&(index, side)| side.partner() > index)
+            .count();
+        relators
+            .iter()
+            .enumerate()
+            .map(|(position, relator)| {
+                let first = sides_of(relator.base())[0];
+                if position < pairs {
+                    (Kind::Pair, first)
+                } else {
+                    (Kind::Cycle, (first + count - 1) % count)
+                }
+            })
+            .collect()
+    }
+}
+
+struct Largest {
+    residual: f64,
+    input: String,
+    samples: usize,
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the checks of the largest orders run loops too long for the interpreter"
+)]
+fn side_relators_evaluate_to_the_identity() {
+    let mut texts: Vec<String> = triangles().map(text).collect();
+    texts.extend(triangles().map(cone_text));
+    texts.extend(["*632", "*442", "*333", "*2222", "632", "442", "333", "2222"].map(str::to_owned));
+    texts.extend(spherical_signatures());
+    texts.extend(limit_signatures());
+    let mut largest = KINDS.map(|_| Largest {
+        residual: 0.0,
+        input: String::new(),
+        samples: 0,
+    });
+    for text in &texts {
+        let (domain, presentation) = presentation(text);
+        for ((kind, vertex), relator) in classified(&domain, &presentation)
+            .into_iter()
+            .zip(presentation.relators())
+        {
+            let residual = relator_residual(&domain, relator, kind, vertex);
+            assert!(
+                residual <= kind.tolerance(),
+                "{text}: {} {residual:e} above {:e}",
+                relator_text(&presentation, relator),
+                kind.tolerance()
+            );
+            let entry = &mut largest[kind.index()];
+            entry.samples += 1;
+            if residual > entry.residual || entry.input.is_empty() {
+                entry.residual = residual;
+                entry.input.clone_from(text);
+            }
+        }
+    }
+    for kind in KINDS {
+        let entry = &largest[kind.index()];
+        assert!(entry.samples > 0, "no {} relator", kind.name());
+        println!(
+            "{} relators: largest residual {:e} at {}, tolerance {:e}, margin {:.1}, over {} relators",
+            kind.name(),
+            entry.residual,
+            entry.input,
+            kind.tolerance(),
+            kind.tolerance() / entry.residual,
+            entry.samples
+        );
+    }
+}
+
+fn corner_words(count: usize) -> Vec<Word> {
+    (0..count)
+        .map(|corner| {
+            [corner, (corner + 1) % count]
+                .into_iter()
+                .map(|side| match u8::try_from(side) {
+                    Ok(side) => Letter::generator(side),
+                    Err(error) => panic!("side {side} has no letter: {error}"),
+                })
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the coset enumeration runs loops too long for the interpreter"
+)]
+fn corner_words_of_a_reflection_domain_generate_a_subgroup_of_index_two() {
+    let mut texts: Vec<String> = EXAMPLE_TRIPLES.into_iter().map(text).collect();
+    texts.extend(
+        [
+            "*632", "*442", "*333", "*2222", "*532", "*432", "*332", "*722", "*55",
+        ]
+        .map(str::to_owned),
+    );
+    for text in texts {
+        let (domain, presentation) = presentation(&text);
+        let subgroup = corner_words(domain.sides().len());
+        let table = match enumerate(&presentation, &subgroup, CosetLimit::DEFAULT) {
+            Ok(table) => table,
+            Err(error) => panic!("{text}: {error}"),
+        };
+        assert_eq!(table.index(), 2, "{text}");
+    }
+}

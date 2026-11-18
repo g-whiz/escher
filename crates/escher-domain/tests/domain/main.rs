@@ -7,6 +7,8 @@ mod euclidean;
 #[cfg(test)]
 mod parameters;
 #[cfg(test)]
+mod presentation;
+#[cfg(test)]
 mod properties;
 #[cfg(test)]
 mod reference;
@@ -14,6 +16,8 @@ mod reference;
 mod regular;
 #[cfg(test)]
 mod rotation;
+#[cfg(test)]
+mod shared;
 #[cfg(test)]
 mod spherical;
 #[cfg(test)]

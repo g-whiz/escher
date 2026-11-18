@@ -35,7 +35,9 @@
 //!
 //! Every other signature gives an [`Error`], because it is unsupported or an
 //! order is above 1000. [`FundamentalDomain::verify`] checks a domain
-//! numerically.
+//! numerically, and [`FundamentalDomain::side_presentation`] reads a
+//! [`Presentation`](escher_group::Presentation) of its group from its sides.
+//! The crate [`escher_group`] defines that type.
 //!
 //! ```
 //! use escher_domain::FundamentalDomain;
@@ -65,9 +67,17 @@ mod double;
 mod error;
 mod parameters;
 mod polygon;
+mod presentation;
 mod spherical;
 mod triangle;
 mod verify;
+
+#[cfg(test)]
+extern crate self as escher_domain;
+
+#[cfg(test)]
+#[path = "../tests/domain/shared.rs"]
+mod shared;
 
 pub use domain::{FundamentalDomain, Orientation, PairingKind, Side};
 pub use error::{Error, ErrorKind, Result};

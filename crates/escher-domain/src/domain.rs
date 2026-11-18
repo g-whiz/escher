@@ -482,6 +482,63 @@ impl FundamentalDomain {
         Verification::of(self)
     }
 
+    /// Returns the side presentation of the group of the domain, with one
+    /// generator for each side and the relators that the sides give.
+    ///
+    /// Use it to name the copies of the domain by words, such as to read the
+    /// sides that a fold crosses as a word in the generators. The generator of
+    /// side `i` is named `s` followed by `i`, such as `s0`, and stands for the
+    /// inverse of the pairing of the side, the isometry that maps the domain
+    /// onto its neighbouring copy across that side. A word is the product of
+    /// its generators from left to right.
+    ///
+    /// For a domain whose sides are all mirrors, the relators are the square
+    /// of each generator in side order, such as `s0^2`, followed by
+    /// `(sj sk)^n` for each corner `j` in corner order, where side `k` is the
+    /// side that follows side `j`, wrapping around at the last side, and `n`
+    /// is the order of the corner. For a domain whose sides are paired with
+    /// other sides, the relators are `si sp` for each side `i` whose partner
+    /// `p` is larger, followed by one relator for each vertex cycle, a set of
+    /// vertices that the side pairings join. The base of a cycle relator is
+    /// the generators of the sides that a walk around the cycle crosses, in
+    /// the order in which it crosses them, and its exponent is the order of
+    /// the cycle. The method changes nothing and never panics.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use escher_domain::FundamentalDomain;
+    /// use escher_signature::Signature;
+    ///
+    /// let signature: Signature = "22".parse()?;
+    /// let presentation = FundamentalDomain::build(&signature)?.side_presentation()?;
+    /// assert_eq!(presentation.generator_names(), ["s0", "s1"]);
+    /// let relators: Vec<String> = presentation
+    ///     .relators()
+    ///     .iter()
+    ///     .filter_map(|relator| presentation.display_relator(relator))
+    ///     .map(|text| text.to_string())
+    ///     .collect();
+    /// assert_eq!(relators, ["s0 s1", "s1^2", "s0^2"]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`](crate::Error) of kind
+    /// [`ErrorKind::InvalidPairing`](crate::ErrorKind::InvalidPairing) when the
+    /// domain has both mirror sides and paired sides, when it has a different
+    /// number of corners than of sides, when it has more than 256 sides, when
+    /// the side pairings do not lead around a vertex back to it, when the
+    /// corners of a vertex cycle differ in order or do not join two corners of
+    /// the reflection domain in total, or when the relators do not form a
+    /// valid presentation. The causes are checked in this order.
+    /// No domain that [`FundamentalDomain::build`] or
+    /// [`FundamentalDomain::build_with`] returns gives this error.
+    pub fn side_presentation(&self) -> Result<escher_group::Presentation> {
+        crate::presentation::side_presentation(self)
+    }
+
     pub(crate) fn triangles(&self) -> Vec<[f64; 3]> {
         let angles = |corners| triangle_angles(self.plane, corners);
         match self.vertices[..] {

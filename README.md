@@ -4,12 +4,12 @@ Escher is a Rust application for creating symmetry-based graphics, like those in
 
 ## Contents
 
-The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, a crate of hyperbolic, Euclidean, and spherical geometry, a crate that builds the fundamental domain of a hyperbolic, Euclidean, or spherical reflection triangle, of the rectangle, and of the lune, a crate of group presentations and coset enumeration, and a crate that renders a hyperbolic, Euclidean, or spherical domain as a tiling into a PNG image.
+The repository holds the tooling, the documents that set its standards, the research behind the project, the plan of the proof of concept, the command-line program `escher`, a crate that parses and classifies orbifold signatures, a crate of hyperbolic, Euclidean, and spherical geometry, a crate that builds the fundamental domain of a hyperbolic, Euclidean, or spherical reflection triangle, of the rectangle, of the lune, and of the double of each for its rotation signature, and reads a presentation of its group from its sides, a crate of group presentations and coset enumeration, and a crate that renders a hyperbolic, Euclidean, or spherical domain, or the double of one for its rotation signature, as a tiling into a PNG image.
 
 | Crate | Purpose |
 | --- | --- |
-| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, with the side pairs of a rotation domain, and, with `--check`, verifies that domain, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle, of a Euclidean or spherical reflection signature with a fundamental domain, or of the rotation signature of any of these, to a PNG file. It is not published. |
-| `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, of the Euclidean reflection triangles `*632`, `*442`, and `*333`, of the rectangle `*2222`, whose shape parameter `aspect` sets the ratio of its sides, of the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and of the lune `*nn`, with a wall and a reflection for each side. For the rotation signature of each of them, the signature without the star, such as `732`, it builds the double of that domain across one wall, whose sides are paired by rotations and, for `2222`, a translation. It measures the side lengths, corner angles, and area of the domain, and checks it numerically. It is not published. |
+| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, with the side pairs of a rotation domain, with `--check` verifies that domain, and with `--presentation` prints the presentations of the group and, for a spherical signature, counts the elements of the group by coset enumeration, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle, of a Euclidean or spherical reflection signature with a fundamental domain, or of the rotation signature of any of these, to a PNG file. It is not published. |
+| `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, of the Euclidean reflection triangles `*632`, `*442`, and `*333`, of the rectangle `*2222`, whose shape parameter `aspect` sets the ratio of its sides, of the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and of the lune `*nn`, with a wall and a reflection for each side. For the rotation signature of each of them, the signature without the star, such as `732`, it builds the double of that domain across one wall, whose sides are paired by rotations and, for `2222`, a translation. It measures the side lengths, corner angles, and area of the domain, checks it numerically, and reads a presentation of the group from its sides, with one generator for each side. It is not published. |
 | `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model, of the Euclidean plane, and of the sphere, over the vector and matrix types of `glam`: points, distances, walls and lines, reflections and other isometries, and the map between the hyperboloid and the Poincare disk. It is not published. |
 | `escher-group` | A library of finitely presented groups: words, relators, and presentations with named generators, the presentation that Conway's rules read from an orbifold signature, and Todd-Coxeter coset enumeration with a limit on the number of cosets, which returns a coset table in a standard form. It is not published. |
 | `escher-render` | A library that renders the tiling of a compact hyperbolic reflection triangle in the Poincare disk, of a Euclidean reflection triangle or rectangle in the plane, or of a spherical reflection triangle or lune as a ball with a viewing rotation and Phong shading, or of the double of any of these for its rotation signature, with borders and one or two fill colours, averages several samples in each pixel, and encodes the image as a PNG file in memory. It is not published. |
@@ -87,6 +87,27 @@ escher info --check '*732'
 After the properties and the domain summary, it prints one line for each of the six checks, with its result, residual, and tolerance, and then a `Verification` line with the overall result.
 
 With `--check`, the exit status is 1 when a check fails or the signature has no fundamental domain.
+
+The option `--presentation` prints the presentation of the group that Conway's rules read from the signature and, when a domain is built, the presentation read from the sides of the fundamental domain, with one generator for each side. For a spherical signature whose group order is at most 16384, it also counts the elements of the group of each presentation by coset enumeration, and compares the count with the group order. This command prints the presentations of `*532`:
+
+```sh
+escher info --presentation '*532'
+```
+
+After the properties and the domain summary, it prints these lines:
+
+```text
+Presentation: 5 generators, 9 relators
+Generators: r1, r2, r3, r4, l1
+Relators: r1^2, (r1 r2)^5, r2^2, (r2 r3)^3, r3^2, (r3 r4)^2, r4^2, l1^-1 r1 l1 r4^-1, l1
+Order by coset enumeration: 120, equal to 2/chi
+Side presentation: 3 generators, 6 relators
+Side generators: s0, s1, s2
+Side relators: s0^2, s1^2, s2^2, (s0 s1)^5, (s1 s2)^3, (s2 s0)^2
+Side order by coset enumeration: 120, equal to 2/chi
+```
+
+With `--presentation`, the exit status is 1 when a count differs from the group order.
 
 A signature that is not valid gives an error on standard error, with a caret under the offending characters, and exit status 1. This command shows the error for an order of 12 without parentheses:
 
