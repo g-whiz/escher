@@ -4,6 +4,7 @@ use glam::DVec3;
 use proptest::test_runner::Config;
 
 use crate::reference::{Vector, vector};
+use crate::shared::NAMED_POLYGONS;
 pub(crate) use crate::shared::{built, signature};
 
 pub(crate) const EXAMPLE_TRIPLES: [[u32; 3]; 6] = [
@@ -72,9 +73,15 @@ pub(crate) fn all_triangles() -> Vec<[u32; 3]> {
     triples
 }
 
+const MIRI_CASES: u32 = 8;
+
 pub(crate) fn proptest_config() -> Config {
+    proptest_config_with_miri_cases(MIRI_CASES)
+}
+
+pub(crate) fn proptest_config_with_miri_cases(cases: u32) -> Config {
     if cfg!(miri) {
-        let mut config = Config::with_cases(8);
+        let mut config = Config::with_cases(cases);
         config.failure_persistence = None;
         config
     } else {
@@ -252,4 +259,25 @@ pub(crate) fn assert_same_domain(
         let difference = (*one - *other).abs().max_element();
         assert!(difference <= tolerance, "{input}: {difference:e}");
     }
+}
+
+pub(crate) fn starred(rotation: &str) -> String {
+    format!("*{rotation}")
+}
+
+pub(crate) const LIMIT_ROTATION_POLYGONS: [&str; 1] =
+    ["(1000)(1000)(1000)(1000)(1000)(1000)(1000)(1000)"];
+
+pub(crate) fn named_rotation_polygons() -> Vec<String> {
+    NAMED_POLYGONS
+        .iter()
+        .map(|text| text.trim_start_matches('*').to_owned())
+        .collect()
+}
+
+pub(crate) fn clear_rotation_polygons() -> Vec<String> {
+    named_rotation_polygons()
+        .into_iter()
+        .filter(|text| !LIMIT_ROTATION_POLYGONS.contains(&text.as_str()))
+        .collect()
 }

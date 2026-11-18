@@ -16,8 +16,10 @@
 //! points, the centres of rotation, and no mirror boundary, such as `632`, has
 //! the double of a reflection domain, which is the union of the reflection
 //! domain and its mirror image across the wall of its side 1, the side that
-//! joins its vertices 0 and 1. The sides of a double are paired by rotations,
-//! except that a translation joins one pair of sides of the double of `2222`.
+//! joins its vertices 0 and 1. The sides of a double are paired by rotations
+//! and translations. A translation joins one pair of sides of the double of
+//! `2222`, and each pair of sides of the double of a hyperbolic polygon whose
+//! walls do not meet the wall of side 1.
 //!
 //! The reflection domains are these. A signature `*pqr` with three finite
 //! corner orders has a triangle whose corners have the angles `pi / p`,
@@ -33,16 +35,18 @@
 //! such as `*3333` or `*5432`, has a polygon of the hyperbolic plane with
 //! those corners in the order of the signature. A polygon with `n` corners
 //! has `n - 3` shape parameters, which are lengths from 0.5 to 3.5. The crate
-//! returns the polygon only when it passes its checks. A signature without a
+//! returns a polygon only when it passes its checks. A signature without a
 //! mirror boundary has a domain when its cone orders are the corner orders of
-//! a triangle, the rectangle, or a lune, such as `732`, `632`, `2222`, `532`,
-//! `n22`, and `nn`. It has none when they are the corner orders of a
-//! hyperbolic polygon.
+//! a triangle, the rectangle, a lune, or a hyperbolic polygon, such as `732`,
+//! `632`, `2222`, `532`, `n22`, `nn`, and `3333`. The double of a polygon
+//! doubles the polygon with every length at its default, so it has no shape
+//! parameter, and the crate returns it only when it passes its checks.
 //!
 //! Every other signature gives an [`Error`]. The causes are an unsupported
-//! signature, more than eight corner orders, an order above 1000, and a
-//! polygon that fails its checks. [`FundamentalDomain::verify`] checks a
-//! domain numerically, and [`FundamentalDomain::side_presentation`] reads a
+//! signature, more than eight corner or cone orders, an order above 1000, and
+//! a polygon or a double of a polygon that fails its checks.
+//! [`FundamentalDomain::verify`] checks a domain numerically, and
+//! [`FundamentalDomain::side_presentation`] reads a
 //! [`Presentation`](escher_group::Presentation) of its group from its sides.
 //! The crate [`escher_group`] defines that type.
 //!

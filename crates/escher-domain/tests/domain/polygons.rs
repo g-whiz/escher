@@ -9,9 +9,11 @@ use proptest::prelude::{prop_assert, prop_assert_eq, prop_oneof, proptest};
 use proptest::sample::select;
 use proptest::strategy::Strategy;
 
-use crate::common::{proptest_config, signature};
+use crate::common::{proptest_config_with_miri_cases, signature};
 use crate::reference::{Reference, add, div, int, mul, num, sub, vector};
 use crate::shared::{NAMED_POLYGONS, corner_orders, small_polygons};
+
+const RANDOM_POLYGON_MIRI_CASES: u32 = 3;
 
 const VERTEX_BOUND: f64 = 4e-15;
 
@@ -416,7 +418,7 @@ fn polygon_orders() -> impl Strategy<Value = Vec<u32>> {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
+    #![proptest_config(proptest_config_with_miri_cases(RANDOM_POLYGON_MIRI_CASES))]
 
     #[test]
     fn random_polygons_build_and_pass_or_are_refused(

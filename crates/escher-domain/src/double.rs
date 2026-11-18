@@ -100,7 +100,10 @@ fn doubled_side(generating: &FundamentalDomain, plane: Plane, wall: DMat3, index
             product(wall, source.pairing),
         )
     };
-    let translation = is_translation(plane, pairing);
+    let translation = match plane {
+        Plane::Hyperbolic { .. } => original != 0 && original != 2,
+        Plane::Euclidean | Plane::Spherical { .. } => is_translation(plane, pairing),
+    };
     Side {
         normal,
         covector,

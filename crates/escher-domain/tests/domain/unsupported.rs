@@ -2,7 +2,7 @@ use escher_domain::{ErrorKind, FundamentalDomain};
 
 use crate::common::signature;
 
-const UNSUPPORTED: [&str; 26] = [
+const UNSUPPORTED: [&str; 18] = [
     "3*2",
     "3*3",
     "4*3",
@@ -21,14 +21,6 @@ const UNSUPPORTED: [&str; 26] = [
     "7*32",
     "x732",
     "(1001)*32",
-    "3222",
-    "22222",
-    "3333",
-    "(1000)222",
-    "22222222",
-    "(1001)222",
-    "222222222",
-    "(1001)(1001)(1001)(1001)",
 ];
 
 fn error_of(text: &str) -> Option<(ErrorKind, String)> {
@@ -65,6 +57,8 @@ fn build_rejects_an_order_above_the_limit() {
         "(1001)32",
         "(1001)22",
         "(1001)(1001)",
+        "(1001)222",
+        "(1001)(1001)(1001)(1001)",
     ] {
         assert_eq!(
             error_of(text),
@@ -79,7 +73,12 @@ fn build_rejects_an_order_above_the_limit() {
 
 #[test]
 fn build_rejects_more_than_eight_orders_before_the_order_limit() {
-    for text in ["*222222222", "*(1001)22222222"] {
+    for text in [
+        "*222222222",
+        "*(1001)22222222",
+        "222222222",
+        "(1001)22222222",
+    ] {
         assert_eq!(
             error_of(text),
             Some((
@@ -103,6 +102,11 @@ fn build_accepts_the_order_at_the_limit() {
         "(1000)32",
         "(1000)22",
         "(1000)(1000)",
+        "(1000)222",
+        "22222222",
+        "3222",
+        "22222",
+        "3333",
     ] {
         let built = FundamentalDomain::build(&signature(text));
         assert!(built.is_ok(), "{text}: {built:?}");

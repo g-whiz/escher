@@ -1,22 +1,24 @@
 use core::f64::consts::PI;
 
 use astro_float_num::BigFloat;
-use escher_domain::{FundamentalDomain, Orientation, PairingKind};
-use escher_geometry::hyperbolic::{inverse, to_disk, translation};
+use escher_domain::{ErrorKind, FundamentalDomain, Orientation, PairingKind, parameters};
+use escher_geometry::hyperbolic::{inverse, translation};
 use escher_geometry::{euclidean, hyperbolic, spherical};
 use escher_signature::Geometry;
 use glam::{DMat3, DVec3};
 use proptest::prelude::{prop_assert, proptest};
 
 use crate::common::{
-    EUCLIDEAN_TRIANGLES, EXAMPLE_TRIPLES, LargestResiduals, all_triangles, aspects,
-    assert_same_domain, built, cone_text, domain, kite, largest_coordinate_error, order_text,
-    proptest_config, triangles, with_aspect,
+    EUCLIDEAN_TRIANGLES, EXAMPLE_TRIPLES, LIMIT_ROTATION_POLYGONS, LargestResiduals, all_triangles,
+    aspects, assert_same_domain, built, clear_rotation_polygons, cone_text, domain, kite,
+    largest_coordinate_error, order_text, proptest_config, signature, starred, triangles,
+    with_aspect,
 };
 use crate::reference::{
     Double, Model, Reference, Worst, add, div, error, int, largest_entry_from_identity,
     largest_magnitude, matrix, max, mul, num, power, product, sub,
 };
+use crate::shared::corner_orders;
 
 #[derive(Clone, Copy)]
 struct Samples {
@@ -206,10 +208,6 @@ fn reflection_vertex_bound(geometry: Geometry) -> f64 {
         .map_or(0.0, |(_, bound)| *bound)
 }
 
-fn starred(text: &str) -> String {
-    format!("*{text}")
-}
-
 fn source(sides: usize, index: usize) -> (usize, bool) {
     let count = sides / 2 + 1;
     if index == 0 {
@@ -236,11 +234,15 @@ fn original_of(sides: usize, index: usize) -> Option<usize> {
     }
 }
 
+fn to_klein(point: DVec3) -> glam::DVec2 {
+    point.truncate() / point.z
+}
+
 fn counterclockwise(domain: &FundamentalDomain) -> bool {
     let [first, second, third] = [0, 1, 2].map(|index| domain.vertices()[index]);
     match domain.geometry() {
         Geometry::Hyperbolic => {
-            let [first, second, third] = [first, second, third].map(to_disk);
+            let [first, second, third] = [first, second, third].map(to_klein);
             (second - first).perp_dot(third - first) > 0.0
         }
         Geometry::Euclidean => {
@@ -880,4 +882,229 @@ pub(crate) fn two_vertex_cycle_residual(double: &FundamentalDomain, order: u32) 
         .fold(0.0, f64::max)
         / f64::from(order);
     fixed.max(relator)
+}
+
+const SMALL_ROTATION_POLYGONS: [&str; 4] = ["3222", "3333", "5432", "22222"];
+
+const MISROUNDED_ENTRY_BOUND: f64 = 1e-30;
+
+const REFUSED_DOUBLE_TEXT: &str = "cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough";
+
+fn cycle_sets(domain: &FundamentalDomain) -> Vec<Vec<usize>> {
+    let sides = domain.sides();
+    let count = sides.len();
+    let mut visited = vec![false; count];
+    let mut found = Vec::new();
+    for start in 0..count {
+        if visited[start] {
+            continue;
+        }
+        let (mut vertex, mut cycle) = (start, Vec::new());
+        loop {
+            visited[vertex] = true;
+            cycle.push(vertex);
+            vertex = sides[(vertex + 1) % count].partner();
+            if vertex == start || cycle.len() > count {
+                break;
+            }
+        }
+        cycle.sort_unstable();
+        found.push(cycle);
+    }
+    found.sort();
+    found
+}
+
+fn expected_cycle_sets(corners: usize) -> Vec<Vec<usize>> {
+    let mut expected = vec![vec![0], vec![corners - 1]];
+    expected.extend((2..corners).map(|j| vec![corners - j, corners + j - 2]));
+    expected.sort();
+    expected
+}
+
+fn assert_rotation_polygon(text: &str) {
+    let double = built(text);
+    let generating = built(&starred(text));
+    let verification = double.verify();
+    assert!(verification.passed(), "{text}: {verification:?}");
+    assert!(!double.reverses_orientation(), "{text}");
+    assert!(generating.reverses_orientation(), "{text}");
+    assert!(parameters(&signature(text)).is_empty(), "{text}");
+    let orders = corner_orders(&signature(&starred(text)));
+    let corner_count = orders.len();
+    let count = 2 * corner_count - 2;
+    assert_eq!(double.geometry(), Geometry::Hyperbolic, "{text}");
+    assert_eq!(double.sides().len(), count, "{text}");
+    assert_eq!(double.vertices().len(), count, "{text}");
+    for (index, side) in double.sides().iter().enumerate() {
+        assert_eq!(side.orientation(), Orientation::Preserving, "{text}");
+        let (original, _) = source(count, index);
+        let expected = if original == 0 || original == 2 {
+            PairingKind::Rotation
+        } else {
+            PairingKind::Translation
+        };
+        assert_eq!(side.kind(), expected, "{text}: side {index}");
+        assert_eq!(
+            side.partner(),
+            (2 * corner_count - 1 - index) % count,
+            "{text}: side {index}"
+        );
+    }
+    let tolerance = verification.angles().tolerance();
+    let mut flats = Vec::new();
+    for (index, (angle, (order, copies))) in double
+        .corner_angles()
+        .into_iter()
+        .zip(corners(&orders))
+        .enumerate()
+    {
+        let exact = f64::from(copies) * PI / f64::from(order);
+        let difference = (angle - exact).abs();
+        assert!(
+            difference <= tolerance,
+            "{text}: vertex {index}: {difference:e}"
+        );
+        if (angle - PI).abs() <= tolerance {
+            flats.push(index);
+        }
+    }
+    let mut expected_flats = Vec::new();
+    if orders.iter().all(|&order| order == 2) {
+        expected_flats.push(0);
+    }
+    if orders[1] == 2 {
+        expected_flats.push(corner_count - 1);
+    }
+    assert_eq!(flats, expected_flats, "{text}");
+    assert_eq!(
+        cycle_sets(&double),
+        expected_cycle_sets(corner_count),
+        "{text}"
+    );
+    assert!(counterclockwise(&double), "{text}");
+    let wall = generating.sides()[1].pairing();
+    let bit_tolerance = 2.0 * reflection_vertex_bound(Geometry::Hyperbolic);
+    for index in 0..count {
+        if let Some(image) = image_of(count, index) {
+            assert_bits(
+                double.vertices()[index],
+                wall * generating.vertices()[image],
+                bit_tolerance,
+                &format!("{text}: image vertex {index}"),
+            );
+        }
+        let (original, image) = source(count, index);
+        if !image {
+            let (side, kept) = (double.sides()[index], generating.sides()[original]);
+            let input = format!("{text}: side {index}");
+            assert_bits(side.normal(), kept.normal(), bit_tolerance, &input);
+            assert_bits(side.covector(), kept.covector(), bit_tolerance, &input);
+        }
+        if let Some(original) = original_of(count, index) {
+            assert_bits(
+                double.vertices()[index],
+                generating.vertices()[original],
+                bit_tolerance,
+                &format!("{text}: vertex {index}"),
+            );
+        }
+    }
+    assert_bits(double.centre(), generating.centre(), bit_tolerance, text);
+}
+
+#[test]
+fn small_rotation_polygons_build_their_doubles_with_the_table_of_pairs() {
+    for text in SMALL_ROTATION_POLYGONS {
+        assert_rotation_polygon(text);
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the checks of the largest orders run loops too long for the interpreter"
+)]
+fn named_rotation_polygons_build_their_doubles() {
+    for text in clear_rotation_polygons() {
+        assert_rotation_polygon(&text);
+    }
+    for text in LIMIT_ROTATION_POLYGONS {
+        match FundamentalDomain::build(&signature(text)) {
+            Ok(_) => assert_rotation_polygon(text),
+            Err(error) => assert_eq!(
+                (error.kind(), error.to_string()),
+                (ErrorKind::Numerical, REFUSED_DOUBLE_TEXT.to_owned()),
+                "{text}"
+            ),
+        }
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the checks of the largest orders run loops too long for the interpreter"
+)]
+fn a_refused_double_names_its_side_pairings() {
+    let text = "(967)(967)(967)(967)(967)(967)(967)(967)";
+    assert!(FundamentalDomain::build(&signature(&starred(text))).is_ok());
+    let error = FundamentalDomain::build(&signature(text)).err();
+    assert_eq!(
+        error.map(|error| (error.kind(), error.to_string())),
+        Some((ErrorKind::Numerical, REFUSED_DOUBLE_TEXT.to_owned()))
+    );
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn pairings_of_rotation_polygons_are_accurately_rounded_products() {
+    let mut entries = 0;
+    let mut misrounded: Vec<String> = Vec::new();
+    let mut largest = int(0);
+    for text in clear_rotation_polygons() {
+        let double = built(&text);
+        let generating = built(&starred(&text));
+        let reflections: Vec<DMat3> = generating
+            .sides()
+            .iter()
+            .map(|side| side.pairing())
+            .collect();
+        let wall = reflections[1];
+        let count = double.sides().len();
+        for (index, side) in double.sides().iter().enumerate() {
+            let (original, image) = source(count, index);
+            let (first, second) = if image {
+                (reflections[original], wall)
+            } else {
+                (wall, reflections[original])
+            };
+            let exact = exact_product(first, second);
+            for (row, exact_row) in exact.iter().enumerate() {
+                for (column, exact) in exact_row.iter().enumerate() {
+                    entries += 1;
+                    let value = side.pairing().col(column)[row];
+                    let input = || format!("entry ({row}, {column}) of side {index} of {text}");
+                    if !is_nearest(value, exact) {
+                        misrounded.push(input());
+                        largest = max(&largest, &error(value, exact));
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "doubles of the named polygons: {} of {entries} entries of the pairings are not the exact product rounded to nearest: {misrounded:?}",
+        misrounded.len()
+    );
+    let mut reference = Reference::new();
+    let largest = reference.approximate(&largest);
+    println!(
+        "largest absolute error of those entries: {largest:e}, bound {MISROUNDED_ENTRY_BOUND:e}"
+    );
+    assert!(entries > 0);
+    assert!(largest <= MISROUNDED_ENTRY_BOUND, "{largest:e}");
 }

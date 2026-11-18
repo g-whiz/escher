@@ -37,23 +37,27 @@ use crate::walk;
 /// eight corners, such as `*3333`, a reflection rectangle for `*2222`, and a
 /// lune for `*nn`, the region of the sphere between two half great circles
 /// that are mirrors and meet at the angle `pi / n` at two antipodal vertices.
-/// In a reflection domain, vertex `j` is
-/// corner `j` of the canonical signature, which lists the largest order first.
-/// Side `j` joins vertex `j - 1` and vertex `j`, with indexes modulo the number
-/// of sides, so vertex `j` lies between side `j` and side `j + 1`. The vertices
-/// are counterclockwise, in the Poincare disk for a hyperbolic domain, in the
-/// plane for a Euclidean one, and as seen from outside the sphere for a
-/// spherical one, and the domain is placed with its
-/// [centre](FundamentalDomain::centre) at the origin.
+/// In a reflection domain, vertex `j` is corner `j` of the canonical
+/// signature, which lists the largest order first. Side `j` joins vertex
+/// `j - 1` and vertex `j`, with indexes modulo the number of sides, so vertex
+/// `j` lies between side `j` and side `j + 1`. The vertices are
+/// counterclockwise. For a hyperbolic domain this is in the Klein model, which
+/// takes the first two coordinates of a point divided by the third and draws
+/// every wall as a straight line. For a Euclidean domain it is in the plane,
+/// and for a spherical one it is as seen from outside the sphere. The domain
+/// is placed with its [centre](FundamentalDomain::centre) at the origin.
 ///
 /// For a signature without a mirror boundary, whose cone points, the centres of
 /// rotation, have the orders of the corners of a signature above, such as `732`
 /// for `*732`, the crate builds the double of the reflection domain of that
 /// signature. The double is the reflection domain together with its mirror
 /// image across the wall of its side 1. It keeps the reflection domain in
-/// place, so it has the same centre. Rotations pair its sides with each other
-/// in place of mirrors, except that a translation pairs two sides of the double
-/// of `2222`.
+/// place, so it has the same centre. Rotations and translations pair its
+/// sides with each other in place of mirrors. A side is paired by a rotation
+/// when its wall meets the wall of side 1 at a corner of the reflection domain,
+/// and by a translation otherwise. Two sides of the double of `2222` are
+/// paired by translations, and so are all but four sides of the double of a
+/// hyperbolic polygon, such as sides 2 and 5 of the double of `3333`.
 ///
 /// # Examples
 ///
@@ -203,13 +207,15 @@ impl FundamentalDomain {
     /// - A lune `*nn`.
     ///
     /// Each corner order must be at most 1000. Without a boundary, its cone
-    /// orders must be the corner orders of one of these other than a
-    /// hyperbolic polygon, such as `732`, `2222`, or `nn`, and its domain is
-    /// the double of the domain of that signature, which is the domain
-    /// together with its mirror image across the wall of side 1. The double of
-    /// a triangle is a kite with four sides, that of the rectangle has six,
-    /// and that of a lune has two. The double of `2222` has the shape
-    /// parameter `aspect` of the rectangle that it doubles.
+    /// orders must be the corner orders of one of these, such as `732`,
+    /// `2222`, `nn`, or `3333`, and its domain is the double of the domain of
+    /// that signature, which is the domain together with its mirror image
+    /// across the wall of side 1. The double of a triangle is a kite with four
+    /// sides, that of the rectangle has six, that of a lune has two, and that
+    /// of a polygon with `n` corners has `2n - 2`. The double of `2222` has the
+    /// shape parameter `aspect` of the rectangle that it doubles. The double of
+    /// a polygon has no shape parameter: it doubles the polygon at the default
+    /// value of each of its parameters.
     ///
     /// The reflection triangle of a Euclidean signature has side 0 of length 1,
     /// and the reflection rectangle has area 1. A spherical domain lies on the
@@ -221,10 +227,14 @@ impl FundamentalDomain {
     /// signature, and each value must lie in the range of that parameter. A
     /// parameter without a setting takes its default value.
     ///
-    /// A hyperbolic polygon is returned only when it passes every check of
-    /// [`verify`](FundamentalDomain::verify), because some settings near the
-    /// ends of the ranges give a shape that rounding keeps from meeting the
-    /// tolerances of the checks.
+    /// A hyperbolic polygon or its double is returned only when it passes
+    /// every check of [`verify`](FundamentalDomain::verify), because rounding
+    /// keeps some domains from meeting the tolerances of the checks. A polygon
+    /// with lengths near the ends of their ranges can have errors that are too
+    /// large. The check of the vertex cycles of the double of a polygon with
+    /// many corners of high order can lose too much accuracy in its own
+    /// arithmetic. The double has no other shape, so its signature then has no
+    /// domain.
     ///
     /// # Examples
     ///
@@ -259,8 +269,8 @@ impl FundamentalDomain {
     ///    for a signature that is none of those above.
     /// 2. An error of kind
     ///    [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) for a
-    ///    signature with more than eight corner orders, and then for a corner
-    ///    or cone order above 1000.
+    ///    signature with more than eight corner or cone orders, and then for a
+    ///    corner or cone order above 1000.
     /// 3. An error of kind
     ///    [`ErrorKind::UnknownParameter`](crate::ErrorKind::UnknownParameter)
     ///    when a setting names no parameter of the signature.
@@ -270,19 +280,27 @@ impl FundamentalDomain {
     ///    of its parameter.
     /// 5. An error of kind
     ///    [`ErrorKind::Numerical`](crate::ErrorKind::Numerical) when rounding
-    ///    makes the construction degenerate, or when a hyperbolic polygon
-    ///    fails a check of [`verify`](FundamentalDomain::verify).
+    ///    makes the construction degenerate, or when a hyperbolic polygon or
+    ///    its double fails a check of [`verify`](FundamentalDomain::verify).
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
         let supported = admitted(signature)?;
         let cuts = supported.shape().cuts();
         let values = validate(signature, supported, cuts.as_ref(), parameters)?;
-        match supported {
-            Supported::Reflection(shape) => Self::reflection(shape, cuts.as_ref(), &values),
+        let domain = match supported {
+            Supported::Reflection(shape) => Self::reflection(shape, cuts.as_ref(), &values)?,
             Supported::Rotation(shape) => double(
                 &Self::reflection(shape.with_half_area(), cuts.as_ref(), &values)?,
                 plane(shape),
-            ),
+            )?,
+        };
+        let guarded = matches!(supported.shape(), Shape::HyperbolicPolygon { .. });
+        if guarded && !domain.verify().passed() {
+            return Err(match supported {
+                Supported::Reflection(_) => Error::refused(),
+                Supported::Rotation(_) => Error::refused_double(),
+            });
         }
+        Ok(domain)
     }
 
     fn reflection(shape: Shape, cuts: Option<&Cuts>, values: &[f64]) -> Result<Self> {
@@ -306,18 +324,13 @@ impl FundamentalDomain {
             Shape::Lune { order, .. } => lune(order),
         }
         .map_err(Error::numerical)?;
-        let domain = Self {
+        Ok(Self {
             plane: plane(shape),
             corners: orders.into_iter().map(Corner::single).collect(),
             sides: polygon.sides,
             vertices: polygon.vertices,
             centre: polygon.centre,
-        };
-        let guarded = matches!(shape, Shape::HyperbolicPolygon { .. });
-        if guarded && !domain.verify().passed() {
-            return Err(Error::refused());
-        }
-        Ok(domain)
+        })
     }
 
     /// Returns the geometry of the signature, which is
@@ -346,11 +359,14 @@ impl FundamentalDomain {
     /// counterclockwise order.
     ///
     /// For a hyperbolic domain the vertices are points of the hyperboloid,
-    /// counterclockwise in the Poincare disk. They are not scaled back onto
-    /// the hyperboloid after the domain is moved into place, because that
-    /// scaling moves a vertex away from the true corner. A vertex therefore
-    /// lies off the hyperboloid by a rounding error, and a caller should not
-    /// normalize it. For a Euclidean domain the vertices are points `(x, y, 1)`
+    /// counterclockwise in the Klein model, which takes the first two
+    /// coordinates of a point divided by the third. In the Poincare disk,
+    /// three consecutive vertices joined by straight segments can turn
+    /// clockwise, because the disk draws the walls as arcs. The vertices are
+    /// not scaled back onto the hyperboloid after the domain is moved into
+    /// place, because that scaling moves a vertex away from the true corner.
+    /// A vertex therefore lies off the hyperboloid by a rounding error, and a
+    /// caller should not normalize it. For a Euclidean domain the vertices are points `(x, y, 1)`
     /// of the plane. For a spherical domain the vertices are points of the
     /// unit sphere. The two vertices of a lune and of its double are the
     /// antipodal points `(0, 1, 0)` and `(0, -1, 0)`.
@@ -839,9 +855,12 @@ pub enum PairingKind {
     /// The pairing isometry is a rotation, which maps the side onto its
     /// partner, another side of the domain.
     Rotation,
-    /// The pairing isometry is a translation of the Euclidean plane, which
-    /// maps the side onto its partner, another side of the domain, and fixes
-    /// no point.
+    /// The pairing isometry is a translation, which maps the side onto its
+    /// partner, another side of the domain, and fixes no point. In the
+    /// Euclidean plane it moves every point by the same vector. In the
+    /// hyperbolic plane it moves one line, its axis, along itself. The axis is
+    /// the common perpendicular of the two walls that do not meet, whose
+    /// reflections the translation composes.
     Translation,
 }
 
@@ -932,10 +951,18 @@ mod tests {
     #[test]
     fn build_checks_the_number_of_orders_before_the_largest_order() {
         let most = "2".repeat(MOST_ORDERS);
-        assert!(FundamentalDomain::build(&signature(&format!("*{most}"))).is_ok());
+        for star in ["*", ""] {
+            let at_most = format!("{star}{most}");
+            assert!(
+                FundamentalDomain::build(&signature(&at_most)).is_ok(),
+                "{at_most}"
+            );
+        }
         for text in [
             format!("*2{most}"),
             format!("*({}){most}", LARGEST_ORDER + 1),
+            format!("2{most}"),
+            format!("({}){most}", LARGEST_ORDER + 1),
         ] {
             let error = FundamentalDomain::build(&signature(&text)).err();
             assert_eq!(

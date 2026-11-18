@@ -732,17 +732,19 @@ Compact: yes
 Area: 4pi/3
 Deformation dimension: 2
 Domain: 6 sides in 3 pairs
-Side pairs: 0 and 1 by rotation, 2 and 5 by rotation, 3 and 4 by rotation
+Side pairs: 0 and 1 by rotation, 2 and 5 by translation, 3 and 4 by rotation
 Parity colouring: none, every side pairing preserves orientation
-Corner angles in degrees: <angle>, <angle>, <angle>, <angle>, <angle>, <angle>
-Side lengths: <length>, <length>, <length>, <length>, <length>, <length>
+Corner angles in degrees: 120.000000, 60.000000, 60.000000, 120.000000, 60.000000, 60.000000
+Side lengths: 1.762713, 1.762713, 1.762782, 1.762713, 1.762713, 1.762782
 Domain area: 4.188790
-Colourings: <count>, complete to 9 colours, the search stopped at a limit before 10 colours
+Colourings: 149862, complete to 9 colours, the search stopped at a limit before 10 colours
 Colourings with 1 colour: 1
+Colourings with 3 colours: 13
+Colourings with 4 colours: 76
 ...
 ```
 
-The domain is the double of the polygon of `*3333` at its default shape across its side 1 (DOM-47 of `docs/design/domain.md`, `DEC-50` of `docs/design/architecture.md`), with $2 \cdot 4 - 2 = 6$ sides in 3 pairs. Side $k$ is paired with side $(2n - 1 - k) \bmod (2n - 2)$ by a rotation, which gives the pairs of the `Side pairs` line (DOM-24 and Section 6.8 of `docs/design/domain.md`), and Section 5.4 of that document gives the side presentation of `3333`. The signature has a deformation dimension of 2 and no `Parameter` line, because the double has no shape parameter until the milestone that builds the general hyperbolic signatures. That milestone also renumbers the sides, which changes the `Side pairs` line and the ids of the colourings of `3333`. The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. On the prototype, the colouring search of `3333` stopped at the step budget after it completed 9 colours, in 1.21 s in a release build, and found no colouring with 2 colours.
+The domain is the double of the polygon of `*3333` at its default shape across its side 1 (DOM-47 of `docs/design/domain.md`, `DEC-50` of `docs/design/architecture.md`), with $2 \cdot 4 - 2 = 6$ sides in 3 pairs. Side $k$ is paired with side $(2n - 1 - k) \bmod (2n - 2)$, which gives the pairs of the `Side pairs` line (DOM-24 and Section 6.8 of `docs/design/domain.md`). Sides 0 and 1, and sides $n - 1$ and $n$, are paired by a rotation, and every other pair by a translation, because its walls do not meet the doubled wall (step 5 of Section 6.8 of `docs/design/domain.md`). Section 5.4 of that document gives the side presentation of `3333`. The signature has a deformation dimension of 2 and no `Parameter` line, because the double has no shape parameter. A construction of `p1...pn` with parameters of its own would renumber the sides, which would change the `Side pairs` line and the ids of the colourings of `3333`. The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. The angles of 120 degrees are at $W_0$ and $W_3$, where two corners of order 3 of the polygon meet, and the side lengths are those of the polygon of `*3333` and their images. The lines from `Corner angles` to `Colourings with 4 colours` are the output of the crate. `escher info --max-colours 4 3333` prints the same lines up to 4 colours, with the `Colourings` line `Colourings: 90, complete to 4 colours`, and no line for 2 colours. On the prototype, the colouring search of `3333` stopped at the step budget after it completed 9 colours, in 1.21 s in a release build, and found no colouring with 2 colours. The crate stops at the same point in 1.5 s in a release build.
 
 This example shows an order of 10 or more, written in parentheses:
 
@@ -1604,7 +1606,14 @@ error: cannot render *22222222
   caused by: cannot build fundamental domain: the shape is too extreme to build accurately
 ```
 
-Section 10.2 of `docs/design/domain.md` fixes the text after `caused by: ` in the last five examples with that line, and prevails where the two documents differ. No such text echoes what the user typed, because the name in a text of a range is the name of the specification in `escher-domain`, the numbers are those of its range, and the other texts hold the canonical signature and fixed words (CLI-26).
+A rotation signature whose double fails `verify()` is refused with the same kind and a text of its own, because it has no setting to change. Section 8.4 of `docs/design/domain.md` states which doubles are refused, such as that of `(967)(967)(967)(967)(967)(967)(967)(967)`:
+
+```text
+error: cannot render (967)(967)(967)(967)(967)(967)(967)(967)
+  caused by: cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough
+```
+
+Section 10.2 of `docs/design/domain.md` fixes the text after `caused by: ` in the last six examples with that line, and prevails where the two documents differ. No such text echoes what the user typed, because the name in a text of a range is the name of the specification in `escher-domain`, the numbers are those of its range, and the other texts hold the canonical signature and fixed words (CLI-26).
 
 This example shows three colours for the colouring `parity`:
 

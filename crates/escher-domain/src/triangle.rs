@@ -130,9 +130,6 @@ pub(crate) fn supported(signature: &Signature) -> Result<Supported, Error> {
             let finite: Option<Vec<u32>> = orders.iter().map(|order| order.finite()).collect();
             let finite = finite.ok_or_else(unsupported)?;
             let area = area(signature).ok_or_else(unsupported)?;
-            if signature.boundaries().is_empty() {
-                return Err(unsupported());
-            }
             polygon(&finite, area)?
         }
         ([first, second, third], Geometry::Euclidean) => {
@@ -373,7 +370,7 @@ mod tests {
 
     #[test]
     fn supported_rejects_a_signature_without_a_construction() {
-        for text in ["3*2", "3222", "*(inf)32", "*(inf)222"] {
+        for text in ["3*2", "*(inf)32", "*(inf)222", "(inf)222"] {
             assert_eq!(supported(&signature(text)).ok(), None, "{text}");
         }
     }
@@ -388,6 +385,14 @@ mod tests {
                 area: PI * 2.0 / 3.0,
             })),
         );
+        assert_eq!(
+            supported(&signature("3222")).ok(),
+            Some(Supported::Rotation(Shape::HyperbolicPolygon {
+                orders: [3, 2, 2, 2, 0, 0, 0, 0],
+                count: 4,
+                area: PI / 3.0,
+            })),
+        );
         let polygon = supported(&signature("*2345")).ok();
         assert_eq!(
             polygon.map(|supported| supported.shape().orders()),
@@ -397,13 +402,20 @@ mod tests {
 
     #[test]
     fn supported_counts_the_orders_after_the_predicate() {
-        let kind = |text| supported(&signature(text)).map_err(|error| error.kind());
-        assert!(kind("*22222222").is_ok());
-        assert_eq!(kind("*222222222").err(), Some(ErrorKind::LimitExceeded));
-        assert_eq!(
-            kind("*(inf)22222222").err(),
-            Some(ErrorKind::UnsupportedSignature)
-        );
+        let kind = |text: &str| supported(&signature(text)).map_err(|error| error.kind());
+        for star in ["*", ""] {
+            assert!(kind(&format!("{star}22222222")).is_ok(), "{star}");
+            assert_eq!(
+                kind(&format!("{star}222222222")).err(),
+                Some(ErrorKind::LimitExceeded),
+                "{star}"
+            );
+            assert_eq!(
+                kind(&format!("{star}(inf)22222222")).err(),
+                Some(ErrorKind::UnsupportedSignature),
+                "{star}"
+            );
+        }
     }
 
     #[test]

@@ -2,7 +2,7 @@ use core::f64::consts::{LN_2 as LN_2_HIGH, PI as PI_HIGH};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use escher_geometry::hyperbolic::{covector, normalize_point, side, wall_through};
-use glam::DVec3;
+use glam::{DMat3, DVec3};
 
 use crate::domain::Side;
 use crate::double::{two_product, two_sum};
@@ -34,7 +34,13 @@ pub(crate) struct Dd {
     low: f64,
 }
 
-type Matrix = [[Dd; 3]; 3];
+pub(crate) type Matrix = [[Dd; 3]; 3];
+
+const IDENTITY: Matrix = [
+    [Dd::ONE, Dd::ZERO, Dd::ZERO],
+    [Dd::ZERO, Dd::ONE, Dd::ZERO],
+    [Dd::ZERO, Dd::ZERO, Dd::ONE],
+];
 
 type Point = [Dd; 3];
 
@@ -240,12 +246,7 @@ fn turn(order: u32) -> Matrix {
 }
 
 pub(crate) fn walk(orders: &[u32], lengths: &[f64]) -> Vec<Point> {
-    let identity = [
-        [Dd::ONE, Dd::ZERO, Dd::ZERO],
-        [Dd::ZERO, Dd::ONE, Dd::ZERO],
-        [Dd::ZERO, Dd::ZERO, Dd::ONE],
-    ];
-    let mut frame = identity;
+    let mut frame = IDENTITY;
     let mut points = vec![[Dd::ZERO, Dd::ZERO, Dd::ONE]];
     for (&order, &length) in orders.iter().zip(lengths).skip(1) {
         frame = product(&frame, &boost(length));
@@ -327,6 +328,66 @@ fn mirrors(vertices: Vec<DVec3>) -> Result<Polygon, Option<escher_geometry::Erro
         vertices,
         centre,
     })
+}
+
+fn matrix_of(matrix: DMat3) -> Matrix {
+    [0, 1, 2].map(|row| [0, 1, 2].map(|column| Dd::from_f64(matrix.col(column)[row])))
+}
+
+fn point_of(point: DVec3) -> Point {
+    point.to_array().map(Dd::from_f64)
+}
+
+pub(crate) fn chain(factors: &[DMat3]) -> Matrix {
+    factors.iter().fold(IDENTITY, |chained, factor| {
+        product(&chained, &matrix_of(*factor))
+    })
+}
+
+pub(crate) fn displacement(transformation: &Matrix, point: DVec3) -> [f64; 3] {
+    let start = point_of(point);
+    let image = apply(transformation, &start);
+    [0, 1, 2].map(|index| (image[index] - start[index]).to_f64())
+}
+
+pub(crate) fn framed_power_residual(vertex: DVec3, transformation: &Matrix, order: u32) -> f64 {
+    let [x, y, t] = point_of(vertex);
+    let norm = (t * t - x * x - y * y).sqrt();
+    let [x, y, t] = [x, y, t].map(|coordinate| coordinate / norm);
+    let factor = Dd::ONE / (Dd::ONE + t);
+    let mixed = x * y * factor;
+    let frame = [
+        [Dd::ONE + x * x * factor, mixed, x],
+        [mixed, Dd::ONE + y * y * factor, y],
+        [x, y, t],
+    ];
+    let inverse = [
+        [Dd::ONE + x * x * factor, mixed, -x],
+        [mixed, Dd::ONE + y * y * factor, -y],
+        [-x, -y, t],
+    ];
+    let rotation = product(&product(&inverse, transformation), &frame);
+    let mut power = rotation;
+    for _ in 1..order {
+        power = product(&power, &rotation);
+    }
+    let mut largest: f64 = 0.0;
+    for (row, entries) in power.iter().enumerate() {
+        for (column, &entry) in entries.iter().enumerate() {
+            let difference = if row == column {
+                entry - Dd::ONE
+            } else {
+                entry
+            };
+            let value = difference.to_f64().abs();
+            if value.is_nan() || largest.is_nan() {
+                largest = f64::NAN;
+            } else {
+                largest = largest.max(value);
+            }
+        }
+    }
+    largest / f64::from(order)
 }
 
 #[cfg(test)]

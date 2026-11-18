@@ -55,10 +55,9 @@ impl Parameter {
 ///
 /// A hyperbolic polygon `*p1...pn` with four to eight corners, each of order
 /// at most 1000, has `n - 3` parameters, each a hyperbolic length from 0.5 to
-/// 3.5 at the curvature -1.
-/// Two consecutive corners of order 2 form a corner pair. The pairs are
-/// numbered from 1 as the corners are scanned from corner 0 without wrapping
-/// around. The parameter `cornerpair<k>.length` is the length of the side
+/// 3.5 at the curvature -1. Two consecutive corners of order 2 form a corner
+/// pair. The pairs are numbered from 1 as the corners are scanned from corner
+/// 0 without wrapping around. The parameter `cornerpair<k>.length` is the length of the side
 /// between the two right angles of the `k`-th pair. The other parameters,
 /// `slice<i>.length`, are the lengths of common perpendiculars of pairs of
 /// sides. The polygon is cut along them into pieces. Each piece has three
@@ -67,8 +66,10 @@ impl Parameter {
 /// each length is that of the polygon with an inscribed circle whose corners
 /// have the angles of the signature, rounded to three decimals.
 ///
-/// Every other signature has none, including a signature for which the crate
-/// builds no domain, such as a polygon with a corner of order above 1000.
+/// Every other signature has none. This includes the rotation signature of a
+/// polygon, such as `3333`, whose domain doubles the polygon with every length
+/// at its default, and a signature for which the crate builds no domain, such
+/// as a polygon with a corner of order above 1000.
 ///
 /// # Examples
 ///
@@ -285,8 +286,9 @@ pub(crate) fn validate(
             }
         }
     }
-    let defaults = Defaults::new(supported.shape());
-    Ok(accepted
+    let shape = supported.shape();
+    let defaults = Defaults::new(shape);
+    Ok(listed(Supported::Reflection(shape), cuts)
         .into_iter()
         .map(|(parameter, feature)| {
             settings

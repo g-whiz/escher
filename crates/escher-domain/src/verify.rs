@@ -4,9 +4,14 @@ use escher_geometry::{euclidean, hyperbolic, spherical};
 use glam::{DMat3, DVec3};
 
 use crate::domain::{FundamentalDomain, Orientation, PairingKind, Plane, polygon_angle_limit};
+use crate::walk;
 
 const ISOMETRY_TOLERANCE: f64 = 1e-9;
 const PAIRING_TOLERANCE: f64 = 1e-9;
+
+const HYPERBOLIC_TRANSLATION_TRACE: f64 = 3.0;
+
+const ACCURATE_RELATOR_VERTICES: usize = 5;
 const WALL_TOLERANCE: f64 = 1e-9;
 const RELATOR_TOLERANCE: f64 = 2e-6;
 const ANGLE_TOLERANCE: f64 = 1e-9;
@@ -168,13 +173,16 @@ impl Verification {
     /// another side as its partner and preserves orientation. The determinant
     /// of each pairing must also be positive for a pairing that preserves
     /// orientation and negative for one that reverses it, and a side has the
-    /// kind [`Translation`](crate::PairingKind::Translation) exactly when the
-    /// domain is Euclidean and the linear part of its pairing is the identity
-    /// within the tolerance. Otherwise the residual is the largest of three
+    /// kind [`Translation`](crate::PairingKind::Translation) exactly when its
+    /// pairing fixes no point: in a Euclidean domain, when the linear part of
+    /// the pairing is the identity within the tolerance, and in a hyperbolic
+    /// domain, when the trace of the pairing is above 3. A spherical domain
+    /// has no translation. Otherwise the residual is the largest of three
     /// values, and the third applies only to a side that is not a mirror. The
-    /// first is the largest entry of the product of a pairing and its partner's pairing minus the
-    /// identity. The second is the largest coordinate of a difference between
-    /// two points. For a mirror side, the points are each endpoint of the side
+    /// first is the largest entry of the product of a pairing and its
+    /// partner's pairing minus the identity. The second is the largest
+    /// coordinate of a difference between two points. For a mirror side, the
+    /// points are each endpoint of the side
     /// and its image under the pairing. For a side of another kind, the points
     /// are the image of each endpoint and the endpoint of the partner side that
     /// it must map to. Side `j` has the endpoints vertex `j - 1` and vertex
@@ -248,6 +256,13 @@ impl Verification {
     /// point, when an entry of a relator is not finite, when a cycle breaks
     /// one of its conditions, and for a domain with both mirrors and sides of
     /// another kind. The tolerance is 2e-6.
+    ///
+    /// In a hyperbolic domain with five or more vertices, the products of
+    /// the pairings, the image of the vertex, the corner frame, and the power
+    /// are computed in double-double arithmetic, an unevaluated sum of two
+    /// `f64` values with about twice the precision, and each entry of the
+    /// residual is rounded to `f64` once. Every other domain computes them in
+    /// `f64`.
     #[must_use]
     pub fn relators(&self) -> Check {
         self.relators
@@ -433,16 +448,24 @@ fn pairings(domain: &FundamentalDomain) -> f64 {
 }
 
 pub(crate) fn is_translation(plane: Plane, pairing: DMat3) -> bool {
-    let linear = largest(
-        [
-            pairing.x_axis.x - 1.0,
-            pairing.x_axis.y,
-            pairing.y_axis.x,
-            pairing.y_axis.y - 1.0,
-        ]
-        .map(f64::abs),
-    );
-    matches!(plane, Plane::Euclidean) && linear <= PAIRING_TOLERANCE
+    match plane {
+        Plane::Euclidean => {
+            let linear = largest(
+                [
+                    pairing.x_axis.x - 1.0,
+                    pairing.x_axis.y,
+                    pairing.y_axis.x,
+                    pairing.y_axis.y - 1.0,
+                ]
+                .map(f64::abs),
+            );
+            linear <= PAIRING_TOLERANCE
+        }
+        Plane::Hyperbolic { .. } => {
+            pairing.x_axis.x + pairing.y_axis.y + pairing.z_axis.z > HYPERBOLIC_TRANSLATION_TRACE
+        }
+        Plane::Spherical { .. } => false,
+    }
 }
 
 fn kind_agrees(kind: PairingKind, own_partner: bool, orientation: Orientation) -> bool {
@@ -590,12 +613,11 @@ fn corner_relators(domain: &FundamentalDomain) -> f64 {
         .map(|pair| {
             let [first, second] = pair.sides.map(|side| domain.sides[side].pairing);
             let vertex = *domain.vertices.get(pair.corner)?;
-            Some(framed_power_residual(
-                domain.plane,
-                vertex,
-                &[first, second],
-                pair.order,
-            ))
+            Some(if is_accurate(domain) {
+                walk::framed_power_residual(vertex, &walk::chain(&[first, second]), pair.order)
+            } else {
+                framed_power_residual(domain.plane, vertex, &[first, second], pair.order)
+            })
         })
         .collect();
     residuals.map_or(f64::INFINITY, largest)
@@ -636,21 +658,44 @@ fn cycle_relators(domain: &FundamentalDomain) -> f64 {
     let Ok(cycles) = vertex_cycles(domain) else {
         return f64::INFINITY;
     };
+    let accurate = is_accurate(domain);
     let mut numeric = Vec::new();
     for cycle in cycles {
         let vertex = domain.vertices[cycle.start];
-        numeric.push(
-            largest_coordinate(cycle.transformation * vertex - vertex)
-                / endpoint_scale(domain, vertex),
-        );
-        numeric.push(framed_power_residual(
-            domain.plane,
-            vertex,
-            &[cycle.transformation],
-            cycle.order,
-        ));
+        if accurate {
+            let factors: Vec<DMat3> = cycle
+                .sides
+                .iter()
+                .rev()
+                .map(|&side| domain.sides[side].pairing)
+                .collect();
+            let transformation = walk::chain(&factors);
+            let moved = walk::displacement(&transformation, vertex);
+            numeric.push(largest(moved.map(f64::abs)) / endpoint_scale(domain, vertex));
+            numeric.push(walk::framed_power_residual(
+                vertex,
+                &transformation,
+                cycle.order,
+            ));
+        } else {
+            numeric.push(
+                largest_coordinate(cycle.transformation * vertex - vertex)
+                    / endpoint_scale(domain, vertex),
+            );
+            numeric.push(framed_power_residual(
+                domain.plane,
+                vertex,
+                &[cycle.transformation],
+                cycle.order,
+            ));
+        }
     }
     largest(numeric)
+}
+
+fn is_accurate(domain: &FundamentalDomain) -> bool {
+    matches!(domain.plane, Plane::Hyperbolic { .. })
+        && domain.vertices.len() >= ACCURATE_RELATOR_VERTICES
 }
 
 pub(crate) struct Cycle {

@@ -245,6 +245,8 @@ fn build_with_rejects_a_name_that_the_polygon_does_not_have() {
         ("*3333", "slice2.length"),
         ("*3333", "cornerpair1.length"),
         ("*22222", "slice1.length"),
+        ("3333", "slice1.length"),
+        ("3333", "aspect"),
     ] {
         assert_eq!(
             error_of(text, &settings(name, 2.0)),

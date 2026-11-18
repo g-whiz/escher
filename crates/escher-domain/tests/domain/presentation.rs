@@ -4,14 +4,23 @@ use escher_domain::FundamentalDomain;
 use escher_geometry::{hyperbolic, spherical};
 use escher_group::{CosetLimit, Letter, Presentation, Relator, Word, enumerate};
 use escher_signature::Geometry;
-use glam::DMat3;
+use glam::{DMat3, DVec3};
 
-use crate::common::{EXAMPLE_TRIPLES, built, cone_text, order_text, signature, text, triangles};
+use crate::common::{
+    EXAMPLE_TRIPLES, built, clear_rotation_polygons, cone_text, order_text, signature, starred,
+    text, triangles,
+};
+use crate::reference::{
+    Matrix, Reference, add, div, identity, int, largest_entry_from_identity as largest_entry,
+    matrix, mul, power, product as exact_product, sqrt, sub, vector,
+};
 use crate::shared::{relator_text, relator_texts};
 
 const PAIRING_TOLERANCE: f64 = 1e-9;
 
 const RELATOR_TOLERANCE: f64 = 2e-6;
+
+const ACCURATE_RELATOR_VERTICES: usize = 5;
 
 const LARGEST_SMALL_ORDER: u32 = 12;
 
@@ -34,10 +43,6 @@ fn lune(order: u32) -> String {
     format!("{order}{order}")
 }
 
-fn reflection(rotation: &str) -> String {
-    format!("*{rotation}")
-}
-
 fn spherical_rotations(orders: impl Iterator<Item = u32> + Clone) -> Vec<String> {
     let mut texts: Vec<String> = ["332", "432", "532"].map(str::to_owned).to_vec();
     texts.extend(orders.clone().map(|order| cone_text([order, 2, 2])));
@@ -46,7 +51,7 @@ fn spherical_rotations(orders: impl Iterator<Item = u32> + Clone) -> Vec<String>
 }
 
 fn with_reflections(rotations: &[String]) -> Vec<String> {
-    let mut texts: Vec<String> = rotations.iter().map(|text| reflection(text)).collect();
+    let mut texts: Vec<String> = rotations.iter().map(|text| starred(text)).collect();
     texts.extend(rotations.iter().cloned());
     texts
 }
@@ -61,7 +66,7 @@ fn limit_signatures() -> Vec<String> {
 
 #[test]
 fn side_presentations_have_the_documented_text() {
-    let cases: [(&str, &[&str]); 4] = [
+    let cases: [(&str, &[&str]); 5] = [
         (
             "*532",
             &[
@@ -74,6 +79,18 @@ fn side_presentations_have_the_documented_text() {
             ],
         ),
         ("532", &["s0 s1", "s2 s3", "s1^5", "(s2 s0)^2", "s3^3"]),
+        (
+            "3333",
+            &[
+                "s0 s1",
+                "s2 s5",
+                "s3 s4",
+                "s1^3",
+                "(s2 s0)^3",
+                "(s3 s5)^3",
+                "s4^3",
+            ],
+        ),
         (
             "2222",
             &[
@@ -109,6 +126,11 @@ fn side_presentations_have_one_generator_for_each_side_and_their_relators() {
         ("632", 4, 5),
         ("*55", 2, 4),
         ("55", 2, 3),
+        ("*3333", 4, 8),
+        ("3333", 6, 7),
+        ("3222", 6, 7),
+        ("22222", 8, 9),
+        ("22222222", 14, 15),
     ];
     for (text, generators, relators) in cases {
         let (domain, presentation) = presentation(text);
@@ -125,7 +147,7 @@ fn side_presentations_have_one_generator_for_each_side_and_their_relators() {
         "222", "722", "22", "55",
     ];
     for rotation in rotations {
-        for text in [rotation.to_owned(), reflection(rotation)] {
+        for text in [rotation.to_owned(), starred(rotation)] {
             let domain = built(&text);
             if let Err(error) = domain.side_presentation() {
                 panic!("{text} has no side presentation: {error}");
@@ -245,11 +267,54 @@ fn largest_entry_from_identity(matrix: DMat3) -> f64 {
         .fold(0.0, f64::max)
 }
 
+fn exact_frame(vertex: DVec3) -> (Matrix, Matrix) {
+    let [x, y, t] = vector(vertex.to_array());
+    let norm = sqrt(&sub(&sub(&mul(&t, &t), &mul(&x, &x)), &mul(&y, &y)));
+    let [x, y, t] = [x, y, t].map(|coordinate| div(&coordinate, &norm));
+    let factor = div(&int(1), &add(&int(1), &t));
+    let mixed = mul(&mul(&x, &y), &factor);
+    let first = add(&int(1), &mul(&mul(&x, &x), &factor));
+    let second = add(&int(1), &mul(&mul(&y, &y), &factor));
+    let frame = [
+        [first.clone(), mixed.clone(), x.clone()],
+        [mixed.clone(), second.clone(), y.clone()],
+        [x.clone(), y.clone(), t.clone()],
+    ];
+    let inverse = [
+        [first, mixed.clone(), sub(&int(0), &x)],
+        [mixed, second, sub(&int(0), &y)],
+        [sub(&int(0), &x), sub(&int(0), &y), t],
+    ];
+    (frame, inverse)
+}
+
+fn exact_framed_residual(
+    domain: &FundamentalDomain,
+    relator: &Relator,
+    vertex: usize,
+    reference: &mut Reference,
+) -> f64 {
+    let product = sides_of(relator.base())
+        .into_iter()
+        .fold(identity(), |product, side| {
+            exact_product(
+                &product,
+                &matrix(letter_matrix(domain, side).to_cols_array()),
+            )
+        });
+    let (frame, inverse) = exact_frame(domain.vertices()[vertex]);
+    let element = exact_product(&exact_product(&inverse, &product), &frame);
+    let exponent = relator.exponent();
+    let residual = div(&largest_entry(&power(&element, exponent)), &int(exponent));
+    reference.approximate(&residual)
+}
+
 fn relator_residual(
     domain: &FundamentalDomain,
     relator: &Relator,
     kind: Kind,
     vertex: usize,
+    reference: &mut Reference,
 ) -> f64 {
     let product = sides_of(relator.base())
         .into_iter()
@@ -260,6 +325,9 @@ fn relator_residual(
         Kind::Corner | Kind::Cycle => domain.geometry() == Geometry::Hyperbolic,
         Kind::Square | Kind::Pair => false,
     };
+    if framed && domain.vertices().len() >= ACCURATE_RELATOR_VERTICES {
+        return exact_framed_residual(domain, relator, vertex, reference);
+    }
     let element = if framed {
         let frame = hyperbolic::translation(domain.vertices()[vertex]);
         hyperbolic::inverse(frame) * product * frame
@@ -335,6 +403,8 @@ fn side_relators_evaluate_to_the_identity() {
     texts.extend(["*632", "*442", "*333", "*2222", "632", "442", "333", "2222"].map(str::to_owned));
     texts.extend(spherical_signatures());
     texts.extend(limit_signatures());
+    texts.extend(clear_rotation_polygons());
+    let mut reference = Reference::new();
     let mut largest = KINDS.map(|_| Largest {
         residual: 0.0,
         input: String::new(),
@@ -346,7 +416,7 @@ fn side_relators_evaluate_to_the_identity() {
             .into_iter()
             .zip(presentation.relators())
         {
-            let residual = relator_residual(&domain, relator, kind, vertex);
+            let residual = relator_residual(&domain, relator, kind, vertex, &mut reference);
             assert!(
                 residual <= kind.tolerance(),
                 "{text}: {} {residual:e} above {:e}",
