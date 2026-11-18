@@ -124,6 +124,58 @@ fn repeated_presentation_option_is_a_usage_error() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn repeated_colourings_option_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&["info", "--colourings", "--colourings", "*732"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn repeated_max_colours_option_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "info",
+        "--max-colours",
+        "3",
+        "--max-colours",
+        "4",
+        "*732"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn max_colours_of_zero_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "0", "*732"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn max_colours_over_the_limit_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "65", "*732"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn max_colours_that_is_not_a_number_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "x", "*732"]));
+}
+
+#[test]
 fn unknown_subcommand_returns_usage() {
     let outcome = run_args(&["draw"]);
     assert_eq!(outcome.status, Status::Usage);

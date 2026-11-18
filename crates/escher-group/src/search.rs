@@ -425,9 +425,11 @@ impl Found {
         list
     }
 
-    pub(crate) fn into_colourings(self, requested: u32) -> Colourings {
+    pub(crate) fn into_colourings(mut self, requested: u32) -> Colourings {
         let complete_to = self.complete_to;
-        Colourings::new(requested, complete_to, self.into_list())
+        let mut counts = core::mem::take(&mut self.colourings);
+        counts.truncate(index(complete_to));
+        Colourings::new(requested, complete_to, self.into_list(), counts)
     }
 }
 

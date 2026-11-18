@@ -21,7 +21,13 @@
 //! without a mirror boundary, such as `732`, has a domain with no mirror
 //! sides, which are sides where the group reflects. The summary then lists the
 //! pairs of sides that the side pairings join and states that the domain has no
-//! colouring by the parity of reflections. A malformed signature produces a
+//! colouring by the parity of reflections. For a domain, the command also
+//! counts the colourings of the tiles that the symmetry respects, one for each
+//! subgroup of finite index, for each number of colours up to the limit that
+//! the option `--max-colours` sets, 12 by default. With the option
+//! `--colourings`, it lists each colouring with its id, such as `3a`. A search
+//! that stops at its limit on work or memory says up to which number of
+//! colours it is complete. A malformed signature produces a
 //! diagnostic on standard error that locates the error in the signature. With
 //! the option `--check`, the command also verifies the domain, prints the
 //! result of each check, and fails when a check fails or the signature has no
@@ -183,10 +189,16 @@ fn run_args(args: Vec<OsString>, stdout: &mut dyn Write, stderr: &mut dyn Write)
             signature,
             check,
             presentation,
+            colourings,
+            max_colours,
         } => info::info(
             &signature,
-            info::Verify::from_flag(check),
-            info::Presentations::from_flag(presentation),
+            info::Options {
+                verify: info::Verify::from_flag(check),
+                presentations: info::Presentations::from_flag(presentation),
+                listing: info::Listing::from_flag(colourings),
+                max_colours,
+            },
             stdout,
         ),
         Command::Render(render_args) => render::render(&render_args, stdout)
@@ -214,6 +226,14 @@ fn usage(error: &clap::Error, stdout: &mut dyn Write, stderr: &mut dyn Write) ->
             Ok(()) => Status::Success,
             Err(write_error) => diagnostic::report(&write_error, stderr),
         }
+    }
+}
+
+fn count_of_colours(count: u64) -> String {
+    if count == 1 {
+        "1 colour".to_owned()
+    } else {
+        format!("{count} colours")
     }
 }
 

@@ -133,6 +133,10 @@ fn info_prints_an_area_of_exactly_pi_without_a_coefficient() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "the colouring search runs loops too long for the interpreter"
+)]
 fn info_returns_success_for_a_valid_signature() {
     let outcome = run_args(&["info", "*732"]);
     assert_eq!(outcome.status, Status::Success);
@@ -379,6 +383,10 @@ fn info_check_verifies_a_domain_at_the_largest_corner_order() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "the colouring search runs loops too long for the interpreter"
+)]
 fn info_check_returns_success_when_every_check_passes() {
     let outcome = run_args(&["info", "--check", "*732"]);
     assert_eq!(outcome.status, Status::Success);
@@ -391,6 +399,10 @@ fn info_check_returns_success_when_every_check_passes() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "the colouring search runs loops too long for the interpreter"
+)]
 fn info_check_after_the_signature_returns_success_when_every_check_passes() {
     let outcome = run_args(&["info", "*732", "--check"]);
     assert_eq!(outcome.status, Status::Success);
@@ -506,6 +518,10 @@ fn info_returns_success_for_a_signature_without_a_domain() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "the colouring search runs loops too long for the interpreter"
+)]
 fn info_check_gives_failure_and_no_diagnostic_on_a_broken_pipe() {
     let mut stdout = FailingWriter::failing_write(io::ErrorKind::BrokenPipe);
     let mut stderr = Vec::new();
@@ -726,4 +742,166 @@ fn info_presentation_confirms_the_order_of_signatures_without_a_domain() {
             outcome.stdout
         );
     }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_colourings_lists_a_hyperbolic_triangle_up_to_eight_colours() {
+    insta::assert_snapshot!(snapshot(&[
+        "info",
+        "--colourings",
+        "--max-colours",
+        "8",
+        "*732"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_colourings_lists_a_hyperbolic_triangle_up_to_three_colours() {
+    insta::assert_snapshot!(snapshot(&[
+        "info",
+        "--colourings",
+        "--max-colours",
+        "3",
+        "*642"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_colourings_lists_the_doubled_hemisphere() {
+    insta::assert_snapshot!(snapshot(&["info", "--colourings", "22"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_colourings_lists_the_rectangle_up_to_four_colours() {
+    insta::assert_snapshot!(snapshot(&[
+        "info",
+        "--colourings",
+        "--max-colours",
+        "4",
+        "*2222"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_colourings_lists_a_hyperbolic_kite_up_to_nine_colours() {
+    insta::assert_snapshot!(snapshot(&[
+        "info",
+        "--colourings",
+        "--max-colours",
+        "9",
+        "732"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_colourings_lists_a_spherical_kite_up_to_six_colours() {
+    insta::assert_snapshot!(snapshot(&[
+        "info",
+        "--colourings",
+        "--max-colours",
+        "6",
+        "532"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_counts_the_colourings_of_one_colour() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "1", "*732"]));
+}
+
+#[test]
+fn info_colourings_lists_the_colourings_of_the_doubled_hemisphere() {
+    for args in [
+        ["info", "--colourings", "22"],
+        ["info", "22", "--colourings"],
+    ] {
+        let outcome = run_args(&args);
+        assert_eq!(outcome.status, Status::Success, "{args:?}");
+        assert_eq!(outcome.stderr, "", "{args:?}");
+        assert!(
+            outcome.stdout.ends_with("\nColouring: 2a, 2 colours\n"),
+            "{args:?}: {}",
+            outcome.stdout
+        );
+    }
+}
+
+#[test]
+fn info_counts_the_colourings_of_the_doubled_hemisphere() {
+    let outcome = run_args(&["info", "22"]);
+    assert_eq!(outcome.status, Status::Success);
+    assert_eq!(outcome.stderr, "");
+    assert_eq!(
+        outcome.stdout.lines().last(),
+        Some("Colourings with 2 colours: 1")
+    );
+}
+
+#[test]
+fn info_colourings_up_to_one_colour_ends_with_the_alias_one() {
+    let outcome = run_args(&["info", "--colourings", "--max-colours", "1", "22"]);
+    assert_eq!(outcome.status, Status::Success);
+    assert_eq!(outcome.stderr, "");
+    assert!(
+        outcome
+            .stdout
+            .ends_with("\nColouring: 1a, 1 colour, alias one\n"),
+        "{}",
+        outcome.stdout
+    );
+}
+
+#[test]
+fn info_check_returns_success_for_the_doubled_hemisphere() {
+    for args in [["info", "--check", "22"], ["info", "22", "--check"]] {
+        let outcome = run_args(&args);
+        assert_eq!(outcome.status, Status::Success, "{args:?}");
+        assert!(
+            outcome.stdout.ends_with("\nVerification: passed\n"),
+            "{args:?}: {}",
+            outcome.stdout
+        );
+        assert_eq!(outcome.stderr, "", "{args:?}");
+    }
+}
+
+#[test]
+fn info_check_gives_failure_and_no_diagnostic_on_a_broken_pipe_for_the_doubled_hemisphere() {
+    let mut stdout = FailingWriter::failing_write(io::ErrorKind::BrokenPipe);
+    let mut stderr = Vec::new();
+    let status = run(
+        ["escher", "info", "--check", "22"],
+        &mut stdout,
+        &mut stderr,
+    );
+    assert_eq!(status, Status::Failure);
+    assert_eq!(stderr, b"");
 }

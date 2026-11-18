@@ -387,6 +387,7 @@ proptest! {
         for (left, right) in [(&low, &high), (&low, &other), (&high, &other)] {
             for colours in 1..=left.complete_to().min(right.complete_to()) {
                 prop_assert_eq!(of_count(left, colours), of_count(right, colours));
+                prop_assert_eq!(left.count(colours), u64::try_from(of_count(left, colours).len()).ok());
             }
             let above = |found: &Colourings| found.list().iter().all(|colouring| colouring.colours() <= found.complete_to());
             prop_assert!(above(left) && above(right));
@@ -407,6 +408,7 @@ proptest! {
                 let listed = of_count(&found, colours);
                 let classes = listed.iter().filter(|colouring| colouring.class() == colouring.id()).count();
                 prop_assert_eq!(counts.colourings(colours), u64::try_from(listed.len()).ok());
+                prop_assert_eq!(found.count(colours), u64::try_from(listed.len()).ok());
                 prop_assert_eq!(counts.classes(colours), u64::try_from(classes).ok());
                 let single = colourings_of_index(&presentation, index_limit(colours), budget(SEARCH_BUDGET));
                 prop_assert!(single.is_ok());
@@ -418,6 +420,8 @@ proptest! {
             }
             prop_assert_eq!(counts.colourings(limit + 1), None);
             prop_assert_eq!(counts.colourings(0), None);
+            prop_assert_eq!(found.count(limit + 1), None);
+            prop_assert_eq!(found.count(0), None);
         }
     }
 }

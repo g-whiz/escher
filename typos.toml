@@ -1,6 +1,7 @@
 [default]
-# The full name of a cited author, whose surname typos would report.
-extend-ignore-re = ["Rob Ede"]
+# The full name of a cited author, whose surname typos would report, and the
+# id of a colouring in a line of escher info, whose letters count in base 26.
+extend-ignore-re = ["Rob Ede", "Colouring: [1-9][0-9]?[a-z]{1,4}, "]
 
 [default.extend-words]
 # The surname of a cited author, also in upper case inside citation tags.

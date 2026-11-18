@@ -1,10 +1,15 @@
 use core::num::NonZeroU64;
+use std::borrow::Cow;
 use std::io::Write;
 
-use escher_domain::{Check, FundamentalDomain, PairingKind, Verification, parameters};
-use escher_group::{CosetLimit, ErrorKind, Presentation, conway_presentation, enumerate};
+use escher_domain::{Check, FundamentalDomain, Orientation, PairingKind, Verification, parameters};
+use escher_group::{
+    Colouring, ColouringCounts, ColouringId, Colourings, CosetLimit, ErrorKind, IndexLimit, Letter,
+    Presentation, SearchBudget, colourings, conway_presentation, count_colourings, enumerate,
+};
 use escher_signature::{Geometry, Rational, Signature};
 
+use crate::count_of_colours;
 use crate::diagnostic::SignatureError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,6 +41,26 @@ impl Presentations {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Listing {
+    Count,
+    List,
+}
+
+impl Listing {
+    pub(crate) const fn from_flag(colourings: bool) -> Self {
+        if colourings { Self::List } else { Self::Count }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Options {
+    pub(crate) verify: Verify,
+    pub(crate) presentations: Presentations,
+    pub(crate) listing: Listing,
+    pub(crate) max_colours: IndexLimit,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Verdict {
     Passed,
     Failed,
@@ -54,7 +79,7 @@ impl Verdict {
     }
 }
 
-type Lines = Vec<(&'static str, String)>;
+type Lines = Vec<(Cow<'static, str>, String)>;
 
 const CANNOT_VERIFY: &str = "cannot verify fundamental domain";
 
@@ -77,12 +102,7 @@ impl CheckRow {
     }
 }
 
-pub(crate) fn info(
-    text: &str,
-    verify: Verify,
-    presentations: Presentations,
-    stdout: &mut dyn Write,
-) -> Vec<anyhow::Error> {
+pub(crate) fn info(text: &str, options: Options, stdout: &mut dyn Write) -> Vec<anyhow::Error> {
     let signature: Signature = match text.parse() {
         Ok(signature) => signature,
         Err(error) => return vec![anyhow::Error::new(SignatureError::new(text, error))],
@@ -90,15 +110,29 @@ pub(crate) fn info(
     let mut lines = signature_lines(&signature);
     let domain = FundamentalDomain::build(&signature);
     push_domain_summary(&mut lines, domain.as_ref());
+    let side = match &domain {
+        Ok(domain) => {
+            let presentation = domain.side_presentation();
+            let found = match &presentation {
+                Ok(presentation) => search_colourings(
+                    presentation,
+                    options.max_colours,
+                    SearchBudget::DEFAULT,
+                    options.listing,
+                )
+                .map_err(|error| error.to_string()),
+                Err(error) => Err(error.to_string()),
+            };
+            push_colourings(&mut lines, found, &reversing_sides(domain));
+            Some(presentation.map_err(|error| error.to_string()))
+        }
+        Err(_) => None,
+    };
     let mut errors = Vec::new();
-    if presentations == Presentations::Print {
-        errors.extend(push_presentations(
-            &mut lines,
-            &signature,
-            domain.as_ref().ok(),
-        ));
+    if options.presentations == Presentations::Print {
+        errors.extend(push_presentations(&mut lines, &signature, side));
     }
-    let verdict = match (verify, domain) {
+    let verdict = match (options.verify, domain) {
         (Verify::Skip, _) => Ok(()),
         (Verify::Run, Err(error)) => Err(anyhow::Error::new(error).context(CANNOT_VERIFY)),
         (Verify::Run, Ok(domain)) => {
@@ -174,7 +208,7 @@ enum Outcome {
 fn push_presentations(
     lines: &mut Lines,
     signature: &Signature,
-    domain: Option<&FundamentalDomain>,
+    side: Option<Result<Presentation, String>>,
 ) -> Vec<anyhow::Error> {
     let order = signature.group_order();
     let conway = push_presentation(
@@ -183,17 +217,147 @@ fn push_presentations(
         conway_presentation(signature).map_err(|error| error.to_string()),
         order,
     );
-    let side = domain.and_then(|domain| {
-        push_presentation(
-            lines,
-            &SIDE,
-            domain
-                .side_presentation()
-                .map_err(|error| error.to_string()),
-            order,
-        )
-    });
+    let side = side.and_then(|side| push_presentation(lines, &SIDE, side, order));
     reported(conway, side)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Alias {
+    One,
+    Parity,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Found {
+    Counted(ColouringCounts),
+    Listed(Colourings),
+}
+
+impl Found {
+    fn requested(&self) -> u32 {
+        match self {
+            Self::Counted(counts) => counts.requested(),
+            Self::Listed(found) => found.requested(),
+        }
+    }
+
+    fn complete_to(&self) -> u32 {
+        match self {
+            Self::Counted(counts) => counts.complete_to(),
+            Self::Listed(found) => found.complete_to(),
+        }
+    }
+
+    fn count(&self, colours: u32) -> Option<u64> {
+        match self {
+            Self::Counted(counts) => counts.colourings(colours),
+            Self::Listed(found) => found.count(colours),
+        }
+    }
+
+    fn list(&self) -> &[Colouring] {
+        match self {
+            Self::Counted(_) => &[],
+            Self::Listed(found) => found.list(),
+        }
+    }
+}
+
+fn reversing_sides(domain: &FundamentalDomain) -> Vec<bool> {
+    domain
+        .sides()
+        .iter()
+        .map(|side| side.orientation() == Orientation::Reversing)
+        .collect()
+}
+
+fn search_colourings(
+    presentation: &Presentation,
+    limit: IndexLimit,
+    budget: SearchBudget,
+    listing: Listing,
+) -> escher_group::Result<Found> {
+    Ok(match listing {
+        Listing::Count => Found::Counted(count_colourings(presentation, limit, budget)?),
+        Listing::List => Found::Listed(colourings(presentation, limit, budget)?),
+    })
+}
+
+fn alias_of(colouring: &Colouring, reversing: &[bool]) -> Option<Alias> {
+    match colouring.colours() {
+        1 => Some(Alias::One),
+        2 if is_parity(colouring, reversing) => Some(Alias::Parity),
+        _ => None,
+    }
+}
+
+fn is_parity(colouring: &Colouring, reversing: &[bool]) -> bool {
+    let table = colouring.table();
+    table.generator_count() == reversing.len()
+        && reversing.iter().enumerate().all(|(side, &reverses)| {
+            u8::try_from(side).is_ok_and(|side| {
+                matches!(
+                    table.image(0, Letter::generator(side)),
+                    Some(coset) if (coset != 0) == reverses
+                )
+            })
+        })
+}
+
+fn push_colourings(lines: &mut Lines, found: Result<Found, String>, reversing: &[bool]) {
+    let found = match found {
+        Ok(found) => found,
+        Err(text) => {
+            lines.push(("Colourings".into(), format!("none, {text}")));
+            return;
+        }
+    };
+    let counts: Vec<(u32, u64)> = (1..=found.complete_to())
+        .filter_map(|colours| Some((colours, found.count(colours)?)))
+        .collect();
+    let total = counts
+        .iter()
+        .fold(0_u64, |total, &(_, count)| total.saturating_add(count));
+    lines.push((
+        "Colourings".into(),
+        summary_text(total, found.complete_to(), found.requested()),
+    ));
+    for &(colours, count) in &counts {
+        if count > 0 {
+            lines.push((count_label(colours).into(), count.to_string()));
+        }
+    }
+    for colouring in found.list() {
+        lines.push((
+            "Colouring".into(),
+            listed_text(colouring.id(), alias_of(colouring, reversing)),
+        ));
+    }
+}
+
+fn summary_text(total: u64, complete_to: u32, requested: u32) -> String {
+    let complete = count_of_colours(u64::from(complete_to));
+    if complete_to >= requested {
+        format!("{total}, complete to {complete}")
+    } else {
+        format!(
+            "{total}, complete to {complete}, the search stopped at a limit before {}",
+            count_of_colours(u64::from(complete_to) + 1)
+        )
+    }
+}
+
+fn count_label(colours: u32) -> String {
+    format!("Colourings with {}", count_of_colours(u64::from(colours)))
+}
+
+fn listed_text(id: ColouringId, alias: Option<Alias>) -> String {
+    let alias = match alias {
+        Some(Alias::One) => ", alias one",
+        Some(Alias::Parity) => ", alias parity",
+        None => "",
+    };
+    format!("{id}, {}{alias}", count_of_colours(u64::from(id.colours())))
 }
 
 fn reported(conway: Option<Fault>, side: Option<Fault>) -> Vec<anyhow::Error> {
@@ -216,7 +380,7 @@ fn push_presentation(
     let presentation = match presentation {
         Ok(presentation) => presentation,
         Err(text) => {
-            lines.push((labels.size, format!("none, {text}")));
+            lines.push((labels.size.into(), format!("none, {text}")));
             return None;
         }
     };
@@ -236,14 +400,14 @@ fn push_presentation(
         )));
     };
     lines.push((
-        labels.size,
+        labels.size.into(),
         size_text(presentation.generator_count(), relators.len()),
     ));
     lines.push((
-        labels.generators,
+        labels.generators.into(),
         list_or_none(presentation.generator_names()),
     ));
-    lines.push((labels.relators, list_or_none(&relators)));
+    lines.push((labels.relators.into(), list_or_none(&relators)));
     let order = group_order?;
     let limit = CosetLimit::DEFAULT;
     let outcome = enumerate_order(&presentation, order, limit);
@@ -270,7 +434,7 @@ fn push_order(
     limit: u32,
     outcome: &Outcome,
 ) -> Option<Fault> {
-    lines.push((labels.order, order_text(order, limit, outcome)));
+    lines.push((labels.order.into(), order_text(order, limit, outcome)));
     match *outcome {
         Outcome::Index(index) if index != order => Some(Fault::Mismatch(order_mismatch(
             labels.subject,
@@ -323,33 +487,39 @@ fn list_or_none(items: &[String]) -> String {
 
 fn signature_lines(signature: &Signature) -> Lines {
     let mut lines = vec![
-        ("Signature", signature.to_string()),
-        ("Geometry", geometry_name(signature.geometry()).to_owned()),
+        ("Signature".into(), signature.to_string()),
         (
-            "Euler characteristic",
+            "Geometry".into(),
+            geometry_name(signature.geometry()).to_owned(),
+        ),
+        (
+            "Euler characteristic".into(),
             signature.euler_characteristic().to_string(),
         ),
-        ("Compact", yes_or_no(signature.is_compact()).to_owned()),
+        (
+            "Compact".into(),
+            yes_or_no(signature.is_compact()).to_owned(),
+        ),
     ];
     if !signature.is_compact() {
-        lines.push(("Frieze", yes_or_no(signature.is_frieze()).to_owned()));
+        lines.push(("Frieze".into(), yes_or_no(signature.is_frieze()).to_owned()));
         lines.push((
-            "General non-compact",
+            "General non-compact".into(),
             yes_or_no(signature.is_general_non_compact()).to_owned(),
         ));
     }
     if let Some(order) = signature.group_order() {
-        lines.push(("Group order", order.to_string()));
+        lines.push(("Group order".into(), order.to_string()));
     }
     if let Some(area) = signature.area_over_pi() {
-        lines.push(("Area", area_text(area)));
+        lines.push(("Area".into(), area_text(area)));
     }
     if let Some(dimension) = signature.deformation_dimension() {
-        lines.push(("Deformation dimension", dimension.to_string()));
+        lines.push(("Deformation dimension".into(), dimension.to_string()));
     }
     for spec in parameters(signature) {
         lines.push((
-            "Parameter",
+            "Parameter".into(),
             format!(
                 "{}, range {} to {}, default {}",
                 spec.name(),
@@ -370,7 +540,7 @@ fn push_domain_summary(
         Ok(domain) => {
             let sides = domain.sides();
             if domain.reverses_orientation() {
-                lines.push(("Domain", format!("{} mirror sides", sides.len())));
+                lines.push(("Domain".into(), format!("{} mirror sides", sides.len())));
             } else {
                 let pairs: Vec<String> = sides
                     .iter()
@@ -386,26 +556,26 @@ fn push_domain_summary(
                     .collect();
                 let noun = if pairs.len() == 1 { "pair" } else { "pairs" };
                 lines.push((
-                    "Domain",
+                    "Domain".into(),
                     format!("{} sides in {} {noun}", sides.len(), pairs.len()),
                 ));
-                lines.push(("Side pairs", pairs.join(", ")));
+                lines.push(("Side pairs".into(), pairs.join(", ")));
                 lines.push((
-                    "Parity colouring",
+                    "Parity colouring".into(),
                     "none, every side pairing preserves orientation".to_owned(),
                 ));
             }
             lines.push((
-                "Corner angles in degrees",
+                "Corner angles in degrees".into(),
                 fixed_list(domain.corner_angles().into_iter().map(f64::to_degrees)),
             ));
             lines.push((
-                "Side lengths",
+                "Side lengths".into(),
                 fixed_list(domain.side_lengths().into_iter()),
             ));
-            lines.push(("Domain area", format!("{:.6}", domain.area())));
+            lines.push(("Domain area".into(), format!("{:.6}", domain.area())));
         }
-        Err(error) => lines.push(("Domain", format!("none, {error}"))),
+        Err(error) => lines.push(("Domain".into(), format!("none, {error}"))),
     }
 }
 
@@ -432,11 +602,11 @@ fn check_rows(verification: &Verification) -> [CheckRow; 6] {
 fn push_verification(lines: &mut Lines, rows: &[CheckRow], overall: Verdict) -> anyhow::Result<()> {
     for row in rows {
         lines.push((
-            row.label,
+            row.label.into(),
             check_text(row.verdict, row.residual, row.tolerance),
         ));
     }
-    lines.push(("Verification", overall.text().to_owned()));
+    lines.push(("Verification".into(), overall.text().to_owned()));
     match overall {
         Verdict::Passed => Ok(()),
         Verdict::Failed => {
@@ -505,13 +675,15 @@ fn area_text(area_over_pi: Rational) -> String {
 mod tests {
     use core::num::NonZeroU64;
 
-    use escher_group::{CosetLimit, conway_presentation};
+    use escher_domain::FundamentalDomain;
+    use escher_group::{ColouringId, CosetLimit, IndexLimit, SearchBudget, conway_presentation};
     use escher_signature::Signature;
 
     use super::{
-        CONWAY, CheckRow, Fault, Outcome, SIDE, Verdict, check_text, enumerate_order,
-        failed_checks, order_mismatch, order_text, push_order, push_verification, reported,
-        size_text, write_text,
+        Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, check_text, count_label,
+        enumerate_order, failed_checks, joined, listed_text, order_mismatch, order_text,
+        push_colourings, push_order, push_verification, reported, reversing_sides,
+        search_colourings, size_text, summary_text, write_text,
     };
     use crate::Status;
     use crate::diagnostic::report;
@@ -575,7 +747,7 @@ mod tests {
             passed_row("Check angles"),
             passed_row("Check area"),
         ];
-        let mut lines = vec![("Signature", "*732".to_owned())];
+        let mut lines = vec![("Signature".into(), "*732".to_owned())];
         let verdict = push_verification(&mut lines, &rows, Verdict::Failed);
         let mut stdout = Vec::new();
         let errors = write_text(&mut stdout, &lines, verdict.err().into_iter().collect());
@@ -673,7 +845,7 @@ mod tests {
 
     #[test]
     fn a_different_index_is_written_before_its_diagnostic() {
-        let mut lines = vec![("Signature", "*532".to_owned())];
+        let mut lines = vec![("Signature".into(), "*532".to_owned())];
         let errors: Vec<anyhow::Error> =
             push_order(&mut lines, &SIDE, 120, 16_384, &Outcome::Index(60))
                 .into_iter()
@@ -781,6 +953,96 @@ mod tests {
         assert_eq!(
             enumerate_order(&presentation, ten, limit),
             Outcome::LimitReached
+        );
+    }
+
+    #[test]
+    fn summary_text_writes_each_form() {
+        assert_eq!(summary_text(11, 3, 3), "11, complete to 3 colours");
+        assert_eq!(summary_text(1, 1, 1), "1, complete to 1 colour");
+        assert_eq!(
+            summary_text(23, 9, 12),
+            "23, complete to 9 colours, the search stopped at a limit before 10 colours"
+        );
+        assert_eq!(
+            summary_text(0, 0, 12),
+            "0, complete to 0 colours, the search stopped at a limit before 1 colour"
+        );
+    }
+
+    #[test]
+    fn count_label_uses_the_singular_for_one() {
+        assert_eq!(count_label(1), "Colourings with 1 colour");
+        assert_eq!(count_label(8), "Colourings with 8 colours");
+    }
+
+    fn id(text: &str) -> ColouringId {
+        text.parse().expect("the id is valid")
+    }
+
+    #[test]
+    fn listed_text_marks_the_aliases() {
+        assert_eq!(
+            listed_text(id("1a"), Some(Alias::One)),
+            "1a, 1 colour, alias one"
+        );
+        assert_eq!(
+            listed_text(id("2g"), Some(Alias::Parity)),
+            "2g, 2 colours, alias parity"
+        );
+        assert_eq!(listed_text(id("3a"), None), "3a, 3 colours");
+    }
+
+    fn colouring_text(signature: &str, steps: u64, listing: Listing) -> String {
+        let signature: Signature = signature.parse().expect("the signature is valid");
+        let domain = FundamentalDomain::build(&signature).expect("the signature has a domain");
+        let presentation = domain
+            .side_presentation()
+            .expect("the domain has a side presentation");
+        let budget = SearchBudget::new(steps).expect("the budget is valid");
+        let found = search_colourings(&presentation, IndexLimit::DEFAULT, budget, listing)
+            .map_err(|error| error.to_string());
+        let mut lines = Vec::new();
+        push_colourings(&mut lines, found, &reversing_sides(&domain));
+        joined(&lines)
+    }
+
+    #[test]
+    fn a_search_stopped_at_a_limit_prints_only_the_complete_colour_counts() {
+        let head = "Colourings: 4, complete to 2 colours, the search stopped at a limit before 3 colours\n\
+                    Colourings with 1 colour: 1\n\
+                    Colourings with 2 colours: 3\n";
+        assert_eq!(colouring_text("*632", 3_000, Listing::Count), head);
+        assert_eq!(
+            colouring_text("*632", 3_000, Listing::List),
+            format!(
+                "{head}Colouring: 1a, 1 colour, alias one\n\
+                 Colouring: 2a, 2 colours\n\
+                 Colouring: 2b, 2 colours\n\
+                 Colouring: 2c, 2 colours, alias parity\n"
+            )
+        );
+    }
+
+    #[test]
+    fn a_search_stopped_before_one_colour_prints_no_count() {
+        assert_eq!(
+            colouring_text("*632", 100, Listing::List),
+            "Colourings: 0, complete to 0 colours, the search stopped at a limit before 1 colour\n"
+        );
+    }
+
+    #[test]
+    fn a_failed_search_prints_none_and_its_text() {
+        let mut lines = Vec::new();
+        push_colourings(
+            &mut lines,
+            Err("cannot search colourings: a limit".to_owned()),
+            &[],
+        );
+        assert_eq!(
+            joined(&lines),
+            "Colourings: none, cannot search colourings: a limit\n"
         );
     }
 }

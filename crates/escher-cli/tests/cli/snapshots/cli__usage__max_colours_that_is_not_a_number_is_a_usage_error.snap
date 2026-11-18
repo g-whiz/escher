@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"info\", \"--max-colours\", \"x\", \"*732\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value 'x' for '--max-colours <N>': expected a decimal integer from 1 to 64
+
+For more information, try '--help'.
+--- end

@@ -1,0 +1,20 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--max-colours\", \"1\", \"*732\"])"
+---
+status: Success
+--- stdout
+Signature: *732
+Geometry: hyperbolic
+Euler characteristic: -1/84
+Compact: yes
+Area: pi/42
+Deformation dimension: 0
+Domain: 3 mirror sides
+Corner angles in degrees: 25.714286, 60.000000, 90.000000
+Side lengths: 0.545275, 0.620672, 0.283128
+Domain area: 0.074800
+Colourings: 1, complete to 1 colour
+Colourings with 1 colour: 1
+--- stderr
+--- end

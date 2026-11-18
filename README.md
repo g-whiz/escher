@@ -8,7 +8,7 @@ The repository holds the tooling, the documents that set its standards, the rese
 
 | Crate | Purpose |
 | --- | --- |
-| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, with the side pairs of a rotation domain, with `--check` verifies that domain, and with `--presentation` prints the presentations of the group and, for a spherical signature, counts the elements of the group by coset enumeration, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle, of a Euclidean or spherical reflection signature with a fundamental domain, or of the rotation signature of any of these, to a PNG file. It is not published. |
+| `escher-cli` | The command-line program `escher`, whose command `escher info` prints the properties of an orbifold signature and a summary of its fundamental domain, with the side pairs of a rotation domain and the colourings of its tiling, with `--colourings` lists those colourings with their ids, with `--check` verifies that domain, and with `--presentation` prints the presentations of the group and, for a spherical signature, counts the elements of the group by coset enumeration, and whose command `escher render` writes the tiling of a compact hyperbolic reflection triangle, of a Euclidean or spherical reflection signature with a fundamental domain, or of the rotation signature of any of these, to a PNG file. It is not published. |
 | `escher-domain` | A library that builds the fundamental domain of a compact hyperbolic reflection triangle, such as `*732`, of the Euclidean reflection triangles `*632`, `*442`, and `*333`, of the rectangle `*2222`, whose shape parameter `aspect` sets the ratio of its sides, of the spherical reflection triangles `*332`, `*432`, `*532`, and `*n22`, and of the lune `*nn`, with a wall and a reflection for each side. For the rotation signature of each of them, the signature without the star, such as `732`, it builds the double of that domain across one wall, whose sides are paired by rotations and, for `2222`, a translation. It measures the side lengths, corner angles, and area of the domain, checks it numerically, and reads a presentation of the group from its sides, with one generator for each side. It is not published. |
 | `escher-geometry` | A library of the hyperbolic plane in the hyperboloid model, of the Euclidean plane, and of the sphere, over the vector and matrix types of `glam`: points, distances, walls and lines, reflections and other isometries, and the map between the hyperboloid and the Poincare disk. It is not published. |
 | `escher-group` | A library of finitely presented groups: words, relators, and presentations with named generators, the presentation that Conway's rules read from an orbifold signature, Todd-Coxeter coset enumeration with a limit on the number of cosets, which returns a coset table in a standard form, and the low-index subgroup search, which counts or lists the colourings of a tiling, one for each subgroup of finite index, each with an id such as `3a`. It is not published. |
@@ -41,7 +41,7 @@ Running the checks also needs these tools:
 
 ## Usage
 
-`escher info` prints the canonical form of a signature in orbifold notation, its geometry, its Euler characteristic, and the properties that depend on them. One `Parameter` line for each shape parameter gives its range and default, such as `aspect` of `*2222`. A `Domain` line says whether `escher-domain` builds a fundamental domain for the signature. For a rotation signature whose domain is built, such as `732`, a `Side pairs` line then names each pair of sides and the kind of isometry that pairs them, and a `Parity colouring` line says that no parity colouring exists, because every side pairing preserves orientation. When a domain is built, the corner angles, the side lengths, and the area of the domain follow. The examples call the built program as `escher`. From the workspace root, `cargo run -p escher-cli --bin escher --` followed by the same arguments runs it too.
+`escher info` prints the canonical form of a signature in orbifold notation, its geometry, its Euler characteristic, and the properties that depend on them. One `Parameter` line for each shape parameter gives its range and default, such as `aspect` of `*2222`. A `Domain` line says whether `escher-domain` builds a fundamental domain for the signature. For a rotation signature whose domain is built, such as `732`, a `Side pairs` line then names each pair of sides and the kind of isometry that pairs them, and a `Parity colouring` line says that no parity colouring exists, because every side pairing preserves orientation. When a domain is built, the corner angles, the side lengths, and the area of the domain follow. The colouring lines come next. They count the colourings of the tiling, one for each subgroup of finite index, for each number of colours up to 12, or up to the number from 1 to 64 that `--max-colours` sets. With `--colourings`, `escher info` also lists each colouring with its id, such as `3a`. The examples call the built program as `escher`. From the workspace root, `cargo run -p escher-cli --bin escher --` followed by the same arguments runs it too.
 
 In a POSIX shell, `*`, `(`, and `)` are special characters, so put a signature that contains any of them in single quotes. This command prints the properties of a spherical signature:
 
@@ -60,6 +60,13 @@ Domain: 3 mirror sides
 Corner angles in degrees: 36.000000, 60.000000, 90.000000
 Side lengths: 0.553574, 0.652358, 0.364864
 Domain area: 0.104720
+Colourings: 46, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
+Colourings with 5 colours: 5
+Colourings with 6 colours: 6
+Colourings with 10 colours: 15
+Colourings with 12 colours: 18
 ```
 
 An infinite order is written `(inf)` or `∞`, and an order of 10 or more in parentheses. This command prints a frieze, whose canonical form puts the infinite order first:
@@ -84,7 +91,7 @@ The option `--check` verifies the fundamental domain and prints the result of ea
 escher info --check '*732'
 ```
 
-After the properties and the domain summary, it prints one line for each of the six checks, with its result, residual, and tolerance, and then a `Verification` line with the overall result.
+After the properties, the domain summary, and the colouring lines, it prints one line for each of the six checks, with its result, residual, and tolerance, and then a `Verification` line with the overall result.
 
 With `--check`, the exit status is 1 when a check fails or the signature has no fundamental domain.
 
@@ -94,7 +101,7 @@ The option `--presentation` prints the presentation of the group that Conway's r
 escher info --presentation '*532'
 ```
 
-After the properties and the domain summary, it prints these lines:
+After the properties, the domain summary, and the colouring lines, it prints these lines:
 
 ```text
 Presentation: 5 generators, 9 relators

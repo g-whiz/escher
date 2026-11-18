@@ -16,5 +16,10 @@ Parity colouring: none, every side pairing preserves orientation
 Corner angles in degrees: 51.428571, 90.000000, 120.000000, 90.000000
 Side lengths: 0.545275, 0.545275, 0.283128, 0.283128
 Domain area: 0.149600
+Colourings: 32, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 7 colours: 14
+Colourings with 8 colours: 8
+Colourings with 9 colours: 9
 --- stderr
 --- end

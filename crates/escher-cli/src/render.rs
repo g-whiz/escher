@@ -12,6 +12,7 @@ use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
 use rayon::slice::ParallelSliceMut as _;
 
 use crate::args::{Colouring, RenderArgs, Setting, ShadingChoice};
+use crate::count_of_colours;
 use crate::diagnostic::SignatureError;
 
 const MAX_THREADS: usize = 256;
@@ -201,7 +202,7 @@ fn fill(colouring: Colouring, colours: Option<&str>) -> Result<Fill, String> {
             Err(format!(
                 "the colouring {} needs {}, and {} given",
                 colouring.name(),
-                count_of_colours(needed),
+                count_of_colours(u64::try_from(needed).unwrap_or(u64::MAX)),
                 given(items.len())
             ))
         }
@@ -211,14 +212,6 @@ fn fill(colouring: Colouring, colours: Option<&str>) -> Result<Fill, String> {
 fn fill_colour(position: usize, text: &str) -> Result<Colour, String> {
     parse_colour(text)
         .ok_or_else(|| format!("colour {position} of --colours is not of the form #rgb or #rrggbb"))
-}
-
-fn count_of_colours(count: usize) -> String {
-    if count == 1 {
-        "1 colour".to_owned()
-    } else {
-        format!("{count} colours")
-    }
 }
 
 fn given(count: usize) -> String {

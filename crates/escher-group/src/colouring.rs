@@ -258,14 +258,21 @@ pub struct Colourings {
     requested: u32,
     complete_to: u32,
     list: Vec<Colouring>,
+    counts: Vec<u64>,
 }
 
 impl Colourings {
-    pub(crate) fn new(requested: u32, complete_to: u32, list: Vec<Colouring>) -> Self {
+    pub(crate) fn new(
+        requested: u32,
+        complete_to: u32,
+        list: Vec<Colouring>,
+        counts: Vec<u64>,
+    ) -> Self {
         Self {
             requested,
             complete_to,
             list,
+            counts,
         }
     }
 
@@ -289,6 +296,31 @@ impl Colourings {
     #[must_use]
     pub fn list(&self) -> &[Colouring] {
         &self.list
+    }
+
+    /// Returns the number of colourings with `colours` colours in the list,
+    /// or `None` when `colours` is 0 or above [`Colourings::complete_to`].
+    ///
+    /// It is `Some(0)` for a colour count up to `complete_to()` that has no
+    /// colouring.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use escher_group::{IndexLimit, SearchBudget, colourings, conway_presentation};
+    /// use escher_signature::Signature;
+    ///
+    /// let signature: Signature = "*642".parse()?;
+    /// let presentation = conway_presentation(&signature)?;
+    /// let found = colourings(&presentation, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
+    /// assert_eq!(found.count(2), Some(7));
+    /// assert_eq!(found.count(4), None);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn count(&self, colours: u32) -> Option<u64> {
+        let position = index(colours.checked_sub(1)?);
+        self.counts.get(position).copied()
     }
 
     /// Returns the colouring with the id `id`, or `None` when the list holds

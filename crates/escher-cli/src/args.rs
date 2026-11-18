@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
+use escher_group::IndexLimit;
 
 const SIGNATURE_HELP: &str = "The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'";
 
@@ -35,6 +36,19 @@ pub(crate) enum Command {
             help = "Print the generators and relators of the signature and of its fundamental domain, and for a spherical signature the group order by coset enumeration"
         )]
         presentation: bool,
+        #[arg(
+            long,
+            help = "Print every colouring of the fundamental domain with its id, up to the largest number of colours"
+        )]
+        colourings: bool,
+        #[arg(
+            long,
+            value_name = "N",
+            default_value = "12",
+            value_parser = parse_max_colours,
+            help = "The largest number of colours of the colourings to count and list, from 1 to 64"
+        )]
+        max_colours: IndexLimit,
     },
     #[command(
         about = "Render the tiling of a signature in orbifold notation and write it to a PNG file"
@@ -206,6 +220,17 @@ fn parse_setting(text: &str) -> Result<Setting, &'static str> {
     })
 }
 
+fn parse_max_colours(text: &str) -> Result<IndexLimit, String> {
+    decimal(text)
+        .and_then(|colours| IndexLimit::new(colours).ok())
+        .ok_or_else(|| {
+            format!(
+                "expected a decimal integer from 1 to {}",
+                IndexLimit::MAX.get()
+            )
+        })
+}
+
 fn parse_triple(text: &str) -> Result<[f64; 3], &'static str> {
     let error = "expected three numbers separated by commas, such as 20,35,0";
     let mut items = text.split(',');
@@ -227,7 +252,26 @@ fn decimal(text: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Setting, parse_setting, parse_triple};
+    use escher_group::IndexLimit;
+
+    use super::{Setting, parse_max_colours, parse_setting, parse_triple};
+
+    #[test]
+    fn parse_max_colours_reads_the_default_and_the_range() {
+        assert_eq!(parse_max_colours("12"), Ok(IndexLimit::DEFAULT));
+        assert_eq!(
+            parse_max_colours("1"),
+            IndexLimit::new(1).map_err(|error| error.to_string())
+        );
+        assert_eq!(parse_max_colours("64"), Ok(IndexLimit::MAX));
+        for text in ["0", "65", "x", "", "+5", " 5", "4294967296"] {
+            assert_eq!(
+                parse_max_colours(text),
+                Err("expected a decimal integer from 1 to 64".to_owned()),
+                "{text:?}"
+            );
+        }
+    }
 
     const MESSAGE: &str = "expected a parameter name and a number joined by =, such as aspect=1.5";
 
