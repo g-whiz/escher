@@ -3,12 +3,12 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-17 |
+| Date | 2026-11-18 |
 | Applies to | `crates/escher-render` |
 
 ## Abstract
 
-This document specifies the crate `escher-render`, which turns the fundamental domain of a compact hyperbolic reflection triangle into the pixels of an image in the Poincare disk, and the fundamental domain of a Euclidean reflection triangle or rectangle into the pixels of an image of the Euclidean plane, and the fundamental domain of a spherical reflection triangle or lune into the pixels of an image of a lit ball, and encodes them as a PNG file in memory. It renders the domain of a rotation subgroup, whose sides are paired by rotations and translations, through the same steps. For every sample of a regular grid in each pixel, the crate maps the sample to a point of the linear model, folds the point into the domain, decides whether the sample lies on a border of a tile, chooses a fill, border, or background colour, and on the ball shades that colour. It then averages the samples of each pixel in linear light and stores the pixel as 8-bit sRGB. The document defines the public types and operations, the steps of the fold and of the border estimate with the source or the unverified status of each formula, the behaviour of the fold for points on walls, near the limit circle, and with non-finite coordinates, the range over which the crate states its accuracy, the error type, the limits on the options, the tests with the golden images and the reference arithmetic, and the dependencies. It also lists the unverified statements that the code relies on, the evidence behind the choices of this design, the assumptions, and the points that the owner decides.
+This document specifies the crate `escher-render`, which turns the fundamental domain of a compact hyperbolic reflection triangle into the pixels of an image in the Poincare disk, and the fundamental domain of a Euclidean reflection triangle or rectangle into the pixels of an image of the Euclidean plane, and the fundamental domain of a spherical reflection triangle or lune into the pixels of an image of a lit ball, and encodes them as a PNG file in memory. It renders the domain of a rotation subgroup, whose sides are paired by rotations and translations, through the same steps. It fills the tiles with one colour, with two colours by parity, or by the cosets of a colouring of `escher-group`, which it reads from the sides that the fold applies. For every sample of a regular grid in each pixel, the crate maps the sample to a point of the linear model, folds the point into the domain, decides whether the sample lies on a border of a tile, chooses a fill, border, or background colour, and on the ball shades that colour. It then averages the samples of each pixel in linear light and stores the pixel as 8-bit sRGB. The document defines the public types and operations, the steps of the fold and of the border estimate with the source or the unverified status of each formula, the behaviour of the fold for points on walls, near the limit circle, and with non-finite coordinates, the range over which the crate states its accuracy, the error type, the limits on the options, the tests with the golden images and the reference arithmetic, and the dependencies. It also lists the unverified statements that the code relies on, the evidence behind the choices of this design, the assumptions, and the points that the owner decides.
 
 ## 1. Introduction
 
@@ -18,15 +18,15 @@ The proof of concept draws a tiling by pulling each sample back into the fundame
 
 ### 1.2. Purpose
 
-`escher-render` is the one place where a `FundamentalDomain` becomes pixels. It exposes the fold as a public function, a renderer that fills a band of rows in a buffer that the caller owns, statistics of the folds, a colour type, and PNG encoding. Section 3 of the architecture places the crate in the workspace. It depends on `escher-geometry` for the linear model and the disk map, on `escher-domain` for the domain, and on `escher-signature` for the geometry of the domain, and `escher-cli` consumes it through the command `escher render`.
+`escher-render` is the one place where a `FundamentalDomain` becomes pixels. It exposes the fold as a public function, a renderer that fills a band of rows in a buffer that the caller owns, statistics of the folds, a colour type, and PNG encoding. Section 3 of the architecture places the crate in the workspace. It depends on `escher-geometry` for the linear model and the disk map, on `escher-domain` for the domain, on `escher-signature` for the geometry of the domain, and on `escher-group` for the colourings of the coset fill, and `escher-cli` consumes it through the command `escher render`.
 
 ### 1.3. Audience
 
-The primary readers are the agent that implements the crate and the reviewer who checks it against this document. The secondary readers are the author of the command-line design, which specifies the command `render` on top of this crate, and the authors of the later milestones that add models, intrinsic borders, analytic antialiasing, and colourings by cosets.
+The primary readers are the agent that implements the crate and the reviewer who checks it against this document. The secondary readers are the author of the command-line design, which specifies the command `render` on top of this crate, and the authors of the later milestones that add models, intrinsic borders, and analytic antialiasing.
 
 ### 1.4. Scope
 
-This document covers the public surface of the crate, the options with their defaults and limits, the map from a sample to the disk and to the hyperboloid, to the Euclidean plane, and to the ball, the viewing rotation and the shading of the ball, the fold, the border estimate, the colour of a sample and of a pixel, PNG encoding, the numerical behaviour, the error type, the tests, and the dependencies.
+This document covers the public surface of the crate, the options with their defaults and limits, the map from a sample to the disk and to the hyperboloid, to the Euclidean plane, and to the ball, the viewing rotation and the shading of the ball, the fold, the border estimate, the colour of a sample by one colour, by parity, and by cosets (Section 5.12), the colour of a pixel, PNG encoding, the numerical behaviour, the error type, the tests, and the dependencies.
 
 The crate renders every domain that `FundamentalDomain::build` and `FundamentalDomain::build_with` return. These are the compact hyperbolic `*pqr` with corner orders up to 1000, in the canonical view of the Poincare disk, and the Euclidean `*632`, `*442`, `*333`, and `*2222`, the last with any value of its shape parameter, in the canonical view of the Euclidean plane (Section 5.8), and the spherical `*332`, `*432`, `*532`, `*n22`, and `*nn`, with $n$ up to 1000, as a lit ball (Section 5.9). It also renders the rotation domains of `pqr`, `632`, `442`, `333`, `2222`, `332`, `432`, `532`, `n22`, and `nn`, with the same limits, in the view of their geometry (Section 5.11). Section 4 of the domain design lists them.
 
@@ -39,7 +39,8 @@ These topics are owned elsewhere or come later:
 - The construction, placement, and verification of the domain belong to `escher-domain` and are specified in the domain design.
 - Models other than the Poincare disk, a public `View`, and borders of intrinsic width come with the milestones of Sections 5.12 and 5.13 of the plan.
 - Analytic antialiasing and the fade of tiles smaller than a pixel come with the milestone of Section 5.14 of the plan.
-- Colourings by cosets and generated palettes need `escher-group` and come with the milestone of Section 5.8 of the plan.
+- The search of the colourings, their ids, their limits, and `colour_of`, the map from a side sequence to a colour, belong to `escher-group` and are specified in the group design (GRP-29 to GRP-39). The resolution of a colouring id and the default fill colours belong to the command line (Section 4.6 of the command-line design). This crate takes a `Colouring` and its colours and parses no id.
+- A generated palette and names of colours are outside this design.
 - The shape parameters of a domain, their names, ranges, and defaults, belong to `escher-domain` and are specified in the domain design.
 - A transparent background, the back hemisphere of the ball, a perspective projection, a second light, and options for the material of the ball are outside this design.
 
@@ -60,7 +61,9 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md`, 
 | `docs/design/geometry.md` | the geometry design |
 | `docs/design/domain.md` | the domain design |
 | `docs/design/cli.md` | the command-line design |
+| `docs/design/group.md` | the group design |
 | `docs/research/rendering.md` | the rendering reference |
+| `docs/research/colourings.md` | the colourings reference |
 | `docs/research/geometry-models.md` | the geometry reference |
 | `docs/research/fundamental-domains.md` | the domain reference |
 | `docs/research/rust-ecosystem.md` | the ecosystem survey |
@@ -118,6 +121,12 @@ It adds these terms:
 - doubled wall: The wall of side 1 of the reflection domain, across which the domain design doubles it. It lies inside the rotation domain and is not a wall of any of its sides.
 - rotation domain set: The rotation domains of the signatures of the fold set of Section 6.4 without the star, `732`, `542`, `444`, `433`, `(12)32`, `(1000)32`, and `(1000)(1000)(1000)`, of `632`, `442`, `333`, and `2222` with the values of `aspect` of the Euclidean domain set, and of the signatures of the spherical domain set without the star.
 - rotation prototype: Code outside the repository that built the rotation domains from the public data of the reflection domains, with a copy of the fold, of the checks of the domain design, and of the logic of a sample of the renderer, and a 256-bit reference. Section 11 states what it measured.
+- `Colouring`: The type of `escher-group` for one colouring, which holds an id, a colour count $k$, and a coset table of $k$ rows with one generator for each side of the side presentation (Sections 3.1 and 3.2 of the group design).
+- coset fill: The fill `Fill::Cosets`, which gives each tile the colour of its coset in a colouring (Section 5.12).
+- side sequence: The indexes of the sides that one fold applies, in the order in which it applies them, which `fold` passes to `visit` (Section 5.3).
+- side buffer: The buffer of bytes in which the renderer records the side sequence of one sample for a coset fill (RND-38).
+- coset colour: The number from 0 to $k - 1$ that `colour_of` of the colouring gives for the side sequence of a sample (GRP-38 of the group design).
+- colouring prototype: Code outside the repository that searched the colourings of the side presentations of the built domains and traced the coset colour of samples through the public `fold`. Section 11 states what it measured.
 
 ## 3. Public Surface
 
@@ -138,8 +147,18 @@ impl Colour {
 }
 
 #[non_exhaustive]
-pub enum Fill { One(Colour), Parity([Colour; 2]) }
-// derives Clone, Copy, Debug, PartialEq
+pub enum Fill { One(Colour), Parity([Colour; 2]), Cosets(CosetFill) }
+// derives Clone, Debug, PartialEq
+
+pub struct CosetFill { /* private: the colouring and its colours */ }
+// derives Clone, Debug, PartialEq
+impl CosetFill {
+    pub fn new(
+        domain: &escher_domain::FundamentalDomain,
+        colouring: &escher_group::Colouring,
+        colours: Vec<Colour>,
+    ) -> Result<Self>;
+}
 
 #[non_exhaustive]
 pub enum Shading { Phong, Flat }
@@ -219,7 +238,9 @@ pub enum ErrorKind { InvalidOption, LimitExceeded, InvalidBuffer, Encoding }
 pub type Result<T> = core::result::Result<T, Error>;
 ```
 
-`builder` carries no `#[must_use]` of its own, because its return type is `#[must_use]` and Clippy rejects the second attribute (`clippy::double_must_use`). The crate does not re-export `glam` (API-10 of the coding standard). A caller that names a `glam` type declares `glam` from the workspace entry.
+`builder` carries no `#[must_use]` of its own, because its return type is `#[must_use]` and Clippy rejects the second attribute (`clippy::double_must_use`). The crate does not re-export `glam` (API-10 of the coding standard). A caller that names a `glam` type declares `glam` from the workspace entry. In the same way the crate re-exports neither `escher-domain` nor `escher-group`, and a caller that builds a `CosetFill` declares both.
+
+`Fill` derives no `Copy`, because `CosetFill` holds the coset table of its colouring and a list of colours, which are not `Copy`. This is a breaking change for each caller that copies a `Fill`, which now clones it.
 
 ### 3.2. Meaning and Invariants
 
@@ -231,7 +252,9 @@ Each item guarantees its invariant by construction, so no caller checks it:
 | `Colour::BLACK`, `Colour::WHITE` | Black and white | Equal to `from_srgb8(0, 0, 0)` and `from_srgb8(255, 255, 255)` |
 | `from_srgb8` | Converts 8-bit sRGB to linear light by the transfer function of Section 5.6 | Total |
 | `to_srgb8` | Converts linear light to 8-bit sRGB by the transfer function of Section 5.6 | `to_srgb8(from_srgb8(r, g, b))` is `[r, g, b]` for every byte value |
-| `Fill` | The colouring with its colours | The number of colours matches the colouring by construction (TYPE-3 of the coding standard), so the crate has no error for a wrong number of colours |
+| `Fill` | The colouring with its colours | For `One` and `Parity`, the number of colours matches the colouring by construction (TYPE-3 of the coding standard). For `Cosets`, `CosetFill::new` has checked it (RND-36) |
+| `CosetFill` | A colouring of `escher-group` with one colour for each of its cosets, for the domain that `new` checked it against | Built only by `new`, so the number of colours equals the colour count of the colouring, and the colouring has one generator for each side of that domain. It keeps no reference to the domain or the colouring |
+| `CosetFill::new` | Checks the colouring and the colours against the domain and copies them | Returns `InvalidOption` as RND-36 and Section 7.2 state. Never panics |
 | `Shading` | `Phong` shades the ball as Section 5.10 states, and `Flat` leaves each sample colour unchanged, so the ball is a flat disk | Read only for a spherical domain. The name `Flat` avoids a variant `None`, which reads as an `Option` |
 | `rotation` | The viewing rotation of the ball, as the yaw, the pitch, and the roll in radians (Section 5.9) | Checked by `build` |
 | `light` | The direction from the ball to the light, in the coordinates of the screen of Section 5.9. Its length has no effect | Checked and normalized by `build` |
@@ -246,7 +269,7 @@ Each item guarantees its invariant by construction, so no caller checks it:
 | `outside()` | The number of outside samples, which are the samples outside the disk or the ball | At most `samples()`. 0 for a Euclidean domain |
 | `folds()` | The sum of the steps of the folds of every sample that is not an outside sample | Saturates at `u64::MAX` |
 | `largest_fold()` | The largest number of steps of one fold | At most the fold cap |
-| `unconverged()` | The number of unconverged samples | At most `samples() - outside()` |
+| `unconverged()` | The number of unconverged samples, and of the samples of a coset fill whose side sequence has no coset colour (RND-37) | At most `samples() - outside()` |
 | `merged` | The statistics of two bands together | Adds the counts with saturation and takes the larger `largest_fold()` |
 | `fold` | Folds one point into the domain and calls `visit` with the index of each side that it applies, in order | The steps of Section 5.3, with the same decisions as the fold inside the renderer for the same point and cap (RND-7). Never panics (RND-14) |
 | `Fold::point` | The folded point | Not renormalized (RND-8). Finite, with a positive point size, when `converged()` is true. For a spherical domain that means a finite vector other than the zero vector, read as its ray |
@@ -269,11 +292,11 @@ The crate has these private modules, each a file named after the module:
 
 - `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, the re-exports, the unit test "Auto traits" of Section 8.1, and, under `#[cfg(test)]`, the modules `reference` and `golden_images`, loaded from `tests/render/reference.rs` and `tests/render/golden_images.rs` through `#[path]` (Section 8.1).
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
-- `src/colour.rs`: `Colour`, `Fill`, and the sRGB transfer function.
+- `src/colour.rs`: `Colour`, `Fill`, `CosetFill` with its checks, and the sRGB transfer function.
 - `src/options.rs`: `RenderOptions`, `RenderOptionsBuilder`, `Shading`, the defaults, and the limits.
 - `src/fold.rs`: `Fold`, `fold`, the private fold that carries the screen tangents, the private enum that selects the point size, and the tolerance constant.
 - `src/view.rs`: The private view, which maps a sample to a disk position, a plane position, or a ball position and a point of the linear model with its screen tangents, by the geometry of the domain, and the symmetric view, the periodic view, and the rotated view of the unit tests. The view holds one case per geometry: the disk with its disk scale and the placement, the plane with its plane scale, or the ball with its scale and the viewing matrix (Section 5.9).
-- `src/renderer.rs`: `Renderer`, `RenderStats`, the border estimate, the colour of a sample, its shading (Section 5.10), and the colour of a pixel.
+- `src/renderer.rs`: `Renderer`, `RenderStats`, the border estimate, the side buffer, the colour of a sample with its coset colour, its shading (Section 5.10), and the colour of a pixel.
 - `src/encode.rs`: `encode_png`.
 
 ### 3.4. Items Outside This Surface
@@ -281,7 +304,8 @@ The crate has these private modules, each a file named after the module:
 Section 3.2 of the architecture lists items that this surface does not have, and Section 3.2 of the architecture lets the crate design refine the names and signatures:
 
 - A public `View` with the model and the placement. Each geometry has one canonical view in this design, which the renderer chooses from the domain. The only option that changes a view is the viewing rotation of the ball, which `RenderOptions` carries as three angles, so a public `View` would give a caller nothing more to choose, and SIMP-1 of the coding standard removes an abstraction that gives no benefit now. The disk case of the private view holds the placement isometry, which is the identity for the canonical view. The change that adds the first option that changes the model or the placement makes it public.
-- A colouring identifier with a list of colours. `Fill` carries its colours until `escher-group` gives colourings.
+- A colouring id. `CosetFill::new` takes the `Colouring` itself, which `escher-group` finds from an id, so the crate parses no id and runs no search, and the command line owns the resolution of an id and its errors (Section 4.6 of the command-line design).
+- A palette. The caller gives every fill colour, so the library states no default colour, as Section 4.2 states.
 - The lift onto the ball as a public function. It lives in the private view beside its screen tangents, as the tangents of the disk do, because the view is its one caller.
 
 `fold` is public so that the integration tests, which use only the public surface (TEST-1 of the coding standard), can read the side sequence for the reference tests and the border oracle.
@@ -405,6 +429,7 @@ RND-10. The renderer MUST give each sample the colour of the first row of this t
 | Border sample | The border colour |
 | `Fill::One(c)` | $c$ |
 | `Fill::Parity([c_0, c_1])` | $c_0$ for an even parity and $c_1$ for an odd parity |
+| `Fill::Cosets(fill)` | The colour of the fill at the index of the coset colour of the side sequence, or the border colour when the side sequence has no coset colour (RND-37, Section 5.12) |
 
 For a spherical domain, the colour of every sample that is not an outside sample is then shaded as Section 5.10 states. The domain itself takes the first colour of `Fill::Parity`, because a point inside it folds in zero steps. Every tile of a rotation domain takes that colour too, because every fold of such a domain has an even parity (RND-33 in Section 5.11). The parity colouring rests on `UNV-18`, with the precedents of the flip parity of [ZUCKER] and [NS] and the swap of two colours of [SYMMHUB] (Section 4.6 of the rendering reference).
 
@@ -435,6 +460,7 @@ RND-12. `encode_png` MUST write an RGB image of bit depth 8 with the sRGB chunk 
 | 5.4 | The distance form, in the tests only | The disk metric of [CFKP], p. 71 (Section 6.2 of the rendering reference), and the unit-normal form | `UNV-14` |
 | 5.5 | An unconverged sample takes a fixed colour | Section 4.9 of the rendering reference | Sourced precedents. The border colour is `DEC-7` |
 | 5.5 | The parity colouring | Section 4.6 of the rendering reference | `UNV-18` |
+| 5.5 | The coset fill | Section 5.12 | `UNV-17` |
 | 5.6 | The sRGB transfer function | Section 7.5 of the rendering reference | Sourced through secondary sources. The rounding of an encoder is item 23 of Section 13.1 of the rendering reference |
 | 5.6 | Averaging in linear light | None | A choice of the plan |
 | 5.6 | The sRGB chunk through `set_source_srgb` | Section 4 of the ecosystem survey | The API of `png` |
@@ -578,7 +604,7 @@ The steps of Sections 5.1 to 5.10 read as this table states:
 | 5.1, 5.2, 5.8, 5.9 | Unchanged, by the geometry of the domain |
 | 5.3 | Unchanged (RND-31). A step applies a pairing that preserves orientation, so the reversal count stays 0. The step counts of a point and of its image under a pairing need not differ by 1 (Section 8.1) |
 | 5.4 | Unchanged, over the sides of the rotation domain only (RND-34) |
-| 5.5 | Unchanged. `Fill::Parity` gives its first colour to every tile (RND-33) |
+| 5.5 | Unchanged. `Fill::Parity` gives its first colour to every tile (RND-33), and `Fill::Cosets` colours by cosets as on a reflection domain (Section 5.12) |
 | 5.6, 5.10 | Unchanged |
 
 RND-31. The renderer and `fold` MUST fold a point of a rotation domain by the steps of Section 5.3, with no branch on the kind of a side, with the tolerance constant of Section 6.2, and with the order of operations of RND-26, because the loop already reads each pairing as a matrix and each orientation as a flag, and a second fold for rotation domains would be the second implementation that RND-7 forbids.
@@ -601,6 +627,55 @@ The rotation steps rest on these statements:
 | 5.3 | The fold terminates with pairings that are not reflections | None | `UNV-2` |
 | 5.4 | The border estimate | The gradient form of Section 5.7 | `UNV-15` |
 | 5.5 | One fill colour for a group whose pairings all preserve orientation | None | A consequence of Section 5.5, and `DEC-32` |
+
+### 5.12. Coset Fill
+
+A coset fill colours the tiling by a colouring of `escher-group`. Each tile takes the colour of its coset of the subgroup of the colouring, a subgroup of finite index $k$ of the group that the side presentation of the domain presents (Section 5.4 of the domain design). `escher-group` searches the colourings, gives each its id, and owns `colour_of`, the rule that maps a side sequence to a coset colour (GRP-37 and GRP-38 of the group design). This crate records the side sequence of each sample and calls `colour_of` once for the sample, so the rule has one implementation. The rule is the proposed default `DEC-40`, and the coset fill with its side buffer is `DEC-45` (Section 10.2 of the architecture).
+
+`CosetFill::new` takes the domain, the colouring, and one colour for each coset. It checks two conditions, in this order:
+
+1. The coset table of the colouring has one generator for each side of the domain.
+2. The number of colours equals the colour count $k$ of the colouring.
+
+RND-36. `CosetFill::new` MUST return an error of the kind `InvalidOption` with the text of Section 7.2 for the first of these conditions that fails, and MUST otherwise copy the colouring and the colours, because a colouring with another number of generators belongs to another presentation, a list of colours of another length leaves a coset without a colour or a colour without a coset, and `Renderer::new` stays infallible (RND-33), so the fill is the one place where the crate can refuse them.
+
+The check cannot tell a colouring of another domain with the same number of sides, such as a colouring of `*642` with the domain of `*732`. Such a fill renders without an error, with the colours of a table of another presentation. The caller passes the domain whose side presentation the colouring came from, as the command line does (Section 4.5 of the command-line design). Section 12.3 keeps this as a point for the owner.
+
+RND-37. For `Fill::Cosets`, the renderer MUST give a converged sample that is not a border sample the colour at the index that `colour_of` of the colouring returns for the side sequence of its fold, and MUST compute the coset colour through `colour_of` only. When `colour_of` returns no colour, or an index outside the colours, the sample MUST take the border colour and count in `unconverged()`, and the renderer MUST NOT panic, because `colour_of` is the one implementation of the rule (GRP-38 of the group design) and a second trace in this crate could read the sequence in another order, as the defects of Section 8.4 show, and a sample without a coset colour has no fill colour to take, so it takes the border colour, as an unconverged sample does (RND-10). `CosetFill::new` rules out both cases for the domain that it checked, so they arise only for a fill that a caller uses with another domain.
+
+The domain itself takes coset colour 0, because a point inside it folds in zero steps, and `colour_of` gives coset 0 for the empty side sequence (GRP-38). The renderer computes the coset colour after the border estimate, so a border sample runs no trace.
+
+The rule reads the side sequence as a word in the generators of the side presentation, with the generator of side $i$ for $P_i^{-1}$ (DOM-32 of the domain design). The first side of the sequence acts last in the element of the tile, so the coset of a sample cannot be carried forward through the fold as one coset number, and the renderer records the sequence and traces it after the fold. The alternative is to carry a permutation of the $k$ cosets through the fold, which SymmHub does (Section 8.4 of the colourings reference) and which costs $k$ entries per step.
+
+RND-38. For a coset fill, the renderer MUST record the side sequence of each sample in a side buffer that each call of `render_rows` or `render` allocates once, clears before each sample, and grows to at most the fold cap, with one byte for each side index, and MUST carry no value from one sample to the next, because the colour of a sample must depend only on its own fold (RND-3), and the command line expects the same bytes for every split into bands and every number of threads (CLI-23 of the command-line design). For `Fill::One` and `Fill::Parity`, the renderer MUST pass the fold a visitor that does nothing, as it does for them without a coset fill.
+
+A side index fits one byte, because a domain with a side presentation has at most 256 sides (DOM-35 of the domain design), and every domain that `build_with` returns has at most 6. The buffer holds at most the fold cap of bytes, which is 100000 at the limit of Section 4.1, for each call. The command line renders in bands of one row, so it allocates one buffer for each row.
+
+The trace is a chain of dependent table reads, one for each step of the fold, after the fold itself. On the colouring prototype, at 512 by 512 pixels with a 4 by 4 grid on one thread, with a colouring of the largest colour count up to 9, recording the side sequence and tracing it added this time to the fold:
+
+| Signature | Mean steps of a fold | Time of the parity render | Time added by the buffer and the trace | Added, as a share of the parity render |
+| --- | --- | --- | --- | --- |
+| `*732` | 12.3 | 0.301 s | 0.123 s | 41 percent |
+| `(1000)32` | 15.8 | 0.360 s | 0.171 s | 48 percent |
+| `*(1000)32` | 31.4 | 0.592 s | 0.351 s | 59 percent |
+
+These are the figures of the prototype, which used the public `fold` and a copy of the trace. The figures of the crate are to be measured by the change that implements the coset fill, which records them in this section.
+
+RND-39. The coset fill MUST NOT change any decision, colour, or statistic that the renderer and `fold` give with `Fill::One` or `Fill::Parity`, and MUST NOT change any golden file of Section 8.4 that does not name a colouring, because the committed golden images and the exact tests "Bands", "Scale", and "Periodicity" fix every decision of those fills, and `just update-golden` rewrites every golden file, so a changed image could enter the repository in the change that adds the golden images of the coset fill. The acceptance is that no committed golden file of `Fill::One` or `Fill::Parity` changes.
+
+The coset fill needs no change for a rotation domain. Its pairings are not involutions, so the generator of a paired side is not its own inverse, and only a rotation domain tells the trace through the inverse columns from the trace through the generator columns. On the colouring prototype the trace without the inversion gave a perfect colouring on every domain, which on a rotation domain was the mirror image of the correct one, the colouring of another subgroup. A test that checks only that the colouring is perfect therefore passes with that defect, and the tests of Section 8.1 assert the exact permutation of the colours by each side.
+
+Two colourings reproduce the other fills. The colouring `1a` with one colour gives every converged sample that is not a border sample that colour, so its image equals that of `Fill::One` of the colour, byte for byte. The parity colouring of the command line (Section 4.6 of the command-line design) is the colouring with two colours in which side $i$ moves coset 0 exactly when side $i$ reverses orientation. On the colouring prototype its trace gave, sample by sample, the parity of the reversals of the fold, so its image with two colours is expected to equal that of `Fill::Parity` with the same colours, byte for byte. The test "One and parity by cosets" of Section 8.1 asserts both equalities.
+
+For a spherical domain, the colour of the coset fill is shaded as Section 5.10 states, like every other fill colour.
+
+The coset fill rests on these statements:
+
+| Step | Statement used | Source | Status |
+| --- | --- | --- | --- |
+| 5.12 | The colouring by the cosets of a subgroup of finite index is perfect | Lemma 2.1 of [FRETTLOH2008], for the triangle tilings $T_{p,q}$ under the reflection groups $G_{p,q}$ only (Sections 4.1 and 4.2 of the colourings reference) | Sourced for those tilings. For every other group, `UNV-17` |
+| 5.12 | The side sequence of a fold, read as a word in the generators of DOM-32, gives the element that maps the domain onto the tile of the sample | None | `UNV-17`. The colouring prototype confirmed it numerically on reflection and rotation domains |
+| 5.12 | The coset colour is the trace of the side sequence in reverse order through the inverse columns, from coset 0 | SymmHub's code comment only (Section 8.4 of the colourings reference) | `UNV-17`. GRP-38 of the group design owns the rule |
 
 ## 6. Numerical Behaviour
 
@@ -1178,7 +1253,7 @@ RND-17. The crate MUST implement `Error` as ERR-1 of the coding standard require
 
 `Error` has these private fields:
 
-- `operation`: A `&'static str`, which is `"build render options"`, `"render rows"`, or `"encode image"`.
+- `operation`: A `&'static str`, which is `"build render options"`, `"build coset fill"`, `"render rows"`, or `"encode image"`.
 - `detail`: A private enum with one variant for each cause, which carries the values that the text of Section 7.2 shows, or the error of `png` that caused an encoding failure.
 
 `kind()` computes the kind from `detail` with a `match` that has no wildcard arm (TYPE-3 and TYPE-7 of the coding standard). `thiserror` derives the `Display` of the private detail. `Display` and `std::error::Error` for `Error` are written by hand, as Section 10.1 of the domain design states for the same reason: `source()` returns the `png` error that one variant of the detail holds. `Display` for `Error` writes `cannot `, the operation, `: `, and the text of the detail. `source()` returns the `png` error for an `Encoding` error and `None` otherwise. No type from a dependency appears in the public surface of the error (ERR-2).
@@ -1201,6 +1276,8 @@ RND-18. `Display` for `Error` MUST be `cannot `, the operation, `: `, and the te
 | `LimitExceeded` | `build render options` | A fold cap above 100000 | `the fold cap 100001 is larger than 100000` |
 | `InvalidOption` | `build render options` | A rotation angle that is not finite | `the rotation angle NaN is not finite`, with the `Display` of the first such angle, in the order yaw, pitch, roll, in place of `NaN` |
 | `InvalidOption` | `build render options` | A light direction with a component that is not finite, or with every component zero | `the light direction is zero or not finite` |
+| `InvalidOption` | `build coset fill` | The coset table of the colouring has another number of generators than the domain has sides | `the colouring has 3 generators, and the domain has 4 sides`, with the two numbers, and `1 generator` for the number 1 |
+| `InvalidOption` | `build coset fill` | The number of colours differs from the colour count of the colouring | `the colouring needs 3 colours, and 2 were given`, with the two numbers, and `1 colour` and `1 was given` for the number 1 |
 | `InvalidBuffer` | `render rows` | A buffer whose length is 0 or not a multiple of $3W$ | `the buffer of 1535 bytes does not hold whole rows of 1536 bytes`, with the two lengths |
 | `InvalidBuffer` | `render rows` | A band that ends below the last row | `the rows 510 to 513 are outside the image of 512 rows`, with the first and last row of the band and the height |
 | `InvalidBuffer` | `encode image` | A width or a height of 0, or a buffer whose length is not $3WH$ | `the buffer of 1535 bytes does not hold an image of 16x32 pixels`, with the length and the size |
@@ -1210,7 +1287,9 @@ So `RenderOptions::builder(fill).samples(17).build()` returns an `Error` whose `
 
 Every fixed text is in lower case apart from `PNG` and has no trailing punctuation (ERR-4 of the coding standard). The values in the text are numbers that the crate formats, so the text needs no escaping. The `Display` text does not repeat the text of the `source()` error (ERR-4).
 
-`fold`, `Renderer::new`, and `render` return no error. `fold` reports a failure as an unconverged result.
+`fold`, `Renderer::new`, and `render` return no error. `fold` reports a failure as an unconverged result, and the renderer reports a sample without a coset colour as an unconverged sample (RND-37).
+
+The texts of `build coset fill` hold no id of a colouring, because the command line names the id in its own diagnostic (Section 6.8 of the command-line design), and a second id in the source text would repeat it.
 
 ## 8. Testing
 
@@ -1234,7 +1313,7 @@ The module `reference` defines the count bound once, and both the unit tests and
 
 The module `golden_images`, in `tests/render/golden_images.rs`, defines once the golden configuration of Section 8.4, with the signatures, their shape parameters, and their file names, the fill colours, the size, the sample grid, and the options, the allowance of 16 pixels, the linear-light table of RND-20, and the comparison. It also defines the helpers of the test "Periodicity": `domain_with_aspect`, which builds a domain with a value of `aspect`, `translation`, which multiplies the pairings of a word and returns the offset of the product with its two defects from a translation, `shifted_pairs`, which pairs each pixel with the pixel at a shift, and the translation tolerance `TRANSLATION_TOLERANCE`. The tests "Golden images", "Perturbation", "Symmetric view", and "Periodicity" take them from there.
 
-Each test names the item of the field "Tests and acceptance" of Section 5.3, 5.4, 5.5, or 5.6 of the plan that it serves. The reference tests print each largest value with its input and its margin, and assert the smallest number of samples that they measure. The test harness captures that output for a test that passes:
+Each test names the item of the field "Tests and acceptance" of Section 5.3, 5.4, 5.5, 5.6, or 5.8 of the plan that it serves. The reference tests print each largest value with its input and its margin, and assert the smallest number of samples that they measure. The test harness captures that output for a test that passes:
 
 | Test | Plan item | Kind and place | Asserts |
 | --- | --- | --- | --- |
@@ -1297,6 +1376,12 @@ Each test names the item of the field "Tests and acceptance" of Section 5.3, 5.4
 | Double oracle | Fold properties | Four reference tests, `folds`, split as "Rotation fold replay" is | For each point $x$ of the rotation fold sets, let $b_F$ be the bound of the folded point of the reflection domain for its band, distance, or domain in Sections 6.4, 6.6, and 6.7, and $b_D$ that of the rotation domain in Section 6.8. Keep $x$ when the fold of $x$ in the reflection domain converges and its folded point lies, in the reference, at a distance of at least the larger of $10^{-6}$ and $2(b_F + b_D)$ from every wall of the reflection domain. The point of the fold of $x$ in the rotation domain must lie within $b_F + b_D$ of the folded point of the reflection domain when that fold has an even parity, and of its image under the pairing of side 1 of the reflection domain when the parity is odd. The number of kept points that fail is within the count bound of Section 6.8 for each band, distance, or domain, at least one point of each domain is kept, and the test prints the points that fail. It uses only the public surface, because the reflection domain lies inside the rotation domain in the same place |
 | Border subset | Every border pixel of the `pqr` image is a border pixel of the `*pqr` image in the same view | Integration test, `borders` | For each domain of the rotation domain set, with `2222` also at `aspect` 4, render it and its reflection domain with the same options: `Fill::One`, one sample per pixel, and `Shading::Flat`, at 193 by 193 pixels for a Euclidean domain and 192 by 192 pixels otherwise. Count only the pixels within disk or ball radius 0.9 for a hyperbolic or spherical domain. A border pixel is a pixel that is not the fill colour. The number of border pixels of the rotation domain that are not border pixels of the reflection domain is within the count bound of Section 6.8, the rotation domain has at least one border pixel, and it has at most as many border pixels as its reflection domain. The test prints both counts of each domain |
 | One-colour parity | None | Integration test, `images` | For `732` and `55` at 64 by 64 pixels with a 2 by 2 grid, the image with `Fill::Parity` of two different colours equals, byte for byte, the image with `Fill::One` of its first colour. The comparison is exact, because each sample takes the same colour by the same instructions (RND-33) |
+| Coset fill checks | Failure paths | Unit tests in `colour.rs` | For the domain of `*732` and the colouring `2a` of the side presentation of `22`, which has 2 generators, `CosetFill::new` gives `the colouring has 2 generators, and the domain has 3 sides`, also with the wrong number of colours. For the domain of `22` and its colouring `2a`, one colour gives `the colouring needs 2 colours, and 1 was given`, three colours give `the colouring needs 2 colours, and 3 were given`, and two colours give a fill that keeps them in order. Each error has the kind `InvalidOption` and the operation `build coset fill` |
+| Coset sample | Fold properties | Unit test in `renderer.rs` | For `*642` with `3a`, `532` with `5a`, which are candidate ids (Section 8.4), and `2222` with a colouring of 3 colours, at 64 by 64 pixels with one sample per pixel and a border width of 0, the colour of every converged sample of `Fill::Cosets` is the colour at the index that `colour_of` gives for the side sequence that the public `fold` visits for the point of that sample. A fill given a domain with more sides than its colouring has generators takes the border colour and counts every sample that folds through a side without a generator in `unconverged()`, without a panic |
+| Exact permutation | Fold properties | `proptest`, `properties` | For `*732`, `*642`, `*2222`, `532`, `432`, and `2222` with every colouring of up to 6 colours, and `732` with every colouring of up to 9 colours, which include colourings whose subgroups are not normal, a point $x$ drawn as "Pairing" draws it, and a side $i$: the coset colour of $P_i^{-1} x$ equals the image of the coset colour of $x$ under the inverse column of the generator of side $i$ in the table of the colouring. The coset colour of a point is the value of `colour_of` for the side sequence of its fold. A case is discarded when either fold does not converge or when its folded point lies, in `f64`, within the clearance of "Pairing" of a wall of the domain. The assertion of the exact permutation, and not only that each side permutes the colours, is what fails for the trace without the inversion on a rotation domain (Section 5.12) |
+| One and parity by cosets | None | Integration test, `images` | For `*732`, `*642`, `*2222`, `*532`, and `732` at 64 by 64 pixels with a 2 by 2 grid, the image of `Fill::Cosets` with the colouring `1a` and one colour equals the image of `Fill::One` with that colour, byte for byte, and for `*732`, `*642`, `*2222`, and `*532` the image of `Fill::Cosets` with the parity colouring and two colours equals the image of `Fill::Parity` with the same colours, byte for byte. The statistics are equal in both cases. The test finds the parity colouring among the colourings of 2 colours as the one in which the generator of side $i$ moves coset 0 exactly when side $i$ reverses orientation. The comparison is exact, because each sample takes a bit-identical colour from the same fold |
+| Coset bands | None | Integration test, `images` | As "Bands", for `*642` with `3a` and for `532` with `5a`, the candidate ids of Section 8.4, at 64 by 48 pixels with a 3 by 3 grid: `render` equals, byte for byte, the concatenation of `render_rows` over the splits of "Bands", and the merged statistics equal those of `render` (RND-38) |
+| Coset golden images | Golden images | Integration test, `images` | Section 8.4 |
 | Doctests | None | Doctests | The examples of the crate-level and item documentation |
 
 The tests "Tangents", "Border forms", "Colour", "Thresholds", "Colour constants", "Perturbation", and "Symmetric view" read private items, such as the screen tangents, the linear value of a `Colour`, and the walls inside the renderer, so they are unit tests. `src/lib.rs` loads `tests/render/reference.rs` and `tests/render/golden_images.rs` under `#[cfg(test)]` through `#[path]`, so the unit tests and the integration tests use the same reference module, which shares no code with the crate (RND-19), and the same golden configuration, allowance, and comparison. The module `reference` carries `#![expect(dead_code, reason = "the unit tests of the crate and the integration tests each use a different part of this module")]`, because each test binary uses a different part of it, and its self-check runs in both binaries.
@@ -1406,6 +1491,19 @@ RND-19. The reference module MUST share no code with `escher-render`, `escher-do
 
 The golden images are `*732`, `*542`, and `*433` in the canonical view at 192 by 192 pixels, with a 4 by 4 grid, a border width of 1 pixel, `Fill::Parity` with the sRGB colours $(245, 222, 179)$ for an even parity and $(70, 130, 180)$ for an odd parity, and the default border colour, background, and cap. They are committed as `7-3-2.png`, `5-4-2.png`, and `4-3-3.png` under `crates/escher-render/tests/render/golden/`, as Section 7.2 of the architecture and TEST-14 of the coding standard state. The Euclidean golden images are `*632`, `*442`, `*333`, and `*2222` with `aspect` 1.618, with the same options in the canonical view of Section 5.8, committed in the same directory as `6-3-2.png`, `4-4-2.png`, `3-3-3.png`, and `2-2-2-2.png`. The spherical golden images are `*532`, `*432`, `*332`, `*722`, and `*55` with the default rotation, light, and shading, `*532` with the rotation 20, 35, 0 degrees, and `*532` with `Shading::Flat`, with the same options in the view of Section 5.9, committed in the same directory as `5-3-2.png`, `4-3-2.png`, `3-3-2.png`, `7-2-2.png`, `5-5.png`, `5-3-2-rotated.png`, and `5-3-2-flat.png`. The golden configuration of each image holds its rotation and its shading. The rotation golden images are `732`, `442`, `2222` with `aspect` 1.618, `532`, `722`, and `55`, with the same options in the canonical view of their geometry, the spherical ones with the default rotation, light, and shading, committed in the same directory as `rot-7-3-2.png`, `rot-4-4-2.png`, `rot-2-2-2-2.png`, `rot-5-3-2.png`, `rot-7-2-2.png`, and `rot-5-5.png`. Their configuration keeps `Fill::Parity`, so they show the first fill colour only (RND-33), and no border lies on a doubled wall (RND-34).
 
+The coset golden images use `Fill::Cosets` with the first $k$ of eight distinct colours that the golden configuration lists, and otherwise the options of the other golden images in the canonical view of their geometry. They are committed in the same directory:
+
+| Image | Colouring | File | What it fixes |
+| --- | --- | --- | --- |
+| `*642` | `3a`, 3 colours | `cos-6-4-2-3a.png` | A colouring whose subgroup is not normal on a reflection domain, from Bulatov's colour counts of `*642` (Section 4.4 of the colourings reference) |
+| `*732` | `8a`, 8 colours | `cos-7-3-2-8a.png` | The largest colour count of the golden images, and the only class with 8 colours of `*732` on the colouring prototype, which is in Frettloh's row `(7^3)` (Section 5.6 of the colourings reference) |
+| `432` | `3a`, 3 colours | `cos-rot-4-3-2-3a.png` | A chiral colouring on a spherical rotation domain |
+| `532` | `5a`, 5 colours | `cos-rot-5-3-2-5a.png` | A chiral colouring on a spherical rotation domain |
+| `*2222` | `4a`, 4 colours, with the default `aspect` | `cos-2-2-2-2-4a.png` | A Euclidean colouring |
+| `*532` | `5a`, 5 colours, with the default rotation, light, and shading | `cos-5-3-2-5a.png` | A colouring on the ball, shaded |
+
+The ids are candidates that the colouring prototype measured, when it gave one id to each conjugacy class. The change that implements the coset fill confirms each id under the ids of GRP-37 of the group design, which rank every subgroup, and confirms that each image of `432` and `532` changes beyond the allowance under the defect "Trace without the inversion" of the table below, which makes it the golden image of a chiral colouring. A candidate that fails either condition is replaced by an id that meets it, and this table is updated in that change.
+
 RND-20. The golden-image test MUST decode the committed file with `png`, convert both images to linear light through a table of the 256 byte values that the reference transfer function of Section 8.3 gives, and pass only when at most the allowed number of pixels differ and each differing pixel differs in each channel by at most one sample weight plus the linear-light size of one 8-bit step at the larger of the two stored values of that channel, because samples are averaged in linear light and stored as 8-bit sRGB, so a sample that changes colour moves the stored value by an amount that depends on the colours, a limit in stored units would be too loose for dark values and too tight for bright ones, and an integration test cannot read the linear value of a `Colour`.
 
 The allowed number of pixels is 16 for each image, a choice of this design. The evidence for it is:
@@ -1471,6 +1569,16 @@ The same procedure gave these counts for the rotation golden images:
 
 The first defect changes no pixel of a golden image of a reflection domain. The second changes no pixel of a Euclidean rotation image, for the reason that the defect "Tangent not carried" changes no Euclidean reflection image. It changes 828 pixels of `rot-5-5`, the smallest count of any defect tried that changes an image, which is still far above the allowance of 16 pixels.
 
+The coset fill has these deliberate defects, each in `colour_of` of `escher-group` or in the renderer. The column "Expected to fail" gives the tests that the colouring prototype or its reasoning predicts to fail, and the change that implements the coset fill applies each defect alone and records the tests that failed and the pixels that changed:
+
+| Defect | Expected to fail |
+| --- | --- |
+| The side sequence traced in fold order | "Exact permutation" for every colouring whose subgroup is not normal, and the coset golden images of `*642`, `432`, and `532` |
+| Trace without the inversion: the side sequence traced in reverse order through the generator columns | "Exact permutation" on the rotation domains only, and the coset golden images of `432` and `532`. Every reflection domain passes, because each of its generators is its own inverse |
+| The trace started at coset 1 | "One and parity by cosets" |
+| The side buffer not cleared between samples | "Coset sample", "Coset bands", and every coset golden image |
+| A sample whose side has no generator given the first colour | "Coset sample" |
+
 A defect of the public `fold` alone, which applies the pairing of the partner side in place of the pairing of the side, changes no result of a reflection domain. It failed the tests "Rotation fold replay", "Double oracle", "Centre images" of the rotation domains, "Inside" and "Idempotent" of "Rotation fold properties", "Rotation pairing", and "Spherical rotation pairing".
 
 The golden-image test reads the environment variable `ESCHER_UPDATE_GOLDEN`. With exactly the value `1`, it writes each rendered image over its committed file and does not compare. With any other value, or unset, it compares. A committed file that cannot be read or decoded, or whose width, height, colour type, bit depth, or buffer length differs from the rendered image, fails that image with a message that names the recipe `update-golden`, and such a file never reaches the comparison or the encoder. Section 14.9 of the tooling design gives the procedure.
@@ -1488,6 +1596,8 @@ When an image differs beyond the allowance, the test writes `actual-<name>.png`,
 | The two tests of "Centre images" | Ignored | `#[cfg_attr(miri, ignore = "the enumeration of the group runs loops too long for the interpreter")]` |
 | The two tests of "Near vertex" | Ignored | `#[cfg_attr(miri, ignore = "folding thousands of points of a large group runs loops too long for the interpreter")]` |
 | "Golden images" | Ignored | `#[cfg_attr(miri, ignore = "rendering whole images runs loops too long for the interpreter, and the test reads files")]` |
+| "Coset sample", "Exact permutation", "One and parity by cosets", "Coset bands", and the coset golden images within "Golden images" | Ignored | `#[cfg_attr(miri, ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter")]`, or the attribute of "Golden images" for the coset golden images, because a test carries one `ignore` attribute |
+| "Coset fill checks" | Run unchanged | None. It searches only the colourings of `22`, which the colouring prototype searched to 12 colours in 799 steps, and builds the domains of `22` and `*732` |
 | "Inside", "Idempotent", "Scale", "Any input", "Euclidean fold properties", "Spherical fold properties", and "Rotation fold properties" | Run with 8 cases and no failure persistence | The helper of RND-21 |
 | The two tests of "Vertices", "Wrong inputs", "Sample position", "Fold steps", "NaN border", "Colour constants", "Options", "Statistics", "Error text", "Auto traits", "PNG size", "Plane view", "Ball view", "Viewing matrix", the unit tests of "Shading", and the test of the shading function in "Brightest point" | Run unchanged | None |
 | The doctests | Not run, because Miri runs the tests through nextest, which runs no doctest | None |
@@ -1495,6 +1605,8 @@ When an image differs beyond the allowance, the test writes `actual-<name>.png`,
 Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`).
 
 The exact assertions of "Ball view" and "Viewing matrix" at the angles 0 rely on `f64::sin_cos` of 0 giving exactly 0 and 1. If the interpreter perturbs that result, as it perturbs other results of the platform mathematics library, those assertions move to a test that carries an `ignore` attribute under Miri with that reason in plain words.
+
+On the colouring prototype, a search of the colourings of the side presentation of `732` up to 12 colours took 32 s under Miri, and its smallest searches, such as the symmetric groups of degree 3 and 4 up to 3 and 4 colours, 0.9 s and 1.3 s, so a test that searches a hyperbolic or Euclidean signature carries the attribute, and "Coset fill checks" searches `22` only.
 
 "Pairing" is a property test, but each case folds in the 256-bit reference, and 8 cases took 287 seconds under Miri, so it carries the attribute instead of running with 8 cases. "Scale" builds its powers of two by exact doubling and halving, because Miri perturbs the result of `powi`, and the exact comparison would then fail. On an unloaded machine, the Euclidean "Scale" took 87.8 seconds under Miri, and "Vertices" took 46 seconds. In one run of `just check`, the spherical "Scale" took 137 seconds under Miri, the longest of the tests that run there, against 128 seconds for the Euclidean "Scale" in the same run. The range test of "Shading" took 104 seconds and the test of the shading function in "Brightest point" 108 seconds. In another run of `just check`, the rotation test of "Vertices" took 82.5 seconds under Miri, and "Scale" of "Rotation fold properties" 150 seconds. Their grids are those of Section 8.1, and a smaller grid would shorten them.
 
@@ -1514,6 +1626,7 @@ RND-22. The crate MUST declare only the dependencies of this section, each from 
 | `thiserror` | Normal | Default | Derives the `Display` of the private detail of the error (Section 7.1) |
 | `png` | Normal | The workspace entry, version 0.18.1, which enables no feature, because `png` has no default feature | PNG encoding with the sRGB chunk (Section 5.6), and decoding in the tests |
 | `escher-signature` | Normal, with a version on the path dependency (TOOL-25) | None | The type `Geometry`, on which `Renderer::new` chooses the view (RND-23), and the signatures from which the tests build their domains |
+| `escher-group` | Normal, public, with a version on the path dependency (TOOL-25) | None | The type `Colouring` in the signature of `CosetFill::new`, its coset table, and `colour_of` (Section 5.12) |
 | `proptest` | Dev | The workspace entry | The property tests |
 | `astro-float-num` | Dev | The workspace entry | The reference arithmetic (Section 8.3) |
 
@@ -1528,7 +1641,11 @@ RND-22. The crate MUST declare only the dependencies of this section, each from 
 
 The newest resolution of `png` brings two versions of `miniz_oxide`, which fails the ban on duplicates of `cargo deny`. This design holds `flate2` at version 1.1.9 in the lock file, as Section 5.3 of the plan states, so that one version of `miniz_oxide` resolves. With that pin, `cargo tree -d` finds no duplicate and `check-deny` passes with no change to `deny.toml`. A plain `cargo update` resolves `flate2` to a newer version and brings the duplicate back. Section 8 of the tooling design gives the command that restores the pin. Section 12.3 keeps the alternative, a `skip` entry in `deny.toml`, as a point for the owner.
 
-`palette` and `csscolorparser` are not dependencies of this crate, because `DEC-29` adds no colour crate in the first image milestone. The crate implements the sRGB transfer function itself (RND-11), and colour text belongs to the command line (RND-5). Section 3.1 of the architecture lists `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` from `M8` as internal dependencies of the crate. `escher-signature` is a normal dependency, not a dev-dependency, because the `match` of RND-23 names `Geometry`, a choice of this design. The crate does not declare `escher-group` until a function uses it, as Section 3.3 of the architecture states, because an unused dependency fails `check-unused-deps`.
+`palette` and `csscolorparser` are not dependencies of this crate, because `DEC-29` adds no colour crate in the first image milestone. The crate implements the sRGB transfer function itself (RND-11), and colour text belongs to the command line (RND-5). Section 3.1 of the architecture lists `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` from `M8` as internal dependencies of the crate. `escher-signature` is a normal dependency, not a dev-dependency, because the `match` of RND-23 names `Geometry`, a choice of this design.
+
+RND-40. The crate MUST declare `escher-group` as a normal dependency from its workspace entry, in the change that adds `CosetFill`, and MUST take the colouring, its colour count, its generators, and its coset colours from `escher-group` only, because `CosetFill::new` names `Colouring` in its signature, and a second copy of the coset table or of the trace in this crate could diverge from the one that the tests of `escher-group` check. `escher-group` depends only on `escher-signature` and `thiserror` (Section 12 of the group design), so it adds no external crate, no licence, and no duplicate version to the build.
+
+`escher-group` is a public dependency in the sense of DEP-3 of the coding standard, because `Colouring` appears in a public signature, and `escher-domain` already is one through `FundamentalDomain`.
 
 `glam` types appear in the public signatures of this crate, so DEP-3 of the coding standard makes `glam` a public dependency, with the obligations that Section 3.5 of the architecture states. No type of `png` appears in a public signature (Section 3.5 of the architecture).
 
@@ -1547,7 +1664,9 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | `UNV-4` | The growth of the fold count and the limits of precision near the limit circle | States accuracy only in the range of accuracy (RND-15). The tests "Fold replay", "Fold decisions", "Cap", and "Rim" measure each band |
 | `UNV-14` | The unit-normal form $\sinh d = \lvert \langle x, u \rangle \rvert$, in the distance form of the tests only | Compares the gradient form with it in the test "Border forms". The code of the crate does not use it |
 | `UNV-15` | The gradient form of the border estimate through a chain of folds in the linear model | Tests it against the distance form in the tests "Border forms" and "Euclidean border forms", against tile identity in the tests "Border oracle", "Euclidean border oracle", "Spherical border forms", and "Spherical border oracle", and against the grid of the rectangle in the test "Rectangle grid". On the ball it states its accuracy by rim band (Section 6.7). The comparison with the distance form tells the two forms apart only in bands 1 and 2, because in bands 3 to 6 every sample of its set lies within 0.13 pixels of a wall (Section 6.4), so no test compares the forms beyond band 2 |
-| `UNV-18` | The parity colouring as the colouring by the two cosets of the orientation-preserving subgroup | Colours by the parity of the reversals. The test "Pairing" checks that a pairing of a reflection domain changes the parity, the test "Rotation pairing" that a pairing of a rotation domain keeps it, and the golden images fix the result |
+| `UNV-17` | That the colouring by the cosets of a subgroup of finite index is perfect for the groups of the built domains beyond Frettloh's triangle tilings, that the side sequence of a fold gives the element of the tile, and that the trace of `colour_of` gives the coset of that element (Section 5.12) | Colours by `colour_of` of `escher-group` only (RND-37). The test "Exact permutation" asserts, on reflection and rotation domains and on colourings whose subgroups are not normal, that each side moves the coset colour exactly as the inverse column of its generator does, and the coset golden images fix the result |
+| `UNV-19` | The steps of the low-index search of `escher-group` that the colourings come from, in the tests only | Section 13 of the group design states how `escher-group` relies on it. The tests of this crate take each colouring by its id, and a wrong search fails "Exact permutation" for a table that is not a coset table of the group, or changes a coset golden image |
+| `UNV-18` | The parity colouring as the colouring by the two cosets of the orientation-preserving subgroup | Colours by the parity of the reversals. The test "Pairing" checks that a pairing of a reflection domain changes the parity, the test "Rotation pairing" that a pairing of a rotation domain keeps it, the test "One and parity by cosets" that it equals the coset fill of the parity colouring of `escher-group`, and the golden images fix the result |
 | `UNV-25` | The correct rounding of the reference crate, in tests only | Uses 256 bits and the self-check of Section 8.3 |
 | This design | The bounds of Sections 6.2, 6.4, 6.6, 6.7, and 6.8 and the allowance of Section 8.4 hold on platforms other than Linux x86-64, where they were measured | Sets each bound with a margin of at least 8, except the tolerance constant at the vertices of the rotation domains, whose margin is 3.27 (Section 6.2), and the allowance of 16 pixels for a difference between platforms. CI runs the tests on Linux x86-64 only |
 | This design | The screen tangents of Section 5.2 are the partial derivatives of the map of Section 7.2 of the geometry design, times $h$ | The test "Tangents" compares them with central differences of the reference map |
@@ -1632,6 +1751,10 @@ The rotation prototype built each double from the public data of the reflection 
 | The images of the centre with a bound of their own, and a step count of at least the depth | 6.8, 8.1 | The breadth-first enumeration of `332`, `432`, `532`, `n22`, and `nn` | The enumeration reached `group_order()` for every signature. The step count of an image of the centre exceeded its depth by up to 3, for `532`. The largest angle of a folded image of the centre of `(1000)22` was $2.68 \times 10^{-11}$. The crate measures $2.677 \times 10^{-11}$ (Section 6.8) |
 | The test "Border subset" at 193 by 193 pixels for the Euclidean domains | 8.1 | The plan triples at 192 by 192 pixels, `632`, `442`, `333`, and `2222` with five values of `aspect` at 193 by 193 pixels, and `532`, `722`, `55`, `332`, `432`, `222`, `22`, `(12)22`, `(1000)22`, and `(1000)(1000)` at 192 by 192 pixels | No pixel violated the subset. At 192 by 192 pixels, 180 pixels of `632` and 155 of `442` did. The crate measures no violation in any domain of the test (Section 6.8) |
 | The half-pixel tie of `2222` | 5.8 | `2222` with `aspect` 1 and 4 | With one sample per pixel no pixel was a border pixel, and with a 2 by 2 grid 12,160 and 18,304 pixels were |
+| The coset colour from the side sequence of the public `fold` | 5.12 | The colouring prototype, 300 samples of each of 12 signatures | The product of the generators of the sides in fold order mapped the folded point back onto the sample, with a largest hyperbolic distance of $5.9 \times 10^{-6}$, Euclidean distance of $1.4 \times 10^{-14}$, and spherical distance of $2.1 \times 10^{-8}$. The product in reverse order missed by 1.5 to 2.5 |
+| The trace in reverse order through the inverse columns, and the exact permutation in the tests | 5.12, 8.1 | Every conjugacy class of `*732` up to 12 colours, `*642` up to 8, `532`, `432`, `*532` up to 12, `2222` up to 6, `732` up to 9, `*2222` up to 5, `632` up to 8, `333` up to 7, `(1000)22` up to 8, and `22` | The trace was perfect with the exact permutation on every class. The trace in fold order failed on exactly the classes whose subgroups are not normal, such as 39 of 39 of `*642`. The trace without the inversion was perfect on every class and failed the exact permutation on the rotation domains only, such as 37 of the 64 classes of `2222` and 4 of 4 of `532`, and its picture was the correct one reflected in a wall of the reflection domain |
+| A side buffer and a trace after the fold | 5.12 | 512 by 512 pixels with a 4 by 4 grid, one thread | The added time of Section 5.12, 41 to 59 percent of the parity render |
+| The parity colouring reproduces `Fill::Parity` | 5.12 | The parity table of each reflection domain | In every column the table moves coset $c$ to $c$ or $1 - c$ as the side preserves or reverses orientation, so the trace gave the parity of the reversals sample by sample. The renderer of the crate did not exist, so no image was compared |
 | The doubled wall is side 1 | 5.11 | The doubles across side 2 of the hyperbolic triples | The double of `*(1000)32` across side 2 failed check 4 of the domain design with a residual of $2.42 \times 10^{-6}$ against a tolerance of $2 \times 10^{-6}$, and 338 of its folds in band 6 did not converge |
 
 ## 12. Assumptions, Choices, and Points for the Owner
@@ -1653,6 +1776,9 @@ These readings of this design rest on no sentence of a source. Each names what c
 - Rotating the view by an element of the group leaves the tiling unchanged, and a reversing element exchanges the two parity colours. The test "Rotation by a group element" relies on it and checks it numerically.
 - The fold of a point in a rotation domain lands where its fold in the reflection domain lands when that fold has an even parity, and at the image of that point under the reflection in the doubled wall when the parity is odd. The test "Double oracle" relies on it and checks it numerically.
 - Every side of a rotation domain lies on a wall of a tile of its reflection domain, so every border of the rotation tiling is a border of the reflection tiling in the same view. The test "Border subset" relies on it and checks it numerically.
+- A sample that is not on a wall lies in exactly one tile, whose element the side sequence of its fold gives, so its coset colour is defined. The test "Exact permutation" relies on it and discards the samples near a wall.
+- The side presentation of each built domain presents its group, so its colourings are those of the group of the tiling. `UNV-32` covers the cycle relators, and no built domain has a vertex cycle of three or more sides (Section 5.4 of the domain design).
+- A caller passes `CosetFill::new` the domain whose side presentation gave the colouring. `CosetFill::new` checks only the number of generators (Section 5.12).
 
 These readings are confirmed by the crate:
 
@@ -1733,6 +1859,14 @@ No other document dictates these choices:
 | The test "Border subset" asserts at most as many border pixels, and runs the Euclidean domains at 193 by 193 pixels | 8.1 |
 | The test "Perturbation" moves the covectors and the pairings of a rotation domain, because the renderer holds no reflection of it | 8.1 |
 | Six rotation golden images in the configuration of the existing ones | 8.4 |
+| `Fill::Cosets` with a `CosetFill` that checks the number of generators and of colours, so that `Renderer::new` stays infallible | 3.1, 5.12 |
+| `Fill` without `Copy` | 3.1 |
+| A side buffer of bytes for each call and a trace after the fold, in place of a permutation of the cosets carried through the fold | 5.12 |
+| The coset colour only after the border estimate, so a border sample runs no trace | 5.12 |
+| A sample without a coset colour takes the border colour and counts in `unconverged()` | 5.12 |
+| The texts of `build coset fill` without an id | 7.2 |
+| Six coset golden images with candidate ids, two of them on rotation domains for a chiral colouring | 8.4 |
+| The exact permutation of the colours by each side, and not only that each side permutes them | 8.1 |
 
 ### 12.3. Points for the Owner
 
@@ -1787,6 +1921,9 @@ None of these blocks the crate. Each states what the design does until the owner
 35. The margin of $\tau$ at the vertices of the rotation domains (Section 6.2). The crate measures a margin of 3.27 at the vertices of the rotation domains, below the factor 8 that the other vertex sets meet (Section 6.2 gives the figures of the crate and of the prototype). Every vertex still folds in zero steps. The design keeps $\tau = 4 \times 10^{-15}$, because a larger value changes the images of the reflection domains (RND-32), and the test asserts only that every vertex folds in zero steps. The alternatives are a larger $\tau$ with new golden images of the reflection domains, or a construction of the image vertices and covectors that the domain design rounds more accurately, which the prototype did not test.
 36. The fold of a rotation domain (Section 5.11). One loop serves every pairing kind (RND-31), and the rotation domains have bounds of their own (Section 6.8). The alternative folds in the reflection domain and applies the reflection in the doubled wall on an odd parity, which rests on `UNV-1` alone, but the later classes of signature need the fold with general pairings anyway.
 37. The parity colouring of a rotation domain (Section 5.11). `Fill::Parity` gives the first colour to every tile, and the library reports no error, while the command line refuses `--colouring parity` for such a domain (`DEC-32`). The alternative is an error kind of the library.
+38. The cost of the coset fill (Section 5.12). The side buffer and the trace added 41 to 59 percent to the parity render of the colouring prototype on one thread. The alternative is a permutation of the $k$ cosets carried through the fold, as SymmHub does, which needs no buffer but costs $k$ entries per step, and its cost was not measured.
+39. A colouring of another domain (Section 5.12). `CosetFill::new` checks the number of generators only, so a colouring of another domain with as many sides renders without an error. The alternative is to compare the relators of the side presentation of the domain with those of the colouring, which needs `escher-group` to keep the presentation in a `Colouring`.
+40. A sample without a coset colour (RND-37). It takes the border colour and counts in `unconverged()`, so `--stats` would show it, although the command line never builds such a fill. The alternative is a count of its own in `RenderStats`, which adds a public method.
 
 ## 13. Security Considerations
 
@@ -1804,7 +1941,7 @@ The attacks in scope are exhaustion of memory through a large image, exhaustion 
 
 The limits bound memory. They do not bound time usefully when every option is at its limit together: $2^{26}$ pixels, 256 samples per pixel, and a cap of 100000 allow about $1.7 \times 10^{15}$ steps for an image whose samples do not converge. This is a residual risk. A caller that renders untrusted input with a deadline applies its own limits on top of these.
 
-The crate allocates the buffer of `render` and nothing that depends on the domain beyond its two to six sides. For a spherical domain the work of a sample is bounded by the fold cap, as for the other geometries, and the options of the ball add no limit, because `build` rejects every value that is not finite and each costs a fixed number of operations per sample. `render_rows` writes only into the buffer of the caller.
+The crate allocates the buffer of `render` and nothing that depends on the domain beyond its two to six sides. For a spherical domain the work of a sample is bounded by the fold cap, as for the other geometries, and the options of the ball add no limit, because `build` rejects every value that is not finite and each costs a fixed number of operations per sample. `render_rows` writes only into the buffer of the caller. A coset fill adds the side buffer of each call, at most the fold cap of bytes, and a trace of at most the fold cap of table reads for each sample, whose cost on the prototype Section 5.12 gives. Its coset table is bounded by the limits of `escher-group` (Section 15 of the group design).
 
 The other topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -1815,7 +1952,7 @@ The other topics of Section 3.2 of `docs/writing-documentation.md` apply as foll
 
 Attacks on the build machine, the repository, or the caller are out of scope, because this crate neither builds nor writes anything outside the memory that the caller gives it.
 
-The residual risks are three. First, the limits do not bound time, as stated above. Second, an image is wrong where the fold decides wrongly: beyond the range of accuracy the crate states no accuracy, and within it the bounds of Section 6.4 allow a stated number of differing decisions per band. Third, the border estimate and the parity colouring rest on unverified statements (Section 10), which the tests check numerically but no source establishes.
+The residual risks are three. First, the limits do not bound time, as stated above. Second, an image is wrong where the fold decides wrongly: beyond the range of accuracy the crate states no accuracy, and within it the bounds of Section 6.4 allow a stated number of differing decisions per band. Third, the border estimate, the parity colouring, and the coset fill rest on unverified statements (Section 10), which the tests check numerically but no source establishes.
 
 ## 14. Operational Considerations
 
@@ -1825,6 +1962,7 @@ The crate declares no Cargo feature and has no build script. The golden-image te
 | --- | --- | --- |
 | An option outside its accepted values | `InvalidOption` | Use a value in the column "Accepted" of Section 4.1 |
 | An option above its limit | `LimitExceeded` | Use a value within the limit |
+| A colouring with another number of generators than the domain has sides, or the wrong number of colours | `InvalidOption` from `CosetFill::new` | Take the colouring from the side presentation of the same domain, and give one colour for each coset |
 | A buffer or band that does not fit the image | `InvalidBuffer` | None. It is a defect of the caller |
 | `png` fails to encode | `Encoding`, with the `png` error as `source()` | None. It is a defect of the crate or of `png` |
 | A sample that does not converge | `Fold::converged` is false, the sample takes the border colour, and `RenderStats::unconverged` counts it | Raise the fold cap, or accept the border colour near the limit circle, far from the centre of a very elongated Euclidean image, or near a vertex of very high order on the ball or of a rotation domain |
@@ -1844,6 +1982,7 @@ The tags of the mathematical and software sources resolve to the reference secti
 - [CFKP] Section 14 of `docs/research/rendering.md`, and Section 16.1 of `docs/research/geometry-models.md`.
 - [DAVIS] Section 14 of `docs/research/rendering.md`.
 - [DUN86] Section 16.1 of `docs/research/geometry-models.md`.
+- [FRETTLOH2008] Section 15 of `docs/research/colourings.md`.
 - [NS] Section 14 of `docs/research/rendering.md`.
 - [PHONG75] Section 16.4 of `docs/research/geometry-models.md`.
 - [RAT] Section 16.1 of `docs/research/geometry-models.md`.
@@ -1893,3 +2032,8 @@ The tags of the mathematical and software sources resolve to the reference secti
 | RND-33 | `Fill::Parity` on a domain with no reversing side gives its first colour, and `Renderer::new` stays infallible | 5.11 |
 | RND-34 | The border estimate tests the sides of the domain only, so the doubled wall draws no border | 5.11 |
 | RND-35 | For a rotation domain, the bounds of Section 6.8 hold in its range of accuracy, and beyond it only a result without a panic is promised. For a hyperbolic rotation domain whose corner orders are all near 1000, the range excludes the points within a hyperbolic distance of $10^{-6}$ of a vertex of order near 1000 other than vertex 0 | 6.8 |
+| RND-36 | `CosetFill::new` refuses a colouring with another number of generators than the domain has sides, and then a wrong number of colours, with `InvalidOption` | 5.12 |
+| RND-37 | A coset fill colours a sample by `colour_of` of its side sequence only, and a sample without a coset colour takes the border colour and counts as unconverged, without a panic | 5.12 |
+| RND-38 | The side sequence goes into a side buffer of each call, cleared before each sample, so no value passes between samples, bands, or threads | 5.12 |
+| RND-39 | The coset fill changes no decision, colour, statistic, or golden file of `Fill::One` and `Fill::Parity` | 5.12 |
+| RND-40 | The crate declares `escher-group` and takes every colouring and coset colour from it | 9 |

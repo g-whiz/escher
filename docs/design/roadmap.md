@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-16 |
+| Date | 2026-11-18 |
 | Applies to | The development of Escher after the proof of concept: its phases, workstreams, research, and the closing of unverified statements |
 
 ## Abstract
@@ -152,7 +152,7 @@ These items are not tied to one phase. Each is a proposal of the planning unless
 | The Gans and hemisphere models, after the three above | Item 16 of Section 13.1 of `rendering.md`, and item 6 of Section 15.1 of `geometry-models.md` | As above | Proposal |
 | View control: rotation, shift, and zoom | None named | The command line, then phase 2 | Owner for the item, which is outside the proof of concept |
 | Colourings of the faces of truncated tilings, for which a source covers only the perfect colourings of the regular and Laves tilings (Frettloh's lemmas) | Sections 5.2 to 5.5 and 10.7 of `colourings.md`, and item 5 of its Section 14.1 | Phase 5 | Proposal |
-| Further colourings: conjugate subgroups, larger colour counts, and classification of two-colourings | Items 1, 8, 9, and 6 of Section 14.1 of `colourings.md` | `M8` | Proposal |
+| Further colourings: larger colour counts and classification of two-colourings. Conjugate subgroups are colourings of their own from `M8` (`DEC-37`) | Items 8, 9, and 6 of Section 14.1 of `colourings.md` | `M8` | Proposal |
 | Names of each group in other notations | Item 11 of Section 12 of `orbifold-notation.md`, which records the names that "The Symmetries of Things" by Conway, Burgiel, and Goodman-Strauss makes primary and the parts that stay open | A primary source for the open parts of item 11, such as the names of the friezes. `DEC-20` governs which names `info` shows | Proposal |
 | A machine-readable form of the info output | `DEC-23` | None | Proposal |
 | Rendering of the general non-compact signatures, which Section 2.1 of `docs/design/architecture.md` defines | The deep-research item of Section 5. Section 5.18 of `docs/design/poc-plan.md` records why the research knows no construction | `M18` | Owner for the item, which is outside the proof of concept (`DEC-19`) |
@@ -197,7 +197,7 @@ The planning proposes that it covers only the statements that still have no sour
 
 1. `UNV-1` and `UNV-2`, the termination of the fold.
 2. `UNV-26` and `UNV-14`, the statements on the linear model and the distance to a geodesic and to a great circle.
-3. `UNV-17`, the coset colourings, which is purely group-theoretic.
+3. `UNV-17`, the coset colourings. It is group-theoretic except for two statements about the fold: that the sides of a fold, read as a word, give the element that maps the domain onto the tile that the fold reaches, and the rule that turns those sides into a coset.
 
 Section 17 of `rust-ecosystem.md` gives the inputs. Section 17.3 infers that a `lean/` directory with its own `lakefile.toml` and `lean-toolchain` is the established layout. Section 17.4 records that Mathlib has no metric on the Poincare disk, no Fuchsian groups, no exchange condition, no spherical or hyperbolic law of cosines, and no Todd-Coxeter enumeration, so the development proves these itself.
 
