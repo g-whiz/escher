@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-17 |
+| Date | 2026-11-18 |
 | Applies to | The design and implementation of Escher's group construction, point folding, colouring, and rendering |
 
 ## Abstract
@@ -12,7 +12,7 @@ SymmHub is a browser application, written in JavaScript and the OpenGL Shading L
 
 ## 1. Scope
 
-This document covers the source code of SymmHub at commit `f2d19cb`, as two line-referenced code readings recorded it and a third reading of the source verified and corrected it. A fourth reading read the subgroup library `lib/sublib/src/sublib_core.js` and `lib/sublib/src/reidemeister.js` line by line (Section 12.8). It describes what the code does, with the file and line of each claim. It covers the group specification, the construction of hyperbolic orbifolds, the catalogue of Euclidean and spherical groups, the triangle groups, generators, point reduction, projections, borders, colouring, and the group-theoretic machinery in detail. It covers simulation, animation, export, and the document format at survey level only.
+This document covers the source code of SymmHub at commit `f2d19cb`, as two line-referenced code readings recorded it and a third reading of the source verified and corrected it. A fourth reading read the subgroup library `lib/sublib/src/sublib_core.js` and `lib/sublib/src/reidemeister.js` line by line (Section 12.8). A fifth reading covered the construction of a kaleidoscope `*p1...pn` without cone points, handles, or cross-caps line by line, from the normalization to the generators (Sections 6.2.1, 6.3.1, 6.4.1, 6.4.2, 6.5.1, 6.6.1, and 6.8), and a port of that code checked it numerically (Section 6.9). It describes what the code does, with the file and line of each claim. It covers the group specification, the construction of hyperbolic orbifolds, the catalogue of Euclidean and spherical groups, the triangle groups, generators, point reduction, projections, borders, colouring, and the group-theoretic machinery in detail. It covers simulation, animation, export, and the document format at survey level only.
 
 This document does not prove that any algorithm is correct, and it states no derivation of its own. Where a code reading marked a statement as its own inference, this document keeps that mark. The mathematics behind SymmHub, such as Conway's orbifold notation and Deaton's construction, belongs to other subject-matter references that cite the primary sources. The user interface, the navigation code, the scripting interface, and the bundled third-party libraries are out of scope, except for their licences.
 
@@ -48,6 +48,9 @@ A location such as `lib/invlib/Group.js:191` is a path relative to the root of [
 - atom: One of the twelve small hyperbolic polygons into which SymmHub cuts an orbifold, after Deaton. Atoms are sheets, pillows, and hats.
 - tube: A cut between two cone points, with a length and a twist.
 - slice: A cut from a cone point to a mirror, or between two corners, with a length only.
+- feature: An entry of the lists that `hashOrbifold` returns, a pair `[key, index]` such as `["cornerPair", 1]` or `["slice", 2]`. A corner is `["corner", m]`, with its order $m$ in place of an index.
+- corner pair: The feature `["cornerPair", k]` that takes the place of two consecutive corners of order 2. It becomes a mirror side of variable length between two right angles.
+- sheet: An atom that holds three features of a mirror boundary and no cone point, written `[[f0, f1, f2], []]` in the code.
 - wall: An extra splane on a side of $F$ that limits the side to a half-plane, so that $F$ can be non-convex.
 - crown: The list of group elements whose images of $F$ cover a given box, used to draw content that overhangs $F$.
 - view anchor: A group element, computed on the processor in double precision, that moves the view centre near $F$ before the per-pixel fold starts.
@@ -65,6 +68,7 @@ These conventions differ from those of other sources, and an implementer who rea
 5. A generator is a lowercase letter, starting at `a` for the first side, and its inverse is the uppercase letter (`lib/invlib/GroupUtils.js:184-225`).
 6. A twist is a fraction of the edge length in the range $-0.5$ to $0.5$ for handles, while the weld of a tube takes a raw hyperbolic distance (Section 6.5 to Section 6.7).
 7. Folding works in Euclidean distances of the model. Border widths are in screen pixels, through the accumulated scale $s$, and never in hyperbolic distance (Section 11.1).
+8. The orbifold construction holds a polygon as a vertex list and an edge list, and edge $i$ runs from vertex $i$ to vertex $i + 1$, as `produceGenerators` reads the ends of edge $i$ as `points[i]` and `points[(i+1)%points.length]` (`lib/orbilib/OrbifoldGeometrization.js:1432-1433` and 1475-1476). The polygon of a kaleidoscope is counterclockwise in the disc, its first vertex depends on the order of the welds, and, where Section 15.3 records no defect, its corners read clockwise follow the order of the signature (Sections 6.5.1 and 6.8).
 
 ## 3. Identity, Licence, and Repository
 
@@ -312,15 +316,68 @@ Lines 46-53 define the keys of edges and parameters:
 - `lengthKeys = ["handle","cap","fold","conePt","conePair","tube","band","slice","cornerPair"]`
 - `twistKeys = ["handle","conePair","tube"]`
 
+#### 6.2.1. A Single Kaleidoscope
+
+For a signature `*p1...pn` with one mirror boundary and no cone points, handles, or cross-caps, `hashOrbifold` returns an empty `conepointList` and builds `kaleidoList` in two passes (`lib/orbilib/OrbifoldGeometrization.js:362-429`):
+
+1. It pushes `["corner", m]` for each corner of the first kaleidoscope, in the order of the input (lines 378-379). The parser appends each digit to its kaleidoscope in input order and sorts nothing (lines 147-165), so the list is neither sorted nor rotated.
+2. It scans that list once from the left (lines 402-429). A corner of order 2 that follows a pending corner of order 2 becomes `["cornerPair", k]`, with `k` counted from 1 in `parCounts["cornerPair"]` (lines 404-411). A pending corner of order 2 that no second one follows goes back on the list as `["corner", 2]`, before the next corner (lines 419-421) or at the end (lines 426-429).
+
+The scan pairs greedily and does not wrap around. The comment at lines 399-400 reads "since there are bands at the end of this list, don't have to check first vs last", and a single kaleidoscope has no band, so a corner of order 2 at the end of the input never pairs with one at the start. The plain string `"mirror"` enters the list only for a kaleidoscope without corners (lines 364-372).
+
+A corner pair takes the place of two corners and carries a length, because `cornerPair` is in `lengthKeys` (line 50). It carries no twist, because it is not in `twistKeys` (line 53). `countParameters` gives $-6 + 3 + n = n - 3$ for one kaleidoscope with $n$ corners (lines 270-275), and Section 6.3.1 counts the same total from the slices and pairs.
+
+The code reading traced these lists by hand and did not run the code. In this table and in the rest of Section 6, `c3` stands for `["corner", 3]`, `P1` for `["cornerPair", 1]`, and `s1` for `["slice", 1]`:
+
+| Signature | `kaleidoList` | Corner pairs |
+| --- | --- | --- |
+| `*2223` | `[P1, c2, c3]` | 1 |
+| `*22222` | `[P1, P2, c2]` | 2 |
+| `*3333` | `[c3, c3, c3, c3]` | 0 |
+| `*2345` | `[c2, c3, c4, c5]` | 0 |
+| `*23456` | `[c2, c3, c4, c5, c6]` | 0 |
+| `*2233` | `[P1, c3, c3]` | 1 |
+| `*2332` | `[c2, c3, c3, c2]` | 0 |
+
+`*2233` and `*2332` name the same orbifold, and the code gives them different features, because the scan does not wrap. `*2222` is Euclidean, so `lib/orbilib/WallPaperGroup_General.js:227` and 252-253 send it to the catalogue of Section 7.1 and not to `hashOrbifold`.
+
+The entry of `apps/orbifold/bug list.txt` at lines 3-4 reads "2*22 does not get the slice parameter correctly. Perhaps it is instead a corner pair." and "22* as well." Both signatures are Euclidean and take the catalogue path, where `lib/orbilib/WallpaperGroups_NonNegative.js:125-127` registers one `slice` parameter for `22*`, `2*22`, and `*2222`, and lines 837-838 read `["slice",1]` for `2*22` and `22*`, so the current code shows no mismatch for these two. The entry's term "corner pair" belongs to `hashOrbifold` only. The code reading inferred that the entry does not concern the hyperbolic pipeline of this section.
+
 ### 6.3. Atomization
 
 `atomizeOrbifold` (line 452) splits the feature lists into atoms until none is left. It cuts with tubes, between two cone points, and with slices, from a cone point to a mirror or between two corners. The comment at lines 437-447 justifies "option #2": cut the cone points out to the mirrors first, then cut the mirrors. This order gives few twist parameters, and cutting new slices last keeps the cuts a tree.
 
 The tutorial describes Deaton's 9 cut rules and 12 atoms, which are 4 sheets, 4 pillows, and 4 hats.
 
+#### 6.3.1. Atomization of a Kaleidoscope
+
+For the list of Section 6.2.1, the loop `while ( (cones.length > 0 || kaleidos.length > 0))` (`lib/orbilib/OrbifoldGeometrization.js:461`) skips the branches for cone points at lines 477, 482, 490, and 505. It also skips the branch at line 463, which tests `kaleidos[0]=="mirror"` and so matches only the plain string of a kaleidoscope without corners. Each pass then takes one of three branches:
+
+1. While more than three features remain (line 533), it increments `sliceN`, pops the last feature as `kal0` and the one before it as `kal1` (lines 536-537), and swaps the two when `kal0` is not a corner (lines 538-543). It puts the new slice at the front with `kaleidos.unshift(["slice", sliceN])` (line 544) and pushes the sheet `[[kal0, kal1, ["slice", sliceN]], []]` (line 545).
+2. When exactly three features remain (line 547), it pops them as `kal0`, `kal1`, and `kal2`, with `kal0` the last. Three conditional swaps (lines 553-567) move the corners to the front, and it pushes the sheet `[[kal0, kal1, kal2], []]` (line 569).
+3. Otherwise it empties the list without an atom, at `else {kaleidos = []}// this should never happen` (line 571).
+
+After the loop it sets `parCounts["slice"] = sliceN` (line 575). The comment at lines 448-449 explains the front insertion, quoted here in a code span because it holds semicolons: `the new slices are put on the other end from what's sliced next; i.e. new slices are sliced last; this ensures a tree-like structure in the cutting.`
+
+Each pass of branch 1 removes two features and adds one, so a list of $f \ge 3$ features gives $f - 3$ slices and $f - 2$ sheets. For $n$ corners with $k$ corner pairs, $f = n - k$, so the code makes $n - k - 3$ slices, each with a length, and the total of lengths is $n - 3$. Each slice appears in two sheets: the sheet that branch 1 makes with it, and the later sheet that pops it from the list. The code reading counted these from the steps of the code.
+
+A sheet lists its features in the order in which the list pops them, which is the reverse of the order of the input, except where a swap moves a feature. The swap of branch 1 acts when the last feature is a corner pair or a slice, and the swaps of branch 2 act when the last feature or the one before it is not a corner. The swaps exist for the precondition of `unfoldAtom` that real features come first (Section 6.4.1). Section 6.8 traces their effect on the order of the corners.
+
+The code reading traced these sheets by hand, in the notation of Section 6.2.1:
+
+| Signature | Sheets in `atomList` order | Slices |
+| --- | --- | --- |
+| `*2223` | `[c3, c2, P1]` | 0 |
+| `*22222` | `[c2, P1, P2]`, after the swap at lines 563-567 | 0 |
+| `*3333` | `[c3, c3, s1]`, `[c3, c3, s1]` | 1 |
+| `*2345` | `[c5, c4, s1]`, `[c3, c2, s1]` | 1 |
+| `*23456` | `[c6, c5, s1]`, `[c4, c3, s2]`, `[c2, s2, s1]`, after the swap at lines 563-567 | 2 |
+
+The first cut of `*2345` separates the corners 5 and 4 from the corners 3 and 2, which agrees with the example $*2345 \to *23\infty + *\infty 45$ of `tutorials/orbifold-showcase.html:200`.
+
 ### 6.4. Atom Geometry
 
-`unfoldAtom` (line 648) has 12 cases: sheet, pillow, and hat, each by how many of its vertices are real or imaginary. A real vertex is a cone point with the angle $\pi/n$ (line 679 and others). An imaginary vertex $i\ell$ stands for a geodesic edge of length $\ell$ perpendicular to its neighbours, with $\ell$ from `getLength(key,group)`. The tutorial says that atoms are solved by the generalized law of cosines in the hyperboloid model.
+`unfoldAtom` (line 648) has 12 cases: sheet, pillow, and hat, each by how many of its vertices are real or imaginary. A real vertex is a cone point of order $n$ with the angle $\pi/n$, or, in a sheet, a corner of order $m$ with the angle $\pi/m$ (`p.re = PI / a[1]`, line 679). An imaginary vertex $i\ell$ stands for a geodesic edge of length $\ell$ perpendicular to its neighbours, with $\ell$ from `getLength(key,group)`. The tutorial says that atoms are solved by the generalized law of cosines in the hyperboloid model.
 
 The generalized law of cosines is `edgeLength(p,q,r)` at line 588. For each vertex it takes
 
@@ -350,18 +407,81 @@ The vertices of each polygon are laid out in the disc by turtle moves. `poincare
 
 A cutting edge of a pillow can carry two extra points that define a perpendicular half-plane, the wall (comments at lines 770 and 811-860). Walls let $F$ be non-convex while the graphics card still picks the right generator (Section 9.4).
 
+#### 6.4.1. The Four Sheet Cases
+
+`unfoldAtom` treats an atom as a sheet when its list of cone points is empty (`lib/orbilib/OrbifoldGeometrization.js:670`) and names its features `a`, `b`, and `c` (lines 673-675). The comment at line 653 states a precondition: "we assume we've gotten our features in order of real first, then imaginary". Only a feature with the key `"corner"` is real, with the angle `PI / m` for the order `m`. Every other feature is imaginary, with the length `getLength(key, group)`. The case depends on how many leading features are corners, and `mirror` stands for `["mirror",0]` in this table:
+
+| Case | Test | Real features | Vertices | Edge list |
+| --- | --- | --- | --- | --- |
+| A | `c` is a corner (line 676) | `a`, `b`, `c` | 3 | `[mirror, mirror, mirror]` (line 688) |
+| B | `b` is a corner (line 691) | `a`, `b` | 4 | `[mirror, mirror, c, useMirrorQ(c)]` (line 707) |
+| C | `a` is a corner (line 710) | `a` | 5 | `[mirror, b, useMirrorQ(b), c, useMirrorQ(c)]` (line 730) |
+| D | Otherwise (line 732) | None | 6 | `[useMirrorQ(a), b, useMirrorQ(b), c, useMirrorQ(c), a]` (line 761) |
+
+Edge $i$ runs from vertex $i$ to vertex $i + 1$, and the last edge closes back to vertex 0 (Section 2.4, item 8). An edge labelled with a feature key, such as `["slice",1]` or `["cornerPair",1]`, is the side that stands for that imaginary vertex. The edge after it is labelled `useMirrorQ` of that key.
+
+`useMirrorQ` (lines 639-643) returns `["mirror",0]` for the keys `corner`, `fold`, `cornerPair`, and `band`, and `["mirrorRedundant",0]` for every other key, as line 641 states: `if (["corner","fold","cornerPair","band"/*,"conjCuttingEdge"*/].indexOf(key[0]) < 0) {return ["mirrorRedundant",0]}`. Its comment at line 640 reads "In an unfolded atom, some mirror lines are redundant and will not be used". In a kaleidoscope, the edge after a corner pair is a mirror and the edge after a slice is redundant.
+
+Every case puts vertex 0 at the origin `O` and vertex 1 at `poincarePt(R)` on the positive real axis, with `R = edgeLength(p, q, r)`. Each later vertex is a turtle move:
+
+- Case A (lines 679-688): `p`, `q`, and `r` are the angles of `a`, `b`, and `c`. With `P = edgeLength(q, r, p)`, vertex 2 is `poincareTurtleMove(O, y, -q.re, P)`.
+- Case B (lines 694-707): `r.im = getLength(c,group)`. Vertex 2 is `z = poincareTurtleMove(O, y, -q.re, P)`, and vertex 3 is `poincareTurtleMove(y, z, -HPI, r.im)`, so the side from vertex 2 to vertex 3 is the side of `c`.
+- Case C (lines 713-730): `q.im` and `r.im` are the lengths of `b` and `c`. Vertex 2 is `poincareTurtleMove(O, y, -HPI, q.im)`, which ends the side of `b`. Vertex 3 is a move of length `P` with the turn `-HPI`, and vertex 4 a move of length `r.im` with the turn `-HPI`, which ends the side of `c`.
+- Case D (lines 734-761): `p.im`, `q.im`, and `r.im` are the three lengths, with `Q = edgeLength(r, p, q)`. Four moves, each with the turn `-HPI`, add the vertices at the lengths `q.im`, `P`, `r.im`, and `Q` (lines 744-758). The closing side from vertex 5 to the origin is the side of `a`.
+
+No case computes its last side, or checks that the sheet closes with the angle of `a` at the origin and right angles at the ends of each imaginary side. The closure rests on the formulas of Section 6.4.2 (Section 17, item 11).
+
+`poincareTurtleMove(last,current,angle,distance)` (`lib/invlib/ComplexArithmetic.js:459-467`) rotates `last` about `current` by `angle`, with `poincareMobiusRotationAboutPoint` (lines 407-414), and moves the image along the geodesic ray from `current` through it, to the hyperbolic distance `distance` from `current` (lines 460-466). The new side therefore makes the angle $\lvert$`angle`$\rvert$ with the side back to `last`, which is the interior angle at `current`. The comment at lines 457-458, "starting at current, facing away from last, turn by angle and move distance", disagrees with the code: an angle of 0 sends the turtle back towards `last`, and an angle of $\pi$ continues straight on. At the origin the rotation is $z \mapsto e^{i\theta} z$, so a negative angle turns clockwise, and from the origin and a vertex 1 on the positive real axis, vertex 2 lies above the real axis. Each sheet is therefore counterclockwise in the disc. The code reading inferred the action of the rotation and the orientation from the formulas, and no comment states them.
+
+#### 6.4.2. Edge Lengths of a Sheet
+
+`edgeLength` (`lib/orbilib/OrbifoldGeometrization.js:588-619`) decides whether a vertex is real by the test `.re != 0` (lines 590, 598, and 606). The third argument `r` enters only through $\cos r$ or $\cosh r$ (lines 606-611), so it never changes the choice between $\operatorname{arcosh}$ and $\operatorname{arsinh}$ (lines 612-618). A length of exactly 0 has `.re == 0`, so the code treats it as imaginary and divides by $\sinh 0 = 0$, as the code reading inferred. The comment at lines 584-586 reads "The length of the edge between p and q in a triangle with opposite angle r", and adds "Some details are missing."
+
+The sheet cases make these calls, with $p$, $q$, and $r$ the angles or lengths of `a`, `b`, and `c` in the order of each call:
+
+| Case | Call | Kinds of the first two arguments | Function | Expression |
+| --- | --- | --- | --- | --- |
+| A | `R = edgeLength(p,q,r)`, `P = edgeLength(q,r,p)` | Real, real | $\operatorname{arcosh}$ | $\dfrac{\cos p \cos q + \cos r}{\sin p \sin q}$, and the same with $(q, r, p)$ |
+| B | `R = edgeLength(p,q,r)` | Real, real | $\operatorname{arcosh}$ | $\dfrac{\cos p \cos q + \cosh r}{\sin p \sin q}$ |
+| B | `P = edgeLength(q,r,p)` | Real, imaginary | $\operatorname{arsinh}$ | $\dfrac{\cos q \cosh r + \cos p}{\sin q \sinh r}$ |
+| C | `R = edgeLength(p,q,r)` | Real, imaginary | $\operatorname{arsinh}$ | $\dfrac{\cos p \cosh q + \cosh r}{\sin p \sinh q}$ |
+| C | `P = edgeLength(q,r,p)` | Imaginary, imaginary | $\operatorname{arcosh}$ | $\dfrac{\cosh q \cosh r + \cos p}{\sinh q \sinh r}$ |
+| D | `R`, `P`, `Q` | Imaginary, imaginary | $\operatorname{arcosh}$ | $\dfrac{\cosh p \cosh q + \cosh r}{\sinh p \sinh q}$, and its rotations |
+
+Section 8.7 of `docs/research/fundamental-domains.md` compares each row with the published formulas.
+
+`getLength(key,group)` (lines 624-630) returns `group.guiParams[key[0]+"_"+abs(key[1]).toString()+"_l"]` (line 629), or 1.1 when `group.parCounts[key[0]]` is less than `abs(key[1])` (lines 625-627). For a kaleidoscope, `parCounts["slice"]` and `parCounts["cornerPair"]` equal the numbers of slices and pairs (Sections 6.2.1 and 6.3.1), so a sheet does not reach the value 1.1, as the code reading inferred.
+
 ### 6.5. Assembly and Welding
 
 `assembleFundamentalDomain` (line 1195) applies these steps:
 
-1. It unfolds every atom.
-2. It recentres the polygon.
-3. It welds the atoms along each open tube and slice with `poincareMobiusEdgeToEdge([v1,v2],[w1,w2],shift)` (`lib/invlib/ComplexArithmetic.js:472`). The `shift` is the twist of the tube as a raw hyperbolic distance, applied as the translation $\tanh(\text{shift}/2)$.
-4. It removes the tube and slice edges from the final polygon (lines 1305-1335). The edges that remain keep keys such as `handle`, `cuttingEdge`, `band`, `cap`, `conePair`, `fold`, and `mirror`.
-5. It recentres twice (`recenteringN=2`, lines 1351-1368), each time moving the Euclidean centroid of the vertices to the origin.
-6. It applies `poincareMobiusTranslateToO(new complexN(-.001,-.002))`, a small shift off the origin for general position (line 1370).
+1. It unfolds every atom, in the order of `atomList` (line 1209), and takes the first as the working polygon.
+2. It recentres that first atom with `recenterDomain`, which moves the Euclidean mean of its vertices in the disc to the origin with `poincareMobiusTranslateToO` (lines 1145-1164 and 1215).
+3. It queues the tube and slice edges of the working polygon (lines 1229-1232) and welds one of them at a time to the atom that holds the same edge, with `poincareMobiusEdgeToEdge([v1,v2],[w1,w2],shift)` (`lib/invlib/ComplexArithmetic.js:472`). The `shift` is the twist of a tube as a raw hyperbolic distance, applied as the translation $\tanh(\text{shift}/2)$ (line 482), and 0 for a slice (`lib/orbilib/OrbifoldGeometrization.js:1287-1294`).
+4. It removes the welded edge from the polygon, a tube at lines 1301-1334 and a slice at lines 1335-1343. The edges that remain keep keys such as `handle`, `cuttingEdge`, `band`, `cap`, `conePair`, `fold`, and `mirror`.
+5. After each weld it recentres twice (`recenteringN=2`, lines 1351-1365), each time moving the Euclidean mean of the vertices to the origin.
+6. After the last weld it applies `poincareMobiusTranslateToO(new complexN(-.001,-.002))`, the map that takes the point $(-0.001, -0.002)$ to the origin, as a small shift for general position (lines 1370-1371).
 
-The comment at line 1137 explains the recentring per weld: it keeps "the domain from growing off into a numerically less stable regime, closer to the boundary of the Poincare disk".
+The comment at lines 1136-1138 explains the recentring: it keeps "the domain from growing off into a numerically less stable regime, closer to the boundary of the Poincare disk".
+
+#### 6.5.1. Welding Sheets Along a Slice
+
+For a kaleidoscope, every open attachment is a slice. Each pass of the loop at line 1234 takes these steps:
+
+1. It takes the last queued slice with `openAttachments.pop()` (line 1237).
+2. It rotates the vertex and edge lists of the working polygon together until edge 0 is that slice (lines 1240-1244). Edge 0 then runs from vertex 0 to vertex 1. `isSameEdgeTypeQ` (lines 1187-1193) compares the key and the index, and its comment at line 1188 reads "this is a stupid kludge".
+3. It takes atoms from the front of the queue of unwelded atoms and rotates each in the same way until edge 0 is the same slice (lines 1251-1269). An atom without that slice goes to the back of the queue (lines 1266-1268). The code reading inferred that no line guards against a slice that no atom holds.
+4. It queues the other slices of the found atom (lines 1278-1282).
+5. It maps the atom with `poincareMobiusEdgeToEdge([nextAtom[0][0],nextAtom[0][1]],[workingFD[0][0],workingFD[0][1]],shift)` and `moveDomain` (lines 1295-1298), with `shift` equal to 0.
+6. It records the two ends of the slice in `internalFDedges` for drawing (line 1337).
+7. It splices the two lists at lines 1340-1341: `workingFD = [(workingFD[0].slice(2)).concat(newAtom[0].slice(2)), (workingFD[1].slice(2)).concat(newAtom[1].slice(2))]`.
+
+`poincareMobiusEdgeToEdge` composes five maps (`lib/invlib/ComplexArithmetic.js:474-490`): it moves $v_1$ to the origin, rotates $v_2$ onto the positive real axis, translates along the real axis by `shift`, rotates the positive real axis onto the direction of $w_1$ as seen from $w_2$, and moves the origin to $w_2$. So $v_1$ goes to $w_2$, and when the two arcs have the same length and `shift` is 0, $v_2$ goes to $w_1$. Every map has `opQ` true, so the composition preserves orientation. The comment at lines 469-470 reads `This takes the arc v1-v2 to the arc w1-w2; It is presumed that the arcs have the same length.`, and the code does not check the lengths. The code reading inferred the endpoint correspondence from the composition, and no comment states it. From this map and the counterclockwise sheets of Section 6.4.1, it also inferred that the atom lands on the far side of the slice. The port of Section 6.9 agrees numerically with both inferences.
+
+The splice drops the first two vertices and the first two edges of each list. Those are the two ends of the slice, the slice edge, and the edge after the slice. Section 6.4.1 labels that last edge `mirrorRedundant`. The edge before the slice in each list stays, and now runs to the vertex after the far end of the slice. Each sheet has a right angle at both ends of its slice (Section 6.4.1), so the code reading inferred that the edge kept and the edge dropped at each end lie on one geodesic and that the welded polygon has no vertex at the end of a slice (Section 17, item 11).
+
+The welded polygon lists the rest of the working polygon from its vertex 2, then the rest of the atom from its vertex 2. No line rotates the final lists into a fixed order (lines 1369-1381), so the first vertex depends on the rotations of step 2. For a kaleidoscope without a slice, such as `*2223` and `*22222`, the loop does not run, and the polygon is the single sheet after the recentring and the shift of steps 2 and 6 of Section 6.5.
 
 ### 6.6. Exposed Moduli
 
@@ -372,13 +492,74 @@ The user changes the shape of a hyperbolic orbifold through two kinds of paramet
 | `{key}_{i}_l`, a length | `LENGTHMINVALUE=0.3` to `LENGTHMAXVALUE=4` | Every key in `lengthKeys` | Lines 26-29 |
 | `{key}_{i}_t`, a twist | $-0.5$ to $0.5$ | `handle`, `conePair`, and `tube` | Lines 26-29 |
 
-The initial length is $2 + 0.001(u - 0.5)$ with $u$ uniform in $[0, 1)$, a jitter for general position (line 266, with `randomOffsetRange=.001` at line 52). The slider step is `DEFAULT_INCREMENT=1e-8` (line 20). When the index of a key exceeds `parCounts`, `getLength` returns 1.1 (`lib/orbilib/OrbifoldGeometrization.js:626-627`).
+The initial length is $2 + 0.001(u - 0.5)$ with $u$ uniform in $[0, 1)$, a jitter for general position (line 266, with `randomOffsetRange=.001` at line 52). The slider step is `DEFAULT_INCREMENT=1e-8` (line 20). When the index of a key exceeds `parCounts`, `getLength` returns 1.1 (`lib/orbilib/OrbifoldGeometrization.js:625-627`). The slider takes the range as its minimum and maximum (line 268), and the editing tool clamps a length to it with `newvalue = Math.min(Math.max(newvalue, LENGTHMINVALUE), LENGTHMAXVALUE);` on a drag (`lib/orbilib/OrbifoldUITool.js:457`, in `onParamDrag`) and on a wheel step (line 487, in `onWheel`). The code reading found no other handling of the ends of the range.
 
 The tutorial states that the length and twist sliders are Fenchel-Nielsen coordinates, and that a cut anchored on a mirror freezes its twist. The editing tool `lib/orbilib/OrbifoldUITool.js:61-69` sets `LENGTH_DRAG_SPEED=0.005`, `TWIST_DRAG_SPEED=0.002`, wheel speeds of 0.03 and 0.01, and `HIT_TOLERANCE=7` pixels.
+
+#### 6.6.1. Parameters of a Kaleidoscope
+
+A kaleidoscope `*p1...pn` without cone points, handles, or cross-caps has one length parameter for each slice and one for each corner pair, and no twist (Sections 6.2.1 and 6.3.1). Each is named `slice_<i>_l` or `cornerPair_<k>_l` (`lib/orbilib/WallPaperGroup_General.js:266`, `lib/orbilib/OrbifoldGeometrization.js:629`), has the range 0.3 to 4, and starts at $2 + 0.001(u - 0.5)$ (Section 6.6). A slice length is the length of the side that stands for the slice in its two sheets, which the code lays out with a right angle at each end (Section 6.4.1). That this side is the common perpendicular of the two mirror sides that the slice joins is the code reading's inference. A corner pair length is the length of the mirror side between its two right angles (Section 6.4.1). The tutorial's table describes `slice / band` as mirror-anchored seams whose twist the mirrors freeze, and `cornerPair` as the edge "between paired corners" (`tutorials/orbifold-notation.html:328-329`).
+
+| Signature | Parameters |
+| --- | --- |
+| `*2223` | `cornerPair_1_l` |
+| `*22222` | `cornerPair_1_l`, `cornerPair_2_l` |
+| `*3333` | `slice_1_l` |
+| `*2345` | `slice_1_l` |
+| `*23456` | `slice_1_l`, `slice_2_l` |
+| `*2233` | `cornerPair_1_l` |
+| `*2332` | `slice_1_l` |
+
+No line checks that the sheets exist for given lengths, such as that each argument of $\operatorname{arcosh}$ is at least 1, or that the welded polygon is convex.
 
 ### 6.7. Handles and Cross-Caps
 
 A handle is two paired `["handle",i]` edges with a length and a twist. The twist shifts one edge along itself by `shift*length` (lines 1439-1445). A cross-cap is one `["cap",i]` edge with a length and no twist. The length is the full edge length, and the glide is half of it (Section 8.1). Euclidean and spherical groups map these parameters by name (Section 7.1).
+
+### 6.8. Worked Examples of Kaleidoscopes
+
+The code reading traced these examples by hand through Sections 6.2.1 to 6.5.1 and did not run the code. Each row gives the sheets with their cases of Section 6.4.1, the orders of the corners of the welded polygon in the order of its vertex list, which is counterclockwise, and its sides in the order of its edge list:
+
+| Signature | Sheets and cases | Corners, counterclockwise | Sides |
+| --- | --- | --- | --- |
+| `*2223` | `[c3, c2, P1]`, case B | 3, 2, 2, 2 | `mirror`, `mirror`, `["cornerPair",1]`, `mirror` |
+| `*22222` | `[c2, P1, P2]`, case C | 2, 2, 2, 2, 2 | `mirror`, `["cornerPair",1]`, `mirror`, `["cornerPair",2]`, `mirror` |
+| `*3333` | `[c3, c3, s1]` twice, case B | 3, 3, 3, 3 | Four `mirror` |
+| `*2345` | `[c5, c4, s1]` and `[c3, c2, s1]`, case B | 5, 4, 3, 2 | Four `mirror` |
+| `*23456` | `[c6, c5, s1]` and `[c4, c3, s2]`, case B, and `[c2, s2, s1]`, case C | 6, 5, 2, 4, 3 | Five `mirror` |
+| `*45322` | `[c3, P1, s1]`, case C, and `[c5, c4, s1]`, case B | 3, 2, 2, 5, 4 | `mirror`, `["cornerPair",1]`, `mirror`, `mirror`, `mirror` |
+
+In the first four rows, the corners read clockwise are a cyclic rotation of the corners of the signature, as the signature requires. The two corners of order 2 at the ends of a corner pair are the right angles of Section 6.4.1.
+
+In the row of `*23456`, the corners read clockwise are 3, 4, 2, 5, 6, which no rotation or reversal makes into 2, 3, 4, 5, 6. Without the swap at lines 563-567, the third sheet would be `[c2, s1, s2]`, and the trace gives the corners 2, 6, 5, 4, 3, which read clockwise are a rotation of 2, 3, 4, 5, 6. In the row of `*45322`, the swap at lines 538-543 makes the first sheet `[c3, P1, s1]` instead of `[P1, c3, s1]`, and the corners read clockwise are 4, 5, 2, 2, 3, which is the signature `*45223`. In both rows the swap reverses the order of the features of one sheet relative to the others, and the welded polygon has the corner orders of the signature in another cyclic order. The port of Section 6.9 gave the same sheets, corners, and sides for every row of the table. For the polygon of `*23456` at the default lengths, it measured the corner angles of 30, 36, 90, 45, and 60 degrees in the order of the vertex list, a convex polygon, the area $-2\pi\chi$ to within $4 \times 10^{-14}$, and products of the reflections in consecutive sides of the orders 6, 5, 2, 4, and 3. A convex polygon with these angles meets the hypotheses of Theorem 6.4.3 of [DAVIS2008] (Section 4.5 of `docs/research/fundamental-domains.md`), which would make the reflections in its sides generate a discrete group with the signature `*25634` and not `*23456`. That the measured polygon meets those hypotheses exactly rests on numeric evidence from the port and is no proof (Section 17, item 12).
+
+The port of Section 6.9 measured the scope of this defect over every signature of the next table, with each order in the range given:
+
+| $n$ | Orders tried | Signatures | Wrong cyclic order |
+| --- | --- | --- | --- |
+| 4 | 2 to 7 | 1295 | 0 |
+| 5, all orders distinct | 2 to 7 | 720 | 720 |
+| 5, a repeated order | 2 to 7 | 7056 | 5910 |
+| 6 | 2 to 6 | 15625 | 12956 |
+| 7 | 2 to 5 | 16384 | 14589 |
+| 8 | 2 to 4 | 6561 | 5082 |
+
+For four or fewer corners, the code reading found that the code makes either a single sheet, whose corners keep their cyclic order up to reversal, or, for four corners without a corner pair, two sheets whose features no swap exchanges (Section 6.3.1). The port found no wrong order among the 1295 signatures with four corners that it tried. With five or more corners, the port found the defect in every signature that it tried with five corners of distinct orders, and in most of the signatures that it tried with five to eight corners, within the orders of the table. For five corners without a corner pair, every input `*p1p2p3p4p5` that the port tried came out as `*p1p4p5p2p3`. With repeated orders, `*22323` came out with the corners 3, 2, 2, 2, 3 counterclockwise, which is wrong, while `*33333`, `*22223`, `*23333`, and `*34343` came out right. The code reading inferred that these four come out right because the reordering leaves their corner sequences unchanged up to rotation and reversal.
+
+In the same port, a variant that reorders the three features of a sheet only by a cyclic rotation until the corners come first, and never by exchanging two of them, gave no wrong cyclic order and no failed geometry check over all 47,641 signatures of the table, each at one set of lengths. This is numeric evidence from a port, not a proof.
+
+### 6.9. Numeric Check by a Port
+
+A verification pass outside the repository ported the code of Sections 6.2.1 to 6.5.1 line by line to Python, keeping the source's order of operations, and ran the port in double precision. The port covers the kaleidoscope part of `hashOrbifold`, `atomizeOrbifold`, `edgeLength`, `getLength`, `useMirrorQ`, the sheet branch of `unfoldAtom`, the turtle and Moebius helpers, the slice path of `assembleFundamentalDomain`, and the reflection circles of the sides. It was run on the examples of Section 6.8, on the 47,641 hyperbolic signatures of the table of Section 6.8, and on lengths from 0.3 to 4 with corner orders from 2 to 12. Its results were compared with independent constructions in the hyperboloid model, with Lorentz frame matrices and Newton's method. The SymmHub code itself was not run. These results are numeric evidence, and none is a source or a proof:
+
+- Every hand trace of Sections 6.2.1, 6.3.1, 6.6.1, and 6.8 agrees with the port.
+- Every call of `edgeLength` agrees with the independent construction, with the largest differences $2.4 \times 10^{-14}$ in case A, $1.6 \times 10^{-13}$ in case B, $9.5 \times 10^{-13}$ in case C, and $2.2 \times 10^{-12}$ in case D. This includes the two calls of cases B and C that go to $\operatorname{arsinh}$.
+- In the examples of Section 6.8, every sheet closes, with the angle $\pi/m$ at the origin and right angles at the ends of each imaginary side. The side that case D does not compute has the length `p.im`, and every sheet is counterclockwise. In the sweep of lengths of this section, the largest error of the closure of a sheet is $7.9 \times 10^{-6}$, for `*222222`.
+- `poincareMobiusEdgeToEdge` maps $v_1$ to $w_2$ and $v_2$ to $w_1$ to within $7 \times 10^{-11}$ and preserves orientation. At both ends of every welded slice the angle is $\pi$ to within $6 \times 10^{-10}$ radians, so the ends of a slice are no vertices of the welded polygon.
+- `poincareTurtleMove` with the angle 0 goes back towards `last`, and with the angle $\pi$ continues straight on.
+- The 47,641 signatures of the table of Section 6.8 were each built with every length equal to 2. Each polygon had $n$ vertices, every angle below $\pi - 10^{-9}$, the area $-2\pi\chi$ to within $10^{-9}$, and the corner orders of the signature as a multiset, and none held a `mirrorRedundant` edge.
+- Over corner orders from 2 to 12 and lengths from 0.3 to 4, the smallest arguments of $\operatorname{arcosh}$ are 1.207 for `R` of case B, 1.0013 for `P` of case C, and 1.0027 in case D, and both $\operatorname{arsinh}$ results stay positive, so no call of `edgeLength` is undefined there. The only `NaN` comes from rounding in `P` of case C with two lengths of at least 18.93 and the order 2, outside the range.
+- The examples of Section 6.8, `*222222`, `*2345678`, and `*23232323` were each run with every length over the grid 0.3, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4 and with 300 random settings in the range, from 300 to 1029 runs for each signature, with no `NaN`. A run passed its geometry check when the polygon had $n$ vertices, every angle below $\pi - 10^{-9}$, and the angles and the area within $10^{-8}$ of their targets. The runs that failed that check were 6 of 381 for `*22222`, 2 of 381 for `*23456`, 57 of 1029 for `*222222`, 1 of 300 for `*2345678`, and 3 of 300 for `*23232323`, and none for the other signatures. The report of the pass states that every polygon of the sweep was convex with $n$ vertices, and it attributes the failed checks to the loss of precision near the boundary of the disc. The error of the angles reaches $7.7 \times 10^{-6}$ radians for `*222222` with the lengths 4, 0.3, and 4, and the modulus of a vertex reaches 0.996 in the sweep.
 
 ## 7. Euclidean and Spherical Groups
 
@@ -566,6 +747,8 @@ In `getGroup_KLM`, `new Group({s: fd, t: trans})` at line 246 runs before the `h
 | `cap` | Glide reflection of length $e/2$ | $v = p + e/4$ and $w = p + e/2$ along $p \to q$, then `[sPlaneSwapping(v,p), sPlaneSwapping(v,w), sPlaneReflectAcross(p,q)]` (line 1467) |
 
 `sPlanesOfRotation` returns two splanes through the point at an angle of $\pi/2$ to each other, which compose to the half-turn.
+
+The rows for `cornerPair`, `mirror`, and `mirrorRedundant` share one branch, with the reflection across the line through `points[i]` and `points[(i+1)%points.length]` (lines 1471-1479). The loop at line 1417 gives one row for each edge, in edge order, and skips no redundant edge. The comment at lines 1397-1399 gives the reason: both of two collinear edges get a row, although Bulatov's algorithm uses only one, because a Dirichlet domain of a non-convex domain may need all neighbouring group elements. A key that the switch does not name gets no row, so the row index then differs from the edge index. For a kaleidoscope, the splice of Section 6.5.1 drops the edge after each slice, so the code reading inferred that no `mirrorRedundant` edge reaches `produceGenerators`, and that the generators are the $n$ reflections in the sides of the polygon, in the order of Section 6.8.
 
 ### 8.2. Splane Helpers
 
@@ -991,7 +1174,7 @@ The older orbifold version, `getTransformsForTexture` (`lib/orbilib/OrbifoldGeom
 | Twist range | $-0.5$ to $0.5$ | Range of a twist | `lib/orbilib/WallPaperGroup_General.js:26-29` |
 | Initial length | $2 \pm 0.0005$ | Start length with jitter | `lib/orbilib/WallPaperGroup_General.js:266`, `randomOffsetRange` at line 52 |
 | `DEFAULT_INCREMENT` | `1e-8` | Slider step | `lib/orbilib/WallPaperGroup_General.js:20` |
-| Fallback length | 1.1 | `getLength` for a key index beyond `parCounts` | `lib/orbilib/OrbifoldGeometrization.js:626-627` |
+| Fallback length | 1.1 | `getLength` for a key index beyond `parCounts` | `lib/orbilib/OrbifoldGeometrization.js:625-627` |
 | `recenteringN` | 2 | Recentrings per assembly | `lib/orbilib/OrbifoldGeometrization.js:1351-1368` |
 | Domain nudge | $(-0.001, -0.002)$ | General position after assembly | `lib/orbilib/OrbifoldGeometrization.js:1370` |
 | `EPSILON` | `1e-13` | General tolerance | `lib/invlib/Utilities.js:281-284` |
@@ -1030,7 +1213,12 @@ SymmHub works around numerical problems in these ways:
 
 | Defect or limitation | Effect | Source |
 | --- | --- | --- |
-| `2*22` and `22*` do not get the slice parameter right | Wrong moduli for these signatures | `apps/orbifold/bug list.txt` |
+| "2*22 does not get the slice parameter correctly. Perhaps it is instead a corner pair." and "22* as well." | The note claims wrong moduli for these Euclidean signatures, which the catalogue builds. The current catalogue registers and reads `slice` for both, so the code reading found no mismatch for them (Section 6.2.1) | `apps/orbifold/bug list.txt:3-4` |
+| Observation: the catalogue registers `parCounts["slice"]=1` for `*2222` but reads the length of `["band",1]` | The code reading inferred that `getLength` returns its fallback 1.1 | `lib/orbilib/WallpaperGroups_NonNegative.js:127`, 835 |
+| The swaps that put the corners of a sheet first reverse the order of its features relative to the other sheets | The welded polygon has the corner orders in another cyclic order, so it has another signature, such as `*25634` for `*23456`. Section 6.8 states in which signatures the port of Section 6.9 found it, with four to eight corners and the orders it tried. In that port, reordering the features of a sheet only by a cyclic rotation removed the defect on every signature tried | `lib/orbilib/OrbifoldGeometrization.js:538-543`, 553-567 |
+| The pairing of corners of order 2 does not wrap around | `*2233` gets a corner pair and `*2332` a slice, so one orbifold gets two sets of parameters | `lib/orbilib/OrbifoldGeometrization.js:399-429` |
+| No sheet computes its last side or checks its closure, and no line checks that a sheet exists for its lengths | In the port of Section 6.9, no length in 0.3 to 4 made a call of `edgeLength` undefined or gave a `NaN`. A few runs failed the geometry check of the port, which the report of the pass attributes to the loss of precision near the boundary of the disc, where the error of the angles grows to about $10^{-5}$ radians | `lib/orbilib/OrbifoldGeometrization.js:676-763` |
+| The comment of `poincareTurtleMove` says "facing away from last" | The code turns from the direction towards `last`, so the angle is the interior angle (Section 6.4.1) | `lib/invlib/ComplexArithmetic.js:457-466` |
 | `n` and `*n` are not implemented | Signatures rejected | `lib/orbilib/OrbifoldGeometrization.js:187-191`, 203-211 |
 | `*` alone and every signature with a handle or a cross-cap skip the screen of small signatures | No check for bad orbifolds among them | `lib/orbilib/OrbifoldGeometrization.js:173`, 186-193 |
 | `willOrbifoldFitQ` always returns false | A signature too large for the shader limits does nothing, without an error | `lib/orbilib/OrbifoldGeometrization.js:1555`, `lib/orbilib/WallPaperGroup_General.js:240-248` |
@@ -1094,7 +1282,7 @@ These questions and claims are open:
 5. Termination of the fold: No cited source proves that the fold of Section 9 terminates for a given domain, or bounds its number of iterations. The comment in `lib/grouplib/Group_ON.js` asserts convergence, and the code bounds the loop only by the iteration cap (Section 9.3).
 6. Deaton's thesis: The three files that cite it disagree on the first name and the year (Section 3.5). [DEATON1993] follows the tutorial's reference entry, which no one has checked against the thesis.
 7. Unread sources: The papers in Section 3.5 are not in the repository and were not read for this document. Every statement about them is what SymmHub's tutorial says.
-8. Unread code: No code reading read `GroupGeometry.js`, `LimitSet.js`, or the `Subgroup*.js` files of `lib/grouplib` line by line. In `lib/sublib`, `src/sublib_core.js` and `src/reidemeister.js` were read line by line (Section 12.8), `src/sublib.js`, `src/groups_description.js`, and `src/modules.js` only for their imports, exports, and the lines cited, and `README.md` only for its section `Compatibility with the GAP-generated files` (Item 10). `docs/research/prior-art.md` cites that README under the tag `SYMMHUB-SUBLIB`. Section 16 states the absence of a lit sphere and of vector export as the result of a keyword search, not of a full read.
+8. Unread code: No code reading read `GroupGeometry.js`, `LimitSet.js`, or the `Subgroup*.js` files of `lib/grouplib` line by line. In `lib/sublib`, `src/sublib_core.js` and `src/reidemeister.js` were read line by line (Section 12.8), `src/sublib.js`, `src/groups_description.js`, and `src/modules.js` only for their imports, exports, and the lines cited, and `README.md` only for its section `Compatibility with the GAP-generated files` (item 10). `docs/research/prior-art.md` cites that README under the tag `SYMMHUB-SUBLIB`. For the kaleidoscopes of Sections 6.2.1 to 6.8, `lib/orbilib/OrbifoldGeometrization.js` was read line by line at lines 46-53, 147-165, 266-431, 452-764, 1136-1382, and 1387-1493, and `lib/invlib/ComplexArithmetic.js` at lines 206-239 and 404-491. The pillow and hat cases at lines 766-1133 of the first file were read only at the level of Section 6.4. Section 16 states the absence of a lit sphere and of vector export as the result of a keyword search, not of a full read.
 9. Candidate statements about the triangles and the half-plane map: The source review derived these statements by algebra, and neither the code nor its comments state them:
    - In the hyperbolic triangle, $\lvert c \rvert^2 = 1 + r^2$ for the centre $c$ of $s_2$, so $s_2$ is orthogonal to the unit circle.
    - In the ideal triangle, the circle $s_1$ with centre $(-1, 1)$ and radius 1 touches the $x$ axis at $(-1, 0)$, which is the ideal $K$ corner.
@@ -1109,6 +1297,9 @@ These questions and claims are open:
     - The comment at lines 341-346 says that a prefix of a partial table that loses "still loses however it is completed, so cutting the branch there cannot discard a canonical table".
 
     The research checked none of these. Item 24 of Section 14.1 of `docs/research/colourings.md` records what would close the first two, and its item 22 the third.
+11. Closure of a sheet: No case of Section 6.4.1 computes the last side of its sheet, so the angle at the origin, the right angles at the ends of each imaginary side, and the collinear edges at each welded slice (Section 6.5.1) hold only if the formulas of Section 6.4.2 are right. Gap G3 and Section 13.3, items 1 and 13, of `docs/research/fundamental-domains.md` record what would close it. The port of Section 6.9 measured the closure of the sheets for the signatures and lengths that it lists, which is numeric evidence and no source.
+12. Hand traces: The lists, sheets, polygons, and parameters of Sections 6.2.1, 6.3.1, 6.5.1, 6.6.1, and 6.8, and the defect of the swaps in Section 15.3, rest on traces of the code by hand and on the port of Section 6.9, which agrees with every trace. The SymmHub code itself was not run.
+13. Inferred geometry of the maps: The orientation of the turtle and its turn (Section 6.4.1) and the endpoint correspondence of `poincareMobiusEdgeToEdge` (Section 6.5.1) are the code reading's reading of compositions of Moebius maps, which no comment states. The port of Section 6.9 agrees with each, which is numeric evidence and no source.
 
 ## 18. References
 
@@ -1127,10 +1318,10 @@ This table lists the files that an implementer reads first, in the order of the 
 
 | File | Content |
 | --- | --- |
-| `lib/orbilib/OrbifoldGeometrization.js` | Parser (77-262), screen of small signatures (173-219), Euler characteristic (226-237), curvature test (242-251), `countParameters` (266-277), `hashOrbifold` (279), `atomizeOrbifold` (452), `edgeLength` (588), `unfoldAtom` (648), `assembleFundamentalDomain` (1195), `produceGenerators` (1387), crown sampling (1589) |
+| `lib/orbilib/OrbifoldGeometrization.js` | Parser (77-262), screen of small signatures (173-219), Euler characteristic (226-237), curvature test (242-251), `countParameters` (266-277), `hashOrbifold` (279), `atomizeOrbifold` (452), `edgeLength` (588), `getLength` (624), `useMirrorQ` (639), `unfoldAtom` (648), `assembleFundamentalDomain` (1195), `produceGenerators` (1387), crown sampling (1589) |
 | `lib/orbilib/WallPaperGroup_General.js` | Orbifold group wrapper, parameter ranges, packaging of $F$ |
 | `lib/orbilib/WallpaperGroups_NonNegative.js` | Euclidean and spherical catalogue |
-| `lib/invlib/ComplexArithmetic.js` | Disc Moebius class, turtle moves, splane helpers |
+| `lib/invlib/ComplexArithmetic.js` | Disc Moebius class, turtle moves (459), the map of one edge onto another (472), splane helpers |
 | `lib/invlib/ISplane.js`, `lib/invlib/ITransform.js`, `lib/invlib/Inversive.js` | Splanes, transforms, reflection, and distance |
 | `lib/invlib/Group.js`, `lib/invlib/GroupUtils.js` | `Group`, `toFundDomain`, words, and inverses |
 | `lib/invlib/MobiusMatrix.js` | Matrix classification and `mobiusToSplanes` |

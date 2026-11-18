@@ -138,9 +138,11 @@ Some milestones need material that a research document must supply first: a step
 | --- | --- | --- | --- | --- |
 | RP-1 | A step-level account of Todd-Coxeter coset enumeration, of the low-index subgroup search, and of Reidemeister-Schreier rewriting, with SymmHub's implementation and worked examples | `colourings.md` 7.8 to 7.21, and `symmhub.md` 12.8 | The sources that `colourings.md` 7.8 lists, with a line-level reading of SymmHub's `lib/sublib/src/sublib_core.js` and `reidemeister.js`. `symmhub.md` 17 item 8 records which files were read line by line | M7 |
 | RP-2 | The geometry of the functions of SymmHub's `lib/orbilib/WallpaperGroups_NonNegative.js`, of which the research holds little beyond names | `fundamental-domains.md` 9.5 and 9.6, and `symmhub.md` 7.1 | SymmHub source code | M10, M11 |
-| RP-3 | `atomizeOrbifold`, the twelve `unfoldAtom` cases, the weld, the walls, and `produceGenerators` at line level (gap G4) | `fundamental-domains.md` 8, and `symmhub.md` 6 | SymmHub source code | M15. Its sheet and slice part comes before M9 |
+| RP-3 | `atomizeOrbifold`, the twelve `unfoldAtom` cases, the weld, the walls, and `produceGenerators` at line level (gap G4) | `fundamental-domains.md` 8, and `symmhub.md` 6. The sheet and slice part for `*p1...pn` is in `symmhub.md` 6.2.1 to 6.9, 8.1, and 15.3, and in `fundamental-domains.md` 8.4 to 8.14 and 9.4.1 to 9.4.3 | SymmHub source code, with [TH] pp. 311 to 318, [BEARDON], [RATCLIFFE], and [DAVIS] for the sheet and slice part. `symmhub.md` 17 item 8 records which lines were read | M15. Its sheet and slice part comes before M9 |
 | RP-4 | `Group_Frieze`, and the ideal corners of the triangle groups and their rotation subgroups that M18 renders | `fundamental-domains.md` and `symmhub.md` | SymmHub source code | M18 |
 | RP-5 | What [CH] pp. 255 to 257 states for a boundary without corners (`orbifold-notation.md` 12 item 14), and the clearing of the rows of `source-requests.md` 7, "Obtained Since" | `orbifold-notation.md` 9.1 and 12, and `source-requests.md` | [CH], which is held locally | No milestone. It may run at any time |
+
+The sheet and slice part of RP-3 covers the signatures `*p1...pn` without cone points, handles, or cross-caps, which is what M9 needs. The other parts of RP-3 are for M15.
 
 The research on the general non-compact signatures is not a prerequisite of any milestone. It is a deep-research item of Section 5 of `docs/design/roadmap.md`.
 
@@ -586,6 +588,7 @@ escher render '*3333' --set slice1.length=1.2 -o slice.png
 ```
 
 - `escher info '*2223'` lists the parameter `slice1.length`.
+- In SymmHub, the one parameter of `*2223` is a corner-pair length, not a slice length, and so are the parameters of `*22222` (`symmhub.md` 6.6.1). The design of M9 decides whether Escher names the parameter of `*2223` `slice1.length` or otherwise.
 - The rotation subgroups `p1...pn` render at the default shape by doubling. Their full parameter set arrives in M15.
 
 **Scope.** The construction of the polygon from slices and sheets, as SymmHub does it (`fundamental-domains.md` 8.5 to 8.9), laid out with linear isometries. The default shape (`DEC-13`). The ranges (`DEC-14`).
@@ -604,7 +607,7 @@ escher render '*3333' --set slice1.length=1.2 -o slice.png
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Errors from `UNV-6`. Extreme parameters.
+**Risks.** Errors from `UNV-6`. Extreme parameters. A numeric port of SymmHub's construction as coded put the corners in the wrong cyclic order for most of the signatures with five to eight corners that it tried (`symmhub.md` 6.8).
 
 **Split.** As a fallback if the milestone grows, the closure is solved numerically from the side lengths, and SymmHub's formulas are kept for M15.
 
@@ -894,8 +897,8 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-3 | Behaviour on or near a wall | `rendering.md` 13.1 item 2 | M3 on | Tests. No source is known |
 | UNV-4 | Growth of the fold count, the reading of the exponents, and the limits of precision | `rendering.md` 13.1 items 5 and 6, `geometry-models.md` 15.1 item 10 | M3 defaults | The body of [FWW], and measurement |
 | UNV-5 | The open points of the polygon theorem at ideal points: the test where a mirror ends at a cusp, the reading that two sides that meet only at an ideal vertex have the dihedral angle 0 and give no relator, and the element that fixes an ideal vertex. The four cases with reflections, glide cycles, mirror corners beside paired sides, and ideal reflection polygons are sourced in `fundamental-domains.md` 4.7, and the Euclidean plane and the sphere in its Sections 4.9 and 4.10, all under the hypotheses of those sections | `fundamental-domains.md` 4.7, 4.9, 4.10, 12, and 13.3 items 7 and 8, gap G1 | M18 | A source or Lean for each open point of gap G1 |
-| UNV-6 | The cases that SymmHub's `edgeLength` sends to the inverse hyperbolic sine, the correspondence of its other cases with the formulas of `fundamental-domains.md` 9.3, and the pillow and hat formulas. The triangle, quadrilateral, pentagon, and hexagon formulas are sourced in `fundamental-domains.md` 9.3 | `fundamental-domains.md` 8.7, 8.8, 9.3, and 13.3 item 1, gap G3 | M9, M15, M16 | Formula Glossary 2.2 to 2.4 of [BUSER], or Lean |
-| UNV-7 | Deaton's cut rules, the twelve atoms, and the twist in three situations | Gap G4, `fundamental-domains.md` 13.3 items 4 and 5 | M9, M15, M16 | [DEATON1993] |
+| UNV-6 | The cases that SymmHub's `edgeLength` sends to the inverse hyperbolic sine, the correspondence of its other cases with the formulas of `fundamental-domains.md` 9.3, and the pillow and hat formulas. The triangle, quadrilateral, pentagon, and hexagon formulas are sourced in `fundamental-domains.md` 9.3 | `fundamental-domains.md` 8.7, 8.8, 9.3, and 13.3 items 1 and 13, gap G3, `symmhub.md` 6.4.2 | M9, M15, M16 | Formula Glossary 2.2 to 2.4 of [BUSER], or Lean |
+| UNV-7 | Deaton's cut rules, the twelve atoms, and the twist in three situations | Gap G4, `fundamental-domains.md` 9.4.1 and 13.3 items 4, 5, and 12 | M9, M15, M16 | [DEATON1993] |
 | UNV-8 | The cap generator is a glide reflection that, with the other side pairings, meets the hypotheses of the polygon theorems of `fundamental-domains.md` 4.9 and 4.10 | Gap G2, `fundamental-domains.md` 13.3 item 2 | M10, M16 | [CHOI2012], [BUSER] |
 | UNV-9 | The twist convention | Gap G11 | M10, M15, M16 | A project convention |
 | UNV-10 | Euclidean parameter counts: whether a count includes the scale, and the counts of the groups for which no source states one. The counts and the rule that are sourced are in `orbifold-notation.md` 10.2 and `fundamental-domains.md` 6.1 | Gap G7, `orbifold-notation.md` 12 item 7 | M4, M10 | [KLR], [SCOTT], or Lean |
@@ -915,7 +918,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-24 | MIT code inside a work under GPL-3.0-or-later | `symmhub.md` 17 item 1 | M15 | The licence texts, and the owner's judgement |
 | UNV-25 | Correct rounding of the reference-arithmetic crate | `rust-ecosystem.md` 21 item 5 | M2 on | One comparison with MPFR |
 | UNV-26 | Statements on the linear model in the conventions of Sections 5.1 and 5.2 of `docs/design/architecture.md`, with the time coordinate last and outward normals: the normal through two points, normals and the corner angle, a disk circle to a normal, and the Euclidean reflection as a matrix. [RATCLIFFE] states the cross product with the time coordinate first, the relation between normals and the angle with inward normals, and the Euclidean reflection as a map (`geometry-models.md` 2.4, 7.4, and 12) | `geometry-models.md` 2.4, 7.4, and 12 | M2, M4, M5, M15, M18 | A source in these conventions, or Lean |
-| UNV-27 | Coordinates for the family, ranges, and default shape of polygons with prescribed angles. Existence, the admissible angles, and one polygon for each set of angles are sourced (`geometry-models.md` 10.1, `fundamental-domains.md` 9.4) | `geometry-models.md` 15.1 item 14, `fundamental-domains.md` 9.4 | M9 | A detailed reading of the proof in [TH], [BUSER] |
+| UNV-27 | Coordinates for the family, ranges, and default shape of polygons with prescribed angles. Existence, the admissible angles, and one polygon for each set of angles are sourced (`geometry-models.md` 10.1, `fundamental-domains.md` 9.4) | `geometry-models.md` 15.1 item 14, `fundamental-domains.md` 9.4.2 and 13.3 items 13 and 14 | M9 | A detailed reading of the proof in [TH], [BUSER] |
 | UNV-28 | Properties of SymmHub's triangle: of its disk triangle, if it is used as an oracle, and in the Euclidean case the vertex coordinates of the triangle that `escher-domain` builds | `geometry-models.md` 15.1 item 5 | M2 tests, M4 | Tests only for the disk triangle. A source or Lean for the Euclidean coordinates |
 | UNV-29 | The lune of `*nn`, the intersection of two hemispheres whose walls meet at the angle $\pi/n$, is a strict fundamental domain of the group of its two reflections. Theorem 6.4.3 of [DAVIS] covers convex polytopes, and a lune is not one in the sense of p. 75 of [DAVIS] | `fundamental-domains.md` 13.3 item 9 | M5 | A source that proves it, or Lean |
 | UNV-30 | The lune of the angle $2\pi/n$ with its one rotation pairing, including the hemisphere of `22`, is a fundamental domain of the cyclic group of order $n$. The lune of `*nn` is already `UNV-29` | `fundamental-domains.md` 13.3 item 10 | M6 | A source whose polygon theorem admits a lune, or Lean. The exhaustive certificates of `docs/design/domain.md` check each build numerically |

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-17 |
+| Date | 2026-11-18 |
 | Applies to | The construction of a fundamental polygon, its side-pairing isometries, and point reduction from an orbifold signature in Escher |
 
 ## Abstract
@@ -35,7 +35,7 @@ Every cited claim carries one of these status markers after its citation:
 - {C}: read line by line in the SymmHub source code at commit `f2d19cb`. It establishes what the code does. It does not establish that the method is correct.
 - {S}: rests only on a secondary source, or on a search result that relays a source that was not read.
 
-A statement that the research assembled from several cited items, such as the checklist in Section 4.8, says so and carries the markers of its parts.
+A statement that the research assembled from several cited items, such as the checklist in Section 4.8, says so and carries the markers of its parts. A result that a numeric port of the SymmHub code found, such as those of `docs/research/symmhub.md` Section 6.9, says that it is numeric evidence from a port. It is neither a source nor a proof, and a claim that rests on it stays in Section 13.
 
 ### 2.2. Transcription
 
@@ -98,6 +98,7 @@ Voight writes a semicolon between the two arguments of the distance function $\r
 - Teichmuller space: The space of hyperbolic structures on an orbifold, $\mathcal T(O)$ in [THURSTON2002] Corollary 13.3.7.
 - cut: In SymmHub, a geodesic arc or closed geodesic along which the orbifold is split. A `tube` runs from cone to cone and carries a length and a twist. A `slice` runs from a cone to a mirror, or from corner to corner, and carries a length only.
 - atom: In SymmHub, one of the twelve elementary pieces that remain after all cuts: a sheet `*abc`, a pillow `ABC`, or a hat `A*b`.
+- corner pair: In SymmHub, the feature that takes the place of two consecutive corners of order 2 on a mirror boundary. It stands for a mirror side of variable length between two right angles.
 - splane: In SymmHub, a sphere or a plane in $\mathbb R^3$ whose intersection with the plane $z = 0$ is a circle or a line of reflection.
 - point reduction: The computation of an element $g$ of the group and the point $g(z)$ in the fundamental domain for a given point $z$.
 - $(G, z)$-reduced: In [VOIGHT2009] Definition 4.1, quoted in Section 10.3.
@@ -651,7 +652,7 @@ Where the printed text disagrees, the research recommends following Maskit's Sec
 
 ### 8.1. Status
 
-SymmHub, by V. Bulatov, C. Goodman-Strauss, and S. Vorthmann, is the only implementation found that builds a fundamental domain and generators for hyperbolic signatures with mirrors and cross-caps. Its orbifold engine is by Goodman-Strauss. Everything in this section is {C}. It describes what the code does, and no primary source that was read establishes the method. The tutorial attributes the cut rules to [DEATON1993], which was not read. `docs/research/symmhub.md` gives the line-level detail.
+SymmHub, by V. Bulatov, C. Goodman-Strauss, and S. Vorthmann, is the only implementation found that builds a fundamental domain and generators for hyperbolic signatures with mirrors and cross-caps. Its orbifold engine is by Goodman-Strauss. Every statement of this section about SymmHub is {C}. It describes what the code does. No primary source that was read establishes the method. The few statements from published sources that this section compares with the code, in Sections 8.4 and 8.7, carry their own markers. The tutorial attributes the cut rules to [DEATON1993], which was not read. `docs/research/symmhub.md` gives the line-level detail.
 
 ### 8.2. Pipeline
 
@@ -687,15 +688,19 @@ The key lists are at lines 46 to 53:
 - `lengthKeys = ["handle","cap","fold","conePt","conePair","tube","band","slice","cornerPair"]`
 - `twistKeys = ["handle","conePair","tube"]`
 
+For a single kaleidoscope, `hashOrbifold` keeps the corners in the order of the input and replaces consecutive corners of order 2, paired greedily from the left and without wrapping around, by one corner pair each ([SYMMHUB], `docs/research/symmhub.md` Section 6.2.1 {C}). A corner pair becomes a mirror side of variable length between two right angles. [THURSTON2002] p. 316 {P} states a rule of this kind for the polygon orbifold: "Special care must be taken when, say, $m_1 = m_2 = 2$. Then one of the cuts must be omitted, and an edge length becomes a parameter." That SymmHub's corner pair is this edge length is a reader's reading (Section 13.3, item 12).
+
 ### 8.5. Cut Rules
 
 `atomizeOrbifold` repeatedly splits the feature lists with `tube` cuts, from cone to cone with a length and a twist, and `slice` cuts, from a cone to a mirror or from corner to corner with a length only ([SYMMHUB] `lib/orbilib/OrbifoldGeometrization.js:452` {C}). The comments at lines 437 to 447 choose "option #2": cut the cone points out to the mirrors first, then cut the mirrors. That order needs few twist parameters and keeps the graph of cuts a tree.
 
-The tutorial calls Deaton's rules "a small rewriting system on the notation itself", with "Nine types of geodesic cut", "each cut introducing a boundary token $\infty_\ell$ of length $\ell$" ([SYMMHUB] `tutorials/orbifold-notation.html` {C}). Its examples are $o \to \infty_\ell\infty_\ell$, $ABCD \to \infty_\ell AB + \infty_\ell CD$, and $*2345 \to *23\infty + *\infty 45$. The research did not recover five of the nine cut types, or the rules for cross-caps, cone pairs, and corners (gap G4).
+The tutorial calls Deaton's rules "a small rewriting system on the notation itself", with "Nine types of geodesic cut", "each cut introducing a boundary token $\infty_\ell$ of length $\ell$" ([SYMMHUB] `tutorials/orbifold-notation.html` {C}). Its examples are $o \to \infty_\ell\infty_\ell$ and $ABCD \to \infty_\ell AB + \infty_\ell CD$ (`tutorials/orbifold-notation.html:243-245`), and `tutorials/orbifold-showcase.html:200` gives the example $*2345 \to *23\infty + *\infty 45$ {C}. The research did not recover five of the nine cut types, or the rules for cross-caps and cone pairs. It recovered the rules for corners from the code for a single kaleidoscope without cone points only (gap G4).
+
+For a kaleidoscope without cone points, every cut is a slice between two mirror sides. While more than three features remain, the code cuts off the last two by a slice and puts the slice at the front of the list, and the last three features form the last sheet ([SYMMHUB], `docs/research/symmhub.md` Section 6.3.1 {C}). Its first cut of `*2345` separates the corners 5 and 4 from the corners 3 and 2, as the example of `tutorials/orbifold-showcase.html:200` does. Section 9.4.1 states the steps for an implementer.
 
 ### 8.6. The Twelve Atoms
 
-The cuts end in "twelve types of atoms": four sheets `*abc`, four pillows `ABC`, and four pillowcases or hats `A*b` ([SYMMHUB] tutorial {C}). In each kind, the four types differ by how many vertices are real and how many are imaginary. A real vertex carries an angle `PI/n`. An imaginary vertex carries a length from `getLength(key)` and stands for a perpendicular geodesic edge of that length, so that a cut boundary becomes a truncated vertex. `unfoldAtom` has one case per atom type ([SYMMHUB] `lib/orbilib/OrbifoldGeometrization.js:648` {C}).
+The cuts end in "twelve types of atoms": four sheets `*abc`, four pillows `ABC`, and four pillowcases or hats `A*b` ([SYMMHUB] tutorial {C}). In each kind, the four types differ by how many vertices are real and how many are imaginary. A real vertex carries an angle `PI/n`. An imaginary vertex carries a length from `getLength(key)` and stands for a perpendicular geodesic edge of that length, so that a cut boundary becomes a truncated vertex. `unfoldAtom` has one case per atom type ([SYMMHUB] `lib/orbilib/OrbifoldGeometrization.js:648` {C}). A kaleidoscope without cone points produces sheets only, in the four cases A to D of `docs/research/symmhub.md` Section 6.4.1, with three, two, one, and no real vertices {C}.
 
 ### 8.7. Generalized Law of Cosines
 
@@ -706,6 +711,21 @@ $$\ell\ell = \frac{c_pc_q + c_r}{s_ps_q}$$
 It returns $\operatorname{arccosh}(\ell\ell)$ when $p$ and $q$ are both real or both imaginary, and $\operatorname{arcsinh}(\ell\ell)$ otherwise.
 
 Maskit's equation (1) for three hyperbolic boundaries and equation (8) for three cone points have the same algebraic form, and [MASKIT2001] Remarks 5.1 and 5.5 identify them as the right-angled hexagon formula and a hyperbolic law of cosines {P}. [RATCLIFFE] and [BEARDON] state formulas for triangles, quadrilaterals, pentagons, and hexagons (Section 9.3). No primary source that was read states the cases that the code sends to $\operatorname{arcsinh}$, or that the other cases match those formulas (gap G3).
+
+`docs/research/symmhub.md` Section 6.4.2 lists the calls of the four sheet cases with their branches {C}. A reader observed that each $\operatorname{arccosh}$ call of a sheet has the algebraic form of a published formula, with each real vertex read as an angle and each imaginary vertex read as the length of the side that stands for it. This table records that correspondence of form. It is a reader's observation, not a source's statement, and the labels of each source's figure were not matched against the layout of the sheet (gap G3, Section 13.3, item 1):
+
+| Sheet case and call | Expression in the code | Published formula of the same form |
+| --- | --- | --- |
+| A, `R` and `P` | $\operatorname{arccosh} \dfrac{\cos p \cos q + \cos r}{\sin p \sin q}$ | The triangle with angles $\alpha$, $\beta$, $\gamma$: $\cosh c = \frac{\cos\alpha\cos\beta + \cos\gamma}{\sin\alpha\sin\beta}$, [RATCLIFFE] Theorem 3.5.4, p. 86, [BEARDON] Section 7.12, p. 148 {P} |
+| B, `R` | $\operatorname{arccosh} \dfrac{\cos p \cos q + \cosh r}{\sin p \sin q}$ | The quadrilateral with two adjacent right angles, the side $c$ between the angles $\alpha$ and $\beta$, and the side $d$ between the right angles: $\cosh c = \frac{\cos\alpha\cos\beta + \cosh d}{\sin\alpha\sin\beta}$, [RATCLIFFE] Theorem 3.5.7, p. 92 {P} |
+| C, `P` | $\operatorname{arccosh} \dfrac{\cosh q \cosh r + \cos p}{\sinh q \sinh r}$ | The pentagon with four right angles and the angle $\gamma$, with $c'$ the side opposite $\gamma$: $\cosh c' = \frac{\cosh a\cosh b + \cos\gamma}{\sinh a\sinh b}$, [RATCLIFFE] Theorem 3.5.11, p. 97 {P}, and [BEARDON] Theorem 7.18.1(i), p. 159, in other labels {P} |
+| D, `R`, `P`, and `Q` | $\operatorname{arccosh} \dfrac{\cosh p \cosh q + \cosh r}{\sinh p \sinh q}$ | The right-angled hexagon: $\cosh c' = \frac{\cosh a\cosh b + \cosh c}{\sinh a\sinh b}$, [RATCLIFFE] Theorem 3.5.13, p. 100, and [BEARDON] Theorem 7.19.2, p. 161, in other labels {P} |
+| B, `P` | $\operatorname{arsinh} \dfrac{\cos q \cosh r + \cos p}{\sin q \sinh r}$ | None found in the sources read |
+| C, `R` | $\operatorname{arsinh} \dfrac{\cos p \cosh q + \cosh r}{\sin p \sinh q}$ | The pentagon with one angle that is not right, $\sinh \delta = \frac{\cosh c_i + \cos\alpha_i \cosh L_i'}{\sin\alpha_i \sinh L_i'}$, which `docs/research/geometry-models.md` Section 10.5 relays from a secondary source and leaves open in its Section 15.1, item 12 |
+
+A port of the code compared every call of each case, the two $\operatorname{arsinh}$ calls included, with an independent construction in the hyperboloid model, and `docs/research/symmhub.md` Section 6.9 gives the largest difference for each case. This is numeric evidence from a port, and the formulas stay open (gap G3).
+
+The first sheet of a kaleidoscope with $n \ge 4$ corners and no corner pair holds two corners and a slice, which is case B (`docs/research/symmhub.md` Section 6.3.1), so the code reading inferred that every such polygon uses the $\operatorname{arsinh}$ call of case B. By the code reading's hand trace, the signature `*222222` gives a single sheet of three corner pairs in case D, which uses no $\operatorname{arsinh}$ call. The port of `docs/research/symmhub.md` Section 6.9 agrees with the trace. Section 13.3, item 13, records what the construction needs beyond these formulas.
 
 ### 8.8. Pillow and Hat Formulas
 
@@ -721,15 +741,17 @@ The imaginary analogues use `cosh(x/2)` (lines 829 to 833 and 880 to 884). For t
 
 ### 8.9. Layout and Walls
 
-The vertices of each atom are placed in the Poincare disc by "turtle" moves, `poincareTurtleMove(last,current,angle,distance)` ([SYMMHUB] `lib/invlib/ComplexArithmetic.js:459` {C}). `useMirrorQ` (line 639 of `OrbifoldGeometrization.js`) marks which atom edges are real mirrors and which are `mirrorRedundant`.
+The vertices of each atom are placed in the Poincare disc by "turtle" moves, `poincareTurtleMove(last,current,angle,distance)` ([SYMMHUB] `lib/invlib/ComplexArithmetic.js:459` {C}). `useMirrorQ` (line 639 of `OrbifoldGeometrization.js`) marks which atom edges are real mirrors and which are `mirrorRedundant`. For the sheets of a kaleidoscope, `docs/research/symmhub.md` Section 6.4.1 gives each turtle move with its turn and length {C}. The interior angle at each vertex is the magnitude of the turn, and every sheet is counterclockwise, as the code reading inferred from the maps and a port of the code confirmed numerically (`docs/research/symmhub.md` Section 6.9).
 
 A cutting edge of a pillow can carry a "wall", a perpendicular half-plane defined by two extra points (comments at lines 770 and 811 to 860). The assembled domain may therefore be non-convex, and the wall tells the GPU loop which generator to apply.
 
 ### 8.10. Assembly
 
-`assembleFundamentalDomain` unfolds all atoms and welds them along open `tube` and `slice` attachments with `poincareMobiusEdgeToEdge([v1,v2],[w1,w2],shift)` ([SYMMHUB] `lib/invlib/ComplexArithmetic.js:472` {C}). For a tube, `shift` is the raw hyperbolic twist distance, applied as `transX = tanh(shift/2)`. Tube and slice edges vanish from the final polygon (lines 1305 to 1335 of `OrbifoldGeometrization.js`).
+`assembleFundamentalDomain` unfolds all atoms and welds them along open `tube` and `slice` attachments with `poincareMobiusEdgeToEdge([v1,v2],[w1,w2],shift)` ([SYMMHUB] `lib/invlib/ComplexArithmetic.js:472` {C}). For a tube, `shift` is the raw hyperbolic twist distance, applied as `transX = tanh(shift/2)`. Tube and slice edges vanish from the final polygon, a tube at lines 1301 to 1334 and a slice at lines 1335 to 1343 of `OrbifoldGeometrization.js`, with the splices themselves at lines 1332 to 1333 and 1340 to 1341.
 
-The code recentres the domain twice by moving the Euclidean centroid of its vertices to the origin, "to keep the domain from growing off into a numerically less stable regime, closer to the boundary of the Poincare disk" (line 1137). It then moves the domain by `(-.001,-.002)` into general position (lines 1351 to 1370).
+After each weld, the code recentres the domain twice by moving the Euclidean mean of its vertices to the origin, "to keep the domain from growing off into a numerically less stable regime, closer to the boundary of the Poincare disk" (lines 1136 to 1138 and 1351 to 1365). After the last weld it applies the map that takes the point `(-.001,-.002)` to the origin, for general position (lines 1370 to 1371).
+
+For a slice the `shift` is 0. The map sends the first end of the slice of the new sheet to the second end of the slice of the welded polygon and the reverse, and the code reading inferred from this that the sheet lands on the far side of the slice. The splice drops the two ends of the slice, the slice, and the edge after it, and keeps the edge before it in each polygon, which then runs on to the next vertex of the other polygon (`docs/research/symmhub.md` Section 6.5.1 {C}). The code reading inferred that the welded polygon has no vertex at the end of a slice, because both sheets have right angles there (Section 13.3, item 14).
 
 ### 8.11. Generators per Edge Type
 
@@ -743,6 +765,8 @@ The code recentres the domain twice by moving the Euclidean centroid of its vert
 | `conePair` | A half-turn `sPlanesOfRotation(point,PI)` at the point $q + dd \cdot e$ along $qr$, with `dd = d<-.25? d+1: d<.25? d+.5: d`. Only one of the two cone points gives a generator. |
 | `fold` | A half-turn at the midpoint of the edge |
 | `conePt` | No generator. The vertex angle encodes the cone point. |
+
+The code gives a `mirrorRedundant` edge a reflection like any other mirror and skips no edge. For a kaleidoscope, the splice of Section 8.10 drops the edge after each slice, so the generators are the $n$ reflections in the sides of the polygon, as the code reading inferred (`docs/research/symmhub.md` Section 8.1 {C}).
 
 The helpers are in `lib/invlib/ComplexArithmetic.js` ([SYMMHUB] {C}). `sPlaneSwapping(pt1,pt2)` (line 644) is the circle of inversion centred at `[(b*(AA-1)-a*(BB-1))/DD, (B*(AA-1)-A*(BB-1))/DD]`, with `AA=|pt1|^2`, `BB=|pt2|^2`, and `DD=AA-BB`. It becomes a line when `|DD| < 1e-7`. `sPlanesMovingEdge1ToEdge2` (line 789) tries a single reflection first and otherwise uses two swaps. Its comment at line 787 reads "NOTE: this is not correct if p1=q1".
 
@@ -759,9 +783,11 @@ The sliders are named `{key}_{i}_l` for lengths and `{key}_{i}_t` for twists ([S
 | Length | 0.3 to 4 | `lib/orbilib/WallPaperGroup_General.js:26-29` |
 | Twist | -0.5 to 0.5, for `handle`, `conePair`, and `tube` only | `lib/orbilib/WallPaperGroup_General.js:26-29` |
 | Initial length | `2 + 0.001*(random()-.5)` | `lib/orbilib/WallPaperGroup_General.js:266` |
-| Length when a key index exceeds `parCounts` | 1.1 | `lib/orbilib/OrbifoldGeometrization.js:626-627` |
+| Length when a key index exceeds `parCounts` | 1.1 | `lib/orbilib/OrbifoldGeometrization.js:625-627` |
 | Drag speed of a length | 0.005 | `lib/orbilib/OrbifoldUITool.js:61-69` |
 | Drag speed of a twist | 0.002 | `lib/orbilib/OrbifoldUITool.js:61-69` |
+
+The editing tool clamps a length to the range on a drag (`lib/orbilib/OrbifoldUITool.js:457`) and on a wheel step (line 487) {C}. A kaleidoscope has the parameters `slice_<i>_l` and `cornerPair_<k>_l` and no twist, and `docs/research/symmhub.md` Section 6.6.1 lists them for `*2223`, `*22222`, `*3333`, `*2345`, and `*23456` {C}.
 
 The three twist conventions differ ({C}). A tube twist is a raw distance. A handle twist is a fraction of the edge length, applied as `shift*getLength`. A cone-pair twist is a fraction wrapped by the `dd` formula of Section 8.11. A cross-cap carries a length, the full edge length, and no twist.
 
@@ -778,6 +804,9 @@ The code and its notes record these defects that affect the construction ([SYMMH
 - `poincareMobiusFromSplane` assumes that the splane preserves the unit disc, with the comment "THIS WILL NOT WORK IN GENERAL" (`lib/invlib/ComplexArithmetic.js:820`).
 - A reflection in a circle of very large radius loses precision, and the comment at `lib/invlib/ComplexArithmetic.js:519` advises keeping the construction in general position.
 - The twist conventions are inconsistent, as Section 8.13 states.
+- The swaps that put the corners of a sheet first reverse one sheet relative to the others, and the welded polygon then has the corner orders in another cyclic order (`lib/orbilib/OrbifoldGeometrization.js:538-543` and 553-567). `docs/research/symmhub.md` Section 6.8 states for which signatures this happens, with the counts of a port of the code.
+- The pairing of corners of order 2 does not wrap around, so `*2233` and `*2332`, which name one orbifold, get different parameters (`docs/research/symmhub.md` Section 6.2.1).
+- No sheet computes its last side or checks its closure, and no line checks that a sheet exists for its lengths (`docs/research/symmhub.md` Section 6.4.1). `docs/research/symmhub.md` Section 6.9 gives what a port of the code measured for lengths in 0.3 to 4, including the runs that failed the geometry check of the port near the boundary of the disc.
 
 ## 9. Explicit Simple Cases
 
@@ -826,9 +855,52 @@ A regular tiling $\{n, k\}$ is hyperbolic when "$2\pi n/k < (n - 2)\pi \iff 1/n 
 
 ### 9.4. Polygon Reflection Groups
 
-The signatures `*p1...pn` have $n - 3$ free parameters ([THURSTON2002] Theorem 13.8.1 {N}). [DAVIS2008] Example 6.5.3 {P} guarantees a convex realization in the hyperbolic plane whenever $\sum 1/m_i < m - 2$, and states that for $m > 3$ "there is a continuous family (moduli) of hyperbolic polygons with the same angles". Neither source gives coordinates for the family. SymmHub produces one by cutting the polygon with slices into sheets, with one length per slice (Section 8.5).
+The signatures `*p1...pn` have $n - 3$ free parameters ([THURSTON2002] Theorem 13.8.1 {N}). [THURSTON2002] p. 316 {P}, read in the text layer, states that the polygon orbifold with corner reflectors of orders $m_1, \dots, m_l$ "also can be decomposed into 'generalized triangles'", and that "the orbifold has hyperbolic structures (provided $\chi < 0$) parametrized by the lengths of the cuts, that is, $(\mathbb R^+)^{l-3}$", where this document writes a comma for the source's semicolon. Its Corollary 13.3.7, p. 318 {P}, gives the dimension $-3\chi(X_O) + 2k + l$ of the Teichmuller space, and a reader's substitution of $\chi(X_O) = 1$ and $k = 0$ for a disc with $l$ corner reflectors gives $l - 3$. [DAVIS2008] Example 6.5.3 {P} guarantees a convex realization in the hyperbolic plane whenever $\sum 1/m_i < m - 2$, and states that for $m > 3$ "there is a continuous family (moduli) of hyperbolic polygons with the same angles". No source read gives the vertices of the members of the family. SymmHub computes them by cutting the polygon with slices into sheets, with one length per slice and one per corner pair (Section 9.4.1).
 
 [BEARDON] Theorem 7.16.2, p. 155 {P}, reads: "Let $\theta_1, \dots, \theta_n$ be any ordered $n$-tuple with $0 \le \theta_j < \pi$, $j = 1, \dots, n$. Then there exists a polygon $P$ with interior angles $\theta_1, \dots, \theta_n$, occurring in this order around $\partial P$, if and only if $\theta_1 + \dots + \theta_n < (n - 2)\pi$." The proof, pp. 155 to 156, builds one convex polygon with an inscribed disc from $n$ quadrilaterals $Q_j$. Each $Q_j$ has a vertex at the origin, two sides of length $d$ from the origin that end in right angles, and the angle $\theta_j$ at its far vertex. The angle of $Q_j$ at the origin is $2\alpha_j$, with $\sin\alpha_j = \cos(\theta_j/2)/\cosh d$, (7.16.3), and the quadrilaterals close up when $\sum_j\alpha_j = \pi$, (7.16.2). The proof finds $d$ by the intermediate value theorem. The theorem states existence only, and the proof gives one member of the family. For a convex polygon with angles $\pi/m_j$, [RATCLIFFE] Theorem 13.5.2 (Section 4.10) applies to the reflections in its sides.
+
+#### 9.4.1. The Sheet and Slice Construction
+
+This subsection states SymmHub's construction of the polygon of `*p1...pn`, with $n \ge 4$ corners and without cone points, handles, or cross-caps, as steps for an implementer. Every step is {C}: it states what the code does and does not establish that the method is correct. `docs/research/symmhub.md` gives the line-level reading of each step, and its Section 6.8 traces the examples `*2223`, `*22222`, `*3333`, `*2345`, `*23456`, and `*45322`.
+
+1. Read the corners in the order of the signature. Replace each two consecutive corners of order 2, paired greedily from the left and without wrapping around, by one corner pair, a feature that stands for a mirror side of free length $\ell$ between two right angles (`docs/research/symmhub.md` Section 6.2.1).
+2. While more than three features remain, remove the last two, record them with a new slice as a sheet, and put the slice at the front of the list (`docs/research/symmhub.md` Section 6.3.1). The slice is a feature that stands for a geodesic segment of free length $\ell$, laid out in step 4 with a right angle at each end. That it is the common perpendicular of the two mirror sides that it joins is a reader's inference (Section 13.3, item 14).
+3. Record the last three features as the last sheet.
+4. Lay out each sheet as a generalized triangle whose vertices are its three features, with the corners first. A corner of order $m$ is a vertex with the angle $\pi/m$. A corner pair or a slice of length $\ell$ is a side of length $\ell$ with a right angle at each end. The side between two features has the length of Section 8.7, and the sheet is counterclockwise (`docs/research/symmhub.md` Sections 6.4.1 and 6.4.2). The code puts the corners first by exchanging two features, which causes the defect of Section 8.14. In a port of the code, a variant that puts the corners first by a cyclic rotation of the three features only, never by exchanging two, gave no wrong corner order and no failed geometry check over 47,641 signatures with four to eight corners, each with every length equal to 2 (`docs/research/symmhub.md` Sections 6.8 and 6.9). This is numeric evidence from a port, not a proof (Section 13.3, item 13).
+5. Weld the sheets along their slices, starting from the first sheet. For each slice, apply to the other sheet that holds that slice the orientation-preserving isometry that maps each end of its slice to the opposite end of the same slice in the welded polygon. Drop the slice, its ends, and the side after the slice in each polygon, and keep the side before it, which then runs on to the next vertex of the other polygon (`docs/research/symmhub.md` Section 6.5.1). That the side kept and the side dropped at each end lie on one geodesic is open (Section 13.3, item 14).
+6. Move the Euclidean mean of the vertices of the first sheet to the origin of the disc before any weld, do the same twice after each weld, and after the last weld apply the map that takes the point $(-0.001, -0.002)$ to the origin (`docs/research/symmhub.md` Section 6.5).
+7. Take the reflection in each side of the result as a generator (Section 8.11).
+
+A signature with $k$ corner pairs gives $n - k - 3$ slices and $n - k - 2$ sheets, and $n - 3$ lengths in all. As coded, step 4 can reverse the order of the features of one sheet, which changes the cyclic order of the corners of the result for the signatures that `docs/research/symmhub.md` Section 6.8 lists (Section 8.14). Step 1 gives one orbifold two parameter sets when its corners of order 2 meet across the end of the signature, as `*2233` and `*2332` do. The code checks neither the closure of a sheet nor the existence of the polygon for given lengths (Section 13.3, item 13).
+
+#### 9.4.2. What the Published Sources Establish
+
+The published sources establish these statements independently of SymmHub:
+
+| Statement | Source | Limit |
+| --- | --- | --- |
+| A convex polygon with the angles $\pi/m_j$ in a given order exists when $\sum 1/m_j < n - 2$ | [DAVIS2008] Example 6.5.3, p. 87, and [BEARDON] Theorem 7.16.2, p. 155 {P}, which admits any ordered angles $0 \le \theta_j < \pi$ with $\sum \theta_j < (n - 2)\pi$ | Existence only |
+| The reflections in the sides of such a polygon generate a discrete group, with the polygon as a strict fundamental domain | [DAVIS2008] Theorem 6.4.3 {P} (Section 4.5) | Applies to each polygon built, and gives no coordinates |
+| One polygon for each ordered set of angles, with an inscribed disc | The proof of [BEARDON] Theorem 7.16.2, pp. 155 to 156 {P} | One member of the family, with the distance $d$ found by the intermediate value theorem |
+| The structures of the polygon orbifold are parametrized by the lengths of the cuts into generalized triangles, $(\mathbb R^+)^{l-3}$, and one cut is omitted where two corners of order 2 meet, with an edge length as a parameter | [THURSTON2002] p. 316 {P} | The cut pattern of its figure was not compared with SymmHub's order of cuts. The text gives no formula for a vertex |
+| The deformation space has dimension $l - 3$ for a disc with $l$ corner reflectors | [THURSTON2002] Corollary 13.3.7, p. 318 {P}, with the reader's substitution of Section 9.4 | Dimension only |
+| A right-angled convex hexagon exists for any positive lengths of three alternate sides, and is unique up to congruence | [RATCLIFFE] Theorem 3.5.14, p. 100 {P} | The theorem states both. The book proves existence and leaves uniqueness as an exercise. That this covers every sheet of case D is a reader's reading |
+| A right-angled $m$-gon exists if and only if $m \ge 5$ | [DAVIS2008] Corollary 6.11.7, p. 115, and the corollary of [BEARDON] Theorem 7.16.2, p. 156 {P} | Covers the polygon of `*22222` and its relatives |
+
+Among the sources read, only SymmHub gives vertices for members of the family. It also gives an order of the cuts, the range 0.3 to 4 of the lengths, and the default length 2. All of these rest on code (gaps G3 and G4, Section 13.3, items 12 to 14).
+
+#### 9.4.3. Conventions of SymmHub's Construction
+
+These are facts about SymmHub, recorded so that a port does not carry a convention over by accident. Escher's own conventions are in its design documents.
+
+| Topic | SymmHub | Source |
+| --- | --- | --- |
+| Model | The Poincare disc, with points as complex numbers and isometries as Mobius maps that preserve the disc | `docs/research/symmhub.md` Sections 5.4 and 6.4.1 {C} |
+| Generators | A reflection in a circle or line of the disc, as one splane for each side | `docs/research/symmhub.md` Section 8.1 {C} |
+| Polygon lists | A vertex list and an edge list, with edge $i$ from vertex $i$ to vertex $i + 1$ | `docs/research/symmhub.md` Section 2.4, item 8 {C} |
+| Orientation and first vertex | Counterclockwise, with a first vertex that depends on the order of the welds, and the corners read clockwise in the order of the signature where no defect applies | `docs/research/symmhub.md` Sections 6.5.1 and 6.8 {C} |
+| Parameter names | `slice_<i>_l` and `cornerPair_<k>_l`, numbered in the order of the cuts and of the pairs | `docs/research/symmhub.md` Section 6.6.1 {C} |
+| Corner order of the input | Kept as typed, without a canonical rotation | `docs/research/symmhub.md` Section 6.2.1 {C} |
 
 ### 9.5. The 17 Euclidean Groups
 
@@ -1036,7 +1108,7 @@ This table lists the classes of Section 3 in the same order, with the gaps of Se
 | --- | --- | --- |
 | Reflection triangle groups `*pqr` | None | Fully sourced |
 | Rotation triangle groups `pqr` | None | The group, its generators, and its presentation are sourced. The convexity and the vertex cycles of the double of the reflection triangle as a fundamental domain are not (Section 13.3, item 11). |
-| Polygon reflection groups `*p1...pn` | G3 and G4 for coordinates of the whole family | Existence, discreteness, parameter count, and one polygon for each set of angles are sourced, including ideal corners. Coordinates of the other members are not. |
+| Polygon reflection groups `*p1...pn` | G3 for the two $\operatorname{arsinh}$ calls of the sheets, G4 for SymmHub's order of cuts | Existence, discreteness, parameter count, the parametrization by the lengths of the cuts, and one polygon for each set of angles are sourced, including ideal corners (Section 9.4.2). SymmHub's coordinates of the whole family are read line by line (Section 9.4.1) and rest on code. |
 | Orientable hyperbolic, no mirrors | G6 for a canonical polygon with coordinates or matrices, G11 for the twist convention | Generators are sourced, except for the choice of twist convention. One polygon is sourced, with its maps given by figures only. |
 | Mixed signatures with cone points and mirrors | G2, G3, G4, G8, and G1 where a cusp lies on a mirror | Only SymmHub code for the geometry. The polygon theorem that certifies it is sourced. |
 | Several mirror boundaries | G2, G3, G4, G15, and G1 where a cusp lies on a mirror | Only SymmHub code for the geometry. The polygon theorem that certifies it is sourced. |
@@ -1051,8 +1123,8 @@ This table lists the classes of Section 3 in the same order, with the gaps of Se
 
 - G1, Poincare's theorem for orientation-reversing groups: Sourced for the four cases of Section 4.7 by [EPSTEIN-PETRONIO1994] and [RATCLIFFE], with the hypotheses that Sections 4.7, 4.9, and 4.10 state. Two points stay open. The first is the test to run at an ideal point where a mirror ends at a cusp (Section 13.3, item 8). The second is the disagreement between [VOIGHT2009] and [BEARDON] on the element that fixes an ideal vertex (Section 12). Needed: a source or a machine-checked proof for each.
 - G2, matrices for pieces with mirrors and cross-caps: [MASKIT2001] covers orientable pieces only. Needed: an extension that uses the reflection matrices of [MASKIT2001] Section 4.3, and a gluing of one-sided geodesics by glide reflections. [NORBURY2006] {S} states that the gluing is antipodal with no twist. SymmHub's cap construction (Section 8.11) is the only explicit one, and it is unproven. [RATCLIFFE], [BEARDON], and [EPSTEIN-PETRONIO1994] give no such matrices. [RATCLIFFE] Example 5 of Section 9.2 is their only explicit pairing of a polygon for a non-orientable surface (Section 4.7). Candidate sources: [CHOI2012], [BUSER].
-- G3, the generalized law of cosines with imaginary angles: SymmHub's `edgeLength` mixes real angles with truncation lengths. Maskit's continuation $\lambda = i\pi/\alpha$ covers cone points inside pants matrices. [RATCLIFFE] and [BEARDON] state the triangle, quadrilateral, pentagon, and hexagon formulas of Section 9.3. No source read states a formula for the cases that `edgeLength` sends to $\operatorname{arcsinh}$, and that each $\operatorname{arccosh}$ case of `edgeLength` coincides with one of the formulas of Section 9.3 is a reader's reading, not a source statement. Needed: a source for the $\operatorname{arcsinh}$ cases and for the correspondence, or a machine-checked proof. Candidate source: [BUSER] Formula Glossary 2.2 to 2.4.
-- G4, Deaton's rules: Five of the nine cut types, the rules for cross-caps, cone pairs, and corners, and the claim that the twist appears in exactly three situations rest only on SymmHub. Candidate source: [DEATON1993].
+- G3, the generalized law of cosines with imaginary angles: SymmHub's `edgeLength` mixes real angles with truncation lengths. Maskit's continuation $\lambda = i\pi/\alpha$ covers cone points inside pants matrices. [RATCLIFFE] and [BEARDON] state the triangle, quadrilateral, pentagon, and hexagon formulas of Section 9.3. No source read states a formula for the cases that `edgeLength` sends to $\operatorname{arcsinh}$. That each $\operatorname{arccosh}$ case of `edgeLength` coincides with one of the formulas of Section 9.3 is a reader's reading, not a source statement. Needed: a source for the $\operatorname{arcsinh}$ cases and for the correspondence, or a machine-checked proof. Candidate source: [BUSER] Formula Glossary 2.2 to 2.4. For the sheets of a kaleidoscope, Section 8.7 names the two $\operatorname{arcsinh}$ calls, in cases B and C, and the published formulas whose form each $\operatorname{arccosh}$ call shares. The $\operatorname{arcsinh}$ call of case C has the form of a formula that rests on a secondary source only. A port of the code found every call of the sheets, the two $\operatorname{arcsinh}$ calls included, in agreement with an independent construction, to the differences that `docs/research/symmhub.md` Section 6.9 gives (Section 8.7). That is numeric evidence from a port and closes nothing.
+- G4, Deaton's rules: Five of the nine cut types, the rules for cross-caps, cone pairs, and corners, and the claim that the twist appears in exactly three situations rest only on SymmHub. Candidate source: [DEATON1993]. For a single kaleidoscope, [THURSTON2002] p. 316 states the decomposition into generalized triangles, the parametrization by the lengths of the cuts, and the omission of a cut where two corners of order 2 meet (Section 9.4.2). SymmHub's order of cuts, and that its slices and corner pairs are the cuts and edge lengths of that statement, rest on code (Section 13.3, item 12).
 - G5, termination of the greedy reduction: Section 10.7 states the gap. No source read states that repeated application of side pairings moves a point into the polygon, or in how many steps. [RATCLIFFE], [BEARDON], [EPSTEIN-PETRONIO1994], and [SYMMETRIES-OF-THINGS2008] were searched without result. Section 13.3, item 6, records a candidate argument for reflection groups. Needed: a termination argument for convex reflection domains and for general side-pairing polygons.
 - G6, geometry of the canonical Fricke polygon: The polygon with the edge word of equations (5.1) and (5.2), with elliptic and parabolic vertices. [VOIGHT2009] gives only the presentation and defers to [IMBERT2001]. [BEARDON] builds one polygon from the signature, with its maps given by figures only (Section 5.5), and [SINGERMAN1974] gives the combinatorial edge word for compact quotients (Section 5.6). Open: coordinates or matrices for the polygon with that edge word, and whether Beardon's polygon has it.
 - G7, Euclidean moduli: [VONGAGERN2009] p. 7 gives the counts for p2, pmm, pmg, pgg, and cmm. [SYMMETRIES-OF-THINGS2008] pp. 237 to 238 gives a rule and the counts one, one, one, and two for `**`, `*x`, `xx`, and `o` (Section 6.1). Neither source states whether a count includes the overall scale, and neither states the counts of the other Euclidean groups. Whether Thurston's formula extends to $\chi = 0$ is unverified. Candidate sources: [KULKARNI-LEE-RAYMOND1985], [SCOTT1983].
@@ -1080,6 +1152,9 @@ These statements appear in the research or in code, and no cited source states t
 9. For an integer $n \ge 2$, the lune of $S^2$ with the angle $\pi/n$ is a strict fundamental domain for the group generated by the reflections in its two sides, a dihedral group of order $2n$. [DAVIS2008] Theorem 6.4.3 requires a convex polytope, and a lune is not one in the sense of p. 75 by a reader's reading. Example 6.4.2 states the case of $S^1$ only, and the remark in the proof on cones that are not essential does not name $S^2$ or a lune (Section 4.5). A source that states it, or a Lean proof, would close it.
 10. For an integer $n \ge 2$, the lune of $S^2$ with the angle $2\pi/n$, whose two sides are paired with each other by the rotation through $2\pi/n$ about its vertices, is a fundamental domain for the cyclic group of order $n$ that this rotation generates. For $n = 2$ the lune is a hemisphere, and its two sides lie on one great circle. The lune is the union of the lune of item 9 and its image in one of its sides. The polygon theorems of Sections 4.9 and 4.10 require a convex polyhedron, and whether Definition 2.1 of [EPSTEIN-PETRONIO1994] and Theorem 4.14 with (k) admit a lune is not established, for the reason that item 9 gives. A source that states it, or a Lean proof, would close it.
 11. Let $P$ be a convex polygon in $H^2$, $E^2$, or $S^2$ whose angles are $\pi/m_j$, and let $R$ be the reflection in the wall of one of its sides, through its vertices $v$ and $w$. Then $P \cup R(P)$ is convex, its sides are the sides of $P$ and their images other than that side, with the side pairings $R R_s$ on a side $s$ of $P$ and $R_s R$ on its image, and its vertex cycles are $\{v\}$ with the angle $2\pi/m_v$, $\{w\}$ with the angle $2\pi/m_w$, and $\{u, R(u)\}$ for each other vertex $u$ with the angle sum $2\pi/m_u$. Where a side of $P$ meets that wall at a right angle, the side and its image lie on one geodesic and meet at a vertex of the angle $\pi$. [VONGAGERN2009] p. 12 states that the fundamental cells of p3, p4, and p6 "consist of two copies of the triangles" of the reflection groups (Section 9.5), and [MASKIT2001] Section 4.4 gives the rotation generators as products of two reflections (Section 4.4), but neither states the convexity of the union or its vertex cycles. [EPSTEIN-PETRONIO1994] Definition 2.8 admits a convex cell "whose proper faces may have been subdivided" (Section 4.9). That this definition covers a vertex of the angle $\pi$ that splits a side of the union is a reader's reading. A source that states the convexity and the cycles, or a Lean proof, would close it.
+12. SymmHub's slices of a kaleidoscope are cuts of the decomposition into generalized triangles that [THURSTON2002] p. 316 describes, and its corner pairs are the edge lengths that the same page makes parameters where two corners of order 2 meet, so that SymmHub's lengths are coordinates of the family $(\mathbb R^+)^{l-3}$ (Sections 8.4 and 9.4.1). The figure of that page was not compared with SymmHub's order of cuts. A comparison of the figure, a source on the cut pattern such as [DEATON1993], or a Lean proof would close it.
+13. For every choice of lengths of the slices and corner pairs in the range 0.3 to 4, each sheet of Section 9.4.1 exists and closes with the angle $\pi/m$ at each corner and right angles at the ends of each side of length $\ell$, and the welded polygon is convex, with the angles $\pi/p_j$ in the order of the signature. The code computes no last side of a sheet and checks none of this (`docs/research/symmhub.md` Section 6.4.1), and Section 8.14 records that the order fails for many signatures. A port of the code measured the closure of the sheets, the convexity and the angles of the polygons, and their order, on the signatures with four to eight corners and the lengths from 0.3 to 4 that `docs/research/symmhub.md` Sections 6.8 and 6.9 list, with the results and the failed checks given there. With the features of a sheet reordered by a cyclic rotation only (Section 9.4.1, step 4), it found the order right on all 47,641 signatures that it tried. That is numeric evidence from a port. The formulas of Section 8.7 and a source or a Lean proof for the existence of each sheet would close it.
+14. At each end of a welded slice, the side kept and the side dropped lie on one geodesic, so the welded polygon has no vertex there (Section 8.10). The code reading inferred this from the right angles at the ends of the slice in both sheets, which rest on item 13. A port of the code measured the angle at both ends of every welded slice that it built and found it equal to $\pi$ within the bound that `docs/research/symmhub.md` Section 6.9 gives. That is numeric evidence from a port. A source or a Lean proof would close it.
 
 ### 13.4. Sources Not Read in Full
 
@@ -1134,7 +1209,7 @@ The research did not record the titles of several secondary sources, so their en
 - [SYMMETRIES-OF-THINGS2008] Conway, J. H., Burgiel, H., and C. Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5. Read in Chapters 1 to 18 and Appendix A. Locators give printed pages.
 - [SYMMHUB] Bulatov, V., Goodman-Strauss, C., and S. Vorthmann, "SymmHub", source code, commit f2d19cb, MIT licence, 2025, <https://github.com/SymmHub/SymmHub>. Paths are relative to the root of the repository.
 - [TEGULA2020] Zeller, R., Delgado Friedrichs, O., and D. H. Huson, "Tegula - exploring a galaxy of two-dimensional periodic tilings", arXiv:2007.10625v1, 2020, <https://arxiv.org/abs/2007.10625>.
-- [THURSTON2002] Thurston, W. P., "The Geometry and Topology of Three-Manifolds", chapter 13, electronic version 1.1 of the 1980 notes, March 2002, <http://www.msri.org/publications/books/gt3m/>, chapter PDF <https://library.slmath.org/nonmsri/gt3m/PDF/13.pdf>.
+- [THURSTON2002] Thurston, W. P., "The Geometry and Topology of Three-Manifolds", chapter 13, electronic version 1.1 of the 1980 notes, March 2002, <http://www.msri.org/publications/books/gt3m/>, chapter PDF <https://library.slmath.org/nonmsri/gt3m/PDF/13.pdf>. Pages 311 to 318 of the chapter were read in the text layer for Section 9.4. Locators give printed pages.
 - [VOIGHT2009] Voight, J., "Computing fundamental domains for Fuchsian groups", Journal de Theorie des Nombres de Bordeaux 21, 2009, arXiv:0802.0196v4, <https://arxiv.org/abs/0802.0196>.
 - [VONGAGERN2009] von Gagern, M. and J. Richter-Gebert, "Hyperbolization of Euclidean Ornaments", Electronic Journal of Combinatorics 16(2), #R12, 2009.
 
