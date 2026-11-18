@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-16 |
+| Date | 2026-11-18 |
 | Applies to | Planning of Escher's features, rendering, export, and dependencies |
 
 ## Abstract
@@ -16,7 +16,7 @@ This document covers interactive tools, libraries, Rust crates, and computer alg
 
 It covers each tool only at the level that a planner needs to compare tools. The document `docs/research/symmhub.md` covers the source code of SymmHub in depth, and Section 4.1 keeps SymmHub at the same level as the other entries. This document states no mathematics that Escher implements. The definitions and algorithms belong to their own subject-matter references.
 
-All facts come from one research pass over public web pages, repositories, and registry metadata, with every source accessed on 2026-11-15. The exception is Dunham's 1986 paper [DUNHAM-1986], which was read in full on 2026-11-16 from a copy that the owner supplied, and which Section 10.2 cites with printed page numbers. Most page text came through a summarizing fetch tool, so a quotation is approximate unless it comes from source code or from API metadata. Licences, dates, file names, and the main capabilities rest on repository and API metadata. The research rated its overall confidence as medium, because several sources could not be read (Section 17).
+All facts come from one research pass over public web pages, repositories, and registry metadata, with every source accessed on 2026-11-15. The exception is Dunham's 1986 paper [DUNHAM-1986], which was read in full on 2026-11-16 from a copy that the owner supplied, and which Section 10.2 cites with printed page numbers. Deaton's thesis [DEATON] was read in full on 2026-11-18 from a scan that the owner supplied, and Section 4.1 cites it with printed page numbers. Most page text came through a summarizing fetch tool, so a quotation is approximate unless it comes from source code or from API metadata. Licences, dates, file names, and the main capabilities rest on repository and API metadata. The research rated its overall confidence as medium, because several sources could not be read (Section 17).
 
 ## 2. Notation and Conventions
 
@@ -73,7 +73,7 @@ Each entry in Sections 4 to 9 has these fields, in this order. A field about whi
 - Language: JavaScript and GLSL. It needs WebGL2 and an HTTP server [SYMMHUB-REPO].
 - Licence: MIT [SYMMHUB-LICENSE]. The research states that MIT is compatible with GPL-3.0, so Escher can reuse the code with attribution.
 - Latest activity: Created 2025-02-04, about 684 commits, no GitHub Releases, last push 2026-11-14, with commits by Bulatov on 2026-11-13 and 2026-11-14. Very actively maintained [SYMMHUB-API].
-- Design notes: The outline [SYMMHUB-OUTLINE], the orbifold-notation tutorial with "Two Dollars of Symmetry" and the Magic Theorem [SYMMHUB-NOTATION], the sublib README [SYMMHUB-SUBLIB], and Bulatov's talk "Reverse Pixel Mapping" at the Joint Mathematics Meetings (JMM) in 2024 [BULATOV-JMM2024]. The orbifold geometrization in `lib/orbilib/OrbifoldGeometrization.js` follows Deaton's unpublished Princeton senior thesis [DEATON]. The tutorial says "Deaton's construction is a small rewriting system on the notation itself" [SYMMHUB-NOTATION]. Goodman-Strauss describes the method as "chop everything into pairs of pants, and then halve those into right-angled hexagons" [GOODMAN-STRAUSS-GEOM]. `docs/research/symmhub.md` covers the code.
+- Design notes: The outline [SYMMHUB-OUTLINE], the orbifold-notation tutorial with "Two Dollars of Symmetry" and the Magic Theorem [SYMMHUB-NOTATION], the sublib README [SYMMHUB-SUBLIB], and Bulatov's talk "Reverse Pixel Mapping" at the Joint Mathematics Meetings (JMM) in 2024 [BULATOV-JMM2024]. The orbifold geometrization in `lib/orbilib/OrbifoldGeometrization.js` follows Deaton's unpublished Princeton senior thesis [DEATON]. The tutorial says "Deaton's construction is a small rewriting system on the notation itself" [SYMMHUB-NOTATION], and the thesis does write its nine cuts as rules on the notation (p. 20). The thesis describes its own program, `lafite`, "over 4000 lines of C code" that lets the user change the lengths and twists interactively (p. 31). No copy of `lafite` was found. `docs/research/fundamental-domains.md` Section 8.15 states what the thesis establishes and where SymmHub departs from it. Goodman-Strauss describes the method as "chop everything into pairs of pants, and then halve those into right-angled hexagons" [GOODMAN-STRAUSS-GEOM]. `docs/research/symmhub.md` covers the code.
 - Limitations: In SymSim, simple symmetrization works for only the 4 reflection groups `*2222`, `*632`, `*333`, and `*442` [BULATOV-JMM2024]. The Orbifold, Groups, and SymDraw apps are unfinished, and `apps/orbifold/bug list.txt` exists [SYMMHUB-REPO]. The research did not run the apps, so the user interface, the model choices, and the export buttons are unverified.
 
 ### 4.2. Vladimir Bulatov, Earlier Work
@@ -533,7 +533,7 @@ This table records each place where sources disagree, and how this document trea
 | Hypermine tiling method | "Hypermine by Ralith uses an approach based on Coxeter triangles and Knuth-Bendix procedure" [KOPCZYNSKI-2022] | `common/src/dodeca.rs` and `graph.rs` show explicit side reflections of the right dodecahedron, with no Knuth-Bendix found in those files [HYPERMINE] | The approach may have changed since 2022. Section 9.3 describes the current code. |
 | Isohedral type count of the Rust `tactile` crate | The C++ library supports 81 of 93 types (`csk::num_types` is 81) [TACTILE-CPP] | The documentation of the Rust crate calls `TilingType` "one of the 93 isohedral tiling types" [TACTILE-RS-DOCS] | Unverified whether the port exposes 81 or 93 types. |
 | Tegula and hyperbolic tilings | The README mentions only Euclidean and spherical tilings [TEGULA-REPO] | The manual and the project page confirm hyperbolic support in the Poincare and Klein models [TEGULA-MANUAL] | The manual is newer and more specific, so Section 7.2 follows it. |
-| Deaton's first name and thesis year | The SymmHub outline says "Derek Deaton's thesis" [SYMMHUB-OUTLINE]. The code header gives 1994 [SYMMHUB-REPO] | The tutorial and the code header say Adam Deaton. The tutorial gives 1993 and says the code header is wrong [SYMMHUB-NOTATION] | This document uses Adam Deaton and 1993, as the tutorial does. |
+| Deaton's first name and thesis year | The SymmHub outline says "Derek Deaton's thesis" [SYMMHUB-OUTLINE]. The code header gives 1994 [SYMMHUB-REPO] | The tutorial and the code header say Adam Deaton. The tutorial gives 1993 and says the code header is wrong [SYMMHUB-NOTATION] | Resolved. The title page of the thesis prints "Adam A. Deaton" and "Princeton, 1993" [DEATON], as the tutorial does. |
 | Tess rosette count and version | The 2006 listing says 11 rosette groups [TESS-INFOMAC] | Later search summaries say 24. Versions 1.74 and 1.75 are both cited (secondary) | Both claims stay unverified. |
 | Page count of *The Symmetries of Things* | OpenLibrary gives 426 pages | Routledge gives 444 or 448 pages [CBG-2008] | The page count is not used. |
 
@@ -563,7 +563,6 @@ These claims are unverified:
 These sources could not be read in full, and the claims that depend on them stay unverified. `docs/research/source-requests.md` records them, with what the project needs from each:
 
 - Von Gagern's PhD thesis [VONGAGERN-2014], blocked by a bot check.
-- Deaton's senior thesis [DEATON], unpublished. `lib/orbilib/OrbifoldGeometrization.js` in SymmHub stands in for it.
 - "Hyperbolization of Euclidean Ornaments" [VONGAGERN-2009], open access but too large to fetch.
 - Kaplan's PhD thesis [KAPLAN-THESIS] and his Bridges 2019 paper [KAPLAN-2019], whose PDFs the fetch tool could not read.
 - Kaplan's book [KAPLAN-2009], paywalled.
@@ -576,7 +575,7 @@ These sources could not be read in full, and the claims that depend on them stay
 - The Gavrog documentation [GAVROG] and Simon Tatham's tilings repository, which refused connections or returned HTTP 403.
 - *The Symmetries of Things* [CBG-2008], a printed book, of which the owner supplied a copy. That copy was read in part, and Chapters 19 to 26 were not read in depth. This document cites no page of it.
 
-Dunham's 1986 paper [DUNHAM-1986] was read in full from a copy that the owner supplied, and Section 10.2 cites it.
+Dunham's 1986 paper [DUNHAM-1986] was read in full from a copy that the owner supplied, and Section 10.2 cites it. Deaton's thesis [DEATON] was read in full from a scan that the owner supplied, and Section 4.1 cites it.
 
 ## 18. References
 
@@ -594,7 +593,7 @@ Every web source was accessed on 2026-11-15.
 - [COLOURSYM] Bulatov, V., colour symmetry catalogue GitHub repository, `https://github.com/vbulatov2011/colorsym-catalog`.
 - [CRATES-IO] crates.io registry metadata, retrieved through the crates.io API. The research recorded no per-crate URL.
 - [CURVEDSPACES] Weeks, J., "Curved Spaces", <https://www.geometrygames.org/CurvedSpaces/index.html>.
-- [DEATON] Deaton, A., "Hyperbolic Orbifolds and Patterns", Princeton senior thesis, 1993, unpublished, held at the Mudd Library.
+- [DEATON] Deaton, A. A., "Hyperbolic Orbifolds and Patterns", senior thesis, Princeton University, 1993, unpublished, held by the Department of Special Collections, Princeton University Library. Read in full from a scan, cited by printed page. `docs/research/fundamental-domains.md` Section 14.1 gives the offset to the PDF pages.
 - [DUNHAM-1986] Dunham, "Hyperbolic symmetry", Computers and Mathematics with Applications 12B(1/2):139-153, 1986, DOI 10.1016/0898-1221(86)90147-1. Read in full, cited by printed page.
 - [DUNHAM-PAPERS] Dunham, home page with Bridges papers, <https://www.d.umn.edu/~ddunham/>.
 - [ESCHERSKETCH-SF] "EscherSketch" SourceForge project, <https://sourceforge.net/projects/eschersketch/>.
