@@ -3,7 +3,7 @@ use core::f64::consts::PI;
 use escher_geometry::{euclidean, hyperbolic, spherical};
 use glam::{DMat3, DVec3};
 
-use crate::domain::{FundamentalDomain, Orientation, PairingKind, Plane};
+use crate::domain::{FundamentalDomain, Orientation, PairingKind, Plane, polygon_angle_limit};
 
 const ISOMETRY_TOLERANCE: f64 = 1e-9;
 const PAIRING_TOLERANCE: f64 = 1e-9;
@@ -256,20 +256,27 @@ impl Verification {
     /// Returns the check that each corner of order `n` has the angle `pi / n`.
     ///
     /// A vertex of a double where two corners of the domain that it doubles
-    /// meet has twice that angle. The residual is the largest absolute difference
-    /// between a measured angle and `pi / n`, or `2 pi / n` at such a vertex.
-    /// It is infinite when a vertex is not a point, when an angle is not
-    /// finite, in a hyperbolic domain when the angles of a triangle that
-    /// [`FundamentalDomain::corner_angles`] measures sum to `pi` or more,
-    /// which no triangle of the hyperbolic plane does, and in a spherical
-    /// domain when they sum to `pi` or less, which no triangle of the sphere
-    /// does.
+    /// meet has twice that angle. The residual is the largest absolute
+    /// difference between an angle that
+    /// [`FundamentalDomain::corner_angles`] measures and `pi / n`, or
+    /// `2 pi / n` at such a vertex.
+    ///
+    /// The residual is infinite in these cases:
+    ///
+    /// - A vertex is not a point, or an angle is not finite.
+    /// - In a hyperbolic domain, the angles of a triangle sum to `pi` or more,
+    ///   which no triangle of the hyperbolic plane does.
+    /// - In a hyperbolic domain with `m` vertices, five or more, the corner
+    ///   angles sum to `(m - 2) pi` or more, which no polygon of the
+    ///   hyperbolic plane does.
+    /// - In a spherical domain, the angles of a triangle sum to `pi` or less,
+    ///   which no triangle of the sphere does.
     #[must_use]
     pub fn angles(&self) -> Check {
         self.angles
     }
 
-    /// Returns the check that the domain agrees with the area of the
+    /// Returns the check that the area of the domain agrees with the
     /// signature.
     ///
     /// The area of a hyperbolic or spherical orbifold is `2 pi` times the
@@ -736,12 +743,16 @@ fn angles(domain: &FundamentalDomain) -> f64 {
             Plane::Spherical { .. } => sum > PI,
         }
     });
-    if !sum_fits {
+    let polygon = domain.polygon_angles();
+    let polygon_fits = polygon
+        .as_deref()
+        .is_none_or(|angles| angles.iter().sum::<f64>() < polygon_angle_limit(angles.len()));
+    if !(sum_fits && polygon_fits) {
         return f64::INFINITY;
     }
     largest(
-        domain
-            .angles()
+        polygon
+            .unwrap_or_else(|| domain.angles())
             .iter()
             .zip(&domain.corners)
             .map(|(angle, corner)| {
@@ -768,15 +779,21 @@ fn area(domain: &FundamentalDomain) -> f64 {
 mod tests {
     use core::f64::consts::PI;
 
-    use escher_geometry::hyperbolic::{covector, reflection, rotation};
+    use astro_float_num::BigFloat;
+    use escher_geometry::hyperbolic::{
+        covector, distance, from_disk, normalize_point, reflection, rotation, side, wall_through,
+    };
     use escher_geometry::{euclidean, spherical};
     use escher_signature::Signature;
-    use glam::DVec3;
+    use glam::{DVec2, DVec3};
 
-    use super::{Check, Verification, vertex_cycle};
-    use crate::domain::{Corner, FundamentalDomain, PairingKind, Plane, Side};
+    use super::{ANGLE_TOLERANCE, AREA_TOLERANCE, Check, Verification, vertex_cycle};
+    use crate::domain::{
+        Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side, triangle_angles,
+    };
     use crate::double::double;
     use crate::polygon::Polygon;
+    use crate::reference::{Reference, Worst, add, div, error, int, mul, num, sqrt, sub};
     use crate::shared::{built, signature};
     use crate::triangle::{Shape, Supported, construct, supported};
 
@@ -1686,5 +1703,386 @@ mod tests {
             tolerance: 1e-9,
         };
         assert!(!check.passed());
+    }
+
+    const REGULAR_CORNERS: [u32; 4] = [5, 6, 7, 8];
+
+    const REGULAR_ORDERS: [u32; 6] = [2, 3, 4, 7, 12, 1000];
+
+    const POLYGON_ANGLE_BOUND: f64 = 1e-14;
+
+    const POLYGON_AREA_BOUND: f64 = 4e-14;
+
+    const DOUBLE_ANGLE_BOUND: f64 = 4e-12;
+
+    const DOUBLE_AREA_BOUND: f64 = 1e-11;
+
+    const FLAT_VERTEX_BOUND: f64 = 4e-14;
+
+    const REGULAR_POLYGON_VERTICES: usize = 156;
+
+    const REGULAR_DOUBLE_VERTICES: usize = 264;
+
+    fn size(corners: u32) -> usize {
+        match usize::try_from(corners) {
+            Ok(size) => size,
+            Err(error) => panic!("{corners} corners do not fit in memory: {error}"),
+        }
+    }
+
+    fn polygon_from_vertices(vertices: Vec<DVec3>, orders: &[u32], area: f64) -> FundamentalDomain {
+        let centre = match normalize_point(vertices.iter().copied().sum()) {
+            Ok(centre) => centre,
+            Err(error) => panic!("the vertices have no centre: {error}"),
+        };
+        let count = vertices.len();
+        let sides = (0..count)
+            .map(|index| {
+                let (start, end) = (vertices[(index + count - 1) % count], vertices[index]);
+                let wall = match wall_through(start, end) {
+                    Ok(wall) => wall,
+                    Err(error) => panic!("side {index} has no wall: {error}"),
+                };
+                let normal = if side(covector(wall), centre) > 0.0 {
+                    -wall
+                } else {
+                    wall
+                };
+                Side {
+                    normal,
+                    covector: covector(normal),
+                    pairing: reflection(normal),
+                    partner: index,
+                    kind: PairingKind::Mirror,
+                    orientation: Orientation::Reversing,
+                }
+            })
+            .collect();
+        FundamentalDomain {
+            plane: Plane::Hyperbolic { area },
+            corners: orders.iter().copied().map(Corner::single).collect(),
+            sides,
+            vertices,
+            centre,
+        }
+    }
+
+    fn polygon_area(orders: &[u32]) -> f64 {
+        orders
+            .iter()
+            .fold(-2.0 * PI, |area, order| area + PI - PI / f64::from(*order))
+    }
+
+    fn regular(corners: u32, order: u32) -> FundamentalDomain {
+        let (half_centre, half_corner) = (PI / f64::from(corners), PI / f64::from(2 * order));
+        let radius = ((half_centre + half_corner).cos() / (half_centre - half_corner).cos()).sqrt();
+        let vertices = (0..corners)
+            .map(|index| {
+                let turn = 2.0 * PI * f64::from(index) / f64::from(corners);
+                match from_disk(DVec2::from_angle(turn) * radius) {
+                    Some(vertex) => vertex,
+                    None => panic!("vertex {index} of {corners} corners lies outside the disk"),
+                }
+            })
+            .collect();
+        let orders = vec![order; size(corners)];
+        polygon_from_vertices(vertices, &orders, polygon_area(&orders))
+    }
+
+    struct ExactPolygon {
+        domain: FundamentalDomain,
+        angle: BigFloat,
+        area: BigFloat,
+    }
+
+    fn exact_regular(reference: &mut Reference, corners: u32, order: u32) -> ExactPolygon {
+        let pi = reference.pi();
+        let half_centre = div(&pi, &int(corners));
+        let angle = div(&pi, &int(order));
+        let half_corner = div(&angle, &int(2));
+        let radius = sqrt(&div(
+            &reference.cos(&add(&half_centre, &half_corner)),
+            &reference.cos(&sub(&half_centre, &half_corner)),
+        ));
+        let square = mul(&radius, &radius);
+        let scale = div(&int(1), &sub(&int(1), &square));
+        let twice_radius = mul(&mul(&int(2), &radius), &scale);
+        let height = mul(&add(&int(1), &square), &scale);
+        let vertices = (0..corners)
+            .map(|index| {
+                let turn = div(&mul(&mul(&int(2), &pi), &int(index)), &int(corners));
+                let x = mul(&twice_radius, &reference.cos(&turn));
+                let y = mul(&twice_radius, &reference.sin(&turn));
+                DVec3::new(
+                    reference.approximate(&x),
+                    reference.approximate(&y),
+                    reference.approximate(&height),
+                )
+            })
+            .collect();
+        let area = sub(&mul(&int(corners - 2), &pi), &mul(&int(corners), &angle));
+        let orders = vec![order; size(corners)];
+        let domain = polygon_from_vertices(vertices, &orders, reference.approximate(&area));
+        ExactPolygon {
+            domain,
+            angle,
+            area,
+        }
+    }
+
+    fn doubled(polygon: &FundamentalDomain) -> FundamentalDomain {
+        let Plane::Hyperbolic { area } = polygon.plane else {
+            panic!("the polygon is not hyperbolic");
+        };
+        match double(polygon, Plane::Hyperbolic { area: 2.0 * area }) {
+            Ok(domain) => domain,
+            Err(error) => panic!("the polygon has no double: {error}"),
+        }
+    }
+
+    fn regular_name(corners: u32, order: u32) -> String {
+        let corner = if order < 10 {
+            order.to_string()
+        } else {
+            format!("({order})")
+        };
+        format!("*{}", corner.repeat(size(corners)))
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+    )]
+    fn regular_polygons_have_the_reference_angles_and_area() {
+        let mut reference = Reference::new();
+        let count = REGULAR_CORNERS.len() * REGULAR_ORDERS.len();
+        let mut angles = Worst::new(
+            "regular polygon corner angle, absolute error",
+            REGULAR_POLYGON_VERTICES,
+        );
+        let mut areas = Worst::new("regular polygon area, absolute error", count);
+        let mut check_5 = Worst::new("regular polygon residual of check 5", count);
+        let mut check_6 = Worst::new("regular polygon residual of check 6", count);
+        for corners in REGULAR_CORNERS {
+            for order in REGULAR_ORDERS {
+                let name = regular_name(corners, order);
+                let exact = exact_regular(&mut reference, corners, order);
+                let measured = exact.domain.corner_angles();
+                assert_eq!(measured.len(), size(corners), "{name}");
+                for (vertex, angle) in measured.into_iter().enumerate() {
+                    angles.record(&error(angle, &exact.angle), &int(1), || {
+                        format!("{name} vertex {vertex}")
+                    });
+                }
+                areas.record(&error(exact.domain.area(), &exact.area), &int(1), || {
+                    name.clone()
+                });
+                let verification = exact.domain.verify();
+                assert!(failed(&verification).is_empty(), "{name}: {verification:?}");
+                check_5.record(&num(verification.angles().residual()), &int(1), || {
+                    name.clone()
+                });
+                check_6.record(&num(verification.area().residual()), &int(1), || {
+                    name.clone()
+                });
+            }
+        }
+        angles.assert_at_most(&mut reference, POLYGON_ANGLE_BOUND);
+        areas.assert_at_most(&mut reference, POLYGON_AREA_BOUND);
+        check_5.assert_at_most(&mut reference, ANGLE_TOLERANCE);
+        check_6.assert_at_most(&mut reference, AREA_TOLERANCE);
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+    )]
+    fn doubles_of_regular_polygons_have_the_reference_angles_and_area() {
+        let mut reference = Reference::new();
+        let count = REGULAR_CORNERS.len() * REGULAR_ORDERS.len();
+        let mut angles = Worst::new(
+            "doubled polygon corner angle, absolute error",
+            REGULAR_DOUBLE_VERTICES,
+        );
+        let mut areas = Worst::new("doubled polygon area, absolute error", count);
+        let mut check_5 = Worst::new("doubled polygon residual of check 5", count);
+        let mut check_6 = Worst::new("doubled polygon residual of check 6", count);
+        for corners in REGULAR_CORNERS {
+            for order in REGULAR_ORDERS {
+                let name = regular_name(corners, order);
+                let exact = exact_regular(&mut reference, corners, order);
+                let domain = doubled(&exact.domain);
+                let measured = domain.corner_angles();
+                assert_eq!(measured.len(), 2 * size(corners) - 2, "{name}");
+                for (vertex, (angle, corner)) in
+                    measured.into_iter().zip(&domain.corners).enumerate()
+                {
+                    let expected = mul(&int(corner.copies), &exact.angle);
+                    angles.record(&error(angle, &expected), &int(1), || {
+                        format!("double of {name} vertex {vertex}")
+                    });
+                }
+                areas.record(
+                    &error(domain.area(), &mul(&int(2), &exact.area)),
+                    &int(1),
+                    || format!("double of {name}"),
+                );
+                let verification = domain.verify();
+                let failures = failed(&verification);
+                if order == 1000 {
+                    assert!(
+                        failures.iter().all(|check| *check == "relators"),
+                        "double of {name}: {verification:?}"
+                    );
+                    if !failures.is_empty() {
+                        println!("double of {name} fails: {verification:?}");
+                    }
+                } else {
+                    assert!(failures.is_empty(), "double of {name}: {verification:?}");
+                }
+                check_5.record(&num(verification.angles().residual()), &int(1), || {
+                    format!("double of {name}")
+                });
+                check_6.record(&num(verification.area().residual()), &int(1), || {
+                    format!("double of {name}")
+                });
+            }
+        }
+        angles.assert_at_most(&mut reference, DOUBLE_ANGLE_BOUND);
+        areas.assert_at_most(&mut reference, DOUBLE_AREA_BOUND);
+        check_5.assert_at_most(&mut reference, ANGLE_TOLERANCE);
+        check_6.assert_at_most(&mut reference, AREA_TOLERANCE);
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+    )]
+    fn frame_angle_at_a_flat_vertex_is_pi() {
+        let mut reference = Reference::new();
+        let pi = reference.pi();
+        let mut framed = Worst::new("flat vertex in its frame, absolute error", 8);
+        let mut arccosine = (0.0, String::new());
+        for corners in REGULAR_CORNERS {
+            let name = regular_name(corners, 2);
+            let domain = doubled(&exact_regular(&mut reference, corners, 2).domain);
+            let count = domain.vertices.len();
+            let angles = domain.corner_angles();
+            for vertex in [0, size(corners) - 1] {
+                let place = || format!("double of {name} vertex {vertex}");
+                assert_eq!(domain.corners[vertex].copies, 2, "{}", place());
+                framed.record(&error(angles[vertex], &pi), &int(1), place);
+                let corner = [
+                    domain.vertices[vertex],
+                    domain.vertices[(vertex + 1) % count],
+                    domain.vertices[(vertex + count - 1) % count],
+                ];
+                let Some([plain, _, _]) = triangle_angles(domain.plane, corner) else {
+                    panic!("{} has no law of cosines", place());
+                };
+                let plain_error = reference.approximate(&error(plain, &pi));
+                if plain_error > arccosine.0 {
+                    arccosine = (plain_error, place());
+                }
+            }
+        }
+        framed.assert_at_most(&mut reference, FLAT_VERTEX_BOUND);
+        println!(
+            "flat vertex by the law of cosines, absolute error: largest error {:.3e}, at {}",
+            arccosine.0, arccosine.1
+        );
+    }
+
+    #[test]
+    fn verify_reports_an_infinite_angle_residual_for_a_pentagon_with_the_angle_sum_three_pi() {
+        let vertices = [0.0, 0.1, 0.2, 0.3, 0.4]
+            .map(|x| match from_disk(DVec2::new(x, 0.0)) {
+                Some(vertex) => vertex,
+                None => panic!("{x} lies outside the disk"),
+            })
+            .to_vec();
+        let degenerate = polygon_from_vertices(vertices, &[3; 5], polygon_area(&[3; 5]));
+        let angles = degenerate.corner_angles();
+        assert_eq!(angles, [0.0, PI, PI, PI, 0.0]);
+        assert_eq!(degenerate.verify().angles().residual(), f64::INFINITY);
+    }
+
+    fn pentagons_and_hexagon() -> [FundamentalDomain; 3] {
+        [regular(5, 3), regular(5, 2), regular(6, 4)]
+    }
+
+    #[test]
+    fn verify_passes_on_regular_polygons_and_their_doubles() {
+        for polygon in pentagons_and_hexagon() {
+            for domain in [doubled(&polygon), polygon] {
+                let verification = domain.verify();
+                assert!(
+                    failed(&verification).is_empty(),
+                    "{:?}: {verification:?}",
+                    domain.corners
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_regular_polygon_with_a_corner_order_off_by_one() {
+        for polygon in [regular(5, 3), regular(6, 4)] {
+            for corner in 0..polygon.corners.len() {
+                let mut corrupted = polygon.clone();
+                corrupted.corners[corner].order += 1;
+                let orders: Vec<u32> = corrupted
+                    .corners
+                    .iter()
+                    .map(|corner| corner.order)
+                    .collect();
+                corrupted.plane = Plane::Hyperbolic {
+                    area: polygon_area(&orders),
+                };
+                let defect = format!("order of corner {corner} raised by 1");
+                assert_failed(&corrupted, &["relators", "angles", "area"], &defect);
+                println!("{defect} on {orders:?}: {:?}", corrupted.verify());
+            }
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_regular_polygon_with_a_vertex_moved_toward_the_centre() {
+        let step = 1e-3;
+        for mut corrupted in pentagons_and_hexagon() {
+            let (vertex, centre) = (corrupted.vertices[2], corrupted.centre);
+            let length = distance(vertex, centre);
+            corrupted.vertices[2] =
+                ((length - step).sinh() * vertex + step.sinh() * centre) / length.sinh();
+            assert_failed(
+                &corrupted,
+                &["pairings", "walls", "angles", "area"],
+                "vertex 2 moved toward the centre",
+            );
+            println!(
+                "vertex 2 moved toward the centre on {:?}: {:?}",
+                corrupted.corners,
+                corrupted.verify()
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_regular_polygon_with_its_last_vertex_removed() {
+        for mut corrupted in pentagons_and_hexagon() {
+            corrupted.vertices.pop();
+            assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "last vertex removed");
+        }
+    }
+
+    #[test]
+    fn verify_reports_infinite_residuals_for_a_nan_polygon_vertex() {
+        for mut corrupted in pentagons_and_hexagon() {
+            corrupted.vertices[1].x = f64::NAN;
+            assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "NaN vertex");
+        }
     }
 }

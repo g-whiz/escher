@@ -104,7 +104,10 @@ impl Plane {
     }
 }
 
-fn triangle_angles(plane: Plane, [first, second, third]: [DVec3; 3]) -> Option<[f64; 3]> {
+pub(crate) fn triangle_angles(
+    plane: Plane,
+    [first, second, third]: [DVec3; 3],
+) -> Option<[f64; 3]> {
     let distance = match plane {
         Plane::Hyperbolic { .. } => hyperbolic::distance,
         Plane::Spherical { .. } => spherical::distance,
@@ -363,24 +366,40 @@ impl FundamentalDomain {
     /// Returns the interior angle at each vertex in radians, in vertex
     /// order.
     ///
+    /// An angle measured once lies in the interval from 0 to pi. An angle that
+    /// is the sum of two measured angles, as described below, lies in the
+    /// interval from 0 to 2 pi. At a vertex of a double where two corners of
+    /// the domain that it doubles meet, the angle is twice that of one corner,
+    /// so it is `pi` for a corner of order 2.
+    ///
     /// For a hyperbolic or spherical triangle, each angle is measured from the
     /// three side lengths by the law of cosines of its geometry. A hyperbolic
-    /// or spherical domain with four vertices, the double of a triangle, is
-    /// split along the diagonal from vertex 0 to vertex 2 into two triangles,
-    /// each measured in this way, and the angle at vertex 0 or vertex 2 is the
-    /// sum of its angles in the two triangles. For a Euclidean domain, each
-    /// angle is measured from the directions of the two sides at the vertex.
+    /// or spherical domain with four vertices, such as the double of a
+    /// triangle, is split along the diagonal from vertex 0 to vertex 2 into two
+    /// triangles, each measured in this way, and the angle at vertex 0 or
+    /// vertex 2 is the sum of its angles in the two triangles.
+    ///
+    /// For a hyperbolic domain with five or more vertices, each angle is
+    /// measured in the frame of its vertex, the isometry that moves the vertex
+    /// to the origin. It is the two-argument arctangent of the first two
+    /// coordinates of the two neighbours of the vertex in that frame. This
+    /// holds at every vertex, including a vertex of a double where two corners
+    /// of the domain that it doubles meet, whose angle can be pi.
+    ///
+    /// For a Euclidean domain, each angle is measured from the directions of
+    /// the two sides at the vertex.
+    ///
     /// The two vertices of a lune or of its double do not fix its sides, so
-    /// both of its angles are measured instead from the unit normals `u0` and
-    /// `u1` of its two walls: for a lune as the inverse cosine of `-u0 . u1`,
-    /// and for its double, whose angle can be pi, where the inverse cosine
-    /// magnifies a rounding error of the normals, as the two-argument
-    /// arctangent of the length of `u0 x u1` and `-u0 . u1`. Each angle lies
-    /// in the interval from 0 to pi. A vertex of a double where two
-    /// corners of the domain that it doubles meet has twice the angle of one
-    /// corner, which is `pi` for a corner of order 2. A hyperbolic domain that
-    /// has neither three nor four vertices, and a spherical domain that has
-    /// neither two, three, nor four, gives NaN for every angle.
+    /// both of its angles are measured from the unit normals `u0` and `u1` of
+    /// its two walls. For a lune it is the inverse cosine of `-u0 . u1`. For
+    /// its double it is the two-argument arctangent of the length of `u0 x u1`
+    /// and `-u0 . u1`, because its angle can be `pi`, where the inverse cosine
+    /// magnifies a rounding error of the normals.
+    ///
+    /// Every angle is NaN for a hyperbolic domain with fewer than three
+    /// vertices and for a spherical domain whose number of vertices is not
+    /// two, three, or four. An angle of a Euclidean domain is NaN when a neighbour of
+    /// its vertex coincides with the vertex.
     #[must_use]
     pub fn corner_angles(&self) -> Vec<f64> {
         self.angles()
@@ -388,15 +407,23 @@ impl FundamentalDomain {
 
     /// Returns the area of the domain.
     ///
-    /// For a hyperbolic triangle it is pi minus the sum of its corner angles, in
-    /// the metric of curvature -1. For a Euclidean domain it is the area that
-    /// the vertices enclose. For a spherical triangle it is the sum of its
-    /// corner angles minus pi, and for a lune or its double twice its angle,
-    /// each in the metric of the unit sphere. For a hyperbolic or spherical
-    /// domain with four vertices, it is the sum of the areas of the two
-    /// triangles that [`corner_angles`](FundamentalDomain::corner_angles)
-    /// measures. It is NaN for a domain whose angles that method gives as
-    /// NaN.
+    /// A hyperbolic area is in the metric of curvature -1, and a spherical one
+    /// is in the metric of the unit sphere.
+    ///
+    /// For a hyperbolic triangle it is pi minus the sum of its corner angles.
+    /// For a spherical triangle it is the sum of its corner angles minus pi.
+    /// For a hyperbolic or spherical domain with four vertices, it is the sum
+    /// of the areas of the two triangles that
+    /// [`corner_angles`](FundamentalDomain::corner_angles) measures. For a
+    /// hyperbolic domain with `m` vertices, five or more, it is `(m - 2) pi`
+    /// minus the sum of its corner angles, in which a vertex where two corners
+    /// of a doubled domain meet counts with its whole angle. For a lune or its
+    /// double it is twice its angle. For a Euclidean domain it is the area that
+    /// the vertices enclose.
+    ///
+    /// The area is NaN for a hyperbolic domain with fewer than three vertices
+    /// and for a spherical domain that has neither two, three, nor four
+    /// vertices.
     #[must_use]
     pub fn area(&self) -> f64 {
         match self.plane {
@@ -405,7 +432,9 @@ impl FundamentalDomain {
                 [[first, second, third], [fourth, fifth, sixth]] => {
                     (PI - first - second - third) + (PI - fourth - fifth - sixth)
                 }
-                _ => f64::NAN,
+                _ => self.polygon_angles().map_or(f64::NAN, |angles| {
+                    polygon_angle_limit(angles.len()) - angles.iter().sum::<f64>()
+                }),
             },
             Plane::Spherical { .. } => match self.triangles()[..] {
                 [[first, second, third]] => first + second + third - PI,
@@ -565,6 +594,9 @@ impl FundamentalDomain {
     }
 
     pub(crate) fn angles(&self) -> Vec<f64> {
+        if let Some(angles) = self.polygon_angles() {
+            return angles;
+        }
         let count = self.vertices.len();
         match self.plane {
             Plane::Hyperbolic { .. } | Plane::Spherical { .. } => {
@@ -604,6 +636,35 @@ impl FundamentalDomain {
                 .collect(),
         }
     }
+
+    pub(crate) fn polygon_angles(&self) -> Option<Vec<f64>> {
+        let v = &self.vertices;
+        let count = v.len();
+        if count < 5 || !matches!(self.plane, Plane::Hyperbolic { .. }) {
+            return None;
+        }
+        Some(
+            (0..count)
+                .map(|vertex| {
+                    frame_angle(
+                        v[vertex],
+                        v[(vertex + 1) % count],
+                        v[(vertex + count - 1) % count],
+                    )
+                })
+                .collect(),
+        )
+    }
+}
+
+pub(crate) fn polygon_angle_limit(count: usize) -> f64 {
+    u32::try_from(count.saturating_sub(2)).map_or(f64::NAN, f64::from) * PI
+}
+
+fn frame_angle(vertex: DVec3, next: DVec3, previous: DVec3) -> f64 {
+    let frame = hyperbolic::inverse(hyperbolic::translation(vertex));
+    let (first, second) = ((frame * next).truncate(), (frame * previous).truncate());
+    first.perp_dot(second).abs().atan2(first.dot(second))
 }
 
 /// One side of a [`FundamentalDomain`], with its wall and its pairing

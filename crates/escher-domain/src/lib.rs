@@ -79,6 +79,14 @@ extern crate self as escher_domain;
 #[path = "../tests/domain/shared.rs"]
 mod shared;
 
+#[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "the unit tests of the crate use only a part of the reference arithmetic"
+)]
+#[path = "../tests/domain/reference.rs"]
+mod reference;
+
 pub use domain::{FundamentalDomain, Orientation, PairingKind, Side};
 pub use error::{Error, ErrorKind, Result};
 pub use parameters::{ParameterSpec, ShapeParameters, parameters};
