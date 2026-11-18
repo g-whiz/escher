@@ -137,7 +137,7 @@ Some milestones need material that a research document must supply first: a step
 | Label | Adds | To | From | Before |
 | --- | --- | --- | --- | --- |
 | RP-1 | A step-level account of Todd-Coxeter coset enumeration, of the low-index subgroup search, and of Reidemeister-Schreier rewriting, with SymmHub's implementation and worked examples | `colourings.md` 7.8 to 7.21, and `symmhub.md` 12.8 | The sources that `colourings.md` 7.8 lists, with a line-level reading of SymmHub's `lib/sublib/src/sublib_core.js` and `reidemeister.js`. `symmhub.md` 17 item 8 records which files were read line by line | M7 |
-| RP-2 | The geometry of the functions of SymmHub's `lib/orbilib/WallpaperGroups_NonNegative.js`, of which the research holds little beyond names | `fundamental-domains.md` 9.5 and 9.6, and `symmhub.md` 7.1 | SymmHub source code | M10, M11 |
+| RP-2 | The geometry of the functions of SymmHub's `lib/orbilib/WallpaperGroups_NonNegative.js`, of which the research holds little beyond names | `fundamental-domains.md` 9.5 and 9.6. The line-level reading, worked examples, defects, and a numeric check by a port are in `symmhub.md` 7.1.1 to 7.1.9 and 15.3, and the construction as steps for an implementer, with what the published sources establish, in `fundamental-domains.md` 8.14, 9.5.1 to 9.5.3, and 9.6.1 to 9.6.3 | SymmHub source code, with [CH], [TH], [VONGAGERN2009], [CBG], [RATCLIFFE], and [BEARDON] for what the sources establish. `symmhub.md` 17 items 8, 14, and 15 record which lines were read and what the port tried | M10, M11 |
 | RP-3 | `atomizeOrbifold`, the twelve `unfoldAtom` cases, the weld, the walls, and `produceGenerators` at line level (gap G4) | `fundamental-domains.md` 8, and `symmhub.md` 6. The sheet and slice part for `*p1...pn` is in `symmhub.md` 6.2.1 to 6.9, 8.1, and 15.3, and in `fundamental-domains.md` 8.4 to 8.14 and 9.4.1 to 9.4.3 | SymmHub source code, with [TH] pp. 311 to 318, [BEARDON], [RATCLIFFE], and [DAVIS] for the sheet and slice part. `symmhub.md` 17 item 8 records which lines were read | M15. Its sheet and slice part comes before M9 |
 | RP-4 | `Group_Frieze`, and the ideal corners of the triangle groups and their rotation subgroups that M18 renders | `fundamental-domains.md` and `symmhub.md` | SymmHub source code | M18 |
 | RP-5 | What [CH] pp. 255 to 257 states for a boundary without corners (`orbifold-notation.md` 12 item 14), and the clearing of the rows of `source-requests.md` 7, "Obtained Since" | `orbifold-notation.md` 9.1 and 12, and `source-requests.md` | [CH], which is held locally | No milestone. It may run at any time |
@@ -646,7 +646,7 @@ escher render o --set skew=0.25 -o p1.png
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** The catalogue has known wrong entries (`2222`, `2*22`, `22*`), so each construction is designed and verified here and not ported blindly.
+**Risks.** The catalogue has known wrong entries: `22*` and `2*22` reach spherical functions, `**` and `*2222` ignore their parameter, and the half-turns of `2222` do not map its vertical sides onto sides when its twist is not 0 (`symmhub.md` 7.1.7). Each construction is therefore designed and verified here and not ported blindly.
 
 **Split.** By family: translations and glides, then the groups with half-turns, then the kites.
 
@@ -675,7 +675,7 @@ escher render '5x' -o s10.png
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Degenerate domains, and the view for them.
+**Risks.** Degenerate domains, and the view for them. The catalogue gives no domain for `1`, because its parser rejects the order 1 (`symmhub.md` 7.1.1), so the domain of `1` has no code to compare with.
 
 ### 5.12. M12: Half-Plane, Band, and Klein Models
 
@@ -914,7 +914,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-8 | The cap generator is a glide reflection that, with the other side pairings, meets the hypotheses of the polygon theorems of `fundamental-domains.md` 4.9 and 4.10 | Gap G2, `fundamental-domains.md` 13.3 item 2 | M10, M16 | [CHOI2012], [BUSER] |
 | UNV-9 | The twist convention | Gap G11 | M10, M15, M16 | A project convention |
 | UNV-10 | Euclidean parameter counts: whether a count includes the scale, and the counts of the groups for which no source states one. The counts and the rule that are sourced are in `orbifold-notation.md` 10.2 and `fundamental-domains.md` 6.1 | Gap G7, `orbifold-notation.md` 12 item 7 | M4, M10 | [KLR], [SCOTT], or Lean |
-| UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7) | Gap G8, `fundamental-domains.md` 9.7 | M10, M11, M15 | A source that constructs them, or Lean |
+| UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7) | Gap G8, `fundamental-domains.md` 9.7, and for the Euclidean and spherical groups 9.5.2, 9.6.2, and 13.3 items 15 and 16 | M10, M11, M15 | A source that constructs them, or Lean |
 | UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5, and the spherical law of cosines solved for a side, Theorem 2.5.4 of [RATCLIFFE], is in `geometry-models.md` 11.3 | `geometry-models.md` 10.5, 10.6, 15.1 items 12 and 14, and 15.2 | None. The construction of M9 does not use it (`DEC-46`) | Chapter 2 of [BUSER], or Lean |
 | UNV-13 | The inverse and metric of the band, and the choice of map between the disk and the half-plane. The maps between the disk, the hyperboloid, and the Klein model are sourced in `geometry-models.md` 4.2 | `geometry-models.md` 4.3 and 5.1, `rendering.md` 13.1 item 14 | M12 | [HUB], and round-trip tests |
 | UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M3 tests, M13 | A source, or Lean |

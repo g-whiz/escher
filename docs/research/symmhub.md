@@ -12,7 +12,7 @@ SymmHub is a browser application, written in JavaScript and the OpenGL Shading L
 
 ## 1. Scope
 
-This document covers the source code of SymmHub at commit `f2d19cb`, as two line-referenced code readings recorded it and a third reading of the source verified and corrected it. A fourth reading read the subgroup library `lib/sublib/src/sublib_core.js` and `lib/sublib/src/reidemeister.js` line by line (Section 12.8). A fifth reading covered the construction of a kaleidoscope `*p1...pn` without cone points, handles, or cross-caps line by line, from the normalization to the generators (Sections 6.2.1, 6.3.1, 6.4.1, 6.4.2, 6.5.1, 6.6.1, and 6.8), and a port of that code checked it numerically (Section 6.9). It describes what the code does, with the file and line of each claim. It covers the group specification, the construction of hyperbolic orbifolds, the catalogue of Euclidean and spherical groups, the triangle groups, generators, point reduction, projections, borders, colouring, and the group-theoretic machinery in detail. It covers simulation, animation, export, and the document format at survey level only.
+This document covers the source code of SymmHub at commit `f2d19cb`, as two line-referenced code readings recorded it and a third reading of the source verified and corrected it. A fourth reading read the subgroup library `lib/sublib/src/sublib_core.js` and `lib/sublib/src/reidemeister.js` line by line (Section 12.8). A fifth reading covered the construction of a kaleidoscope `*p1...pn` without cone points, handles, or cross-caps line by line, from the normalization to the generators (Sections 6.2.1, 6.3.1, 6.4.1, 6.4.2, 6.5.1, 6.6.1, and 6.8), and a port of that code checked it numerically (Section 6.9). A sixth reading covered the catalogue of Euclidean and spherical groups line by line, from the dispatch of a signature to the splanes of each group, with hand traces of the domains and pairings, and a port of that code checked it numerically (Sections 7.1.1 to 7.1.9). It describes what the code does, with the file and line of each claim. It covers the group specification, the construction of hyperbolic orbifolds, the catalogue of Euclidean and spherical groups, the triangle groups, generators, point reduction, projections, borders, colouring, and the group-theoretic machinery in detail. It covers simulation, animation, export, and the document format at survey level only.
 
 This document does not prove that any algorithm is correct, and it states no derivation of its own. Where a code reading marked a statement as its own inference, this document keeps that mark. The mathematics behind SymmHub, such as Conway's orbifold notation and Deaton's construction, belongs to other subject-matter references that cite the primary sources. The user interface, the navigation code, the scripting interface, and the bundled third-party libraries are out of scope, except for their licences.
 
@@ -203,7 +203,7 @@ and lines 242-251 classify the geometry with these thresholds:
 | $\chi > -0.001$ and $\chi \ge 0.01$ | $1$ | Spherical |
 | $\chi \le -0.001$ | $-1$ | Hyperbolic |
 
-A comment there states that $*237$, with $\chi = -1/84$, is the smallest negative value and that $*235$, with $\chi = 1/60$, is the smallest positive value, so the cut-offs separate the classes safely.
+A comment there states that $*237$, with $\chi = -1/84$, is the smallest negative value and that $*235$, with $\chi = 1/60$, is the smallest positive value. That holds for the particular spherical groups, but not for the seven spherical families, whose $\chi$ is $2/n$ for `nn`, $1/n$ for `*nn`, `n*`, `nx`, and `22n`, and $1/(2n)$ for `2*n` and `*22n` (the orders of Section 8.2 of `docs/research/orbifold-notation.md` with $\chi = 2/\lvert G \rvert$). For a large enough $n$, $\chi$ falls below 0.01, and the code gives such a spherical signature the curvature 0 (Section 7.1.7).
 
 The tutorial `orbifold-notation.html` gives the same accounting as costs: a handle costs 2, a cone point of order $n$ costs $(n-1)/n$, a `*` costs 1, a corner of order $m$ costs $(m-1)/(2m)$, and a cross-cap costs 1. The outline `outline.html` describes the Magic Theorem with a total of 2 for spherical groups, 0 for Euclidean groups, and less for hyperbolic groups.
 
@@ -565,23 +565,244 @@ A verification pass outside the repository ported the code of Sections 6.2.1 to 
 
 ### 7.1. The Non-Negative Catalogue
 
-Euclidean and spherical signatures map to named, hard-coded groups in `lib/orbilib/WallpaperGroups_NonNegative.js`. The names in a signature are sorted in descending order, then `nonNegHashOrbifold` (lines 29-165) maps them to catalogue names: `O`, `XX`, `X*`, `22X`, `**`, `NN`, `*NN`, `N*`, `22N`, `2*N`, `*22N`, `X`, `NX`, and the usual plain names. `getNonnegativeGroupData` (line 823) calls the group functions, from `iGroup_S442(a)` to `iGroup_O(a,b)` and `iGroup_2222(a,b,c)`.
+The orbifold route builds no Euclidean or spherical domain from a general rule. It maps each such signature to one of the hand-written group functions of `lib/orbilib/WallpaperGroups_NonNegative.js`, and each function returns fixed splanes. All locations in Sections 7.1 to 7.1.9 are in that file unless another file is named.
 
-These groups have moduli:
+`WallPaperGroup_General.updateTheGroup` calls `nonNegHashOrbifold(hashed, this.parCounts, this.curvature)` when the curvature of Section 4.4 is 0 or 1, and stores its `standardName` and `nnn` (`lib/orbilib/WallPaperGroup_General.js:252-257`). `updateTheGroupGeometry` then calls `getNonnegativeGroupData(this.standardName, this)` (line 350). The square and hexagonal groups are rigid, the spherical groups have no parameter, and only the rectangular and oblique Euclidean groups read a length or a twist (Section 7.1.3).
 
-| Signature | Parameters |
+Section 4.6 records, from the earlier code readings, that the group makers `Group_WP` and `Group_Spherical` take the 17 wallpaper groups and the 14 spherical types by name, in `lib/grouplib/WallpaperGroups.js` and `lib/grouplib/Group_Spherical.js`. This reading did not read those two files, so it is not known whether they build the domains of this section. Every test and script that calls a function named `iWallpaperGroup` imports it from `lib/grouplib/WallpaperGroups.js`, not from this file (Section 7.1.7).
+
+#### 7.1.1. Dispatch from the Signature
+
+`nonNegHashOrbifold` (lines 29-132) takes the parsed signature of Section 4.2. It sorts the cone orders in descending order, in place, and sorts the corners inside each kaleidoscope in descending order, while the list of kaleidoscopes keeps its order (lines 34-35):
+
+```js
+var conepoints=hashed.conepoints.sort(function(a, b){return b - a}); //in descending order
+var kaleidoscopes=hashed.kaleidoscopes.map(x=>x.sort(function(a, b){return b - a}));
+```
+
+It then tests these conditions in this order and stops at the first that holds. It returns `{"standardName":name,"nnn":nnn}` (line 131), and `nnn` stays 0 unless a branch sets it:
+
+| Lines | Condition | Key | Registered parameter and `nnn` |
+| --- | --- | --- | --- |
+| 38-41 | At least one handle | `O` | `parCounts["handle"]=1` |
+| 42-45 | Two or more cross-caps | `XX` | `parCounts["cap"]=1` |
+| 46-50 | A cross-cap and a kaleidoscope | `X*` | `parCounts["cap"]=1` |
+| 51-56 | A cross-cap and curvature 0 | `22X` | `parCounts["cap"]=1` |
+| 57-67 | A cross-cap and curvature 1 | `NX` with exactly one cone point, otherwise `X` | `nnn` is the cone order for `NX` |
+| 69-73 | Two or more kaleidoscopes | `**` | `parCounts["band"]=1` |
+| 83-87 | Exactly two cone points | `NN` | `nnn` is the larger cone order |
+| 88-91 | The first kaleidoscope has two corners | `*NN` | `nnn` is its larger corner order |
+| 92-99 | The first kaleidoscope has no corner | `*` without a cone point, otherwise `N*` | `nnn` is the first cone order for `N*` |
+| 100-103 | Three cone points, the middle one of order 2 | `22N` | `nnn` is the largest cone order |
+| 104-108 | One cone point, of order 2 | `2*N` | `nnn` is the largest corner order of the first kaleidoscope |
+| 109-113 | One kaleidoscope with three corners, the middle one of order 2 | `*22N` | `nnn` is the largest corner order |
+| 114-129 | Otherwise | The cone orders, then `*` and the corner orders when a kaleidoscope exists, such as `*632`, `4*2`, or `3*2` | `parCounts["tube"]=1` for `2222`, and `parCounts["slice"]=1` for `22*`, `2*22`, and `*2222` (lines 122-128) |
+
+The tests do not check the curvature, except at line 52. The branches at lines 83 and 88 therefore also catch the Euclidean signatures `22*` and `2*22`, which Section 7.1.7 records as a defect. By a hand trace of the table, each signature reaches this key and function:
+
+| Signatures | Key | Function, from `getNonnegativeGroupData` (lines 823-878) |
+| --- | --- | --- |
+| `*632`, `632`, `*442`, `442`, `4*2`, `*333`, `333`, `3*3` | The signature | `iGroup_S632(1)` and the like (lines 827-834) |
+| `*2222` | `*2222` | `iGroup_S2222(1, getLength(["band",1], group))` (line 835) |
+| `2222` | `2222` | `iGroup_2222(1, getLength(["tube",1], group), getTwist(["tube",1], group))` (line 836) |
+| `22*` | `NN`, with `nnn` = 2 | `iGroup_NN(2)` (line 855) |
+| `2*22` | `*NN`, with `nnn` = 2 | `iGroup_SNN(2)` (line 857) |
+| `**` | `**` | `iGroup_SS(1, getLength(["slice",1], group))` (line 839) |
+| `*x` | `X*` | `iGroup_SX(1, getLength(["cap",1], group))` (lines 841-844) |
+| `22x` | `22X` | `iGroup_22X(1, getLength(["cap",1], group))` (lines 846-847) |
+| `xx` | `XX` | `iGroup_XX(1, getLength(["cap",1], group))` (lines 849-850) |
+| `o` | `O` | `iGroup_O([1,0], [1+getTwist(["handle",1], group), getLength(["handle",1], group)])` (lines 852-853) |
+| `nn` with $n \ge 2$, including `22` | `NN` | `iGroup_NN(n)` (line 855) |
+| `*nn` with $n \ge 2$, including `*22` | `*NN` | `iGroup_SNN(n)` (line 857) |
+| `*` | `*` | `iGroup_SNN(1)` (line 858) |
+| `nx` with $2 \le n \le 100$ | `NX` | `iGroup_NX(n)` (line 860). With $n \ge 101$, `22X` and `iGroup_22X` (Section 7.1.7) |
+| `x` | `X` | `iGroup_NX(1)` (line 861) |
+| `22n` with $n \ge 2$, including `222` | `22N` | `iGroup_22N(n)` (line 863) |
+| `2*n` with $n \ge 2$, including `2*2` | `2*N` | `iGroup_2SN(n)` (line 864) |
+| `n*` with $n \ge 2$, including `2*` | `N*` | `iGroup_NS(n)` (line 865) |
+| `*22n` with $n \ge 2$, including `*222` | `*22N` | `iGroup_S22N(n)` (line 866) |
+| `532`, `*532`, `432`, `*432`, `332`, `*332`, `3*2` | The signature | `iGroup_532()` and the like (lines 867-873) |
+
+Each family except `nx` keeps its key for every $n$. By the threshold of Section 4.4, however, the curvature is 1 only for $n \le 200$ in `nn`, $n \le 100$ in `*nn`, `n*`, `nx`, and `22n`, and $n \le 50$ in `2*n` and `*22n`, by the reader's arithmetic. For a larger $n$ the curvature is 0 (Section 7.1.7). At the bounds, where $\chi$ equals 0.01, the result depends on the rounding of the floating-point sum. The port of Section 7.1.9 tried only `(100)x`, which keeps the curvature 1.
+
+The parser rejects an order of 1 (Section 4.2), so no signature with $n = 1$ reaches the families, and the trivial group `1` reaches no function. Only the keys `*` and `X` call a function with $n = 1$. The branches for $n = 1$ inside `iGroup_NS`, `iGroup_S22N`, `iGroup_22N`, and `iGroup_2SN` (lines 659-660, 671-672, 684-685, and 698-699) are therefore unreachable from the dispatch, by a hand trace.
+
+Any key that no `case` names gives `iGroup_Trivial()`, which is `{s:[], t:[]}` (lines 195-197 and 826). The labels `'*X'`, `'*x'`, `'x*'`, `'22x'`, `'xx'`, and `'o'` at lines 841-853 are aliases that `nonNegHashOrbifold` never produces, because it writes only `X` and `O`.
+
+#### 7.1.2. Representation of a Catalogue Group
+
+Each group function returns a plain object `{s: [...], t: [...]}`. `s` lists the sides of $F$, one splane each, and `t[i]` lists the splanes whose product is the pairing of side `s[i]`, as in lines 209-212:
+
+```js
+return {
+        s:[s0,s1,s2],  //fund domain
+        t:[[s0],[s1],[s2]] // transforms
+    };
+```
+
+`updateTheGroupGeometry` wraps each splane of `s` in a list, with `x.bounds = [NaN, NaN]`, and keeps `t` (`lib/orbilib/WallPaperGroup_General.js:349-368`). `Group_Orbifold.getGroup` unwraps the sides and builds `new Group({ s: flatS, t: fd.t })` (`lib/orbilib/Group_Orbifold.js:167-172`). `Group` stores `t` as the reverse transforms and their inverses as the forward transforms (`lib/invlib/Group.js:41-44`). These conventions hold for every catalogue group:
+
+- Splanes. `iPlane([nx, ny, 0, d])` normalizes the normal $(n_x, n_y)$ to $\mathbf n$ and keeps $d$ as given (`lib/invlib/ISplane.js:86-101`), so the side is the line $\langle x, \mathbf n \rangle = d$. Its domain side is $\langle x, \mathbf n \rangle < d$ (`lib/invlib/Inversive.js:103-107`). `iSphere([cx, cy, 0, r])` with $r > 0$ is the circle with centre $(c_x, c_y)$ and radius $r$, and its domain side is the inside (`lib/invlib/Inversive.js:94-98`). Every `iSphere` in the file has a positive radius.
+- Products. A list `[a, b, c]` reflects first in `a`, then in `b`, then in `c`, so as a map it is $R_c \circ R_b \circ R_a$, where $R_s$ is the reflection in $s$ (`lib/invlib/Inversive.js:249-251` and `lib/invlib/ITransform.js:113-124`). The inverse reverses the list (`lib/invlib/GroupUtils.js:164-169`).
+- Fold. When a point is outside side `s[i]`, the fold applies `t[i]` to it (`lib/invlib/Group.js:211-218`, and `lib/shaders/inversiveSampler.glsl.mjs:207-224` on the graphics card, Section 9). So `t[i]` maps the cell on the far side of `s[i]` into $F$, as Section 2.4, item 4, states.
+- Borders. The tile borders of Section 11.1 measure the distance to every splane of `s`, over its whole line or circle, and the renderer packs the same `s` for the fold and the borders (`lib/symhublib/VisualizationImage.js:180`, `lib/symhublib/VisualizationColorSym.js:363`). A mirror that serves only inside a product, such as `sy` in `iGroup_632`, draws no border.
+- Euclidean model. The plane itself. `getNonnegativeGroupData` passes the scale `a = 1` to every Euclidean function (lines 827-853).
+- Spherical model. The stereographic plane, "treated in the plane, scaled with the equator at the unit circle" (line 628). The poles are the origin and the point at infinity. The code does not say which pole is the origin. Under the inverse stereographic map of Section 11.2 of `docs/research/geometry-models.md`, which that section cites to its source, the origin goes to $(0, 0, -1)$ and the unit circle to the equator. This section uses that map for the sphere coordinates of its examples, as a reader's evaluation.
+
+In Sections 7.1.4 to 7.1.6, a side is written as its line or circle with the domain side as an inequality, and a pairing as the isometry that the hand trace of its list gives. The kind of each product, such as a rotation or a glide reflection, is the reader's name for the map that the trace gives, and no comment in the code states it.
+
+Side $i$ is entry $i$ of the list `s` that the function returns. A name such as `s0`, `s1`, or `sy` is the local variable of the function that holds a splane, and its number need not match a side number. In `iGroup_N`, `s:[s1,s2]` makes the variable `s1` side 0 and `s2` side 1, while `s0` is no side and serves only inside the products. The tables write variables in code font and sides as numbers.
+
+#### 7.1.3. Parameters of the Catalogue
+
+`updateTheGroup` first sets the count of every key of `keys` to 0 (`lib/orbilib/WallPaperGroup_General.js:204-209`), and `keys` holds `band` and `slice` (`lib/orbilib/OrbifoldGeometrization.js:46-47`). `nonNegHashOrbifold` then raises the count of one key to 1 (Section 7.1.1). For each registered key, `updateTheGroup` makes a slider `key_1_l` with the range 0.3 to 4 and the initial value $2 \pm 0.0005$, and for `handle` and `tube` also a slider `key_1_t` with the range $-0.5$ to $0.5$ and the initial value 0 (`lib/orbilib/WallPaperGroup_General.js:263-284`, Section 15.1). `getLength` returns 1.1 when the count of its key is below the index, and otherwise the slider value (`lib/orbilib/OrbifoldGeometrization.js:624-630`):
+
+```js
+export function getLength(key,group) {
+    if(
+  group.parCounts[key[0]]<
+  abs(key[1])){return 1.1}
+```
+
+`getTwist` returns 0 in the same case (lines 632-637). The parameters of each group are these:
+
+| Signature | Registered | Read | Value used | What it moves |
+| --- | --- | --- | --- | --- |
+| `o` | `handle` | `handle_1_l` and `handle_1_t` | The sliders | The length $\ell$ and the twist $t$ of the second vector $(1 + t, \ell)$ of the lattice basis |
+| `2222` | `tube` | `tube_1_l` and `tube_1_t` | The sliders | The height $b$ of the rectangle and the offset $c$ of its half-turn centres |
+| `*2222` | `slice` | `band` | 1.1, always | The height of the rectangle |
+| `**` | `band` | `slice` | 1.1, always | The height of the rectangle |
+| `*x`, `22x`, `xx` | `cap` | `cap_1_l` | The slider | The height of the rectangle |
+| `22*`, `2*22` | Nothing, because the dispatch never reaches lines 122-128 for them | Nothing, because the dispatch never reaches lines 837-838 | None | Nothing (Section 7.1.7) |
+| The square and hexagonal groups | Nothing | Nothing | `a = 1` | Nothing |
+| Every spherical group | Nothing | Nothing | None | Nothing |
+
+The twist of `o` shifts the second basis vector along the first, whose length is 1, and the twist of `2222` is a raw offset of the half-turn centres. Neither goes through the code of the hyperbolic handles that Section 2.4, item 6, describes.
+
+#### 7.1.4. Euclidean Group Functions
+
+This table gives each Euclidean function with the domain that a hand trace of its splanes gives, at `a = 1`. The sides are listed in the order of `s`, as side 0, side 1, and so on, and each side carries the pairing of its list in `t`. The letters $b$, $c$, $t$, and $\ell$ are the parameters of Section 7.1.3.
+
+| Signature, function, lines | Domain | Sides in the order of `s`, with their pairings |
+| --- | --- | --- |
+| `*442`, `iGroup_S442`, 202-213 | Triangle $(0, 0)$, $(1/2, 0)$, $(0, 1/2)$, with $d = \sqrt2/4$ at line 204 | 0: $x > 0$, 1: $y > 0$, 2: $x + y < 1/2$. Each pairing is the reflection in its side |
+| `442`, `iGroup_442`, 218-233 | Triangle $(0, 1/2)$, $(0, -1/2)$, $(1/2, 0)$ | 0: $x > 0$, by `[s0,s3]`, the half-turn about $(0, 0)$, onto itself. 1: $x + y < 1/2$, by `[s1,s3]`, the rotation through $\pi/2$ about $(1/2, 0)$, onto side 2. 2: $x - y < 1/2$, by `[s2,s3]`, the inverse rotation, onto side 1. `s3` is the line $y = 0$ |
+| `4*2`, `iGroup_4S2`, 239-253 | The triangle of `442` | 0: $x > 0$, reflection. 1: by `[sy, s2]`, the rotation through $\pi/2$ about $(1/2, 0)$, onto side 2. 2: by `[s2,sy]`, onto side 1. `sy` is the line $y = 0$ |
+| `*632`, `iGroup_S632`, 259-274 | Triangle $(0, 0)$, $(1/2, 0)$, $(0, \sqrt3/2)$, with $d = \sqrt3/4$ at line 263 | 0: $x > 0$, 1: $y > 0$, 2: $\sqrt3 x + y < \sqrt3/2$. Reflections |
+| `632`, `iGroup_632`, 279-295 | Triangle $(0, \sqrt3/2)$, $(0, -\sqrt3/2)$, $(1/2, 0)$ | 0: $x > 0$, by `[s0,sy]`, the half-turn about $(0, 0)$, onto itself. 1: $\sqrt3 x + y < \sqrt3/2$, by `[s1,sy]`, the rotation through $2\pi/3$ about $(1/2, 0)$, onto side 2. 2: $\sqrt3 x - y < \sqrt3/2$, by `[s2,sy]`, onto side 1 |
+| `3*3`, `iGroup_3S3`, 300-316 | The triangle of `632` | 0: $x > 0$, reflection. 1 and 2: as in `632`, by `[s1,sy]` and `[s2,sy]` |
+| `*333`, `iGroup_S333`, 321-335 | Equilateral triangle $(-1/2, 0)$, $(1/2, 0)$, $(0, \sqrt3/2)$ | 0: $-\sqrt3 x + y < \sqrt3/2$, 1: $\sqrt3 x + y < \sqrt3/2$, 2: $y > 0$. Reflections |
+| `333`, `iGroup_333`, 340-358 | Rhombus $(1/2, 0)$, $(0, \sqrt3/2)$, $(-1/2, 0)$, $(0, -\sqrt3/2)$ | 0: $\sqrt3 x + y < \sqrt3/2$, by `[s0,sy]`, the rotation through $2\pi/3$ about $(1/2, 0)$, onto side 2. 1: $-\sqrt3 x + y < \sqrt3/2$, by `[s1,sy]`, the rotation about $(-1/2, 0)$, onto side 3. 2: $\sqrt3 x - y < \sqrt3/2$, onto side 0. 3: $-\sqrt3 x - y < \sqrt3/2$, onto side 1. Counterclockwise, the sides run 0, 1, 3, 2 |
+| `*2222`, `iGroup_S2222`, 363-378 | Rectangle $[0, 1/2] \times [0, b/2]$ | 0: $x < 1/2$, 1: $x > 0$, 2: $y < b/2$, 3: $y > 0$. Reflections |
+| `2222`, `iGroup_2222`, 404-421 | Rectangle $[0, 1] \times [-b/2, b/2]$. Side 0 uses `a`, not `0.5*a` | 0: $x < 1$, by `[s0,ss0]`, the half-turn about $(1, c)$. 1: $x > 0$, by `[s1,ss1]`, the half-turn about $(0, -c)$. 2: $y < b/2$, by `[s2,ss]`, the translation by $(0, -b)$, onto side 3. 3: $y > -b/2$, by `[s3,ss]`, the translation by $(0, b)$, onto side 2. `ss0` and `ss1` are the lines $y = c$ and $y = -c$ |
+| `2*22`, `iGroup_2S22`, 426-443, never reached | Rectangle $[0, 1/2] \times [-b/2, b/2]$ | 0: $x < 1/2$, reflection. 1: $x > 0$, by `[s1,sy]`, the half-turn about $(0, 0)$, onto itself. 2: $y < b/2$ and 3: $y > -b/2$, reflections |
+| `22*`, `iGroup_22S`, 448-465, never reached | The rectangle of `2*22` | 0: $x < 1/2$, by `[s0,sy]`, the half-turn about $(1/2, 0)$, onto itself. 1: $x > 0$, the half-turn about $(0, 0)$, onto itself. 2 and 3: reflections |
+| `**`, `iGroup_SS`, 470-487 | The rectangle of `2*22` | 0: $x < 1/2$ and 1: $x > 0$, reflections. 2: by `[s2,sy]`, the translation by $(0, -b)$, onto side 3. 3: the translation by $(0, b)$, onto side 2 |
+| `*x`, `iGroup_SX`, 492-509 | Rectangle $[-1/2, 1/2] \times [-b/2, b/2]$ | 0: $x < 1/2$, by `[s0,sx,sy]`, the glide reflection $(x, y) \mapsto (x - 1, -y)$, onto side 1. 1: $x > -1/2$, by `[s1,sx,sy]`, $(x, y) \mapsto (x + 1, -y)$, onto side 0. 2: $y < b/2$ and 3: $y > -b/2$, reflections. `sx` and `sy` are the lines $x = 0$ and $y = 0$ |
+| `22x`, `iGroup_22X`, 514-533 | The rectangle of `*x` | 0 and 1: the glide reflections of `*x`. 2: by `[s2,sy,sx]`, the glide reflection $(x, y) \mapsto (-x, y - b)$, onto side 3. 3: $(x, y) \mapsto (-x, y + b)$, onto side 2 |
+| `xx`, `iGroup_XX`, 538-555 | The rectangle of `*x` | 0 and 1: the glide reflections of `*x`. 2: by `[s2,sy]`, the translation by $(0, -b)$, onto side 3. 3: the translation by $(0, b)$, onto side 2 |
+| `o`, `iGroup_O`, 560-591 | Parallelogram with the vertices $\pm A/2 \pm B/2$, for $A = (1, 0)$ and $B = (1 + t, \ell)$ | 0: the line through $A/2$ parallel to $B$, by `[sa1,sa0]`, the translation by $-A$, onto side 1. 1: the line through $-A/2$, the translation by $A$, onto side 0. 2: the line through $B/2$ parallel to $A$, by `[sb1,sb0]`, the translation by $-B$, onto side 3. 3: the translation by $B$, onto side 2. `sa0` and `sa1` are the lines perpendicular to $A$ through $0$ and $A/2$, and `sb0` and `sb1` those perpendicular to $B$ |
+
+`iGroup_O` builds the normals of sides 0 and 2 as the unit vectors perpendicular to $B$ and to $A$, the "dual basis" of line 567, and the offset of each side as the dot product of $A/2$ or $B/2$ with that normal (lines 568-577). In `iGroup_333`, line 349 reuses the name `s3` of $\sqrt3$ for the fourth plane, and the right-hand side still reads the number, because `var` assigns after it evaluates the expression.
+
+#### 7.1.5. Spherical Group Functions
+
+This table gives each spherical function in the stereographic plane of Section 7.1.2, with the domain that a hand trace gives. `s0` is the line $y = 0$, with the domain side $y > 0$, and `ss` is the unit circle, which is the equator under the map of Section 7.1.2, with the inside as the domain side. These statements are reader's inferences (Section 17, item 15). A line through the origin is a great circle through both poles. A wedge from the origin to infinity is a lune. A wedge inside the unit circle is a triangle with a vertex at the pole and two on the equator.
+
+| Signatures, function, lines | Domain | Sides in the order of `s`, with their pairings |
+| --- | --- | --- |
+| `*nn`, `iGroup_SN(n)` through `iGroup_SNN`, 596-605 and 631-637 | The lune $0 < \arg z < \pi/n$ | 0: `s0`, 1: the line at the angle $\pi/n$, with the domain below it. Reflections |
+| `*`, `iGroup_SNN(1)`, 633-636 | The half-plane $y > 0$, a hemisphere | 0: `s0`, reflection |
+| `nn`, `iGroup_N(n)` through `iGroup_NN`, 612-622 and 640-642 | The lune $-\pi/n < \arg z < \pi/n$ | 0: the line at the angle $\pi/n$, by `[s1,s0]`, the rotation through $2\pi/n$ about the origin, onto side 1. 1: the line at the angle $-\pi/n$, by `[s2,s0]`, onto side 0 |
+| `nx`, `x`, `iGroup_NX(n)`, 644-654 | The lune $-\pi/(2n) < \arg z < \pi/(2n)$ | 0: the line at the angle $\pi/(2n)$, by `[s1,s0,ss]`, the rotation through $\pi/n$ about the origin onto the line at $-\pi/(2n)$ followed by the reflection in the unit circle, onto side 1. 1: the line at $-\pi/(2n)$, by `[s2,s0,ss]`, onto side 0 |
+| `n*`, `iGroup_NS(n)`, 656-668 | The triangle $-\pi/n < \arg z < \pi/n$, $\lvert z \rvert < 1$ | 0 and 1: the lines at $\pm\pi/n$, by `[s1,s0]` and `[s2,s0]`, the rotations of `nn`. 2: `ss`, reflection |
+| `*22n`, `iGroup_S22N(n)`, 670-680 | The triangle $0 < \arg z < \pi/n$, $\lvert z \rvert < 1$ | 0: `s0`, 1: the line at $\pi/n$, 2: `ss`. Reflections |
+| `22n`, `iGroup_22N(n)`, 683-694 | The triangle of `n*` | 0 and 1: the rotations of `nn`. 2: `ss`, by `[ss,s0]`, the reflection in the unit circle followed by the reflection in $y = 0$, which maps the arc onto itself and fixes $(1, 0)$ |
+| `2*n`, `iGroup_2SN(n)`, 697-708 | The triangle of `*22n` | 0: `s0` and 1: the line at $\pi/n$, reflections. 2: `ss`, by `[ss,sh]`, the reflection in the unit circle followed by the reflection in the line `sh` at the angle $\pi/(2n)$, which maps the arc onto itself and fixes $e^{i\pi/(2n)}$ |
+| `*532`, `iGroup_S532`, 711-718 | The triangle bounded by `s0`, the line at $\pi/5$, and the circle with centre $(-1.61803398874989, 0)$ and radius $1.90211303259031$ (line 714) | Reflections |
+| `532`, `iGroup_532`, 720-728 | The region $-\pi/5 < \arg z < \pi/5$ inside the circle of `*532` | 0 and 1: the lines at $\pm\pi/5$, by `[s1,s0]` and `[s2,s0]`, the rotations through $2\pi/5$. 2: the circle, by `[s5,s0]`, which maps the arc onto itself |
+| `*432`, `iGroup_S432`, 730-737 | As `*532`, with the angle $\pi/4$ and the circle with centre $(-1, 0)$ and radius $1.41421356237310$ (line 733) | Reflections |
+| `432`, `iGroup_432`, 739-747 | As `532`, with the angle $\pi/4$ and the circle of `*432` | As `532` |
+| `*332`, `iGroup_S332`, 749-756 | As `*532`, with the angle $\pi/3$ and the circle with centre $(-0.707106781186548, 0)$ and radius $1.22474487139159$ (line 752) | Reflections |
+| `332`, `iGroup_332`, 758-766 | As `532`, with the angle $\pi/3$ and the circle of `*332` | As `532` |
+| `3*2`, `iGroup_3S2`, 768-776 | The region $-\pi/3 < \arg z < \pi/3$ inside the circle with centre $(-1.41421356237310, 0)$ and radius $1.73205080756888$ (line 772) | 0 and 1: the lines at $\pm\pi/3$, by `[s1,s0]` and `[s2,s0]`, the rotations through $2\pi/3$. 2: the circle, by `[s3]`, reflection |
+
+For $n = 2$, `iGroup_N`, `iGroup_NX` with $n = 1$, `iGroup_NS`, and `iGroup_22N` compute the line at $\pi/2$ and the line at $-\pi/2$ from `sin` and `cos`, which give the line $x = 0$ twice, up to the rounding of `cos(PI/2)`. Their lune or triangle then has two sides on one great circle, which meet at the origin at the angle $\pi$. The four circles of the polyhedral groups each satisfy $r^2 = \lvert c \rvert^2 + 1$ to the printed digits, by the reader's arithmetic, so each meets the unit circle at two opposite points. That such a circle is the image of a great circle is a reader's inference (Section 17, item 15). The code states no derivation of the constants.
+
+#### 7.1.6. Worked Examples of the Catalogue
+
+The code reading traced these examples by hand through Sections 7.1.1 to 7.1.5 and did not run the code. The port of Section 7.1.9 gave the same values for every row and for the closing paragraph. A length of 2 stands for the initial value $2 \pm 0.0005$ of Section 7.1.3. Each value is rounded to six decimals, and the sphere points use the map of Section 7.1.2.
+
+| Signature | What the catalogue builds |
 | --- | --- |
-| `o` | `handle=1`. The torus uses the basis $(1, 0)$ and $(1 + t, \ell)$, for twist $t$ and length $\ell$ (line 852). |
-| A signature with cross-caps | `cap=1` |
-| `**` | `band=1` |
-| `2222` | `tube=1`, with a length and a twist. The twist is the shear parameter `c` of `iGroup_2222`, so `tube_1_l` and `tube_1_t` are its parameters. |
-| `22*`, `2*22`, `*2222` | `slice=1` |
+| `o`, with $t = 0$ and $\ell = 2$ | $A = (1, 0)$ and $B = (1, 2)$. The vertices are $(1, 1)$, $(0, 1)$, $(-1, -1)$, and $(0, -1)$. Side 0 is the line $2x - y = 1$, stored with the unit normal $(0.894427, -0.447214)$ and the offset $0.447214$, and side 1 is $2x - y = -1$. Sides 2 and 3 are $y = 1$ and $y = -1$. The translation of side 2 is by $(-1, -2)$, and it maps $(0, 1)$ to $(-1, -1)$. With $t = 0.25$, $B = (1.25, 2)$ |
+| `**`, as coded | The rectangle $[0, 0.5] \times [-0.55, 0.55]$, from the fallback 1.1, with the translation by $(0, -1.1)$ on side 2 |
+| `xx`, with $b = 2$ | The rectangle $[-0.5, 0.5] \times [-1, 1]$. Side 0 maps $(0.5, 0.3)$ to $(-0.5, -0.3)$, and side 2 maps $(0.3, 1)$ to $(0.3, -1)$. All four corners form one vertex cycle |
+| `*x`, with $b = 2$ | The rectangle of `xx`, with the glide reflections of `xx` on sides 0 and 1 and the mirrors $y = \pm1$. The glide reflection maps the corner $(0.5, 1)$ to $(-0.5, -1)$ |
+| `22*`, as coded | `iGroup_N(2)`: the half-plane $x > 0$ with two sides on the line $x = 0$, each paired by the half-turn $(x, y) \mapsto (-x, -y)$. This is a group of order 2, not a wallpaper group |
+| `22*`, as `iGroup_22S` would build it with $b = 2$ | The rectangle $[0, 0.5] \times [-1, 1]$, with half-turns about $(0.5, 0)$ and $(0, 0)$ on the vertical sides and mirrors on $y = \pm1$. The half-turn about $(0.5, 0)$ maps $(0.5, 0.3)$ to $(0.5, -0.3)$. The corners $(0, \pm1)$ form one vertex cycle with the angle sum $\pi$, and so do $(0.5, \pm1)$ |
+| `22x`, with $b = 2$ | The rectangle of `xx`. Side 2 maps $(0.3, 1)$ to $(-0.3, -1)$. The vertex cycles are $\{(0.5, 1), (-0.5, -1)\}$ and $\{(0.5, -1), (-0.5, 1)\}$, each with the angle sum $\pi$ |
+| `2*22`, as coded | `iGroup_SN(2)`: the quadrant $x > 0$, $y > 0$ with two mirrors. This is a group of order 4, not a wallpaper group |
+| `2*22`, as `iGroup_2S22` would build it with $b = 2$ | The rectangle $[0, 0.5] \times [-1, 1]$, with the half-turn about $(0, 0)$ on side 1 and mirrors on the other three sides. The corners $(0.5, \pm1)$ have the angle $\pi/2$ between two mirrors, and $(0, \pm1)$ form one vertex cycle with the angle sum $\pi$ |
+| `4*2` | The triangle $(0, 0.5)$, $(0, -0.5)$, $(0.5, 0)$, with the angles $\pi/4$, $\pi/4$, and $\pi/2$. The rotation of side 1 maps $(0, 0.5)$ to $(0, -0.5)$, so the two vertices on the mirror form one cycle with the angle sum $\pi/2$ |
+| `3*3` | The triangle $(0, 0.866025)$, $(0, -0.866025)$, $(0.5, 0)$, with the angles $\pi/6$, $\pi/6$, and $2\pi/3$. The two vertices on the mirror form one cycle with the angle sum $\pi/3$ |
+| `2222`, with $b = 2$ and $c = 0.25$ | The rectangle $[0, 1] \times [-1, 1]$. The half-turn of side 0 is about $(1, 0.25)$ and maps side 0 onto the segment from $(1, -0.5)$ to $(1, 1.5)$, and the half-turn of side 1 is about $(0, -0.25)$ |
+| `3*2` | Vertices $(0, 0)$ and $(0.258819, \pm0.448288)$, on the sphere $(0, 0, -1)$ and $(0.408248, \pm0.707107, -0.577350)$. The circle meets $y = 0$ at $(0.317837, 0)$, inside side 2. The angles are $2\pi/3$ at the origin and $\pi/4$ at each other vertex |
+| `2*3` | Vertices $(0, 0)$, $(1, 0)$, and $(0.5, 0.866025)$, on the sphere $(0, 0, -1)$, $(1, 0, 0)$, and $(0.5, 0.866025, 0)$, with the angles $\pi/3$, $\pi/2$, and $\pi/2$. `sh` is the line at $\pi/6$, and the pairing of side 2 fixes $(0.866025, 0.5)$, on the sphere $(0.866025, 0.5, 0)$ |
+| `3*` | Vertices $(0, 0)$ and $(0.5, \pm0.866025)$, on the sphere $(0, 0, -1)$ and $(0.5, \pm0.866025, 0)$, with the angles $2\pi/3$, $\pi/2$, and $\pi/2$. Side 0 goes to side 1 by the rotation through $2\pi/3$, and side 2 is a mirror |
+| `3x` | The lune $-\pi/6 < \arg z < \pi/6$ between the poles $(0, 0, -1)$ and $(0, 0, 1)$. Side 0 maps the point $0.5 e^{i\pi/6} = (0.433013, 0.25)$ to $2 e^{-i\pi/6} = (1.732051, -1)$ |
+| `1` | No domain, because the parser rejects the order 1 (Section 4.2) |
+| `*` | The half-plane $y > 0$ with one mirror, the great circle $y = 0$ |
+| `x` | The half-plane $x > 0$, with both sides on $x = 0$ and the pairing $(x, y) \mapsto -(x, y)/(x^2 + y^2)$. It maps $(0, 0.5)$ to $(0, -2)$, on the sphere $(0, 0.8, -0.6)$ to $(0, -0.8, 0.6)$ |
+| `22` | The half-plane $x > 0$, with both sides on $x = 0$ and the half-turn $(x, y) \mapsto (-x, -y)$ |
+| `2*` | The half-disc $x > 0$, $\lvert z \rvert < 1$, with vertices $(0, \pm1)$, on the sphere $(0, \pm1, 0)$. Sides 0 and 1 lie on $x = 0$ and are paired by the half-turn about the origin, and side 2, the right half of the unit circle, is a mirror |
 
-The square and hexagonal groups are rigid. Their domain corners are hard-coded, such as $d = a\sqrt 2/4$ (line 202). The rectangular and oblique groups take lengths.
+For the groups that Escher already builds, the trace gives the shapes of Escher's own domains. `*632`, `*442`, and `*333` are triangles with the angles of their signatures, and `*2222` is a rectangle. `632`, `442`, and `333` are the doubles of the reflection triangles across one side, the line $y = 0$, with that side removed and each other side paired by a product of two reflections. `*332`, `*432`, and `*532` are the triangles with the angles $\pi/p$ at the origin, $\pi/2$ where the circle meets $y = 0$, and $\pi/3$ at the third vertex, and `332`, `432`, and `532` are their doubles across $y = 0$. `*nn` is the lune with the angle $\pi/n$, `nn` the lune with the angle $2\pi/n$, and `*22n` the triangle with the angle $\pi/n$ at the pole and two right angles on the equator. For `*532`, the vertex on $y = 0$ is $(0.284079, 0)$, on the sphere $(0.525731, 0, -0.850651)$, and the third vertex is $0.338261\,e^{i\pi/5}$, on the sphere $(0.491123, 0.356822, -0.794654)$. For `*432` they are $(0.414214, 0)$ and $0.517638\,e^{i\pi/4}$, and for `*332` they are $(0.517638, 0)$ and $0.707107\,e^{i\pi/3}$.
 
-The spherical groups use spheres in the stereographic plane, with `iSphere([0,0,0,1])` as the equator, and fixed constants for 532, 432, and 332. For example, 532 uses `iSphere([-1.61803398874989, 0,0,1.90211303259031])` (line 711).
+#### 7.1.7. Defects of the Catalogue
 
-A comment at line 126 marks `iGroup_2222_` (line 386) as "wrong, missing one parameter".
+The reading found these defects. Section 15.3 lists most of them with their lines.
+
+- `22*` and `2*22` never reach their functions. `22*` has two cone points and is caught at line 83 as `NN` with `nnn` = 2, and `2*22` has a kaleidoscope with two corners and is caught at line 88 as `*NN` with `nnn` = 2. They get `iGroup_N(2)` and `iGroup_SN(2)`, the finite groups of order 2 and 4 of Section 7.1.6, in the Euclidean plane. Their `case` lines at 125-126 and 837-838 are unreachable. The reader takes this to be the cause of the two entries of `apps/orbifold/bug list.txt:3-4`, "2*22 does not get the slice parameter correctly. Perhaps it is instead a corner pair." and "22* as well.", although the note names the parameter and not the group (Section 17, item 15).
+- `*2222` registers `slice` at line 127 and reads `band` at line 835, and `**` registers `band` at line 71 and reads `slice` at line 839. In both, the count of the key read is 0, so `getLength` returns 1.1, and the slider that the user sees changes nothing (Section 7.1.3).
+- In `iGroup_2222` with $c \ne 0$, the half-turn of side 0 maps the side $x = 1$ onto the segment from $(1, 2c - b/2)$ to $(1, 2c + b/2)$, which is not a side of the rectangle, and the half-turn of side 1 does the same on $x = 0$. Condition 3.2 (b) of the polygon theorem of Section 4.9 of `docs/research/fundamental-domains.md` asks a pairing to map a face onto a face. By the reader's application of that condition to the traced maps, the four sides with these pairings fail it at $c \ne 0$, and the corners $(1, \pm b/2)$ and $(0, \pm b/2)$ form no vertex cycles (Section 17, item 15). The port confirmed the image of side 0. Section 7.1.9 gives its result on the rectangle as a fundamental domain.
+- The curvature test of Section 4.4 gives the curvature 0 to a spherical family with a large $n$, because its $\chi$ falls below 0.01 (Section 7.1.1). For `nx` with $n \ge 101$, the branch at lines 51-56 then gives the Euclidean key `22X`, so `(101)x`, a spherical group of order 202, gets `iGroup_22X(1, 2)`, the rectangle of the Euclidean `22x` with the initial height 2. `(100)x` still gets `NX`. The other families keep their keys and functions with the curvature 0, as the port of Section 7.1.9 found for the signatures that it lists. What the curvature 0 changes downstream for these families, such as the mode of the navigator, was not traced.
+- `iGroup_2222_` (lines 381-402), whose comment at line 381 reads "group 2222 (wrong, missing one parameter)", has no shear and is never called. `getNonnegativeGroupData` calls `iGroup_2222` (lines 404-421) instead, which has the shear $c$.
+- `iWallpaperGroup` (lines 780-819) calls `getParam`, which the file does not import (lines 1-13), and its debug line 791 names an undefined `index`. Nothing in the repository calls this function. Every call of a function of that name imports it from `lib/grouplib/WallpaperGroups.js`. `iGroup_2222_` and the arrays `WallpaperGroups` and `WallpaperGroupNames` with `getWallpaperGroupIndex` (lines 137-190) are also unused, and `WallpaperGroupNames` lists `"333"` twice (lines 147 and 149).
+- The comment at `lib/orbilib/WallPaperGroup_General.js:356` refers to a function `getEuclideanGroupData`, which does not exist.
+
+#### 7.1.8. What Was Read and How It Was Checked
+
+The reading covered `lib/orbilib/WallpaperGroups_NonNegative.js` in full, lines 1-880, `lib/orbilib/WallPaperGroup_General.js:200-371`, `lib/orbilib/OrbifoldGeometrization.js:44-55`, 242-251, and 620-638, `lib/orbilib/Group_Orbifold.js:167-172`, and the splane, product, and fold functions of `lib/invlib/` and `lib/shaders/` that Section 7.1.2 cites. Two further readings of the dispatch and of the representation, made independently of the first, agreed with it on every line that this section cites. Every domain, pairing, vertex cycle, and number of Sections 7.1.4 to 7.1.6 was first a hand trace, and the port of Section 7.1.9 then checked them (Section 17, item 14).
+
+#### 7.1.9. Numeric Check by a Port
+
+A verification pass outside the repository ported to Python, line by line, `hashOrbifoldString`, `nonNegHashOrbifold`, `getLength` and `getTwist` with every key set to 0 first as `updateTheGroup` does, every `iGroup_*` function, and `getNonnegativeGroupData`. The port keeps the representation of the code: a plane as a unit normal and an offset, a sphere as a centre and a signed radius, the domain where the side test is negative, products applied from first to last, and a fold that applies `t[i]` on the first side that a point lies outside. It ran in double precision. For each Euclidean group, it folded 4000 random points of the square $[-4, 4]^2$, tested 1500 interior points for a second image inside $F$, and identified the lattice and the point group of the group generated. For each spherical group, it closed the group as matrices of $O(3)$ and compared the order, the number of reflections, and the orders of the rotations with the expected ones, folded 3000 uniform points of the sphere, and tested 1000 points for a second image. The SymmHub code itself was not run. These results are numeric evidence, and none is a source or a proof:
+
+- The dispatch of all 17 Euclidean signatures and of 44 spherical signatures agrees with Section 7.1.1. The 44 are the 35 signatures of the seven families with $n$ from 2 to 6, which include `22`, `2*`, `*22`, and `222` at $n = 2$, the seven polyhedral groups, and `*` and `x`. The agreement covers `22*` as `NN` and `2*22` as `*NN`, both with `nnn` = 2, and the height 1.1 of `*2222` and `**`.
+- Every row of the tables of Sections 7.1.4 and 7.1.5 agrees with the port. For the Euclidean functions this holds at the parameter values of the table below, and for the spherical functions at the signatures of the first item. The agreement covers the vertices, the order of the sides, the kind, centre, angle, or vector of each pairing, the side it maps onto, and the inverse pairs. The `var s3` of line 349 is harmless.
+- Every worked example of Section 7.1.6 agrees. The pairing of `x`, as a matrix of $O(3)$, is exactly minus the identity.
+- For the four circles of the polyhedral groups, $r^2 - \lvert c \rvert^2 - 1$ is $2.6 \times 10^{-14}$, $1.4 \times 10^{-14}$, $1.8 \times 10^{-15}$, and $-4.4 \times 10^{-15}$, so the relation of Section 7.1.5 holds to within $3 \times 10^{-14}$.
+- The verdicts on the Euclidean signatures, at the settings that the table gives, are these:
+
+  | Signature | Function reached | Verdict |
+  | --- | --- | --- |
+  | `*632`, `632`, `*442`, `442`, `4*2`, `*333`, `333`, `3*3` | Its own | A fundamental domain of the group of the signature. The vertex cycles of `632` have the angle sums $\pi/3$ and $2\pi/3$, those of `442` $\pi/2$ and $\pi/2$, the mirror cycle of `4*2` $\pi/2$, that of `3*3` $\pi/3$, and the three cycles of `333` $2\pi/3$ each |
+  | `*2222` | `iGroup_S2222(1, 1.1)` | The right group, with the height fixed at 1.1 |
+  | `2222` | `iGroup_2222(1, b, c)` | The right group. With $(b, c)$ = $(2, 0.25)$, $(2, 0.5)$, $(0.3, 0.5)$, and $(2, -0.4)$, the fold ended for all 4000 points within 7, 8, 31, and 8 steps, no interior point of $F$ had a second image inside $F$, and the group was `2222` with the lattice generated by $(2, 4c)$ and $(0, b)$, whose covolume $2b$ is twice the area of $F$. $F$ is a fundamental domain of a brick tiling, while the face condition still fails (Section 7.1.7). The image of side 0 at $(2, 0.25)$ is the segment from $(1, -0.5)$ to $(1, 1.5)$ |
+  | `**` | `iGroup_SS(1, 1.1)` | The right group, with the height fixed at 1.1 |
+  | `*x`, `22x`, `xx` | Its own | The right group, with $b$ = 2 and 0.7 |
+  | `o` | `iGroup_O` | The right group, with $(t, \ell)$ = $(0, 2)$, $(0.25, 2)$, $(-0.5, 0.3)$, and $(0.5, 4)$ |
+  | `22*` | `iGroup_N(2)` | Wrong: a finite group of order 2, a half-plane with a half-turn |
+  | `2*22` | `iGroup_SN(2)` | Wrong: a finite group of order 4, a quadrant with two mirrors |
+  | `22*` through `iGroup_22S`, never reached | None | Would give `22*`, with $b$ = 2 and 0.7 |
+  | `2*22` through `iGroup_2S22`, never reached | None | Would give `2*22`, with $b$ = 2 and 0.7 |
+  | `iGroup_2222_`, never called | None | A fundamental domain of `2222` with the area $b/2$ and no shear |
+
+- All 44 spherical signatures of the first item gave the right group: the orders from 2 to 120 agree, no fold failed, and no point had a second image. The domains for $n = 2$ with two sides on one great circle are fundamental domains of their groups, although the angle at the pole is $\pi$.
+- `(100)x` gets `NX` with $n = 100$, and `(101)x` gets `22X` with `iGroup_22X(1, 2.0)`, the Euclidean `22x` (Section 7.1.7). `*(101)(101)`, `(101)*`, `22(101)`, `2*(51)`, and `*22(51)` keep their keys with the curvature 0, and `(101)(101)` keeps the curvature 1.
+
+The pass did not open the fold on the graphics card or the border code that Section 7.1.2 cites, and it did not trace what the curvature 0 changes downstream for the spherical families with a large $n$.
 
 ### 7.2. Triangle Groups
 
@@ -1213,8 +1434,11 @@ SymmHub works around numerical problems in these ways:
 
 | Defect or limitation | Effect | Source |
 | --- | --- | --- |
-| "2*22 does not get the slice parameter correctly. Perhaps it is instead a corner pair." and "22* as well." | The note claims wrong moduli for these Euclidean signatures, which the catalogue builds. The current catalogue registers and reads `slice` for both, so the code reading found no mismatch for them (Section 6.2.1) | `apps/orbifold/bug list.txt:3-4` |
-| Observation: the catalogue registers `parCounts["slice"]=1` for `*2222` but reads the length of `["band",1]` | The code reading inferred that `getLength` returns its fallback 1.1 | `lib/orbilib/WallpaperGroups_NonNegative.js:127`, 835 |
+| "2*22 does not get the slice parameter correctly. Perhaps it is instead a corner pair." and "22* as well." | The dispatch catches `22*` as `NN` and `2*22` as `*NN`, both with $n = 2$, so they get the finite groups of order 2 and 4 in the Euclidean plane, and their own functions and parameters are never used (Section 7.1.7) | `apps/orbifold/bug list.txt:3-4`, `lib/orbilib/WallpaperGroups_NonNegative.js:83-91`, 125-126, 837-838 |
+| The catalogue registers `parCounts["slice"]=1` for `*2222` but reads the length of `["band",1]`, and registers `band` for `**` but reads `slice` | `getLength` returns its fallback 1.1, so the height of the rectangle is fixed and the slider changes nothing (Section 7.1.3) | `lib/orbilib/WallpaperGroups_NonNegative.js:71`, 127, 835, 839, `lib/orbilib/OrbifoldGeometrization.js:624-630` |
+| `iGroup_2222` with a twist $c \ne 0$ | The half-turns of sides 0 and 1 map those sides onto segments that are not sides of the rectangle. By the reader's application of the face condition of the polygon theorems, the pairings fail it (Section 7.1.7 and Section 17, item 15) | `lib/orbilib/WallpaperGroups_NonNegative.js:404-421` |
+| The curvature test gives the curvature 0 to a spherical family whose $\chi$ is below 0.01 | `nx` with $n \ge 101$ reaches the Euclidean key `22X`, so `(101)x` gets `iGroup_22X(1, 2)`. The other families with a large $n$ keep their keys with the curvature 0 (Section 7.1.7) | `lib/orbilib/OrbifoldGeometrization.js:242-251`, `lib/orbilib/WallpaperGroups_NonNegative.js:51-56` |
+| `iWallpaperGroup` calls `getParam`, which the file does not import | The function would throw, and nothing calls it (Section 7.1.7) | `lib/orbilib/WallpaperGroups_NonNegative.js:1-13`, 780-819 |
 | The swaps that put the corners of a sheet first reverse the order of its features relative to the other sheets | The welded polygon has the corner orders in another cyclic order, so it has another signature, such as `*25634` for `*23456`. Section 6.8 states in which signatures the port of Section 6.9 found it, with four to eight corners and the orders it tried. In that port, reordering the features of a sheet only by a cyclic rotation removed the defect on every signature tried | `lib/orbilib/OrbifoldGeometrization.js:538-543`, 553-567 |
 | The pairing of corners of order 2 does not wrap around | `*2233` gets a corner pair and `*2332` a slice, so one orbifold gets two sets of parameters | `lib/orbilib/OrbifoldGeometrization.js:399-429` |
 | No sheet computes its last side or checks its closure, and no line checks that a sheet exists for its lengths | In the port of Section 6.9, no length in 0.3 to 4 made a call of `edgeLength` undefined or gave a `NaN`. A few runs failed the geometry check of the port, which the report of the pass attributes to the loss of precision near the boundary of the disc, where the error of the angles grows to about $10^{-5}$ radians | `lib/orbilib/OrbifoldGeometrization.js:676-763` |
@@ -1222,7 +1446,7 @@ SymmHub works around numerical problems in these ways:
 | `n` and `*n` are not implemented | Signatures rejected | `lib/orbilib/OrbifoldGeometrization.js:187-191`, 203-211 |
 | `*` alone and every signature with a handle or a cross-cap skip the screen of small signatures | No check for bad orbifolds among them | `lib/orbilib/OrbifoldGeometrization.js:173`, 186-193 |
 | `willOrbifoldFitQ` always returns false | A signature too large for the shader limits does nothing, without an error | `lib/orbilib/OrbifoldGeometrization.js:1555`, `lib/orbilib/WallPaperGroup_General.js:240-248` |
-| `iGroup_2222_` misses one parameter | Marked "wrong" | `lib/orbilib/WallpaperGroups_NonNegative.js:126`, 386 |
+| `iGroup_2222_` misses one parameter | Marked "wrong" at line 381. Nothing calls it, and `iGroup_2222` at lines 404-421 replaces it | `lib/orbilib/WallpaperGroups_NonNegative.js:381-402` |
 | `sPlanesMovingEdge1ToEdge2` | "not correct if p1=q1" | `lib/invlib/ComplexArithmetic.js:787` |
 | `poincareMobiusFromSplane` | Assumes the splane preserves the unit disc. "REWORK-- THIS WILL NOT WORK IN GENERAL" | `lib/invlib/ComplexArithmetic.js:820` |
 | `poincareMobiusTranslateFromTo` | "doesn't have the right framing" | `lib/invlib/ComplexArithmetic.js:435-445` |
@@ -1282,7 +1506,7 @@ These questions and claims are open:
 5. Termination of the fold: No cited source proves that the fold of Section 9 terminates for a given domain, or bounds its number of iterations. The comment in `lib/grouplib/Group_ON.js` asserts convergence, and the code bounds the loop only by the iteration cap (Section 9.3).
 6. Deaton's thesis: The three files that cite it disagree on the first name and the year (Section 3.5). [DEATON1993] follows the tutorial's reference entry, which no one has checked against the thesis.
 7. Unread sources: The papers in Section 3.5 are not in the repository and were not read for this document. Every statement about them is what SymmHub's tutorial says.
-8. Unread code: No code reading read `GroupGeometry.js`, `LimitSet.js`, or the `Subgroup*.js` files of `lib/grouplib` line by line. In `lib/sublib`, `src/sublib_core.js` and `src/reidemeister.js` were read line by line (Section 12.8), `src/sublib.js`, `src/groups_description.js`, and `src/modules.js` only for their imports, exports, and the lines cited, and `README.md` only for its section `Compatibility with the GAP-generated files` (item 10). `docs/research/prior-art.md` cites that README under the tag `SYMMHUB-SUBLIB`. For the kaleidoscopes of Sections 6.2.1 to 6.8, `lib/orbilib/OrbifoldGeometrization.js` was read line by line at lines 46-53, 147-165, 266-431, 452-764, 1136-1382, and 1387-1493, and `lib/invlib/ComplexArithmetic.js` at lines 206-239 and 404-491. The pillow and hat cases at lines 766-1133 of the first file were read only at the level of Section 6.4. Section 16 states the absence of a lit sphere and of vector export as the result of a keyword search, not of a full read.
+8. Unread code: No code reading read `GroupGeometry.js`, `LimitSet.js`, or the `Subgroup*.js` files of `lib/grouplib` line by line. In `lib/sublib`, `src/sublib_core.js` and `src/reidemeister.js` were read line by line (Section 12.8), `src/sublib.js`, `src/groups_description.js`, and `src/modules.js` only for their imports, exports, and the lines cited, and `README.md` only for its section `Compatibility with the GAP-generated files` (item 10). `docs/research/prior-art.md` cites that README under the tag `SYMMHUB-SUBLIB`. For the kaleidoscopes of Sections 6.2.1 to 6.8, `lib/orbilib/OrbifoldGeometrization.js` was read line by line at lines 46-53, 147-165, 266-431, 452-764, 1136-1382, and 1387-1493, and `lib/invlib/ComplexArithmetic.js` at lines 206-239 and 404-491. The pillow and hat cases at lines 766-1133 of the first file were read only at the level of Section 6.4. For the catalogue of Section 7.1, `lib/orbilib/WallpaperGroups_NonNegative.js` was read line by line in full, with the lines of the other files that Section 7.1.8 lists. `lib/grouplib/WallpaperGroups.js` and `lib/grouplib/Group_Spherical.js`, the files of the makers `Group_WP` and `Group_Spherical`, which take the Euclidean and spherical groups by name (Section 4.6), were not read, so it is not known what domains they build. Section 16 states the absence of a lit sphere and of vector export as the result of a keyword search, not of a full read.
 9. Candidate statements about the triangles and the half-plane map: The source review derived these statements by algebra, and neither the code nor its comments state them:
    - In the hyperbolic triangle, $\lvert c \rvert^2 = 1 + r^2$ for the centre $c$ of $s_2$, so $s_2$ is orthogonal to the unit circle.
    - In the ideal triangle, the circle $s_1$ with centre $(-1, 1)$ and radius 1 touches the $x$ axis at $(-1, 0)$, which is the ideal $K$ corner.
@@ -1300,6 +1524,16 @@ These questions and claims are open:
 11. Closure of a sheet: No case of Section 6.4.1 computes the last side of its sheet, so the angle at the origin, the right angles at the ends of each imaginary side, and the collinear edges at each welded slice (Section 6.5.1) hold only if the formulas of Section 6.4.2 are right. Gap G3 and Section 13.3, items 1 and 13, of `docs/research/fundamental-domains.md` record what would close it. The port of Section 6.9 measured the closure of the sheets for the signatures and lengths that it lists, which is numeric evidence and no source.
 12. Hand traces: The lists, sheets, polygons, and parameters of Sections 6.2.1, 6.3.1, 6.5.1, 6.6.1, and 6.8, and the defect of the swaps in Section 15.3, rest on traces of the code by hand and on the port of Section 6.9, which agrees with every trace. The SymmHub code itself was not run.
 13. Inferred geometry of the maps: The orientation of the turtle and its turn (Section 6.4.1) and the endpoint correspondence of `poincareMobiusEdgeToEdge` (Section 6.5.1) are the code reading's reading of compositions of Moebius maps, which no comment states. The port of Section 6.9 agrees with each, which is numeric evidence and no source.
+14. Hand traces of the catalogue: The keys of Section 7.1.1, the domains, pairings, and vertex cycles of Sections 7.1.4 and 7.1.5, and every number of Section 7.1.6 rest on traces of the code by hand and on the port of Section 7.1.9, which agrees with every trace. The SymmHub code itself was not run. The agreement holds only for the signatures and parameter values that Section 7.1.9 lists. The port did not cover the fold on the graphics card or the borders.
+15. Inferences of the catalogue reading: The names of the products in Sections 7.1.4 and 7.1.5, such as rotation, glide reflection, and half-turn about an axis, are the reader's names for the maps that the traces give, and no comment states them. The statements below are also inferences that no comment or cited source states. Where the port of Section 7.1.9 bears on one, the bullet says so. That evidence is numeric and is no source or proof:
+    - A line through the origin of the stereographic plane is a great circle through both poles, a wedge from the origin to infinity is a lune, and a wedge inside the unit circle is a triangle with a vertex at the pole and two on the equator (Section 7.1.5). Section 11.2 of `docs/research/geometry-models.md` states that the projection is conformal and maps spheres to planes or spheres, but not these cases.
+    - Each circle of a polyhedral group, with $r^2 = \lvert c \rvert^2 + 1$, is the stereographic image of a great circle (Section 7.1.5). The port measured the relation to the bound that Section 7.1.9 gives.
+    - The pairing of `x` is the antipodal map of the sphere (Section 7.1.6). The port found its matrix to be minus the identity (Section 7.1.9).
+    - The four sides of `iGroup_2222` with $c \ne 0$ fail Condition 3.2 (b) of the polygon theorem, and its corners form no vertex cycles (Section 7.1.7). This applies the condition to the traced maps. The port confirmed the image of side 0 only.
+    - The rectangle of `iGroup_2222` with $c \ne 0$ is a fundamental domain of the group that its four pairings generate, in a tiling that is not edge to edge. Section 7.1.9 gives the port's result at the settings it tried.
+    - Each domain that the catalogue builds for the signatures of Section 7.1.9 is a fundamental domain of the group of its signature, except those of `22*` and `2*22`, at the settings that Section 7.1.9 lists.
+    - The dispatch of `22*` and `2*22` is the cause of the two entries of `apps/orbifold/bug list.txt:3-4` (Section 7.1.7). The note does not name the dispatch.
+    - `22*` and `2*22` reach `iGroup_N(2)` and `iGroup_SN(2)`, and `nx` with $n \ge 101$ reaches `iGroup_22X`, by the order of the branches of Section 7.1.1 and the curvature test of Section 4.4. The port confirmed `22*`, `2*22`, `(100)x`, and `(101)x`.
 
 ## 18. References
 
@@ -1318,9 +1552,9 @@ This table lists the files that an implementer reads first, in the order of the 
 
 | File | Content |
 | --- | --- |
-| `lib/orbilib/OrbifoldGeometrization.js` | Parser (77-262), screen of small signatures (173-219), Euler characteristic (226-237), curvature test (242-251), `countParameters` (266-277), `hashOrbifold` (279), `atomizeOrbifold` (452), `edgeLength` (588), `getLength` (624), `useMirrorQ` (639), `unfoldAtom` (648), `assembleFundamentalDomain` (1195), `produceGenerators` (1387), crown sampling (1589) |
+| `lib/orbilib/OrbifoldGeometrization.js` | Parser (77-262), screen of small signatures (173-221), Euler characteristic (226-237), curvature test (242-251), `countParameters` (266-277), `hashOrbifold` (279), `atomizeOrbifold` (452), `edgeLength` (588), `getLength` (624), `useMirrorQ` (639), `unfoldAtom` (648), `assembleFundamentalDomain` (1195), `produceGenerators` (1387), crown sampling (1589) |
 | `lib/orbilib/WallPaperGroup_General.js` | Orbifold group wrapper, parameter ranges, packaging of $F$ |
-| `lib/orbilib/WallpaperGroups_NonNegative.js` | Euclidean and spherical catalogue |
+| `lib/orbilib/WallpaperGroups_NonNegative.js` | Euclidean and spherical catalogue: dispatch `nonNegHashOrbifold` (29-132), Euclidean functions (202-591), spherical functions (596-776), `getNonnegativeGroupData` (823-878) |
 | `lib/invlib/ComplexArithmetic.js` | Disc Moebius class, turtle moves (459), the map of one edge onto another (472), splane helpers |
 | `lib/invlib/ISplane.js`, `lib/invlib/ITransform.js`, `lib/invlib/Inversive.js` | Splanes, transforms, reflection, and distance |
 | `lib/invlib/Group.js`, `lib/invlib/GroupUtils.js` | `Group`, `toFundDomain`, words, and inverses |
