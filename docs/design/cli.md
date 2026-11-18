@@ -337,7 +337,7 @@ This resolution is the proposed default `DEC-44` of `docs/design/architecture.md
 
 CLI-43. `render` MUST resolve a colouring id through the side presentation of the domain that it renders and `colourings_of_index` of its colour count, MUST run no search of another colour count, MUST stop at step 6 with a diagnostic and write no file when the colouring does not exist or the search reaches a search limit, and MUST NOT claim that an id does not exist when the search stopped at a limit, because a search of the lower colour counts costs time that the image does not need and can reach a limit before it reaches the id, the colours of the image come from the coset table of the domain that is drawn, and a statement that an id does not exist is true only of a search that finished.
 
-The side presentation and the colouring belong to the domain that step 3 built with the settings of `--set`. The shape parameter of `*2222` does not change its side presentation, so its ids are the same for every value of `aspect` (Section 11.1).
+The side presentation and the colouring belong to the domain that step 3 built with the settings of `--set`. The shape parameter of `*2222` does not change its side presentation, so its ids are the same for every value of `aspect`, and the same holds for the parameters of a reflection polygon (Section 11.1).
 
 CLI-21. `render` MUST NOT create, truncate, or otherwise change the output file before rendering and encoding have succeeded, because a failed `render` then leaves an existing file as it was and creates no empty file that a reader could take for an image.
 
@@ -542,7 +542,7 @@ Rows 14 and 15 separate the values with a comma and one space. Angles are in deg
 
 The examples follow the canonical form that `docs/design/signature.md` defines. Each value cites the section of ON that gives it or its formula. The deformation dimension applies the formula of ON 10.1 with the reading of the Euler characteristic of the underlying surface that Section 15.1 of `docs/design/signature.md` records. The domain summary and the `Domain` line follow Section 5.5, the colouring lines Section 5.8, and the verification lines Section 5.6.
 
-The colouring lines of these examples hold the default colour limit of 12. Every number of colourings in them was measured with `count_colourings` and `colourings` of `escher-group` on the side presentation of the domain, with the default budget. A prototype outside the repository counted the conjugacy classes of subgroups and the size of some classes (Section 5.8), and the classes that the crate finds equal its counts.
+The colouring lines of these examples hold the default colour limit of 12. Every number of colourings in them, except in the examples of the reflection polygons and their doubles, was measured with `count_colourings` and `colourings` of `escher-group` on the side presentation of the domain, with the default budget. A prototype outside the repository counted the conjugacy classes of subgroups and the size of some classes (Section 5.8), and the classes that the crate finds equal its counts.
 
 This example shows a compact hyperbolic signature with a domain:
 
@@ -662,7 +662,9 @@ Domain: none, cannot build fundamental domain: the signature 4*3 is not supporte
 
 ON 6.4 gives the Euler characteristic. The area comes from ON 7.3 and the dimension from ON 10.1.
 
-This example shows a signature with one deformation parameter:
+The examples of the hyperbolic reflection polygons and their doubles hold values that only the change that builds the polygons can produce. A value in angle brackets, such as `<length>` or `<count>`, is to be measured by that change, which writes the measured value in its place, and `...` stands for the `Colourings with` lines that it measures. The other values are exact, or are the defaults of `DEC-13` of `docs/design/architecture.md` that a prototype outside the repository computed, or colouring figures that the same prototype measured with the search of `escher-group`, as each paragraph states.
+
+This example shows a hyperbolic reflection polygon, whose one deformation parameter is a shape parameter:
 
 ```sh
 escher info '*3333'
@@ -675,10 +677,70 @@ Euler characteristic: -1/3
 Compact: yes
 Area: 2pi/3
 Deformation dimension: 1
-Domain: none, cannot build fundamental domain: the signature *3333 is not supported
+Parameter: slice1.length, range 0.5 to 3.5, default 1.317
+Domain: 4 mirror sides
+Corner angles in degrees: 60.000000, 60.000000, 60.000000, 60.000000
+Side lengths: <length>, <length>, <length>, <length>
+Domain area: 2.094395
+Colourings: <count>, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
+...
 ```
 
-ON 6.4 gives the Euler characteristic, and ON 7.3 states the area $2\pi/3$ for this signature. The dimension comes from ON 10.1, and Section 5.1 of `docs/design/poc-plan.md` states it.
+ON 6.4 gives the Euler characteristic, and ON 7.3 states the area $2\pi/3$ for this signature. The dimension comes from ON 10.1, and Section 5.1 of `docs/design/poc-plan.md` states it. The parameter, its range, and its default are those of DOM-45 and the table of Section 6.6 of `docs/design/domain.md`: the default is the slice of the regular polygon, $\operatorname{arcosh} 2$ rounded to 1.317. The domain is the polygon of that default shape, with the four angles $\pi/3$, and its area is $2\pi/3$. On the prototype, the colouring search of `*3333` completed 12 colours in 0.43 s in a release build and 7.1 s in a debug build, and found one colouring with 2 colours.
+
+This example shows a reflection polygon whose signature is typed in another order, and whose parameter is a corner pair:
+
+```sh
+escher info '*2223'
+```
+
+```text
+Signature: *3222
+Geometry: hyperbolic
+Euler characteristic: -1/12
+Compact: yes
+Area: pi/6
+Deformation dimension: 1
+Parameter: cornerpair1.length, range 0.5 to 3.5, default 0.658
+Domain: 4 mirror sides
+Corner angles in degrees: 60.000000, 90.000000, 90.000000, 90.000000
+Side lengths: <length>, <length>, <length>, <length>
+Domain area: 0.523599
+Colourings: <count>, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 7
+...
+```
+
+`info` prints the canonical signature `*3222`, which starts with the largest order (Section 7 of `docs/design/signature.md`), and every line describes that signature. Its features are the corner of order 3, the corner pair 1, and a single corner of order 2, so the one parameter is `cornerpair1.length`, the length of the mirror side between the two right angles of the pair (DOM-45 and the table of Section 6.6 of `docs/design/domain.md`). The default 0.658 is the value of the prototype in that table, the smallest default of any polygon with 4 to 8 corners. The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. The corner angles are $180/3$ and three times 90 degrees, in the order of the canonical signature. On the prototype, the colouring search of `*3222` completed 12 colours in 0.008 s and found 7 colourings with 2 colours.
+
+This example shows the rotation signature of a reflection polygon, whose domain is the double of the polygon at its default shape:
+
+```sh
+escher info 3333
+```
+
+```text
+Signature: 3333
+Geometry: hyperbolic
+Euler characteristic: -2/3
+Compact: yes
+Area: 4pi/3
+Deformation dimension: 2
+Domain: 6 sides in 3 pairs
+Side pairs: 0 and 1 by rotation, 2 and 5 by rotation, 3 and 4 by rotation
+Parity colouring: none, every side pairing preserves orientation
+Corner angles in degrees: <angle>, <angle>, <angle>, <angle>, <angle>, <angle>
+Side lengths: <length>, <length>, <length>, <length>, <length>, <length>
+Domain area: 4.188790
+Colourings: <count>, complete to 9 colours, the search stopped at a limit before 10 colours
+Colourings with 1 colour: 1
+...
+```
+
+The domain is the double of the polygon of `*3333` at its default shape across its side 1 (DOM-47 of `docs/design/domain.md`, `DEC-50` of `docs/design/architecture.md`), with $2 \cdot 4 - 2 = 6$ sides in 3 pairs. Side $k$ is paired with side $(2n - 1 - k) \bmod (2n - 2)$ by a rotation, which gives the pairs of the `Side pairs` line (DOM-24 and Section 6.8 of `docs/design/domain.md`), and Section 5.4 of that document gives the side presentation of `3333`. The signature has a deformation dimension of 2 and no `Parameter` line, because the double has no shape parameter until the milestone that builds the general hyperbolic signatures. That milestone also renumbers the sides, which changes the `Side pairs` line and the ids of the colourings of `3333`. The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. On the prototype, the colouring search of `3333` stopped at the step budget after it completed 9 colours, in 1.21 s in a release build, and found no colouring with 2 colours.
 
 This example shows an order of 10 or more, written in parentheses:
 
@@ -808,7 +870,7 @@ Domain: none, cannot build fundamental domain: the signature 1 is not supported
 
 The Euler characteristic 2 is the defect rule of ON 6.1 with no defect. The order is that of `nn` with $n = 1$ in ON 8.2, and the area comes from ON 7.3.
 
-For a supported signature whose largest corner order is above the limit of `escher-domain`, such as `*(1001)32`, rows 1 to 9 apply as for `*732`, and the last line is `Domain: none, cannot build fundamental domain: order 1001 is larger than 1000`, as Section 10.2 of `docs/design/domain.md` fixes it.
+For a supported signature whose largest corner order is above the limit of `escher-domain`, such as `*(1001)32`, rows 1 to 9 apply as for `*732`, and the last line is `Domain: none, cannot build fundamental domain: order 1001 is larger than 1000`, as Section 10.2 of `docs/design/domain.md` fixes it. A reflection polygon with more than 8 corners, such as `*222222222`, and its rotation signature, such as `222222222`, print no `Parameter` line, because `parameters` gives none for them, and their last line is `Domain: none, cannot build fundamental domain: the signature has 9 orders, more than 8`, with the number of orders in place of `9` (DOM-38 and Section 10.2 of `docs/design/domain.md`). That limit applies before the limit on the corner order, so `*(1001)22222222` gets the same text.
 
 The option `--check` adds the verification lines after the domain summary and the colouring lines. This example shows the form, with `<residual>` in place of each residual, because Section 8.1 replaces the residuals of these lines in the snapshot:
 
@@ -882,7 +944,7 @@ CLI-7. A change that alters the information text MUST update its snapshots in th
 
 For every valid signature, `info` calls `parameters` once and prints the parameter lines of row 10, then calls `FundamentalDomain::build` once and prints the `Domain` line of row 11. Rows 12 to 16 follow only when a domain is built, rows 12 and 13 only under their conditions.
 
-When a reflection domain is built, the value of the `Domain` line is the number of `sides()` in decimal, one space, and `mirror sides`. When a rotation domain is built, the value is the number of `sides()`, ` sides in `, the number of pairs, and ` pairs` (` pair` when the number of pairs is 1), with both numbers in decimal, such as `4 sides in 2 pairs`. Every side of a rotation domain has a partner other than itself, so the number of pairs is half the number of sides, and the lune doubles of `22` and `nn` read `2 sides in 1 pair`. Every domain that `escher-domain` builds is a reflection domain or a rotation domain, and a domain with both mirrors and paired sides is outside this design.
+When a reflection domain is built, the value of the `Domain` line is the number of `sides()` in decimal, one space, and `mirror sides`. When a rotation domain is built, the value is the number of `sides()`, ` sides in `, the number of pairs, and ` pairs` (` pair` when the number of pairs is 1), with both numbers in decimal, such as `4 sides in 2 pairs`. Every side of a rotation domain has a partner other than itself, so the number of pairs is half the number of sides, and the lune doubles of `22` and `nn` read `2 sides in 1 pair`. A reflection polygon with $n$ corners reads `<n> mirror sides`, from `4 mirror sides` to `8 mirror sides`, and the double of one reads `<2n - 2> sides in <n - 1> pairs`, from `6 sides in 3 pairs` to `14 sides in 7 pairs`. Every domain that `escher-domain` builds is a reflection domain or a rotation domain, and a domain with both mirrors and paired sides is outside this design.
 
 CLI-32. For a rotation domain, `info` MUST print the `Domain` line with the number of sides and of pairs, and one `Side pairs` line that names each pair of partner sides once, because a reader of `<n> mirror sides` for such a domain would take its sides for mirrors, and the pairs and their kinds are what tell the rotation subgroup from its reflection group.
 
@@ -1236,6 +1298,25 @@ These figures of `escher-group`, measured in a release build on one thread with 
 - The search took at most 6.3 ms, with or without `--colourings`, for every family of built domains other than those that this list names. It took 0.07 to 0.33 s for `*664`, `*666`, `*866`, and `*888`, about 1.2 s for `664` and `666` without `--colourings`, and 0.33 s for `*(1000)(1000)2`. It took about 1.2 s for `*(1000)(1000)(1000)`, `(1000)(1000)(1000)`, `*(998)(981)(961)`, and `(998)(981)(961)`, which reach the step budget.
 - The number of `Colouring` lines, one for each colouring, is 1035 for `*2222`, 1123 for `2222`, 961 for `*642`, 1203 for `642`, 325 for `*442`, and 14002 for `*(1000)(1000)2`.
 
+The reflection polygons have more sides, so their side presentations have more generators, and their searches reach the step budget at lower colour counts. A prototype outside the repository ran the search of `escher-group` on the side presentations of the polygons that it built, up to 12 colours with the default budget and without `--colourings`, in a release build. The prototype measured these figures. The change that builds the polygons measures them again on the crate and records them here:
+
+| Signature | Generators | Complete to | Time | Colourings with 2 colours |
+| --- | --- | --- | --- | --- |
+| `*3333` | 4 | 12 | 0.43 s, and 7.1 s in a debug build | 1 |
+| `*3222` | 4 | 12 | 0.008 s | 7 |
+| `*5432` | 4 | 11 | 1.35 s | 3 |
+| `*22222` | 5 | 9 | 0.86 s | 31 |
+| `*33333` | 5 | 8 | 1.24 s | 1 |
+| `*222222` | 6 | 6 | 0.81 s | 63 |
+| `*2222222` | 7 | 5 | 0.79 s | 127 |
+| `*22222222` | 8 | 4 | 0.73 s, and 19.6 s in a debug build | 255 |
+| `3333` | 6 | 9 | 1.21 s | 0 |
+| `3222` | 6 | 12 | 0.04 s, and 0.98 s in a debug build | 3 |
+| `22222` | 8 | 7 | 0.92 s | 15 |
+| `22222222` | 14 | 3 | 0.82 s | 127 |
+
+On the prototype, the search of a default `info` took 0.43 to 1.39 s in a release build for every signature of the table except `*3222` and `3222`. In a debug build it took 7.1 s for `*3333` and 19.6 s for `*22222222`. With 7 or 8 corners it completed only 3 to 5 colours. Also on the prototype, a polygon with $n$ corners whose orders are all even, such as a polygon of $n$ right angles or `*444444`, had $2^n - 1$ colourings with 2 colours. CLI-50 states what the snapshot tests do about the time.
+
 ## 6. Diagnostics
 
 ### 6.1. Format
@@ -1384,7 +1465,7 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 | `--background` is not a colour | 2 | `error: cannot render *732: --background is not of the form #rgb or #rrggbb` |
 | Two settings give the same name | 3 | `error: cannot render *2222: setting 2 of --set names the same parameter as setting 1`, with the position of the first setting whose name an earlier setting gave, and the position of that earlier setting, counted from 1 |
 | `build_with` returns `UnsupportedSignature` | 3 | `error: cannot render 3*2: rendering this signature is not supported`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
-| `build_with` returns any other error kind, such as an unknown parameter name or a value outside the range of its parameter | 3 | `error: cannot render *(1001)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
+| `build_with` returns any other error kind, such as an unknown parameter name, a value outside the range of its parameter, or a shape of a reflection polygon that fails verification | 3 | `error: cannot render *(1001)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
 | The colouring is `parity` and the domain has no reversing side (CLI-35) | 4 | `error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation` |
 | A colouring id with more than 12 colours and no `--colours` (CLI-44) | 4 | `error: cannot render *732: the colouring 15a needs 15 colours, more than the 12 default colours, so give 15 colours with --colours`, with the id and, twice, its colour count |
 | `--colours` has the wrong number of items | 4 | `error: cannot render *732: the colouring parity needs 2 colours, and 3 were given`, with the colouring, which is `one`, `parity`, or the id, the number it needs, and the number of items. The words are `1 colour` and `1 was given` for the number 1 |
@@ -1401,7 +1482,7 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 
 Section 7.2 of `docs/design/render.md` fixes the `Display` text of each error of `escher-render`, and Section 10.2 of `docs/design/domain.md` that of `escher-domain`. No render error has an echo line or a caret line.
 
-The row of `UnsupportedSignature` meets the requirement of Section 5.8 of `docs/design/architecture.md` that `render` names the signature and says that rendering it is not supported. It applies to every valid signature without a domain, including every general non-compact signature (`DEC-19`). The row of any other error kind covers a corner order over the limit of `escher-domain`, a numerically degenerate construction, an unknown parameter name, and a value outside the range of its parameter, which are not a lack of support. `escher-domain` checks the support of the signature before the settings, so a setting of a signature without a domain gives the row of `UnsupportedSignature` (DOM-18 in Section 6.6 of `docs/design/domain.md`).
+The row of `UnsupportedSignature` meets the requirement of Section 5.8 of `docs/design/architecture.md` that `render` names the signature and says that rendering it is not supported. It applies to every valid signature without a domain, including every general non-compact signature (`DEC-19`). The row of any other error kind covers a corner order over the limit of `escher-domain`, a signature with more than eight orders (DOM-38), a numerically degenerate construction, a polygon or a double of a polygon that fails `verify()` (DOM-44), an unknown parameter name, and a value outside the range of its parameter, which are not a lack of support. `escher-domain` checks the support of the signature before the settings, so a setting of a signature without a domain gives the row of `UnsupportedSignature` (DOM-18 in Section 6.6 of `docs/design/domain.md`).
 
 CLI-26. A diagnostic of `render` MUST NOT repeat the value of an option or the output path, because both are untrusted and may hold control characters, while the canonical signature, the option names, and the numbers that the diagnostics hold are printable ASCII. A bad colour is therefore named by its option and its position, and a failed write by the words `the output file`. The one exception is a colouring id, which CLI-49 governs.
 
@@ -1486,7 +1567,42 @@ error: cannot render *2222
   caused by: cannot build fundamental domain: the parameter aspect is outside its range of 0.125 to 8
 ```
 
-Section 10.2 of `docs/design/domain.md` fixes the text after `caused by: ` in the last two examples, and prevails where the two documents differ. Neither text echoes what the user typed, because the name in the last text is the name of the specification in `escher-domain`, and the numbers are those of its range (CLI-26).
+This example sets the shape of a reflection polygon, and writes the image:
+
+```sh
+escher render '*3333' --set slice1.length=2.5 -o slice.png
+```
+
+It prints nothing and gives the status `Success`. This example shows a value outside the range of 0.5 to 3.5 of a parameter of a reflection polygon (`DEC-14`):
+
+```sh
+escher render '*3333' --set slice1.length=4 -o slice.png
+```
+
+```text
+error: cannot render *3333
+  caused by: cannot build fundamental domain: the parameter slice1.length is outside its range of 0.5 to 3.5
+```
+
+The rotation signature of a reflection polygon has no shape parameter (`DEC-50`), so every setting gives the text of an unknown name:
+
+```sh
+escher render 3333 --set slice1.length=2 -o rot.png
+```
+
+```text
+error: cannot render 3333
+  caused by: cannot build fundamental domain: the signature 3333 has no shape parameter with one of the given names
+```
+
+A setting in range whose polygon fails `verify()` is refused with the error kind `Numerical` (DOM-44 of `docs/design/domain.md`). The change that builds the polygons chooses such a setting from its measurements, writes its command here, and adds its snapshot. Its text is:
+
+```text
+error: cannot render *22222222
+  caused by: cannot build fundamental domain: the shape is too extreme to build accurately
+```
+
+Section 10.2 of `docs/design/domain.md` fixes the text after `caused by: ` in the last five examples with that line, and prevails where the two documents differ. No such text echoes what the user typed, because the name in a text of a range is the name of the specification in `escher-domain`, the numbers are those of its range, and the other texts hold the canonical signature and fixed words (CLI-26).
 
 This example shows three colours for the colouring `parity`:
 
@@ -1643,12 +1759,13 @@ The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main
 
 A test that can write the output file gets a path from a helper in `common`, in a directory of its own, `CARGO_TARGET_TMPDIR/escher-cli/<test>`. The helper empties that directory first, so a file from an earlier run cannot satisfy a test. The render usage snapshots and the render status tests fail before any file access and pass the fixed path `CARGO_TARGET_TMPDIR/escher-cli/never-written.png`, which a constant in `common` holds and no test creates.
 
-The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1, 5.3, 5.4, 5.5, 5.6, 5.7, or 5.8 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, or 5.8. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`. The fold properties, the reference tests, the border oracle, the symmetric view, the golden images, and the decoding of the pixels of the PNG file of Section 5.3 belong to `escher-render`.
+The column "Plan item" names the item of the field "Tests and acceptance" of Section 5.1, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, or 5.9 of `docs/design/poc-plan.md` that each test serves, or the field "Command line" of its Section 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, or 5.9. The tables, the enumeration, and the properties of the field of Section 5.1 belong to `escher-signature`, and the reference arithmetic of Section 5.2 belongs to `escher-geometry` and `escher-domain`. The fold properties, the reference tests, the border oracle, the symmetric view, the golden images, and the decoding of the pixels of the PNG file of Section 5.3 belong to `escher-render`.
 
 | Test | Plan item | Kind and module | Asserts | Under Miri |
 | --- | --- | --- | --- | --- |
-| Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `3*2`, `4*3`, `*3333`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself. Each text includes its `Domain` line, and the texts of `*732`, `*532`, `*632`, and `*236` their domain summaries and colouring lines | Ignored |
+| Information snapshots | Snapshots | `insta`, `info` | The text and status for `*732`, `*532`, `3*2`, `4*3`, `2*(12)`, `*22(inf)`, `*632`, `1`, `3*(inf)`, `*(inf)32`, `ox`, `*236`, and `2*`, whose area is exactly `pi`. By Section 7 of `docs/design/signature.md`, `*22(inf)` prints `*(inf)22`, `ox` prints `xxx`, `*236` prints `*632`, and every other input prints itself. Each text includes its `Domain` line, and the texts of `*732`, `*532`, `*632`, and `*236` their domain summaries and colouring lines | Ignored |
 | Domain snapshots | Command line of Sections 5.2, 5.4, and 5.5 of the plan, and a snapshot of the parameter listing | `insta`, `info` | The text and status for `info '*542'`, `info '*433'`, `info '*(1001)32'`, `info '*442'`, `info '*333'`, `info '*2222'`, `info '*332'`, `info '*722'`, `info '*55'`, `info '*22'`, `info --check '*732'`, `info --check '3*2'`, `info --check '*(1000)32'`, `info --check '*2222'`, `info --check '*532'`, `info --check '*55'`, `info --check '*(1000)22'`, and `info --check '*(1001)(1001)'`, which is over the limit of `escher-domain`, and for the rotation domains `info 732`, `info --check 732`, `info 442`, `info 2222`, `info 532`, `info '(12)22'`, `info 55`, and `info 22`. The texts of `*2222` and `2222` hold their `Parameter` lines, the texts of the rotation domains their `Side pairs` and `Parity colouring` lines, and every text of a built domain its colouring lines. The plan writes the triangle $(3, 3, 4)$, whose canonical signature is `*433` | Ignored |
+| Polygon snapshots | Command line of Section 5.9 of the plan, and a snapshot of the parameter listing (CLI-50) | `insta`, `info` | The text and status for `info --max-colours 4` with `'*3333'`, `'*2223'`, which prints `*3222`, `'*22222'`, `'*5432'`, `'*22222222'`, `3333`, `22222`, and `'*222222222'`, which has more than 8 corners, and for `info --check --max-colours 2 '*3333'` and `info --presentation --max-colours 2 3333`. Each text of a built domain holds its `Parameter` lines, its domain summary, and its colouring lines, and each text of a double its `Side pairs` and `Parity colouring` lines | Ignored |
 | Diagnostic snapshots | Snapshots, failure paths | `insta`, `diagnostics` | The diagnostic and status of every error kind of `escher-signature`, each text of a kind that has several except the `Overflow` texts for the group order and the deformation dimension, which no known input produces (Section 12.1 of `docs/design/signature.md`), `23`, `2*12`, an empty argument, an argument longer than 120 characters, a control character, a span after the infinity sign, and a span that is the infinity sign, under one caret | Ignored |
 | Usage snapshots | Snapshots, failure paths | `insta`, `usage` | `--help`, `-h`, `info --help`, no argument, an unknown subcommand, the subcommand `help`, an unknown option, a missing signature, a repeated `--check`, a repeated `--presentation`, a repeated `--colourings`, a repeated `--max-colours`, `--max-colours 0`, `--max-colours 65`, and `--max-colours x`. The help of `info` shows `--check`, `--presentation`, `--colourings`, and `--max-colours` in that order with their help texts of Section 4.2, and `[default: 12]` for `--max-colours` | Ignored |
 | Version tests | None | Plain tests, `usage` | `--version` and `-V` give `Success`, empty standard error, and standard output equal to the package name, one space, the package version, and a line feed. Each test takes the name and the version from the package when it compiles, so a new version needs no change to the tests | Runs |
@@ -1661,7 +1778,7 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Control characters | Failure paths | Plain test, `usage` | A usage error for an argument with control characters writes `?` in place of each of them (CLI-15) | Runs |
 | Auto traits | None | Plain test, `main.rs` | `Status` is `Send` and `Sync` (rule CONC-1 of `docs/rust-coding-standards.md`). The test calls a generic function whose type parameter is bounded by `Send + Sync`, so it fails to compile if `Status` loses either trait | Runs |
 | Render usage snapshots | Command line of Section 5.3 of the plan, failure paths | `insta`, `usage` | `render --help`, and for `render`: a missing signature, a missing `--output`, `--size 512`, `--size 512x`, `--samples x`, `--colouring three`, `--colouring 3A`, `--colouring 03a`, `--colouring 65a`, `--colouring 3abcde`, `--threads 0`, `--threads 257`, a repeated `--stats`, a repeated `--size`, `--set aspect`, `--set =2`, `--rotation 1,2`, `--rotation a,b,c`, `--rotation 1,2,3,4`, `--light 1,,2`, `--shading gouraud`, a repeated `--rotation`, and `--rotation --stats`. Each of these that gives `--output` gives the fixed path that no test creates. The snapshot of `--help` shows `render` among the commands, and the snapshot of `render --help` shows the usage line, the defaults, the possible values of `--shading` and none of `--colouring`, the help texts of `--colouring` and `--colours` of Section 4.2 with no default of `clap`, `--set`, `--rotation`, and `--light`. Each malformed value of `--colouring` gives the message `expected one, parity, or a colouring id such as 3a` | Ignored |
-| Render diagnostic snapshots | Command line of Sections 5.3 and 5.5 of the plan, failure paths | `insta`, `render` | The diagnostic and status of `render 23`, `render 732 --colouring parity`, `render 732 --colours '#e9c46a,#2a9d8f'`, `render '*532' --set aspect=2`, `--rotation nan,0,0`, `--light 0,0,0`, and `--light inf,0,0` for `*532`, `render '3*(inf)'`, `render '*(1001)32'`, the three examples of settings of Section 6.8, three colours and one colour for `parity`, `--colours '#e9c46a,red'`, `--border-colour red`, `--background '#ffff'`, `--size 0x0`, a size over the limit, `--samples 0`, a sample grid over the limit, `--border-width=-1`, an output path in a directory that does not exist, and the colouring ids of Section 6.8: `render '*642' --colouring 3d`, `render '*732' --colouring 15a`, `render '*642' --colouring 3a` with two colours, and `render '*666' --colouring 12a`, whose search stops at the limit on the stored colourings. `--border-width=-1` uses `=`, so that `clap` reads `-1` as the value (Section 11.1) | Ignored |
+| Render diagnostic snapshots | Command line of Sections 5.3 and 5.5 of the plan, failure paths | `insta`, `render` | The diagnostic and status of `render 23`, `render 732 --colouring parity`, `render 732 --colours '#e9c46a,#2a9d8f'`, `render '*532' --set aspect=2`, `--rotation nan,0,0`, `--light 0,0,0`, and `--light inf,0,0` for `*532`, `render '3*(inf)'`, `render '*(1001)32'`, the three examples of settings of Section 6.8, three colours and one colour for `parity`, `--colours '#e9c46a,red'`, `--border-colour red`, `--background '#ffff'`, `--size 0x0`, a size over the limit, `--samples 0`, a sample grid over the limit, `--border-width=-1`, an output path in a directory that does not exist, and the colouring ids of Section 6.8: `render '*642' --colouring 3d`, `render '*732' --colouring 15a`, `render '*642' --colouring 3a` with two colours, and `render '*666' --colouring 12a`, whose search stops at the limit on the stored colourings, and the examples of reflection polygons of Section 6.8: `render '*3333' --set slice1.length=4`, `render 3333 --set slice1.length=2`, and the setting that fails `verify()`. `--border-width=-1` uses `=`, so that `clap` reads `-1` as the value (Section 11.1) | Ignored |
 | Statistics snapshot | Command line of Section 5.3 of the plan | `insta`, `render` | The status, the statistics lines, and the empty standard error of `render '*732' --size 16x16 --samples 1 --stats`, with the values masked as CLI-28 requires. `Samples: 256` stays in the snapshot | Ignored |
 | Spherical statistics snapshot | Command line of Section 5.5 of the plan | `insta`, `render` | As "Statistics snapshot", for `render '*532' --size 16x16 --samples 1 --stats`, in a test and a snapshot of its own | Ignored |
 | Written file | The PNG file decodes to the requested size | Plain test, `render` | `Success`, empty standard output and standard error, and a file for `render '*732' --size 48x32 --samples 2`. The test reads the file by hand: it starts with the 8-byte PNG signature, its first chunk is `IHDR` with length 13, a width of 48 and a height of 32 as big-endian `u32` values, a bit depth of 8, and the colour type 2, which is RGB, as Section 5.6 of `docs/design/render.md` requires, and a chunk `sRGB` comes before the first `IDAT` chunk. The non-square size catches a swap of width and height | Ignored |
@@ -1691,6 +1808,7 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Colouring parser | Failure paths (CLI-42) | Unit tests in `args.rs` | The private parser reads `one`, `parity`, `1a`, `3a`, `12dk`, and `64zzzz` as the colourings they name, and rejects `three`, `3`, `03a`, `3A`, `65a`, `0a`, `3abcde`, an empty value, and a value with a space before or after it, with the message of Section 4.6 | Runs |
 | Default colours | Command line of Section 5.8 of the plan (CLI-44) | Unit tests in `render.rs` | The 12 entries of the table equal the colours of the table of Section 4.6, given in the test as literal `#rrggbb` texts. The private function that chooses the fill colours gives the first $k$ of those literal colours for a colouring id with $k$ from 1 to 12, the literal values `[0xe9, 0xc4, 0x6a]` for `one` and `[0xe9, 0xc4, 0x6a]` and `[0x2a, 0x9d, 0x8f]` for `parity`, and for 13 colours the diagnostic of Section 6.8 with the id that it is given. The private function that writes that a colouring does not exist uses the words `3 colourings`, `1 colouring`, `no colouring`, and `1 colour` of Section 6.8 | Runs |
 | Colouring id resolution | Failure paths (CLI-43) | Unit tests in `render.rs` | The private function that resolves a colouring id, given the domain of `22` and a budget of 10000 steps, finds `2a`, and for `2b` gives `cannot render 22: the colouring 2b does not exist, because the signature has 1 colouring with 2 colours`. Given the domain of `*632`, the id `2a`, and a budget of 100 steps, which stops the search, it gives exactly `cannot render *632: the search for the colouring 2a stopped at a limit before it found it` | Runs |
+| Polygon render | Command line of Section 5.9 of the plan | Plain tests, `render` | `render '*22222' --size 48x32 --samples 2` and `render 3333 --size 48x32 --samples 2` give `Success` and a file whose header holds the requested size, read as the test "Written file" reads it. The files of `render '*3333' --size 64x64 --samples 2` with `--set slice1.length=2.5` and with no setting differ, and the file with the setting is equal byte for byte with `--threads 1` and with `--threads 4`. For `render '*3333' --set slice1.length=4` and for the setting that fails `verify()`, an existing file keeps its bytes | Ignored |
 | Smoke test | One process-level smoke test of the binary | Plain test, `process` | The binary that Cargo names in `CARGO_BIN_EXE_escher`, run with `render '*732' --size 32x32 -o <path>`, exits with status 0, writes nothing to standard output or standard error, and writes a file that starts with the PNG signature | Ignored |
 | Doctests | None | Doctests | The crate-level examples | Not run, because Miri runs through nextest, which runs no doctest |
 
@@ -1721,6 +1839,10 @@ Every snapshot must be deterministic (rule TEST-2 of `docs/rust-coding-standards
 - The values of rows 14 to 16 are printed with six digits after the point (Section 5.5). The colouring lines do not depend on these values. A snapshot input is chosen so that the exact value of each of these rows lies farther from a rounding boundary of the sixth digit than the bound of Section 9.3 of `docs/design/domain.md` in the column for the orders of that input, converted to degrees for an angle. The column "Orders up to 12" applies to `*732`, `*542`, `*433`, and `*642`, and the column "(1000, 3, 2)" to `*(1000)32`. Every correct build then prints the same digits. A 256-bit computation of `*732` confirms this for every value of its summary, as Section 5.3 shows. The test "Triangles" of `docs/design/domain.md` checks the values of the other inputs against the reference arithmetic of `escher-domain`, within the bound of that column (Section 12.1 of that document). For each of these inputs, the distance of every exact value to the nearest rounding boundary of the sixth digit, computed in double precision, is larger than that bound, so every snapshot input meets the condition. The value of `*642` closest to a boundary is the side 0.8813735870, which lies $8.70 \times 10^{-8}$ from it. For `*632`, `*442`, `*333`, and `*2222`, the bound of each quantity in Section 9.4 of `docs/design/domain.md` applies, and every value of their summaries lies at least $4.36 \times 10^{6}$ times its bound, converted to degrees for an angle, from the nearest rounding boundary of the sixth digit. For `*532`, `*332`, `*722`, `*55`, `*22`, and `*(1000)22`, the bound of each quantity in Section 9.5 of `docs/design/domain.md` applies. Every exact value of their summaries lies at least $8.27 \times 10^{-8}$ from the nearest rounding boundary of the sixth digit, at side 1 of `*332`, whose length is 1.2309594173. That distance is at least $2.07 \times 10^{5}$ times the largest bound of Section 9.5, $4 \times 10^{-13}$. Their angles are whole numbers of degrees or $180/7$ and 0.18 degrees, far from a boundary. For the rotation inputs `732`, `442`, `2222`, `532`, `(12)22`, `55`, and `22`, the bounds of Section 9.6 of `docs/design/domain.md` apply. Relative to its bound, the value closest to a rounding boundary of the sixth digit is the angle $360/7$ degrees of `732`, which lies $7.143 \times 10^{-8}$ degrees from the boundary, 124.7 times the corner-angle bound of $10^{-11}$ radians, or $5.73 \times 10^{-10}$ degrees. The value with the smallest absolute distance is the area $\pi/15$ of `532`, which lies $1.024 \times 10^{-8}$ from the boundary, $2.56 \times 10^{4}$ times its bound of $4 \times 10^{-13}$. Every other value of their summaries lies at least $1.1 \times 10^{-7}$ from a boundary. The minimum, the maximum, and the default of a parameter are constants of `escher-domain`, whose `Display` text is the same on every platform, so they need no such condition.
 
 CLI-20. A snapshot MUST NOT hold a residual of a check, and its inputs MUST meet the condition on rounding boundaries above, because a value that depends on the last bits of floating-point arithmetic makes the snapshot test fail on a platform whose mathematics library rounds differently, although the program is correct.
+
+The reflection polygons and their doubles need two more rules in their snapshots. On the prototype, their default colouring search took up to 1.39 s in a release build and up to 19.6 s in a debug build (Section 5.8). Their summaries hold side lengths and angles that the construction of `DEC-46` computes, and this design states no distance of them from a rounding boundary of the sixth digit. The defaults in their `Parameter` lines are rounded to three decimals by `DEC-13`, so a default could differ between platforms only if it lay within its rounding error of a boundary of the third decimal. On the prototype, the closest default lay $9.3 \times 10^{-9}$ from such a boundary (`DEC-13`). The change that builds the polygons computes the exact value of each printed value of the inputs of "Polygon snapshots" in the reference arithmetic of `escher-domain`, and records here the value closest to a rounding boundary, with its distance and the bound of the domain design for that value.
+
+CLI-50. A snapshot test of a reflection polygon or of its double MUST set `--max-colours` to at most 4, and MUST print only the default shape, or values that meet the condition on rounding boundaries of CLI-20, because a search to 12 colours of such a signature makes each snapshot test take seconds in the debug build, and a printed value near a rounding boundary makes the snapshot depend on the platform.
 
 The statistics lines need a rule of their own. The time differs on every run. The fold counts can differ between platforms, because a sample on or next to a wall can take a different side when the last bits of a side value differ (`UNV-3`). In every line that starts with `Mean folds: `, `Maximum folds: `, `Unconverged samples: `, or `Time: `, the snapshot helper replaces the text after the first `: ` with `<value>`. The line `Samples` stays, because the number of samples is the product of the size and the grid.
 
@@ -1778,6 +1900,8 @@ The other tests of Section 8.1 run under Miri unchanged, because they use only m
 The plain tests "Render status tests" build the domain of `*732` under Miri, and the colouring tests and the `--check` tests of `22` build its domain, so they run the arithmetic of `glam` and the floating-point functions of the standard library in the interpreter. The plain tests that run `info` on `*732` and verify it skip Miri because of the colouring search, as stated below, although the verification of `*732` needs few matrix products (Section 8.2 of `docs/design/domain.md`). They assert the status and the start or the end of the output, and no digit of a floating-point value, because the interpreter need not reproduce the last bits of the host library (Section 12.3 of `docs/design/domain.md`). They pass under `just check-miri`.
 
 Every `info` on a built domain runs the colouring search up to the colour limit (Section 5.8). On a prototype outside the repository, that search took 32 s under Miri for the side presentation of `732` up to 12 colours, while the search of `22` up to 12 colours needs 799 steps. So every plain test that runs `info` on a built domain other than that of `22`, which are the cases of `*732` of "Status tests", "Verification status tests", and "Output error tests", is a test of its own that carries `#[cfg_attr(miri, ignore = "the colouring search runs loops too long for the interpreter")]`, and the other cases of those rows run under Miri. They include `info --check 22`, `info 22 --check`, and `info --check 22` on a broken pipe, which keep the path of `--check` on a built domain under Miri. The tests "Colouring status tests", "Colouring line text", "Colour limit parser", "Colouring parser", "Default colours", and "Colouring id resolution" run under Miri, and "Colouring aliases" carries the attribute of CLI-27. Under `just check-miri`, on a heavily loaded host, `info --colourings 22` with both orders of the flag took 41.2 s, `info 22` 22.6 s, `info --check 22` with both orders 38.8 s, its test on a broken pipe 22.6 s, and the two tests of "Colouring line text" that run the search 46.7 s and 8.0 s. Run alone, those two took 5.0 s and 1.0 s.
+
+The tests "Polygon snapshots" carry the attribute of CLI-13, and the tests "Polygon render" the attribute of CLI-27. No plain test of this crate runs `info` on a reflection polygon or its double under Miri, because the colouring search of a hyperbolic group runs loops too long for the interpreter, as it does for `*732`, and the build of such a domain also runs its walk and `verify()` there.
 
 The tests "Presentation status tests" and "Enumeration gate" run under Miri unchanged. They enumerate only presentations of groups of order 2, or `*632` up to a limit of 10, and build only the domain of `22`, so they run the code of `escher-group` and `side_presentation()` in the interpreter at a small cost, and the status test of `22` also runs its colouring search. Under `just check-miri`, on a loaded host, the status test of `22` with both orders of the flag took 16.6 s, that of `x` and `*` 14.0 s, and the two tests of "Enumeration gate" 3.5 s and 4.2 s. The unit tests of "Order line text" also run unchanged, and the test of the combinations of diagnostics took 4.0 s. Section 11.1 of `docs/design/group.md` records the times of the enumerations of `x`, `22`, and `*` under Miri on a prototype outside the repository, which are small, and that of `*532`, which is too long. So no plain test of this crate enumerates `*532`, and only the snapshot, which Miri skips, covers it.
 
@@ -1876,7 +2000,7 @@ CLI-14. The dev-dependencies of this crate MUST stay inside the dependency polic
 
 ## 10. Unverified Statements
 
-This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-10`, `UNV-22`, `UNV-26`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, and `UNV-32` through `escher-domain`, on `UNV-17`, `UNV-19`, and `UNV-22` through `escher-group`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, `UNV-17`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
+This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-6`, `UNV-7`, `UNV-10`, `UNV-22`, `UNV-26`, `UNV-27`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, and `UNV-32` through `escher-domain`, on `UNV-17`, `UNV-19`, and `UNV-22` through `escher-group`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, `UNV-17`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
 
 | Id | How this crate relies on it |
 | --- | --- |
@@ -1886,12 +2010,13 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 | `UNV-10` | `info` prints one `Parameter` line for each parameter that `escher-domain` specifies, such as one for `*2222`. No source states whether the published parameter count of `*2222` includes the scale, so the lines list the parameters of the construction and claim no count |
 | `UNV-28` | `info` prints the summary of a Euclidean triangle, and `render` draws it, from the vertex coordinates that `escher-domain` builds, whose checks and tests its design states |
 | `UNV-29` | `info` prints the summary of a lune, and `render` draws it as a fundamental domain, which no source states. `info --check` reports the checks that test it |
+| `UNV-6`, `UNV-7`, `UNV-27` | `info` prints the parameters and the summary of a reflection polygon, and `render` draws it, from the construction of SymmHub's cuts, the default shape, and the ranges that `escher-domain` builds on them. `build_with` returns only a polygon or a double that passes `verify()` (DOM-44 of `docs/design/domain.md`), and `info --check` reports the checks |
 | `UNV-22`, `UNV-30`, `UNV-31` | `info` prints the summary of a rotation domain, and `render` draws it as a fundamental domain of the rotation subgroup, which rests on the signature of that subgroup, on the lune double, and on the convexity and the vertex cycles of the double. `info --check` reports the checks that test each build |
 | `UNV-19` | The order lines of `--presentation` come from the coset enumeration of `escher-group`, and the colouring lines and the colourings of `render` from its low-index search, whose reliance on `UNV-19` Section 13 of `docs/design/group.md` states. A run that reaches the limit prints `not found` and claims nothing about the index (Section 5.7), and a search that stops at a limit claims nothing beyond its last complete colour count (CLI-47) |
 | `UNV-17` | `info` lists the colourings as the colourings of the tiling, and `render` draws one by its coset fill, which rests on the coset colour of Section 5.12 of `docs/design/render.md`. `info` claims nothing about which colourings are perfect, and prints only the subgroups that the search finds |
 | `UNV-22` | `--presentation` prints the Conway presentation of a boundary without corners, such as that of `*`, in the reading that Section 5.2 of `docs/design/group.md` records (GRP-7) |
 | `UNV-32` | `--presentation` prints the side presentation of a rotation domain, whose cycle relators as words are the reading of `docs/design/domain.md` (Section 5.4 of that document). The side order line compares the order that they present with the group order |
-| `UNV-1` | `render` relies on the fold to stop for the samples of an image of a reflection triangle, rectangle, or lune. `Unconverged samples` counts the samples for which it does not stop within the fold cap, which on the sphere can happen near a vertex of very high order |
+| `UNV-1` | `render` relies on the fold to stop for the samples of an image of a reflection triangle, polygon, rectangle, or lune. `Unconverged samples` counts the samples for which it does not stop within the fold cap, which on the sphere can happen near a vertex of very high order |
 | `UNV-2` | `render` relies on the fold to stop for the samples of an image of a rotation domain. `Unconverged samples` counts the samples for which it does not stop within the fold cap |
 | `UNV-16` | The ball that `render` draws comes from the lift onto the ball and the Phong reflection model, whose primary paper is unread |
 | `UNV-3` | A sample on or next to a wall can take either neighbouring tile, which is why CLI-28 masks the fold counts |
@@ -1918,6 +2043,8 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 - The PNG header that the test "Written file" reads has the layout of the PNG specification: the 8-byte signature, then the `IHDR` chunk with its length, its type, the width, the height, the bit depth, and the colour type. No document under `docs/research/` cites the specification. The test passes on the bytes that `escher-render` writes, which its own tests decode with `png`, so the layout that it reads agrees with the layout that `png` writes.
 - The fold counts can differ between platforms (Section 8.1). No run on two platforms has measured this. The masking of CLI-28 is safe either way.
 - A write to a FIFO whose reader has closed fails with the error kind `BrokenPipe`, and does not end the process, because Rust ignores the signal `SIGPIPE` (Section 6.6). The test of a broken pipe on the output file in "Render output errors" confirms this. The assumption holds only while the PNG file is larger than the buffer of the pipe, 64 KiB by default on Linux, because a smaller file fits in the buffer and its write succeeds. The test therefore renders 1024 by 1024 pixels, which gives a PNG file of about 160 KB.
+- The `Parameter` lines, the `Domain` line, and the colouring lines of the reflection polygons need no new code in this crate, because rows 10, 11, and 17 to 19 already read any number of parameters, sides, and generators. The prototype of Section 5.8 ran the search of `escher-group` on the polygons through the same calls. The tests "Polygon snapshots" confirm it.
+- The setting of a parameter of a reflection polygon, such as `slice1.length=2.5`, does not change its side presentation, so its colouring ids do not depend on `--set`, as for `aspect` of `*2222`. The relators of a reflection polygon come from its corner orders (DOM-33 of `docs/design/domain.md`), and the numbering of its sides depends on the canonical signature alone and never on the values of the parameters, so a setting keeps every colouring id (DOM-37 and DOM-43 of that document). No test of this crate compares the side presentations of two shapes of a polygon.
 
 ### 11.2. Choices of This Design
 
@@ -1997,6 +2124,10 @@ These choices are made here, and no other document dictates them:
 72. `render` clones the colouring that `find` returns, because `ColouringsOfIndex` only lends it and `CosetFill::new` takes it by value (Section 4.5).
 73. The render options are checked before the search with a placeholder fill of one colour, which is the border colour, and built a second time with the real fill, because the builder of `escher-render` takes the fill first and the coset fill exists only after the search (Section 4.5).
 74. The private function that resolves an id takes the step budget as a parameter, and `render` passes `SearchBudget::DEFAULT`, so a unit test can reach the diagnostic of a search that stops at a limit with a small budget (Sections 4.5 and 8.1).
+75. The examples of the reflection polygons in Section 5.3 hold placeholders for the values that the change that builds the polygons measures, and the defaults and colouring figures of the prototype (Section 5.3).
+76. A refused shape of a reflection polygon gives the row of any other error kind of Section 6.8, with no diagnostic of its own in this crate (Section 6.8).
+77. The snapshots of the reflection polygons and their doubles use `--max-colours 4`, or 2 with `--check` or `--presentation` (CLI-50).
+78. The snapshot of `*3333` is one of the polygon snapshots, and no information snapshot holds it (Section 8.1).
 
 ### 11.3. Points for the Owner
 
@@ -2051,6 +2182,8 @@ None of these blocks the implementation:
     ```
 
     When the one run at the limit exhausts the budget, the runs by index share one budget. They can then reach less far than the one run at a lower limit, which ends within the budget (Section 7.14 of `docs/design/group.md`, GRP-35). For `*664` and `*888`, a higher limit completes as far as the lower limit and no further. Without `--colourings`, `*664` completes to 14 at the limits 14 and 15, and `*888` to 12 at the limits 12, 13, and 14. With `--colourings`, both complete to 11 at the limits 11, 12, and 13. This is a known behaviour of the default design, and every line still claims only what its search completed (CLI-47). The alternative that would remove it is left to the owner.
+32. The latency of `info` on a reflection polygon (Section 5.8). On the prototype, the search of a default `info` on most reflection polygons and their doubles took 0.43 to 1.39 s in a release build. With 7 or 8 corners it completed only 3 to 5 colours. The design keeps the colour limit of 12 by default. The alternative is a default colour limit that falls with the number of generators of the side presentation, which would make the default text depend on the domain.
+33. The colouring ids of the doubles of the reflection polygons (`DEC-50` of `docs/design/architecture.md`). The ids that `info --colourings` lists for `p1...pn` with 4 to 8 orders, and that `render --colouring` takes, hold only until the milestone that builds the general hyperbolic signatures renumbers the sides of their domains. The design prints them like any other id, and no line marks them as provisional. The alternative marks them in the `Domain` line or refuses an id for such a signature.
 
 ## 12. Security Considerations
 
@@ -2173,3 +2306,4 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-47 | 5.8 | A search that stops at a limit gives the text of the last complete colour count and no line above it, and no outcome of the colouring lines changes the status. |
 | CLI-48 | 4.6 | `one` and `parity` keep their fills, and `1a` and the id of the parity colouring give the same bytes. |
 | CLI-49 | 6.8 | A diagnostic names a colouring id only by the `Display` text of its parsed value. |
+| CLI-50 | 8.1 | A snapshot of a reflection polygon or its double sets `--max-colours` to at most 4 and prints only the default shape or values that meet the rounding condition of CLI-20. |

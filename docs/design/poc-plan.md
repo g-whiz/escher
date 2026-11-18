@@ -118,7 +118,7 @@ The column "Depends on" names the milestones and research prerequisites whose re
 | M6 | Rotation subgroups | `pqr`, `22n`, `nn`, `2222` | `escher-domain`, `escher-render`, `escher-cli` | M4, M5 |
 | M7 | Presentations and coset enumeration | `info --presentation` | `escher-group` (new), `escher-domain`, `escher-cli` | M6, RP-1 |
 | M8 | Colouring search with ids | Colouring counts in `info`, `--colourings`, `--max-colours`, `render --colouring <id>` | `escher-group`, `escher-render`, `escher-cli` | M7 |
-| M9 | Hyperbolic reflection polygons with shape parameters | `*p1...pn` with its parameters | `escher-domain`, `escher-cli` | M6, RP-3 (sheet and slice part) |
+| M9 | Hyperbolic reflection polygons with shape parameters | `*p1...pn` with 4 to 8 corners and its parameters | `escher-domain`, `escher-render` (tests and golden images), `escher-cli` | M6, RP-3 (sheet and slice part) |
 | M10 | The 17 Euclidean groups | All 17 Euclidean signatures | `escher-domain` | M4, M8, RP-2 |
 | M11 | The 14 spherical types | All 14 spherical types | `escher-domain` | M5, M7, RP-2 |
 | M12 | Half-plane, band, and Klein models | `--model` | `escher-geometry`, `escher-render`, `escher-cli` | M3 |
@@ -577,23 +577,23 @@ escher render '*642' --colouring 3a --colours '#dc143c,#ffd700,#000080' -o c.png
 
 ### 5.9. M9: Hyperbolic Reflection Polygons With Shape Parameters
 
-**Goal.** Compact `*p1...pn` with $n \ge 4$ and its $n - 3$ parameters. This milestone completes stage 1.
+**Goal.** Compact hyperbolic `*p1...pn` with 4 to 8 corners and its $n - 3$ parameters. This milestone completes stage 1.
 
 **Command line.** These commands illustrate the milestone:
 
 ```sh
 escher info '*2223'
 escher render '*22222' -o pent.png
-escher render '*3333' --set slice1.length=1.2 -o slice.png
+escher render '*3333' --set slice1.length=2.5 -o slice.png
 ```
 
-- `escher info '*2223'` lists the parameter `slice1.length`.
-- In SymmHub, the one parameter of `*2223` is a corner-pair length, not a slice length, and so are the parameters of `*22222` (`symmhub.md` 6.6.1). The design of M9 decides whether Escher names the parameter of `*2223` `slice1.length` or otherwise.
-- The rotation subgroups `p1...pn` render at the default shape by doubling. Their full parameter set arrives in M15.
+- `escher info '*2223'` prints the canonical signature `*3222` and lists the parameter `cornerpair1.length` (`DEC-47`).
+- A signature with more than 8 orders is refused with `LimitExceeded` and the text `the signature has 9 orders, more than 8`, with its number of orders (DOM-38 of `domain.md`, `DEC-48`).
+- The rotation subgroups `p1...pn` with 4 to 8 orders render at the default shape by doubling, with no parameter (`DEC-50`). Their full parameter set arrives in M15.
 
-**Scope.** The construction of the polygon from slices and sheets, as SymmHub does it (`fundamental-domains.md` 8.5 to 8.9), laid out with linear isometries. The default shape (`DEC-13`). The ranges (`DEC-14`).
+**Scope.** The construction of the polygon from corner pairs, slices, and sheets with SymmHub's lengths (`fundamental-domains.md` 8.5 to 8.9), on the corner order of the canonical signature with cyclic rotation of a sheet only, and laid out by one boundary walk in double-double arithmetic (`DEC-46`, `domain.md` 6.10). The guard of `build_with` on the polygons and their doubles (`DEC-48`, DOM-44 of `domain.md`). The placement (`DEC-49`). The default shape (`DEC-13`). The ranges (`DEC-14`).
 
-**Design documents.** An extension of `domain.md`, after the sheet and slice part of RP-3.
+**Design documents.** The extensions of `domain.md`, `render.md`, `cli.md`, and `architecture.md`, after the sheet and slice part of RP-3.
 
 **Sources.**
 
@@ -601,15 +601,25 @@ escher render '*3333' --set slice1.length=1.2 -o slice.png
 - The parameter count $n - 3$: Theorem 13.8.1 and p. 316 of [TH] (`fundamental-domains.md` 6.1 and 9.4).
 - Coordinates: one polygon for each set of angles, from the proof of Theorem 7.16.2 of [BEARDON], and the rest of the family only from SymmHub (`fundamental-domains.md` 3 and 9.4).
 
-**Unverified statements relied on.** `UNV-6` and `UNV-7` for producing the polygon, `UNV-27` (ranges and default), and `UNV-12` for the pentagon relations that `geometry-models.md` 10.5 and 15.1 items 12 and 14 leave open, if they are used. The reliance is limited, because `verify()` checks the hypotheses of Theorem 6.4.3 of [DAVIS] on each built polygon: closure, convexity, and corner angles $\pi/p_i$.
+**Unverified statements relied on.** `UNV-6` and `UNV-7` for producing the polygon, and `UNV-27` (ranges and default). The construction does not use the pentagon relations of `UNV-12`. The reliance is limited, because `build_with` returns only a polygon that passes `verify()`, which checks the hypotheses of Theorem 6.4.3 of [DAVIS]: closure, convexity, and corner angles $\pi/p_i$.
 
-**Tests and acceptance.** Regular right-angled polygons against equations 24 and 29 of [HT]. Area equal to $-2\pi\chi$. Random parameters within range pass `verify()`. Relators. Parameters out of range fail with the documented kind. Golden images.
+**Tests and acceptance.** Regular right-angled polygons against equations 24 and 29 of [HT]. Area equal to $-2\pi\chi$. Random parameters within range give a polygon that passes `verify()` or the error kind `Numerical`, and never a panic. Relators. Parameters out of range fail with the documented kind. The fold and the borders of `escher-render` on the polygons and their doubles against the reference arithmetic. Golden images.
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Errors from `UNV-6`. Extreme parameters. A numeric port of SymmHub's construction as coded put the corners in the wrong cyclic order for most of the signatures with five to eight corners that it tried (`symmhub.md` 6.8).
+**Risks.** Errors from `UNV-6`. Extreme parameters: on a prototype, some settings in range failed `verify()` with 7 or 8 corners even with exact vertices, which the guard refuses (`DEC-14`, `DEC-48`). A numeric port of SymmHub's construction as coded put the corners in the wrong cyclic order for most of the signatures with five to eight corners that it tried (`symmhub.md` 6.8), which the cyclic rotation of `DEC-46` avoids.
 
-**Split.** As a fallback if the milestone grows, the closure is solved numerically from the side lengths, and SymmHub's formulas are kept for M15.
+**Split.** The construction gives every side length in closed form and needs no numeric solve for closure, so the milestone needs no fallback construction. Seven branches, in this order:
+
+1. The design branch `feature/reflection-polygons-design`, with the documents of the field "Design documents" and every figure of the crates stated as to be measured.
+2. The measurement of the angles and the area of a polygon with any number of vertices in `escher-domain`, with the triangles and kites unchanged bit for bit.
+3. The polygons, their parameters with their defaults, and the guard in `escher-domain`, with the snapshot of `escher-cli` that the change makes false.
+4. The accuracy tests of the polygons and their measured figures in `docs/design/domain.md`.
+5. The rotation signatures `p1...pn` by doubling.
+6. The snapshots and diagnostics of `escher-cli`.
+7. The fold sets, the tests, and the golden images of `escher-render`, with their figures in `docs/design/render.md`.
+
+Branches 6 and 7 may run in parallel, and the last of them to merge updates Project Status in `AGENTS.md`.
 
 ### 5.10. M10: The 17 Euclidean Groups
 
@@ -754,6 +764,8 @@ escher render 2223 --set tube1.twist=0.2 -o twist.png
 ```
 
 `escher info 2223` lists two parameters with their names.
+
+The domains of the rotation signatures `p1...pn` with 4 to 8 orders, which M9 builds as doubles of reflection polygons, are replaced by the domains of this milestone. The new construction numbers their sides anew, so their side pairs and their colouring ids change (`DEC-50`, and DOM-37 and DOM-47 of `docs/design/domain.md`), and this milestone updates their snapshots and golden images.
 
 **Scope.** A port of the normalization, atomization, unfolding, assembly, and generators (`fundamental-domains.md` 8, `symmhub.md` 6 and 8.1). The combinatorics and the scalar formulas are ported. The layout and the generators are rebuilt from linear isometries, so circles and complex numbers appear only where a formula cannot be restated. Prerequisite RP-3.
 
@@ -903,7 +915,7 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-9 | The twist convention | Gap G11 | M10, M15, M16 | A project convention |
 | UNV-10 | Euclidean parameter counts: whether a count includes the scale, and the counts of the groups for which no source states one. The counts and the rule that are sourced are in `orbifold-notation.md` 10.2 and `fundamental-domains.md` 6.1 | Gap G7, `orbifold-notation.md` 12 item 7 | M4, M10 | [KLR], [SCOTT], or Lean |
 | UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7) | Gap G8, `fundamental-domains.md` 9.7 | M10, M11, M15 | A source that constructs them, or Lean |
-| UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5, and the spherical law of cosines solved for a side, Theorem 2.5.4 of [RATCLIFFE], is in `geometry-models.md` 11.3 | `geometry-models.md` 10.5, 10.6, 15.1 items 12 and 14, and 15.2 | M9 | Chapter 2 of [BUSER], or Lean |
+| UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5, and the spherical law of cosines solved for a side, Theorem 2.5.4 of [RATCLIFFE], is in `geometry-models.md` 11.3 | `geometry-models.md` 10.5, 10.6, 15.1 items 12 and 14, and 15.2 | None. The construction of M9 does not use it (`DEC-46`) | Chapter 2 of [BUSER], or Lean |
 | UNV-13 | The inverse and metric of the band, and the choice of map between the disk and the half-plane. The maps between the disk, the hyperboloid, and the Klein model are sourced in `geometry-models.md` 4.2 | `geometry-models.md` 4.3 and 5.1, `rendering.md` 13.1 item 14 | M12 | [HUB], and round-trip tests |
 | UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M3 tests, M13 | A source, or Lean |
 | UNV-15 | The screen-distance estimate through the fold, analytic antialiasing, and the fade of tiles smaller than a pixel | `rendering.md` 7.1 and 13.1 items 19 and 20 | M3, M14 | Measurement against supersampling |
