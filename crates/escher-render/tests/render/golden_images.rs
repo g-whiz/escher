@@ -1,4 +1,4 @@
-use escher_domain::{FundamentalDomain, ShapeParameters};
+use escher_domain::{FundamentalDomain, ShapeParameters, parameters};
 use escher_group::{Colouring, ColouringId, IndexLimit, SearchBudget, colourings_of_index};
 use escher_signature::Signature;
 use glam::{DMat3, DVec2};
@@ -8,7 +8,7 @@ use crate::{Colour, CosetFill, Fill, RenderOptions, Renderer, Shading};
 
 pub(crate) struct GoldenImage {
     pub(crate) signature: &'static str,
-    pub(crate) aspect: Option<f64>,
+    pub(crate) settings: &'static [(&'static str, f64)],
     pub(crate) rotation: [f64; 3],
     pub(crate) shading: Shading,
     pub(crate) colouring: Option<&'static str>,
@@ -17,7 +17,7 @@ pub(crate) struct GoldenImage {
 
 impl GoldenImage {
     pub(crate) fn domain(&self) -> FundamentalDomain {
-        domain_with_aspect(self.signature, self.aspect)
+        domain_with_settings(self.signature, self.settings)
     }
 
     pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
@@ -42,10 +42,14 @@ impl GoldenImage {
     }
 }
 
-const fn golden(signature: &'static str, aspect: Option<f64>, file: &'static str) -> GoldenImage {
+const fn golden(
+    signature: &'static str,
+    settings: &'static [(&'static str, f64)],
+    file: &'static str,
+) -> GoldenImage {
     GoldenImage {
         signature,
-        aspect,
+        settings,
         rotation: [0.0; 3],
         shading: Shading::Phong,
         colouring: None,
@@ -56,7 +60,7 @@ const fn golden(signature: &'static str, aspect: Option<f64>, file: &'static str
 const fn coset(signature: &'static str, id: &'static str, file: &'static str) -> GoldenImage {
     GoldenImage {
         signature,
-        aspect: None,
+        settings: &[],
         rotation: [0.0; 3],
         shading: Shading::Phong,
         colouring: Some(id),
@@ -64,22 +68,22 @@ const fn coset(signature: &'static str, id: &'static str, file: &'static str) ->
     }
 }
 
-pub(crate) const GOLDEN_IMAGES: [GoldenImage; 20] = [
-    golden("*732", None, "7-3-2.png"),
-    golden("*542", None, "5-4-2.png"),
-    golden("*433", None, "4-3-3.png"),
-    golden("*632", None, "6-3-2.png"),
-    golden("*442", None, "4-4-2.png"),
-    golden("*333", None, "3-3-3.png"),
-    golden("*2222", Some(1.618), "2-2-2-2.png"),
-    golden("*532", None, "5-3-2.png"),
-    golden("*432", None, "4-3-2.png"),
-    golden("*332", None, "3-3-2.png"),
-    golden("*722", None, "7-2-2.png"),
-    golden("*55", None, "5-5.png"),
+pub(crate) const GOLDEN_IMAGES: [GoldenImage; 25] = [
+    golden("*732", &[], "7-3-2.png"),
+    golden("*542", &[], "5-4-2.png"),
+    golden("*433", &[], "4-3-3.png"),
+    golden("*632", &[], "6-3-2.png"),
+    golden("*442", &[], "4-4-2.png"),
+    golden("*333", &[], "3-3-3.png"),
+    golden("*2222", &[("aspect", 1.618)], "2-2-2-2.png"),
+    golden("*532", &[], "5-3-2.png"),
+    golden("*432", &[], "4-3-2.png"),
+    golden("*332", &[], "3-3-2.png"),
+    golden("*722", &[], "7-2-2.png"),
+    golden("*55", &[], "5-5.png"),
     GoldenImage {
         signature: "*532",
-        aspect: None,
+        settings: &[],
         rotation: [20.0, 35.0, 0.0],
         shading: Shading::Phong,
         colouring: None,
@@ -87,27 +91,40 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 20] = [
     },
     GoldenImage {
         signature: "*532",
-        aspect: None,
+        settings: &[],
         rotation: [0.0; 3],
         shading: Shading::Flat,
         colouring: None,
         file: "5-3-2-flat.png",
     },
-    golden("732", None, "rot-7-3-2.png"),
-    golden("442", None, "rot-4-4-2.png"),
-    golden("2222", Some(1.618), "rot-2-2-2-2.png"),
-    golden("532", None, "rot-5-3-2.png"),
-    golden("722", None, "rot-7-2-2.png"),
-    golden("55", None, "rot-5-5.png"),
+    golden("732", &[], "rot-7-3-2.png"),
+    golden("442", &[], "rot-4-4-2.png"),
+    golden("2222", &[("aspect", 1.618)], "rot-2-2-2-2.png"),
+    golden("532", &[], "rot-5-3-2.png"),
+    golden("722", &[], "rot-7-2-2.png"),
+    golden("55", &[], "rot-5-5.png"),
+    golden("*3333", &[], "3-3-3-3.png"),
+    GoldenImage {
+        signature: "*3333",
+        settings: &[("slice1.length", 2.5)],
+        rotation: [0.0; 3],
+        shading: Shading::Phong,
+        colouring: None,
+        file: "3-3-3-3-slice-2.5.png",
+    },
+    golden("*22222", &[], "2-2-2-2-2.png"),
+    golden("*5432", &[], "5-4-3-2.png"),
+    golden("3333", &[], "rot-3-3-3-3.png"),
 ];
 
-pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 6] = [
+pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 7] = [
     coset("*642", "3a", "cos-6-4-2-3a.png"),
     coset("*732", "8a", "cos-7-3-2-8a.png"),
     coset("432", "3a", "cos-rot-4-3-2-3a.png"),
     coset("532", "5a", "cos-rot-5-3-2-5a.png"),
     coset("*2222", "4a", "cos-2-2-2-2-4a.png"),
     coset("*532", "5a", "cos-5-3-2-5a.png"),
+    coset("*22222", "3k", "cos-2-2-2-2-2-3k.png"),
 ];
 
 pub(crate) const GOLDEN_FILL: [[u8; 3]; 2] = [[245, 222, 179], [70, 130, 180]];
@@ -230,15 +247,105 @@ pub(crate) fn compare(first: &[u8], second: &[u8], grid: u32, linear: &[f64]) ->
 }
 
 pub(crate) fn domain_with_aspect(text: &str, aspect: Option<f64>) -> FundamentalDomain {
+    let settings: Vec<(&str, f64)> = aspect
+        .map(|aspect| ("aspect", aspect))
+        .into_iter()
+        .collect();
+    domain_with_settings(text, &settings)
+}
+
+pub(crate) fn domain_with_settings(text: &str, settings: &[(&str, f64)]) -> FundamentalDomain {
     let signature: Signature = text
         .parse()
         .unwrap_or_else(|error| panic!("{text:?} is rejected: {error}"));
-    let mut settings = ShapeParameters::new();
-    if let Some(aspect) = aspect {
-        settings.set("aspect", aspect);
+    let mut parameters = ShapeParameters::new();
+    for &(name, value) in settings {
+        parameters.set(name, value);
     }
-    FundamentalDomain::build_with(&signature, &settings)
-        .unwrap_or_else(|error| panic!("{text} with aspect {aspect:?} has no domain: {error}"))
+    FundamentalDomain::build_with(&signature, &parameters)
+        .unwrap_or_else(|error| panic!("{text} with {settings:?} has no domain: {error}"))
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Shape {
+    Default,
+    Named(&'static [(&'static str, f64)]),
+    Every(f64),
+}
+
+pub(crate) struct PolygonShape {
+    pub(crate) signature: &'static str,
+    pub(crate) shape: Shape,
+}
+
+const fn polygon(signature: &'static str, shape: Shape) -> PolygonShape {
+    PolygonShape { signature, shape }
+}
+
+pub(crate) const POLYGON_DOMAINS: [PolygonShape; 20] = [
+    polygon("*3333", Shape::Default),
+    polygon("*3333", Shape::Named(&[("slice1.length", 0.5)])),
+    polygon("*3333", Shape::Named(&[("slice1.length", 2.5)])),
+    polygon("*3333", Shape::Named(&[("slice1.length", 3.5)])),
+    polygon("*22222", Shape::Default),
+    polygon(
+        "*22222",
+        Shape::Named(&[("cornerpair1.length", 0.5), ("cornerpair2.length", 0.5)]),
+    ),
+    polygon(
+        "*22222",
+        Shape::Named(&[("cornerpair1.length", 3.5), ("cornerpair2.length", 3.5)]),
+    ),
+    polygon("*5432", Shape::Default),
+    polygon("*5432", Shape::Named(&[("slice1.length", 0.5)])),
+    polygon("*5432", Shape::Named(&[("slice1.length", 3.5)])),
+    polygon("*3222", Shape::Default),
+    polygon("*(1000)2222", Shape::Default),
+    polygon("*22222222", Shape::Default),
+    polygon("*22222222", Shape::Every(0.5)),
+    polygon("*22222222", Shape::Every(3.5)),
+    polygon("3333", Shape::Default),
+    polygon("22222", Shape::Default),
+    polygon("5432", Shape::Default),
+    polygon("3222", Shape::Default),
+    polygon("22222222", Shape::Default),
+];
+
+impl PolygonShape {
+    pub(crate) fn name(&self) -> String {
+        match self.shape {
+            Shape::Default => self.signature.to_owned(),
+            Shape::Named(settings) => {
+                let settings: Vec<String> = settings
+                    .iter()
+                    .map(|(name, value)| format!("{name} {value}"))
+                    .collect();
+                format!("{} {}", self.signature, settings.join(" "))
+            }
+            Shape::Every(value) => format!("{} every length {value}", self.signature),
+        }
+    }
+
+    pub(crate) fn domain(&self) -> FundamentalDomain {
+        match self.shape {
+            Shape::Default => domain_with_settings(self.signature, &[]),
+            Shape::Named(settings) => domain_with_settings(self.signature, settings),
+            Shape::Every(value) => {
+                let signature: Signature = self
+                    .signature
+                    .parse()
+                    .unwrap_or_else(|error| panic!("{:?} is rejected: {error}", self.signature));
+                let names: Vec<String> = parameters(&signature)
+                    .iter()
+                    .map(|spec| spec.name().to_owned())
+                    .collect();
+                assert!(!names.is_empty(), "{} has no parameter", self.signature);
+                let settings: Vec<(&str, f64)> =
+                    names.iter().map(|name| (name.as_str(), value)).collect();
+                domain_with_settings(self.signature, &settings)
+            }
+        }
+    }
 }
 
 pub(crate) const TRANSLATION_TOLERANCE: f64 = 6e-15;

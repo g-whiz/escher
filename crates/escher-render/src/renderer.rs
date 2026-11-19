@@ -380,8 +380,8 @@ mod tests {
     use crate::fold::{PointSize, Wall, fold, fold_carrying};
     use crate::golden_images::{
         ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_COSET_FILL, GOLDEN_GRID, GOLDEN_IMAGES,
-        colouring, colourings_of, compare, coset_fill, domain_with_aspect, find_colouring,
-        linear_table, renderer,
+        POLYGON_DOMAINS, colouring, colourings_of, compare, coset_fill, domain_with_aspect,
+        find_colouring, linear_table, renderer,
     };
     use crate::options::{RenderOptions, Shading};
     use crate::reference::{Reference, Worst, count_bound, error, plane_border_distance, vector};
@@ -574,10 +574,69 @@ mod tests {
         ignore = "the high-precision arithmetic runs loops too long for the interpreter"
     )]
     fn gradient_form_of_the_border_agrees_with_the_distance_form() {
+        const MEASURED: [[usize; 2]; 6] = [[0, 2], [7, 0], [0, 0], [0, 0], [0, 0], [0, 0]];
+        let domains = FOLD_TRIPLES.map(|text| (text.to_owned(), domain(text)));
+        assert_border_forms(&domains, &BorderBounds::Summed(MEASURED));
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+    )]
+    fn gradient_form_of_the_border_agrees_with_the_distance_form_on_the_polygons() {
+        const NONE: [[usize; 2]; 6] = [[0; 2]; 6];
+        const fn second_band(first: [usize; 2], second: [usize; 2]) -> [[usize; 2]; 6] {
+            [first, second, [0; 2], [0; 2], [0; 2], [0; 2]]
+        }
+        const MEASURED: [[[usize; 2]; 6]; POLYGON_DOMAINS.len()] = [
+            second_band([0, 0], [0, 4]),
+            second_band([0, 0], [6, 0]),
+            second_band([0, 0], [6, 0]),
+            NONE,
+            second_band([0, 1], [2, 0]),
+            second_band([0, 1], [7, 0]),
+            second_band([0, 0], [1, 0]),
+            second_band([0, 0], [5, 0]),
+            second_band([0, 0], [3, 0]),
+            second_band([0, 0], [3, 0]),
+            second_band([0, 0], [6, 0]),
+            second_band([0, 0], [0, 8]),
+            second_band([0, 0], [2, 44]),
+            second_band([0, 0], [12, 0]),
+            second_band([0, 2], [4, 26]),
+            second_band([0, 0], [0, 35]),
+            second_band([0, 1], [1, 0]),
+            second_band([0, 0], [4, 29]),
+            second_band([0, 0], [5, 0]),
+            second_band([0, 0], [1, 50]),
+        ];
+        let domains: Vec<(String, FundamentalDomain)> = POLYGON_DOMAINS
+            .iter()
+            .map(|shape| (shape.name(), shape.domain()))
+            .collect();
+        assert_border_forms(&domains, &BorderBounds::PerDomain(&MEASURED));
+    }
+
+    enum BorderBounds<'a> {
+        Summed([[usize; 2]; 6]),
+        PerDomain(&'a [[[usize; 2]; 6]]),
+    }
+
+    fn gradient_form(walls: &[Wall], point: DVec3, tangents: [DVec3; 2]) -> f64 {
+        walls
+            .iter()
+            .map(|wall| {
+                let [first, second] = tangents.map(|tangent| wall.covector().dot(tangent));
+                wall.covector().dot(point).abs() / (first * first + second * second).sqrt()
+            })
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    fn assert_border_forms(domains: &[(String, FundamentalDomain)], measured: &BorderBounds<'_>) {
         const ANGLES: u32 = 512;
         const NEAR: f64 = 4.0;
         const HALF_WIDTHS: [f64; 2] = [0.5, 1.5];
-        const MEASURED: [[usize; 2]; 6] = [[0, 2], [7, 0], [0, 0], [0, 0], [0, 0], [0, 0]];
         const MINIMUM: usize = 1000;
         let mut reference = Reference::new();
         let options = match RenderOptions::builder(Fill::One(Colour::WHITE)).build() {
@@ -586,15 +645,14 @@ mod tests {
         };
         let view = View::canonical(&options, Geometry::Hyperbolic);
         let pixel = view.pixel();
-        for (band, measured) in (1..=6).zip(MEASURED) {
-            let bounds = measured.map(count_bound);
+        for (band_index, band) in (1..=6).enumerate() {
             let radius = 1.0 - 10.0_f64.powi(-band);
             let mut near = 0;
             let mut differing = [0; 2];
             let mut largest = 0.0_f64;
             let mut worst = String::new();
-            for text in FOLD_TRIPLES {
-                let domain = domain(text);
+            for (domain_index, (text, domain)) in domains.iter().enumerate() {
+                let before = differing;
                 let walls: Vec<Wall> = domain.sides().iter().map(|&side| Wall::new(side)).collect();
                 let covectors: Vec<_> = walls
                     .iter()
@@ -626,15 +684,7 @@ mod tests {
                         continue;
                     }
                     near += 1;
-                    let gradient = walls
-                        .iter()
-                        .map(|wall| {
-                            let [first, second] =
-                                tangents.map(|tangent| wall.covector().dot(tangent));
-                            wall.covector().dot(result.point()).abs()
-                                / (first * first + second * second).sqrt()
-                        })
-                        .fold(f64::INFINITY, f64::min);
+                    let gradient = gradient_form(&walls, result.point(), tangents);
                     let relative = (gradient - exact).abs() / exact;
                     if relative > largest {
                         largest = relative;
@@ -650,19 +700,36 @@ mod tests {
                         }
                     }
                 }
+                let counts = [0, 1].map(|half| differing[half] - before[half]);
+                if counts != [0; 2] {
+                    println!(
+                        "band {band}, {text}: {} and {} classified differently",
+                        counts[0], counts[1]
+                    );
+                }
+                if let BorderBounds::PerDomain(measured) = measured {
+                    let bounds = measured[domain_index][band_index].map(count_bound);
+                    assert!(
+                        counts[0] <= bounds[0] && counts[1] <= bounds[1],
+                        "band {band}, {text}: {counts:?}, bounds {bounds:?}"
+                    );
+                }
             }
             println!(
-                "band {band}: {near} samples within {NEAR} pixels of a wall, {} and {} classified differently at half widths {} and {}, bounds {} and {}, largest relative difference {largest:.3e} at {worst}",
-                differing[0], differing[1], HALF_WIDTHS[0], HALF_WIDTHS[1], bounds[0], bounds[1]
+                "band {band}: {near} samples within {NEAR} pixels of a wall, {} and {} classified differently at half widths {} and {}, largest relative difference {largest:.3e} at {worst}",
+                differing[0], differing[1], HALF_WIDTHS[0], HALF_WIDTHS[1]
             );
             assert!(
                 near >= MINIMUM,
                 "band {band}: only {near} samples near a wall"
             );
-            assert!(
-                differing[0] <= bounds[0] && differing[1] <= bounds[1],
-                "band {band}: {differing:?}"
-            );
+            if let BorderBounds::Summed(measured) = measured {
+                let bounds = measured[band_index].map(count_bound);
+                assert!(
+                    differing[0] <= bounds[0] && differing[1] <= bounds[1],
+                    "band {band}: {differing:?}, bounds {bounds:?}"
+                );
+            }
         }
     }
 
@@ -719,15 +786,7 @@ mod tests {
                         continue;
                     }
                     near += 1;
-                    let gradient = walls
-                        .iter()
-                        .map(|wall| {
-                            let [first, second] =
-                                tangents.map(|tangent| wall.covector().dot(tangent));
-                            wall.covector().dot(result.point()).abs()
-                                / (first * first + second * second).sqrt()
-                        })
-                        .fold(f64::INFINITY, f64::min);
+                    let gradient = gradient_form(&walls, result.point(), tangents);
                     let relative = (gradient - exact).abs() / exact;
                     if relative > largest {
                         largest = relative;

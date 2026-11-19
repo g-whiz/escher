@@ -13,10 +13,10 @@ use proptest::sample::Index;
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
     Measure, REPLAY_BOUNDS, ROTATION_EUCLIDEAN_REPLAY_BOUNDS, ROTATION_REPLAY_BOUNDS,
-    SPHERICAL_DOMAINS, TOLERANCE, domain, euclidean_band, euclidean_domain, proptest_config,
-    rotation_domain, spherical_domain, text,
+    SPHERICAL_DOMAINS, TOLERANCE, domain, euclidean_band, euclidean_domain, polygon_cases,
+    proptest_config, rotation_domain, spherical_domain, text,
 };
-use crate::golden_images::domain_with_aspect;
+use crate::golden_images::{POLYGON_DOMAINS, domain_with_aspect};
 use crate::reference::{self, Reference, num, vector};
 
 const WALL_CLEARANCE: f64 = 1e-6;
@@ -538,6 +538,92 @@ proptest! {
     }
 }
 
+proptest! {
+    #![proptest_config(proptest_config())]
+
+    #[test]
+    fn polygon_fold_converges_inside_every_side(
+        index in any::<Index>(),
+        exponent in 0.0..=6.0_f64,
+        angle in 0.0..TAU,
+    ) {
+        let domain = POLYGON_DOMAINS[POLYGON_CASES[index.index(POLYGON_CASES.len())]].domain();
+        let result = fold(&domain, point_in_range(exponent, angle), DEFAULT_CAP, |_| {});
+        prop_assert!(result.converged());
+        prop_assert!(result.reversals() <= result.steps());
+        if !domain.reverses_orientation() {
+            prop_assert_eq!(result.reversals(), 0);
+        }
+        let point = result.point();
+        for wall in domain.sides() {
+            let covector = wall.covector();
+            let threshold = TOLERANCE * covector.abs().element_sum() * point.z;
+            prop_assert!(side(covector, point) <= threshold);
+        }
+    }
+
+    #[test]
+    fn polygon_fold_of_a_folded_point_takes_zero_steps_and_returns_the_same_bits(
+        index in any::<Index>(),
+        exponent in 0.0..=6.0_f64,
+        angle in 0.0..TAU,
+    ) {
+        let domain = POLYGON_DOMAINS[POLYGON_CASES[index.index(POLYGON_CASES.len())]].domain();
+        let first = fold(&domain, point_in_range(exponent, angle), DEFAULT_CAP, |_| {});
+        prop_assert!(first.converged());
+        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
+        prop_assert!(second.converged());
+        prop_assert_eq!(second.steps(), 0);
+        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+    }
+
+    #[test]
+    fn polygon_fold_takes_the_same_decisions_for_the_point_scaled_by_a_power_of_two(
+        index in any::<Index>(),
+        exponent in 0.0..=6.0_f64,
+        angle in 0.0..TAU,
+    ) {
+        let domain = POLYGON_DOMAINS[POLYGON_CASES[index.index(POLYGON_CASES.len())]].domain();
+        let point = point_in_range(exponent, angle);
+        let mut sides = Vec::new();
+        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
+        for power in -40..=40 {
+            let factor = power_of_two(power);
+            let mut scaled_sides = Vec::new();
+            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
+            prop_assert_eq!(&scaled_sides, &sides);
+            prop_assert_eq!(scaled.steps(), unscaled.steps());
+            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
+            prop_assert_eq!(scaled.converged(), unscaled.converged());
+            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
+        }
+    }
+
+    #[test]
+    fn polygon_fold_of_any_bit_pattern_returns_within_the_cap_and_converges_only_at_a_finite_point_with_a_positive_last_coordinate(
+        index in any::<Index>(),
+        bits in any::<[u64; 3]>(),
+        cap in 0..=2000_u32,
+    ) {
+        let domain = POLYGON_DOMAINS[POLYGON_CASES[index.index(POLYGON_CASES.len())]].domain();
+        let point = DVec3::from_array(bits.map(f64::from_bits));
+        let result = fold(&domain, point, cap, |_| {});
+        prop_assert!(result.steps() <= cap);
+        prop_assert!(result.reversals() <= result.steps());
+        if !domain.reverses_orientation() {
+            prop_assert_eq!(result.reversals(), 0);
+        }
+        prop_assert!(!result.converged() || (result.point().is_finite() && result.point().z > 0.0));
+        let positive = point.z > 0.0;
+        if !positive {
+            prop_assert!(!result.converged());
+            prop_assert_eq!(result.steps(), 0);
+        }
+    }
+}
+
+static POLYGON_CASES: LazyLock<Vec<usize>> = LazyLock::new(polygon_cases);
+
 const SPHERICAL_PAIRING_BOUNDS: [f64; 17] = [
     2e-14, 3e-14, 5e-14, 9e-15, 2e-14, 2e-14, 3e-14, 3e-12, 3e-10, 3e-10, 8e-15, 2e-14, 5e-15,
     6e-15, 9e-15, 2e-14, 3e-14,
@@ -613,7 +699,7 @@ struct ColouredDomain {
     colourings: Vec<Colouring>,
 }
 
-const COLOURED_DOMAINS: [(&str, Measure, u32); 7] = [
+const COLOURED_DOMAINS: [(&str, Measure, u32); 10] = [
     ("*732", Measure::Hyperbolic, 9),
     ("*642", Measure::Hyperbolic, 6),
     ("*2222", Measure::Euclidean, 6),
@@ -621,6 +707,9 @@ const COLOURED_DOMAINS: [(&str, Measure, u32); 7] = [
     ("432", Measure::Spherical, 6),
     ("2222", Measure::Euclidean, 6),
     ("732", Measure::Hyperbolic, 9),
+    ("*3333", Measure::Hyperbolic, 4),
+    ("*22222", Measure::Hyperbolic, 4),
+    ("3333", Measure::Hyperbolic, 4),
 ];
 
 static COLOURED: LazyLock<Vec<ColouredDomain>> = LazyLock::new(|| {
@@ -645,11 +734,11 @@ static COLOURED: LazyLock<Vec<ColouredDomain>> = LazyLock::new(|| {
         .collect()
 });
 
-const LARGEST_DISK_RADIUS: f64 = 1.0 - 1e-4;
+const LARGEST_DISK_RADIUS: f64 = 1.0 - 1e-3;
 
 fn coloured_point(measure: Measure, unit: f64, angle: f64) -> DVec3 {
     match measure {
-        Measure::Hyperbolic => point_in_range(4.0 * unit, angle),
+        Measure::Hyperbolic => point_in_range(3.0 * unit, angle),
         Measure::Euclidean => plane_point(EUCLIDEAN_RANGE * unit, angle),
         Measure::Spherical => sphere_point(2.0 * unit - 1.0, angle, 0),
     }

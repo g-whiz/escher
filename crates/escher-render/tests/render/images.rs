@@ -4,11 +4,12 @@ use escher_render::{
     Colour, CosetFill, ErrorKind, Fill, RenderOptions, RenderStats, Renderer, encode_png,
 };
 
-use crate::common::{decode_png, domain, one_fill, options};
+use crate::common::{DEFAULT_CAP, decode_png, domain, one_fill, options, render_in_bands};
 use crate::golden_images::{
     ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
-    GoldenImage, TRANSLATION_TOLERANCE, colouring as golden_colouring, colourings_of, compare,
-    coset_fill, domain_with_aspect, linear_table, renderer, shifted_pairs, translation,
+    GoldenImage, POLYGON_DOMAINS, TRANSLATION_TOLERANCE, colouring as golden_colouring,
+    colourings_of, compare, coset_fill, domain_with_aspect, linear_table, renderer, shifted_pairs,
+    translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -563,4 +564,68 @@ fn coset_fill_render_equals_render_rows_over_any_split_into_bands() {
         );
         assert_bands_equal_the_whole_image(&renderer(&domain, options));
     }
+}
+
+const POLYGON_UNCONVERGED: [usize; POLYGON_DOMAINS.len()] = [0; POLYGON_DOMAINS.len()];
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn polygon_images_fold_every_sample_within_the_cap() {
+    for (shape, measured) in POLYGON_DOMAINS.iter().zip(POLYGON_UNCONVERGED) {
+        let name = shape.name();
+        let options = options(RenderOptions::builder(one_fill()));
+        let stats = render_in_bands(&name, &shape.domain(), options);
+        let inside = stats.samples() - stats.outside();
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the counts are far below 2 to the power 52"
+        )]
+        let mean = stats.folds() as f64 / inside as f64;
+        let allowed = crate::reference::count_bound(measured);
+        println!(
+            "{name} at 512 by 512 with 4 by 4 samples: {inside} samples inside the disk, mean steps {mean:.2}, largest {}, {} unconverged, bound {allowed}",
+            stats.largest_fold(),
+            stats.unconverged()
+        );
+        assert!(
+            stats.unconverged() <= u64::try_from(allowed).unwrap_or(u64::MAX),
+            "{name}: {} unconverged samples",
+            stats.unconverged()
+        );
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
+)]
+fn coset_golden_colouring_of_the_pentagon_fixes_the_numbering_of_its_sides() {
+    let domain = domain_with_aspect("*22222", None);
+    let colouring = golden_colouring(&domain, "3k");
+    let sides = domain.sides();
+    let colours: Vec<u32> = sides
+        .iter()
+        .enumerate()
+        .map(|(index, side)| {
+            let across = sides[side.partner()].pairing() * domain.centre();
+            let mut visited = Vec::new();
+            let result = escher_render::fold(&domain, across, DEFAULT_CAP, |side| {
+                visited.push(u8::try_from(side).unwrap_or(u8::MAX));
+            });
+            assert!(result.converged(), "the tile across side {index}");
+            assert_eq!(
+                visited,
+                [u8::try_from(index).unwrap_or(u8::MAX)],
+                "the tile across side {index}"
+            );
+            colouring
+                .colour_of(&visited)
+                .unwrap_or_else(|| panic!("side {index} has no generator"))
+        })
+        .collect();
+    assert_eq!(colours, [0, 0, 1, 0, 2]);
 }

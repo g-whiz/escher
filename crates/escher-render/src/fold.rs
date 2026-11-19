@@ -120,11 +120,17 @@ impl Fold {
 /// fold in zero steps. For a spherical domain, every other finite vector is a
 /// point, including one with a last coordinate that is zero or negative.
 ///
-/// The function never panics, for any input. For a hyperbolic domain, the
-/// result is accurate up to a disk radius of `1 - 1e-6`. For a Euclidean
-/// domain, it is accurate up to a distance of 65 from the centre of the
-/// domain. For a spherical domain, it is accurate for every vector whose
-/// largest absolute coordinate is at least `1e-300` and whose fold converges.
+/// The function never panics, for any input. For a hyperbolic triangle and
+/// its double, the result is accurate up to a disk radius of `1 - 1e-6`. For a
+/// hyperbolic polygon with four to eight corners and its double, the accuracy
+/// depends on the shape, because the walls of a wide shape lie far from the
+/// centre and the rounding of a reflection is expected to grow with the
+/// distance of its wall. The accuracy up to the same radius is measured on a
+/// fixed set of shapes only. For any other shape, the function only returns and
+/// reports whether the fold converged. For a Euclidean domain, it is accurate
+/// up to a distance of 65 from the centre of the domain. For a spherical
+/// domain, it is accurate for every vector whose largest absolute coordinate is
+/// at least `1e-300` and whose fold converges.
 /// A point very close to a vertex of very high order, such as a point within
 /// `1e-14` radians of the vertex of order 1000 of `*(1000)22`, can still lie
 /// outside a side after the default cap of 1500 steps, and its fold then does

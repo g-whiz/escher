@@ -8,14 +8,16 @@ use glam::{DMat3, DVec3};
 
 use crate::common::{
     BANDS, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS, EUCLIDEAN_REPLAY_BOUNDS,
-    FOLD_TRIPLES, REPLAY_BOUNDS, RotationCase, SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS,
-    SPHERICAL_IMAGE_BOUNDS, SPHERICAL_REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe,
-    describe_plane, describe_sphere, domain, euclidean_domain, euclidean_fold_set, euclidean_name,
+    FOLD_ANGLES, FOLD_TRIPLES, POLYGON_DECISION_COUNTS, POLYGON_REPLAY_BOUNDS, REPLAY_BOUNDS,
+    RotationCase, SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS, SPHERICAL_IMAGE_BOUNDS,
+    SPHERICAL_REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane, describe_polygon,
+    describe_sphere, domain, euclidean_domain, euclidean_fold_set, euclidean_name,
     euclidean_rotation_cases, fold_set, hyperbolic_rotation_cases, one_fill, options,
-    pixel_position, reference_walls, rim_set, rotation_domain, rotation_text, spherical_domain,
-    spherical_fold_set, spherical_rotation_cases, text,
+    pixel_position, polygon_cases, polygon_fold_set, reference_walls, render_in_bands, rim_set,
+    rotation_domain, rotation_text, spherical_domain, spherical_fold_set, spherical_rotation_cases,
+    text,
 };
-use crate::golden_images::{domain_with_aspect, renderer};
+use crate::golden_images::{POLYGON_DOMAINS, domain_with_aspect, renderer};
 use crate::reference::{self, Reference, Worst, count_bound, num, vector};
 
 const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 6];
@@ -1067,27 +1069,7 @@ fn every_vertex_of_a_rotation_domain_folds_in_zero_steps() {
 
 fn assert_rotation_image_converges(text: &str) {
     let options = options(RenderOptions::builder(one_fill()));
-    let renderer = renderer(&domain_with_aspect(text, None), options);
-    let band_rows = 64;
-    let band_bytes = 3 * 512 * band_rows;
-    let mut pixels = vec![0; band_bytes * 8];
-    let stats = std::thread::scope(|scope| {
-        let bands: Vec<_> = pixels
-            .chunks_mut(band_bytes)
-            .zip((0..512).step_by(64))
-            .map(|(band, first)| {
-                let renderer = &renderer;
-                scope.spawn(move || renderer.render_rows(first, band))
-            })
-            .collect();
-        bands.into_iter().fold(
-            escher_render::RenderStats::default(),
-            |stats, band| match band.join().expect("a band of rows returns") {
-                Ok(band) => stats.merged(band),
-                Err(error) => panic!("{text}: {error}"),
-            },
-        )
-    });
+    let stats = render_in_bands(text, &domain_with_aspect(text, None), options);
     let inside = stats.samples() - stats.outside();
     #[expect(
         clippy::cast_precision_loss,
@@ -1278,5 +1260,135 @@ fn fold_near_a_vertex_of_a_rotation_domain_converges_beyond_the_measured_distanc
                 unconverged[0], unconverged[1]
             );
         }
+    }
+}
+
+fn assert_polygon_replay(domains: core::ops::Range<usize>) {
+    let mut reference = Reference::new();
+    for index in domains {
+        let shape = &POLYGON_DOMAINS[index];
+        let name = shape.name();
+        let domain = shape.domain();
+        let walls = reference_walls(&domain);
+        let largest_component = domain
+            .sides()
+            .iter()
+            .map(|side| side.covector().abs().max_element())
+            .fold(0.0_f64, f64::max);
+        println!("{name}: largest covector component {largest_component:.3}");
+        let mut worst: Vec<Worst> = BANDS
+            .iter()
+            .map(|band| {
+                Worst::new(
+                    format!("folded point of {name} from the replay, band {band}"),
+                    512,
+                )
+            })
+            .collect();
+        let mut differing = [0_usize; 6];
+        let mut steps = [(0_u64, 0_u32); 6];
+        for sample in polygon_fold_set(index) {
+            let (result, sides) = sides_of(&domain, sample.point, DEFAULT_CAP);
+            assert!(
+                result.converged(),
+                "{} does not converge",
+                describe_polygon(&sample)
+            );
+            let (total, largest) = &mut steps[sample.band];
+            *total += u64::from(result.steps());
+            *largest = (*largest).max(result.steps());
+            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let distance = reference.distance(&vector(result.point().to_array()), &replayed);
+            worst[sample.band].record(&distance, &reference::int(1), || describe_polygon(&sample));
+            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
+            if !exact.converged || exact.sides != sides {
+                let first = sides
+                    .iter()
+                    .zip(&exact.sides)
+                    .take_while(|(left, right)| left == right)
+                    .count();
+                println!(
+                    "{}: the side sequence differs from the exact fold, which converged {}, first at step {first}",
+                    describe_polygon(&sample),
+                    exact.converged
+                );
+                differing[sample.band] += 1;
+            }
+        }
+        for (band_index, band) in BANDS.iter().enumerate() {
+            let (total, largest) = steps[band_index];
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the total is far below 2 to the power 52"
+            )]
+            let mean = total as f64 / f64::from(FOLD_ANGLES);
+            let allowed = count_bound(POLYGON_DECISION_COUNTS[index][band_index]);
+            println!(
+                "{name} band {band}: mean steps {mean:.1}, largest {largest}, {} of {FOLD_ANGLES} folds differ, bound {allowed}",
+                differing[band_index]
+            );
+            worst[band_index]
+                .assert_at_most(&mut reference, POLYGON_REPLAY_BOUNDS[index][band_index]);
+            assert!(
+                differing[band_index] <= allowed,
+                "{name} band {band}: {} folds differ, more than {allowed}",
+                differing[band_index]
+            );
+        }
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn polygon_fold_replay_of_squares_stays_within_its_bounds() {
+    assert_polygon_replay(0..4);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn polygon_fold_replay_of_pentagons_and_quadrilaterals_stays_within_its_bounds() {
+    assert_polygon_replay(4..12);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn polygon_fold_replay_of_octagons_stays_within_its_bounds() {
+    assert_polygon_replay(12..15);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn polygon_fold_replay_of_doubles_stays_within_its_bounds() {
+    assert_polygon_replay(15..POLYGON_DOMAINS.len());
+}
+
+#[test]
+fn every_vertex_of_a_polygon_folds_in_zero_steps() {
+    let shapes = |reflection: bool| {
+        polygon_cases()
+            .into_iter()
+            .map(|index| &POLYGON_DOMAINS[index])
+            .filter(move |shape| shape.signature.starts_with('*') == reflection)
+            .map(|shape| (shape.name(), shape.domain()))
+    };
+    for (set, reflection) in [("reflection polygon", true), ("double of a polygon", false)] {
+        let (ratio, at) = largest_vertex_ratio(shapes(reflection));
+        println!(
+            "largest side value at a vertex of a {set} over the tolerance scale: {ratio:.3e} at {at}, tolerance {TOLERANCE:e}, margin {:.2}",
+            TOLERANCE / ratio
+        );
+        assert!(ratio <= TOLERANCE, "{ratio:e} at {at}");
     }
 }

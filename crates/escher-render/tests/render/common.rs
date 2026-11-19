@@ -3,12 +3,12 @@ use core::f64::consts::TAU;
 use escher_domain::FundamentalDomain;
 use escher_geometry::hyperbolic::from_disk;
 use escher_geometry::spherical;
-use escher_render::{Colour, Fill, RenderOptions, RenderOptionsBuilder};
+use escher_render::{Colour, Fill, RenderOptions, RenderOptionsBuilder, RenderStats, Renderer};
 use escher_signature::Signature;
 use glam::{DMat3, DVec2, DVec3};
 use proptest::test_runner::Config;
 
-use crate::golden_images::domain_with_aspect;
+use crate::golden_images::{POLYGON_DOMAINS, Shape, domain_with_aspect};
 use crate::reference::{self, Reference, Vector, Wall, matrix, vector};
 
 pub(crate) const PLAN_TRIPLES: [[u32; 3]; 6] = [
@@ -351,6 +351,87 @@ pub(crate) fn fold_set(orders: [u32; 3]) -> Vec<Sample> {
     samples
 }
 
+pub(crate) const POLYGON_REPLAY_BOUNDS: [[f64; 6]; POLYGON_DOMAINS.len()] = [
+    [4e-13, 4e-11, 4e-9, 4e-7, 4e-5, 4e-3],
+    [1e-12, 1e-10, 1e-8, 2e-6, 1e-4, 1e-2],
+    [1e-12, 2e-10, 1e-8, 1e-6, 1e-4, 1e-2],
+    [4e-12, 4e-10, 2e-8, 4e-6, 4e-4, 2e-2],
+    [4e-13, 4e-11, 4e-9, 4e-7, 4e-5, 4e-3],
+    [1e-12, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2],
+    [1e-11, 4e-10, 1e-7, 4e-6, 4e-4, 4e-2],
+    [4e-13, 4e-11, 4e-9, 4e-7, 4e-5, 4e-3],
+    [1e-12, 1e-10, 1e-8, 1e-6, 4e-5, 1e-2],
+    [4e-12, 2e-10, 4e-8, 4e-6, 4e-4, 4e-2],
+    [4e-13, 4e-11, 4e-9, 4e-7, 2e-5, 4e-3],
+    [4e-11, 4e-9, 4e-7, 4e-5, 4e-3, 4e-1],
+    [1e-12, 2e-10, 1e-8, 1e-6, 1e-4, 1e-2],
+    [4e-11, 4e-9, 2e-7, 4e-5, 2e-3, 2e-1],
+    [1e-11, 1e-9, 1e-7, 1e-5, 1e-3, 2e-1],
+    [4e-12, 4e-10, 4e-8, 4e-6, 4e-4, 4e-2],
+    [2e-12, 4e-10, 4e-8, 2e-6, 4e-4, 4e-2],
+    [2e-12, 2e-10, 4e-8, 4e-6, 2e-4, 4e-2],
+    [1e-12, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2],
+    [2e-10, 1e-8, 1e-6, 1e-4, 2e-2, 1.0],
+];
+
+pub(crate) const POLYGON_DECISION_COUNTS: [[usize; 6]; POLYGON_DOMAINS.len()] = [
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0, 0, 0, 0, 0, 2],
+    [0; 6],
+    [0, 0, 0, 0, 0, 1],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0; 6],
+    [0, 0, 0, 0, 0, 1],
+];
+
+pub(crate) struct PolygonSample {
+    pub(crate) domain: usize,
+    pub(crate) band: usize,
+    pub(crate) angle: u32,
+    pub(crate) point: DVec3,
+}
+
+pub(crate) fn polygon_fold_set(domain: usize) -> Vec<PolygonSample> {
+    let mut samples = Vec::new();
+    for (band, &exponent) in BANDS.iter().enumerate() {
+        for angle in 0..FOLD_ANGLES {
+            let position = on_circle(band_radius(exponent), angle, FOLD_ANGLES);
+            let Some(point) = from_disk(position) else {
+                panic!("{position:?} of band {exponent} is outside the disk");
+            };
+            samples.push(PolygonSample {
+                domain,
+                band,
+                angle,
+                point,
+            });
+        }
+    }
+    samples
+}
+
+pub(crate) fn describe_polygon(sample: &PolygonSample) -> String {
+    format!(
+        "{} in band {} at angle {} of {FOLD_ANGLES}",
+        POLYGON_DOMAINS[sample.domain].name(),
+        BANDS[sample.band],
+        sample.angle
+    )
+}
+
 pub(crate) fn describe(sample: &Sample) -> String {
     format!(
         "{} in band {} at angle {} of {FOLD_ANGLES}",
@@ -617,6 +698,49 @@ pub(crate) fn spherical_rotation_cases(
                 samples,
                 name,
             }
+        })
+        .collect()
+}
+
+pub(crate) fn render_in_bands(
+    name: &str,
+    domain: &FundamentalDomain,
+    options: RenderOptions,
+) -> RenderStats {
+    let (width, height) = (options.width(), options.height());
+    let renderer = Renderer::new(domain, options)
+        .unwrap_or_else(|error| panic!("{name}: the renderer is rejected: {error}"));
+    let band_rows = height.div_ceil(8);
+    let row_bytes = 3 * usize::try_from(width).unwrap_or(usize::MAX);
+    let band_bytes = row_bytes * usize::try_from(band_rows).unwrap_or(usize::MAX);
+    let mut pixels = vec![0; row_bytes * usize::try_from(height).unwrap_or(usize::MAX)];
+    std::thread::scope(|scope| {
+        let renderer = &renderer;
+        let bands: Vec<_> = pixels
+            .chunks_mut(band_bytes)
+            .zip((0..height).step_by(usize::try_from(band_rows).unwrap_or(usize::MAX)))
+            .map(|(band, first)| scope.spawn(move || renderer.render_rows(first, band)))
+            .collect();
+        bands
+            .into_iter()
+            .fold(RenderStats::default(), |stats, band| {
+                match band.join().expect("a band of rows returns") {
+                    Ok(band) => stats.merged(band),
+                    Err(error) => panic!("{name}: {error}"),
+                }
+            })
+    })
+}
+
+const POLYGON_INTERPRETER_SHAPES: [&str; 3] = ["*3333", "*22222", "3333"];
+
+pub(crate) fn polygon_cases() -> Vec<usize> {
+    (0..POLYGON_DOMAINS.len())
+        .filter(|&index| {
+            let shape = &POLYGON_DOMAINS[index];
+            !cfg!(miri)
+                || (matches!(shape.shape, Shape::Default)
+                    && POLYGON_INTERPRETER_SHAPES.contains(&shape.signature))
         })
         .collect()
 }

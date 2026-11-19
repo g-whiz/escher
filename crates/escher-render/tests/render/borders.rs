@@ -7,7 +7,7 @@ use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, PLAN_TRIPLES, domain, euclidean_domain, euclidean_name,
     options, text,
 };
-use crate::golden_images::{domain_with_aspect, renderer};
+use crate::golden_images::{domain_with_aspect, domain_with_settings, renderer};
 use crate::reference::count_bound;
 
 const SIZE: u32 = 192;
@@ -137,30 +137,40 @@ fn compare_with_tiles(
     ignore = "rendering whole images runs loops too long for the interpreter"
 )]
 fn border_pixels_lie_where_the_tile_of_a_sample_changes() {
-    let size = usize::try_from(SIZE).unwrap_or(usize::MAX);
     for orders in PLAN_TRIPLES {
-        let domain = domain(orders);
-        let border = border_mask(&domain, SIZE);
-        let mut tiles: Vec<Option<DVec3>> = Vec::with_capacity(size * size);
-        for row in 0..SIZE {
-            for column in 0..SIZE {
-                let position = position(column, row);
-                let tile = (position.length() <= RADIUS)
-                    .then(|| from_disk(position))
-                    .flatten()
-                    .and_then(|point| tile_of(&domain, point, inverse));
-                tiles.push(tile);
-            }
-        }
-        let (changes, borders) =
-            compare_with_tiles(&text(orders), &border, &tiles, size, |here, there| {
-                distance(here, there) >= SAME_TILE
-            });
-        println!(
-            "{}: {changes} pixels where the tile changes and {borders} border pixels within disk radius {RADIUS}",
-            text(orders)
-        );
+        assert_borders_where_the_tile_changes(&text(orders), &domain(orders));
     }
+}
+
+fn assert_borders_where_the_tile_changes(name: &str, domain: &escher_domain::FundamentalDomain) {
+    let size = usize::try_from(SIZE).unwrap_or(usize::MAX);
+    let border = border_mask(domain, SIZE);
+    let mut tiles: Vec<Option<DVec3>> = Vec::with_capacity(size * size);
+    for row in 0..SIZE {
+        for column in 0..SIZE {
+            let position = position(column, row);
+            let tile = (position.length() <= RADIUS)
+                .then(|| from_disk(position))
+                .flatten()
+                .and_then(|point| tile_of(domain, point, inverse));
+            tiles.push(tile);
+        }
+    }
+    let (changes, borders) = compare_with_tiles(name, &border, &tiles, size, |here, there| {
+        distance(here, there) >= SAME_TILE
+    });
+    println!(
+        "{name}: {changes} pixels where the tile changes and {borders} border pixels within disk radius {RADIUS}"
+    );
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "rendering whole images runs loops too long for the interpreter"
+)]
+fn border_pixels_of_a_polygon_lie_where_the_tile_of_a_sample_changes() {
+    assert_borders_where_the_tile_changes("*3333", &domain_with_settings("*3333", &[]));
 }
 
 fn plane_position(size: u32, column: u32, row: u32) -> DVec2 {
