@@ -1,0 +1,29 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--check\", \"--max-colours\", \"2\", \"*3333\"])"
+---
+status: Success
+--- stdout
+Signature: *3333
+Geometry: hyperbolic
+Euler characteristic: -1/3
+Compact: yes
+Area: 2pi/3
+Deformation dimension: 1
+Parameter: slice1.length, range 0.5 to 3.5, default 1.317
+Domain: 4 mirror sides
+Corner angles in degrees: 60.000000, 60.000000, 60.000000, 60.000000
+Side lengths: 1.762713, 1.762782, 1.762713, 1.762782
+Domain area: 2.094395
+Colourings: 2, complete to 2 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
+Check isometries: passed, residual <residual>, tolerance 1.0e-9
+Check pairings: passed, residual <residual>, tolerance 1.0e-9
+Check walls: passed, residual <residual>, tolerance 1.0e-9
+Check relators: passed, residual <residual>, tolerance 2.0e-6
+Check angles: passed, residual <residual>, tolerance 1.0e-9
+Check area: passed, residual <residual>, tolerance 1.0e-9
+Verification: passed
+--- stderr
+--- end

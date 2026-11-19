@@ -56,6 +56,99 @@ fn info_prints_a_signature_with_one_deformation_parameter() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn info_prints_a_reflection_polygon_typed_in_another_order() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*2223"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_a_reflection_pentagon() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*22222"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_a_reflection_polygon_with_four_orders() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*5432"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_a_reflection_octagon() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "3", "*22222222"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_a_doubled_polygon() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "3333"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_a_doubled_pentagon() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "22222"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_no_domain_for_a_polygon_with_more_than_eight_corners() {
+    insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*222222222"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_check_prints_each_check_of_a_reflection_polygon() {
+    insta::assert_snapshot!(snapshot(&[
+        "info",
+        "--check",
+        "--max-colours",
+        "2",
+        "*3333"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_presentation_prints_the_presentations_of_a_doubled_polygon() {
+    insta::assert_snapshot!(snapshot(&[
+        "info",
+        "--presentation",
+        "--max-colours",
+        "2",
+        "3333"
+    ]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn info_prints_an_order_of_ten_or_more_in_parentheses() {
     insta::assert_snapshot!(snapshot(&["info", "2*(12)"]));
 }

@@ -1,0 +1,15 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--max-colours\", \"4\", \"*222222222\"])"
+---
+status: Success
+--- stdout
+Signature: *222222222
+Geometry: hyperbolic
+Euler characteristic: -5/4
+Compact: yes
+Area: 5pi/2
+Deformation dimension: 6
+Domain: none, cannot build fundamental domain: the signature has 9 orders, more than 8
+--- stderr
+--- end

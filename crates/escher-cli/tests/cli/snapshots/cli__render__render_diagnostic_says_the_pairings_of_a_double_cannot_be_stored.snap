@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"refused_double\",\n&[\"(967)(967)(967)(967)(967)(967)(967)(967)\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render (967)(967)(967)(967)(967)(967)(967)(967)
+  caused by: cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough
+--- end

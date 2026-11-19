@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"polygon_parameter_range\",\n&[\"*3333\", \"--set\", \"slice1.length=4\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *3333
+  caused by: cannot build fundamental domain: the parameter slice1.length is outside its range of 0.5 to 3.5
+--- end

@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"doubled_polygon_parameter\",\n&[\"3333\", \"--set\", \"slice1.length=2\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 3333
+  caused by: cannot build fundamental domain: the signature 3333 has no shape parameter with one of the given names
+--- end

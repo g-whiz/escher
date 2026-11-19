@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"nine_orders\", &[\"222222222\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 222222222
+  caused by: cannot build fundamental domain: the signature has 9 orders, more than 8
+--- end

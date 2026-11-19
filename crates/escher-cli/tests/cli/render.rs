@@ -330,6 +330,74 @@ fn render_diagnostic_gives_the_cause_of_a_parameter_of_a_spherical_signature() {
     ));
 }
 
+const REFUSED_SHAPE: &[&str] = &[
+    "*22222222",
+    "--set",
+    "cornerpair1.length=3.5",
+    "--set",
+    "cornerpair2.length=0.5",
+    "--set",
+    "cornerpair3.length=3.5",
+    "--set",
+    "cornerpair4.length=0.5",
+    "--set",
+    "slice1.length=0.5",
+];
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_a_polygon_parameter_outside_its_range() {
+    insta::assert_snapshot!(render_snapshot(
+        "polygon_parameter_range",
+        &["*3333", "--set", "slice1.length=4"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_a_parameter_of_a_doubled_polygon() {
+    insta::assert_snapshot!(render_snapshot(
+        "doubled_polygon_parameter",
+        &["3333", "--set", "slice1.length=2"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_says_a_polygon_shape_is_too_extreme() {
+    insta::assert_snapshot!(render_snapshot("refused_shape", REFUSED_SHAPE));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_says_the_pairings_of_a_double_cannot_be_stored() {
+    insta::assert_snapshot!(render_snapshot(
+        "refused_double",
+        &["(967)(967)(967)(967)(967)(967)(967)(967)"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_more_than_eight_orders() {
+    insta::assert_snapshot!(render_snapshot("nine_orders", &["222222222"]));
+}
+
 #[test]
 #[cfg_attr(
     miri,
@@ -400,14 +468,18 @@ fn render_writes_a_png_file_of_the_requested_size() {
 
 fn assert_png_header(output: &Path, width: u32, height: u32) {
     let file = std::fs::read(output).expect("the output file is written");
+    assert_png_bytes(&file, width, height);
+}
+
+fn assert_png_bytes(file: &[u8], width: u32, height: u32) {
     assert_eq!(file.get(..8), Some(PNG_SIGNATURE));
-    assert_eq!(read_u32(&file, 8), 13);
+    assert_eq!(read_u32(file, 8), 13);
     assert_eq!(file.get(12..16), Some(&b"IHDR"[..]));
-    assert_eq!(read_u32(&file, 16), width);
-    assert_eq!(read_u32(&file, 20), height);
+    assert_eq!(read_u32(file, 16), width);
+    assert_eq!(read_u32(file, 20), height);
     assert_eq!(file.get(24), Some(&8));
     assert_eq!(file.get(25), Some(&2));
-    let types = chunk_types(&file);
+    let types = chunk_types(file);
     let srgb = types.iter().position(|chunk| chunk == b"sRGB");
     let idat = types.iter().position(|chunk| chunk == b"IDAT");
     assert!(
@@ -435,6 +507,70 @@ fn render_writes_a_png_file_of_a_euclidean_tiling() {
     ]);
     assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
     assert_png_header(&output, 48, 32);
+}
+
+fn small_png(test: &str, args: &[&str]) -> Vec<u8> {
+    let mut all = args.to_vec();
+    all.extend_from_slice(&["--size", "48x32", "--samples", "2"]);
+    let file = rendered(test, &all);
+    assert_png_bytes(&file, 48, 32);
+    file
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_a_png_file_of_a_polygon() {
+    small_png("polygon_file", &["*22222"]);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_a_png_file_of_a_doubled_polygon() {
+    small_png("double_file", &["3333"]);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_fills_a_polygon_by_the_cosets_of_a_colouring_id() {
+    let cosets = small_png("polygon_colouring_file", &["*3333", "--colouring", "3a"]);
+    let default = small_png("polygon_default_file", &["*3333"]);
+    let one = small_png("polygon_one_file", &["*3333", "--colouring", "one"]);
+    assert_ne!(cosets, default);
+    assert_ne!(cosets, one);
+}
+
+fn polygon(test: &str, extra: &[&str]) -> Vec<u8> {
+    let mut args = vec!["*3333", "--size", "64x64", "--samples", "2"];
+    args.extend_from_slice(extra);
+    rendered(test, &args)
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_applies_a_polygon_setting_and_writes_the_same_bytes_for_one_thread_and_four() {
+    let default = polygon("polygon_default", &[]);
+    let one = polygon(
+        "slice_one_thread",
+        &["--set", "slice1.length=2.5", "--threads", "1"],
+    );
+    let four = polygon(
+        "slice_four_threads",
+        &["--set", "slice1.length=2.5", "--threads", "4"],
+    );
+    assert_ne!(one, default);
+    assert_eq!(one, four);
 }
 
 fn rectangle(test: &str, extra: &[&str]) -> Vec<u8> {
@@ -676,6 +812,21 @@ fn render_with_parity_for_a_domain_without_a_reversing_side_changes_no_file() {
 #[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_a_parameter_outside_its_range_changes_no_file() {
     assert_no_file_changes("parameter_range_file", &["*2222", "--set", "aspect=9"]);
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
+fn render_with_a_polygon_parameter_outside_its_range_changes_no_file() {
+    assert_no_file_changes(
+        "polygon_parameter_range_file",
+        &["*3333", "--set", "slice1.length=4"],
+    );
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
+fn render_with_a_refused_polygon_shape_changes_no_file() {
+    assert_no_file_changes("refused_shape_file", REFUSED_SHAPE);
 }
 
 #[test]

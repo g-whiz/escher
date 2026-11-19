@@ -1,0 +1,28 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"--max-colours\", \"2\", \"3333\"])"
+---
+status: Success
+--- stdout
+Signature: 3333
+Geometry: hyperbolic
+Euler characteristic: -2/3
+Compact: yes
+Area: 4pi/3
+Deformation dimension: 2
+Domain: 6 sides in 3 pairs
+Side pairs: 0 and 1 by rotation, 2 and 5 by translation, 3 and 4 by rotation
+Parity colouring: none, every side pairing preserves orientation
+Corner angles in degrees: 120.000000, 60.000000, 60.000000, 120.000000, 60.000000, 60.000000
+Side lengths: 1.762713, 1.762713, 1.762782, 1.762713, 1.762713, 1.762782
+Domain area: 4.188790
+Colourings: 1, complete to 2 colours
+Colourings with 1 colour: 1
+Presentation: 4 generators, 5 relators
+Generators: g1, g2, g3, g4
+Relators: g1^3, g2^3, g3^3, g4^3, g1 g2 g3 g4
+Side presentation: 6 generators, 7 relators
+Side generators: s0, s1, s2, s3, s4, s5
+Side relators: s0 s1, s2 s5, s3 s4, s1^3, (s2 s0)^3, (s3 s5)^3, s4^3
+--- stderr
+--- end

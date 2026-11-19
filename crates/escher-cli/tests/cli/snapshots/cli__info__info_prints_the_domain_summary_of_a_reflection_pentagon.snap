@@ -1,0 +1,25 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--max-colours\", \"4\", \"*22222\"])"
+---
+status: Success
+--- stdout
+Signature: *22222
+Geometry: hyperbolic
+Euler characteristic: -1/4
+Compact: yes
+Area: pi/2
+Deformation dimension: 2
+Parameter: cornerpair1.length, range 0.5 to 3.5, default 1.061
+Parameter: cornerpair2.length, range 0.5 to 3.5, default 1.061
+Domain: 5 mirror sides
+Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000, 90.000000
+Side lengths: 1.061380, 1.061000, 1.061615, 1.061000, 1.061380
+Domain area: 1.570796
+Colourings: 617, complete to 4 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 31
+Colourings with 3 colours: 30
+Colourings with 4 colours: 555
+--- stderr
+--- end
