@@ -88,7 +88,7 @@ fn place(placed: &[DVec3]) -> Result<Polygon, Option<escher_geometry::Error>> {
 }
 
 impl Side {
-    fn euclidean_mirror(covector: DVec3, index: usize) -> Self {
+    pub(crate) fn euclidean_mirror(covector: DVec3, index: usize) -> Self {
         Self {
             normal: DVec3::new(covector.x, covector.y, 0.0),
             covector,

@@ -1,0 +1,27 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"4*2\"])"
+---
+status: Success
+--- stdout
+Signature: 4*2
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Domain: 4 sides, 2 mirror sides and 1 pair
+Mirror sides: 0 and 1
+Side pairs: 2 and 3 by rotation
+Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000
+Side lengths: 1.000000, 1.000000, 1.000000, 1.000000
+Domain area: 1.000000
+Colourings: 157, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 3
+Colourings with 4 colours: 11
+Colourings with 6 colours: 12
+Colourings with 8 colours: 39
+Colourings with 9 colours: 9
+Colourings with 10 colours: 30
+Colourings with 12 colours: 52
+--- stderr
+--- end

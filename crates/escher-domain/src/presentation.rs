@@ -413,26 +413,26 @@ mod tests {
 
     #[test]
     fn relators_of_domains_with_glides_and_mirrors_evaluate_to_the_identity() {
+        let mut domains: Vec<(String, FundamentalDomain)> = Vec::new();
         for name in ["**", "xx", "*x", "22x", "22*", "2*22"] {
             for aspect in [1.0, 0.125, 8.0] {
-                let domain = built_with_aspect(name, aspect, None);
-                let presentation = match domain.side_presentation() {
-                    Ok(presentation) => presentation,
-                    Err(error) => panic!("{name} has no side presentation: {error}"),
-                };
-                for relator in presentation.relators() {
-                    let sides = letters(relator);
-                    let largest = euclidean_residual(
-                        &domain,
-                        &sides,
-                        relator.exponent(),
-                        Convention::Inverse,
-                    );
-                    assert!(
-                        largest <= 1e-9,
-                        "{name} at aspect {aspect}, {sides:?}: {largest:e}"
-                    );
-                }
+                domains.push((
+                    format!("{name} at aspect {aspect}"),
+                    built_with_aspect(name, aspect, None),
+                ));
+            }
+        }
+        domains.extend(["4*2", "3*3"].map(|name| (name.to_owned(), built(name))));
+        for (label, domain) in domains {
+            let presentation = match domain.side_presentation() {
+                Ok(presentation) => presentation,
+                Err(error) => panic!("{label} has no side presentation: {error}"),
+            };
+            for relator in presentation.relators() {
+                let sides = letters(relator);
+                let largest =
+                    euclidean_residual(&domain, &sides, relator.exponent(), Convention::Inverse);
+                assert!(largest <= 1e-9, "{label}, {sides:?}: {largest:e}");
             }
         }
     }

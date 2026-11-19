@@ -83,7 +83,8 @@ impl Parameter {
 /// each length is that of the polygon with an inscribed circle whose corners
 /// have the angles of the signature, rounded to three decimals.
 ///
-/// Every other signature has none. This includes the rotation signature of a
+/// Every other signature has none. This includes `4*2` and `3*3`, whose
+/// domains are the kites of `442` and `632`, the rotation signature of a
 /// polygon, such as `3333`, whose domain doubles the polygon with every length
 /// at its default, and a signature for which the crate builds no domain, such
 /// as a polygon with a corner of order above 1000.

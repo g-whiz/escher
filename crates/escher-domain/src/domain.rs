@@ -229,8 +229,8 @@ impl FundamentalDomain {
     /// Builds the fundamental domain of a signature, with the shape
     /// parameters that the settings give.
     ///
-    /// The signature must be `o`, `**`, `xx`, `*x`, `22x`, `22*`, or `2*22`,
-    /// or have no
+    /// The signature must be `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
+    /// `4*2`, or `3*3`, or have no
     /// handle or crosscap and
     /// either one mirror boundary with finite corner orders and no cone point,
     /// or finite cone orders and no boundary. With a boundary, it must be one
@@ -288,7 +288,13 @@ impl FundamentalDomain {
     /// its sides 2, 3, and 4 are mirrors. Each half-turn is the product of the
     /// reflections in the horizontal and the vertical line through its centre,
     /// so its entries are exact. Every one of these domains has its centre at
-    /// the origin.
+    /// the origin. The domains of `4*2` and `3*3` are the kites of `442` and
+    /// `632`, with the same vertices, walls, and centre, and no shape
+    /// parameter. Their sides 0 and 1 are mirrors, side 0 with the reflection
+    /// of the triangle of `*442` or `*632` and side 1 with the reflection in
+    /// its own wall, and their sides 2 and 3 keep the pairings of the kite,
+    /// the rotations about vertex 2 through a quarter turn for `4*2` and a
+    /// third of a turn for `3*3`.
     ///
     /// The reflection triangle of a Euclidean signature has side 0 of length 1,
     /// and the reflection rectangle has area 1. A spherical domain lies on the
@@ -301,7 +307,8 @@ impl FundamentalDomain {
     /// parameter without a setting takes its default value.
     ///
     /// A hyperbolic polygon, its double, the domain of `o`, `**`, `xx`, `*x`,
-    /// `22x`, `22*`, or `2*22`, or the domain of `2222` at any `skew` is
+    /// `22x`, `22*`, `2*22`, `4*2`, or `3*3`, or the domain of `2222` at any
+    /// `skew` is
     /// returned only when it passes every check of
     /// [`verify`](FundamentalDomain::verify), because rounding
     /// keeps some domains from meeting the tolerances of the checks. A polygon
@@ -356,8 +363,8 @@ impl FundamentalDomain {
     /// 5. An error of kind
     ///    [`ErrorKind::Numerical`](crate::ErrorKind::Numerical) when rounding
     ///    makes the construction degenerate, or when a hyperbolic polygon, its
-    ///    double, the domain of `o`, `**`, `xx`, `*x`, `22x`, `22*`, or
-    ///    `2*22`, or the domain of `2222` fails a check of
+    ///    double, the domain of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
+    ///    `4*2`, or `3*3`, or the domain of `2222` fails a check of
     ///    [`verify`](FundamentalDomain::verify).
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
         let supported = admitted(signature)?;
@@ -367,19 +374,28 @@ impl FundamentalDomain {
         let domain = match supported {
             Supported::Reflection(shape) => Self::reflection(shape, cuts.as_ref(), generating)?,
             Supported::Rotation(shape) => {
-                let doubled = double(
-                    &Self::reflection(shape.with_half_area(), cuts.as_ref(), generating)?,
-                    plane(shape),
-                    double_closure(shape),
-                )?;
+                let doubled = Self::doubled(shape, cuts.as_ref(), generating)?;
                 match values.shear {
                     Some(shear) if shear.skew != 0.0 => wallpaper::shear(&doubled, shear)?,
                     Some(_) | None => doubled,
                 }
             }
-            Supported::Wallpaper(class) => wallpaper::construct(class, generating)?,
+            Supported::Wallpaper(class) => {
+                let kite = wallpaper::kite_triangle(class)
+                    .map(|orders| Self::doubled(Shape::EuclideanTriangle { orders }, None, &[]))
+                    .transpose()?;
+                wallpaper::construct(class, generating, kite.as_ref())?
+            }
         };
         Self::guarded(supported, domain)
+    }
+
+    fn doubled(shape: Shape, cuts: Option<&Cuts>, values: &[f64]) -> Result<Self> {
+        double(
+            &Self::reflection(shape.with_half_area(), cuts, values)?,
+            plane(shape),
+            double_closure(shape),
+        )
     }
 
     fn guarded(supported: Supported, domain: Self) -> Result<Self> {
@@ -491,7 +507,9 @@ impl FundamentalDomain {
     /// centre of the rectangle of `*2222` that they are built on. It is the
     /// mean of the vertices for `o`, `**`, `xx`, `*x`, `22*`, and `22x`, but
     /// not for `2*22`, whose bottom side alone is split, and not for `2222`,
-    /// whose second rectangle lies to the right of the first. For a
+    /// whose second rectangle lies to the right of the first. The domains of
+    /// `4*2` and `3*3` have the centre of the triangle of `*442` or `*632`
+    /// that their kite doubles, as the kites of `442` and `632` do. For a
     /// spherical triangle it is the sum of the vertices scaled onto the
     /// sphere, and the domain is placed so that it is the point
     /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) up to rounding. The two
@@ -1138,7 +1156,13 @@ mod tests {
         let Ok(Supported::Wallpaper(class)) = supported else {
             panic!("{text} is not a built wallpaper signature");
         };
-        match wallpaper::construct(class, values) {
+        let kite = wallpaper::kite_triangle(class).map(|orders| {
+            match FundamentalDomain::doubled(Shape::EuclideanTriangle { orders }, None, &[]) {
+                Ok(doubled) => doubled,
+                Err(error) => panic!("{text} has no kite: {error}"),
+            }
+        });
+        match wallpaper::construct(class, values, kite.as_ref()) {
             Ok(domain) => (Supported::Wallpaper(class), domain),
             Err(error) => panic!("{text}: {error}"),
         }
@@ -1227,6 +1251,10 @@ mod tests {
         for vertex in [0, 2] {
             cross_cap.corners[vertex].order = 1;
         }
+        let (square_class, mut square) = construct("4*2", &[]);
+        square.corners[2].order = 2;
+        let (triangle_class, mut triangle) = construct("3*3", &[]);
+        triangle.sides[1].pairing = triangle.sides[0].pairing;
         for (label, class, corrupted) in [
             ("torus with exchanged partners", torus_class, torus),
             ("annulus with a doubled translation", annulus_class, annulus),
@@ -1242,6 +1270,12 @@ mod tests {
                 cross_cap_class,
                 cross_cap,
             ),
+            ("4*2 with a cone of order 2", square_class, square),
+            (
+                "3*3 with the reflection of side 0 on side 1",
+                triangle_class,
+                triangle,
+            ),
         ] {
             assert_refused(label, class, corrupted);
         }
@@ -1251,6 +1285,8 @@ mod tests {
             ("xx", &[1.0][..]),
             ("*x", &[1.0][..]),
             ("22x", &[1.0][..]),
+            ("4*2", &[][..]),
+            ("3*3", &[][..]),
         ] {
             let (class, domain) = construct(text, values);
             assert!(FundamentalDomain::guarded(class, domain).is_ok(), "{text}");

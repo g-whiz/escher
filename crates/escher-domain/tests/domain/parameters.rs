@@ -45,7 +45,9 @@ fn parameters_list_aspect_for_the_rectangle_only() {
         .collect();
     assert_eq!(listed, [("aspect", 0.125, 8.0, 1.0)]);
     assert_eq!(parameters(&signature("2222"))[..1], specs);
-    for text in ["*632", "*442", "*333", "*732", "*532", "732", "532"] {
+    for text in [
+        "*632", "*442", "*333", "*732", "*532", "732", "532", "4*2", "3*3",
+    ] {
         assert!(parameters(&signature(text)).is_empty(), "{text}");
     }
 }
@@ -83,7 +85,7 @@ fn build_with_rejects_an_unknown_name() {
             "{name:?}"
         );
     }
-    for text in ["*632", "*732", "732"] {
+    for text in ["*632", "*732", "732", "4*2", "3*3"] {
         assert_eq!(
             error_of(text, &settings("aspect", 2.0)),
             Some((
@@ -281,6 +283,9 @@ fn parameters_of_the_built_wallpaper_domains_have_their_names_ranges_and_default
     }
     for text in ["**", "xx", "*x", "22x", "22*", "2*22"] {
         assert_eq!(listed(text), [entry("aspect", 0.125, 8.0, 1.0)], "{text}");
+    }
+    for text in ["4*2", "3*3"] {
+        assert_eq!(listed(text), [], "{text}");
     }
 }
 

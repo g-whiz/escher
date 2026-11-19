@@ -285,6 +285,26 @@ impl Reference {
         polygon(&placed, angles.to_vec())
     }
 
+    pub(crate) fn kite(&mut self, orders: [u32; 3]) -> Polygon {
+        let triangle = self.euclidean_triangle(orders);
+        let point = |vertex: &Vector| [vertex[0].clone(), vertex[1].clone()];
+        let image = reflected_point(
+            Model::Euclidean,
+            &triangle.covectors[1],
+            &triangle.vertices[2],
+        );
+        let placed = vec![
+            point(&triangle.vertices[0]),
+            point(&image),
+            point(&triangle.vertices[1]),
+            point(&triangle.vertices[2]),
+        ];
+        let mut kite = placed_polygon(&placed, Vec::new(), [int(0), int(0)]);
+        kite.pairings[2] = product(&triangle.pairings[2], &triangle.pairings[1]);
+        kite.pairings[3] = product(&triangle.pairings[1], &triangle.pairings[2]);
+        kite
+    }
+
     pub(crate) fn rectangle(&mut self, aspect: f64) -> Polygon {
         let width = sqrt(&num(aspect));
         let height = div(&int(1), &width);

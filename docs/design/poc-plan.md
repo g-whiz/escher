@@ -675,17 +675,14 @@ The milestone does not rely on `UNV-8`, which concerns the cap generator of a hy
 - Check 4 and the side presentation of the earlier milestones assume that a domain is all mirrors or has none. Three unit tests of `escher-domain` assert that assumption and change in the first branch.
 - A domain built for the wrong group of the same class passes a golden image of its default picture, which is why each group has a golden image of a colouring and a test of distinct pictures.
 
-**Split.** The design branch `feature/euclidean-groups-design`, with the documents of the field "Design documents" and every figure of the crates stated as to be measured, then seven branches of code, in this order:
+**Split.** The design branch `feature/euclidean-groups-design`, with the documents of the field "Design documents" and every figure of the crates stated as to be measured, then six branches of code, in this order:
 
 1. `feature/pairing-walk`: the kind of a glide reflection, check 2, the walk of DOM-55, the cycle rule of DOM-56, and the presentation rule of DOM-52, tested on domains built through private access. Every existing relator text, golden file, and snapshot stays unchanged, and the three unit tests that assert the withdrawn rule change.
 2. `feature/translation-groups`: `o` and `**`, the predicate, `skew` of `o`, the guard, and their tests. In `escher-cli`, the three forms of the domain summary and the word `glide reflection`, with the snapshots that the change makes false.
 3. `feature/glide-groups`: `xx`, `*x`, and `22x`.
 4. `feature/half-turn-groups`: `22*`, `2*22`, and `skew` of `2222`.
-5. `feature/kite-groups`: `4*2` and `3*3`, and the measured accuracy of all ten domains in `domain.md`.
-6. `feature/euclidean-groups-cli`: the remaining snapshots, diagnostics, and status tests of `escher-cli`.
-7. `feature/euclidean-groups-render`: the fold sets, the tests, the golden images, and the measured tables of `escher-render`, and the three test helpers of the field "Scope".
-
-Branches 6 and 7 are disjoint and may run in parallel, and the last of them to merge updates Project Status in `AGENTS.md`.
+5. `feature/kite-groups`: `4*2` and `3*3`, the measured accuracy of all ten domains in `domain.md`, and the remaining snapshots, diagnostics, and status tests of `escher-cli`.
+6. `feature/euclidean-groups-render`: the fold sets, the tests, the golden images, and the measured tables of `escher-render`, and the three test helpers of the field "Scope". It updates Project Status in `AGENTS.md` when it merges.
 
 ### 5.11. M11: The 14 Spherical Types
 

@@ -8,12 +8,14 @@ use proptest::prelude::{Just, Strategy, prop_assert, prop_oneof, proptest};
 use crate::common::{LargestResiduals, largest_coordinate_error, proptest_config, signature};
 use crate::reference::{Reference, Worst, div, error, int, matrix, mul, num, sub};
 use crate::shared::{
-    GRID_ASPECTS, GRID_SKEWS, build_with_aspect, built_with_aspect, relator_texts,
+    GRID_ASPECTS, GRID_SKEWS, build_with_aspect, built, built_with_aspect, relator_texts,
 };
 
 const RECTANGULAR: [&str; 6] = ["**", "xx", "*x", "22x", "22*", "2*22"];
 
 const LATTICES: [&str; 2] = ["o", "2222"];
+
+const KITES: [&str; 2] = ["4*2", "3*3"];
 
 const MARGIN: f64 = 8.0;
 
@@ -50,6 +52,17 @@ const BOUNDS_OF_2222: Bounds = Bounds {
     shear: 4e-15,
 };
 
+const BOUNDS_OF_KITES: Bounds = Bounds {
+    name: "kites",
+    vertex: 1e-15,
+    covector: 4e-15,
+    pairing: 1e-14,
+    length: 1e-15,
+    angle_sum: 2e-15,
+    area: 1e-15,
+    shear: 1e-15,
+};
+
 const MERGE_TOLERANCE: f64 = 1e-9;
 
 const WALL_TOLERANCE: f64 = 1e-9;
@@ -63,7 +76,7 @@ const SAMPLE_POINTS: usize = 400;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Setting {
     pub(crate) text: &'static str,
-    aspect: f64,
+    aspect: Option<f64>,
     skew: Option<f64>,
 }
 
@@ -71,7 +84,7 @@ impl Setting {
     const fn lattice(text: &'static str, aspect: f64, skew: f64) -> Self {
         Self {
             text,
-            aspect,
+            aspect: Some(aspect),
             skew: Some(skew),
         }
     }
@@ -83,32 +96,55 @@ impl Setting {
     const fn rectangular(text: &'static str, aspect: f64) -> Self {
         Self {
             text,
-            aspect,
+            aspect: Some(aspect),
             skew: None,
         }
     }
 
-    fn bounds(self) -> &'static Bounds {
-        if self.text == "2222" {
-            &BOUNDS_OF_2222
-        } else {
-            &BOUNDS
+    const fn kite(text: &'static str) -> Self {
+        Self {
+            text,
+            aspect: None,
+            skew: None,
         }
     }
 
+    const fn has_no_parameter(self) -> bool {
+        self.aspect.is_none()
+    }
+
+    fn bound_set(self) -> usize {
+        if self.text == "2222" {
+            1
+        } else if self.has_no_parameter() {
+            2
+        } else {
+            0
+        }
+    }
+
+    fn bounds(self) -> &'static Bounds {
+        [&BOUNDS, &BOUNDS_OF_2222, &BOUNDS_OF_KITES][self.bound_set()]
+    }
+
     pub(crate) fn label(self) -> String {
-        match self.skew {
-            Some(skew) => format!("{} at aspect {}, skew {skew}", self.text, self.aspect),
-            None => format!("{} at aspect {}", self.text, self.aspect),
+        match (self.aspect, self.skew) {
+            (Some(aspect), Some(skew)) => format!("{} at aspect {aspect}, skew {skew}", self.text),
+            (Some(aspect), None) => format!("{} at aspect {aspect}", self.text),
+            (None, _) => self.text.to_owned(),
         }
     }
 
     fn built(self) -> escher_domain::Result<FundamentalDomain> {
-        build_with_aspect(self.text, self.aspect, self.skew)
+        build_with_aspect(self.text, self.aspect(), self.skew)
     }
 
     pub(crate) fn domain(self) -> FundamentalDomain {
-        built_with_aspect(self.text, self.aspect, self.skew)
+        built_with_aspect(self.text, self.aspect(), self.skew)
+    }
+
+    fn aspect(self) -> f64 {
+        self.aspect.unwrap_or(1.0)
     }
 
     fn area(self) -> f64 {
@@ -133,8 +169,26 @@ impl Setting {
             "22*" => &[(2, &[0]), (1, &[1, 1, 5, 5]), (1, &[2, 4, 4, 2]), (2, &[3])],
             "2*22" => &[(2, &[0]), (1, &[1, 1, 4, 4]), (2, &[2, 2]), (2, &[3, 3])],
             "2222" => &[(2, &[0]), (2, &[1, 5]), (2, &[2, 4]), (2, &[3])],
+            "4*2" => &[(2, &[0, 0]), (1, &[1, 1, 3, 3]), (4, &[2])],
+            "3*3" => &[(3, &[0, 0]), (1, &[1, 1, 3, 3]), (3, &[2])],
             text => panic!("{text} has no listed cycles"),
         }
+    }
+}
+
+fn kite_sources(text: &str) -> (&'static str, &'static str, [u32; 3]) {
+    match text {
+        "4*2" => ("*442", "442", [4, 4, 2]),
+        "3*3" => ("*632", "632", [6, 3, 2]),
+        text => panic!("{text} is not a kite"),
+    }
+}
+
+fn expected_centre(setting: Setting) -> DVec3 {
+    if setting.has_no_parameter() {
+        built(kite_sources(setting.text).0).centre()
+    } else {
+        euclidean::ORIGIN
     }
 }
 
@@ -146,6 +200,7 @@ fn grid() -> Vec<Setting> {
         }
         settings.extend(RECTANGULAR.map(|text| Setting::rectangular(text, aspect)));
     }
+    settings.extend(KITES.map(Setting::kite));
     settings
 }
 
@@ -158,11 +213,12 @@ pub(crate) fn named_settings() -> Vec<Setting> {
     for text in LATTICES {
         settings.extend([-0.5, 0.25, 0.5].map(|skew| Setting::lattice(text, 1.0, skew)));
     }
+    settings.extend(KITES.map(Setting::kite));
     settings
 }
 
 fn expected_vertices(setting: Setting) -> Vec<DVec3> {
-    let width = setting.aspect.sqrt();
+    let width = setting.aspect().sqrt();
     let height = 1.0 / width;
     let lean = setting.skew.unwrap_or(0.0) * width;
     let (x, y) = (0.5 * width, 0.5 * height);
@@ -189,6 +245,8 @@ fn expected_vertices(setting: Setting) -> Vec<DVec3> {
             point(-x, y),
             point(-x, -y),
         ],
+        "4*2" => built("442").vertices().to_vec(),
+        "3*3" => built("632").vertices().to_vec(),
         "2222" => {
             let shift = 0.5 * lean;
             vec![
@@ -228,7 +286,7 @@ const TWO_TWO_TWO_TWO_KINDS: &[PairingKind] = &[
     TRANSLATION,
 ];
 
-fn table_rows() -> [TableRow; 10] {
+fn table_rows() -> [TableRow; 12] {
     [
         (
             Setting::rectangular("**", 1.0),
@@ -289,6 +347,18 @@ fn table_rows() -> [TableRow; 10] {
             &[1, 0, 5, 4, 3, 2],
             TWO_TWO_TWO_TWO_KINDS,
             &["aspect", "skew"],
+        ),
+        (
+            Setting::kite("4*2"),
+            &[0, 1, 3, 2],
+            &[MIRROR, MIRROR, ROTATION, ROTATION],
+            &[],
+        ),
+        (
+            Setting::kite("3*3"),
+            &[0, 1, 3, 2],
+            &[MIRROR, MIRROR, ROTATION, ROTATION],
+            &[],
         ),
     ]
 }
@@ -354,7 +424,7 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
             let turn = (second - first).perp_dot(third - first);
             assert!(turn > 0.0, "{label}: vertices from {index} turn {turn:e}");
         }
-        assert_eq!(domain.centre(), euclidean::ORIGIN, "{label}");
+        assert_eq!(domain.centre(), expected_centre(setting), "{label}");
         assert_eq!(
             domain.reverses_orientation(),
             !LATTICES.contains(&setting.text),
@@ -382,7 +452,7 @@ fn wallpaper_signatures_typed_in_another_order_build_the_domain_of_their_canonic
 
 #[test]
 fn wallpaper_checks_pass_with_a_margin_over_the_grid() {
-    for text in LATTICES.into_iter().chain(RECTANGULAR) {
+    for text in LATTICES.into_iter().chain(RECTANGULAR).chain(KITES) {
         let mut largest = LargestResiduals::new();
         let settings: Vec<Setting> = grid()
             .into_iter()
@@ -442,11 +512,22 @@ proptest! {
 }
 
 #[test]
+fn kites_build_and_pass() {
+    for setting in KITES.map(Setting::kite) {
+        let built = setting.built();
+        assert!(built.is_ok(), "{}: {:?}", setting.label(), built);
+        if let Ok(domain) = built {
+            assert!(domain.verify().passed(), "{}", setting.label());
+        }
+    }
+}
+
+#[test]
 fn wallpaper_domains_match_their_closed_forms() {
     let mut reference = Reference::new();
     let one = int(1);
     let tau = mul(&reference.pi(), &int(2));
-    let mut sets = [&BOUNDS, &BOUNDS_OF_2222].map(|bounds| {
+    let mut sets = [&BOUNDS, &BOUNDS_OF_2222, &BOUNDS_OF_KITES].map(|bounds| {
         (
             bounds,
             [
@@ -464,11 +545,13 @@ fn wallpaper_domains_match_their_closed_forms() {
     for setting in &grid() {
         let label = setting.label();
         let domain = setting.domain();
-        let exact =
-            crate::reference::wallpaper(setting.text, setting.aspect, setting.skew.unwrap_or(0.0));
-        assert_eq!(domain.centre(), euclidean::ORIGIN, "{label}");
-        let [vertex, covector, pairing, length, angle_sum, area] =
-            &mut sets[usize::from(setting.text == "2222")].1;
+        let exact = if setting.has_no_parameter() {
+            reference.kite(kite_sources(setting.text).2)
+        } else {
+            crate::reference::wallpaper(setting.text, setting.aspect(), setting.skew.unwrap_or(0.0))
+        };
+        assert_eq!(domain.centre(), expected_centre(*setting), "{label}");
+        let [vertex, covector, pairing, length, angle_sum, area] = &mut sets[setting.bound_set()].1;
         let lengths = domain.side_lengths();
         for (index, side) in domain.sides().iter().enumerate() {
             vertex.record(
@@ -504,9 +587,12 @@ fn wallpaper_domains_match_their_closed_forms() {
                 format!("{label}, cycle {position}")
             });
         }
-        area.record(&error(domain.area(), &num(setting.area())), &one, || {
-            label.clone()
-        });
+        let exact_area = if setting.has_no_parameter() {
+            exact.area.clone()
+        } else {
+            num(setting.area())
+        };
+        area.record(&error(domain.area(), &exact_area), &one, || label.clone());
     }
     for (bounds, worsts) in &sets {
         let limits = [
@@ -523,7 +609,9 @@ fn wallpaper_domains_match_their_closed_forms() {
     }
     assert!(flat_count > 0);
     println!("flat vertices: {flat_count}, each measured exactly as the f64 nearest pi");
-    println!("centre: exactly the origin for every domain");
+    println!(
+        "centre: exactly the origin for every domain but the kites, which keep the centre of their triangle"
+    );
 }
 
 #[test]
@@ -779,11 +867,80 @@ fn classify(elements: &[Element], centre: DVec2) -> Classes {
     }
 }
 
+fn cone_and_corner_orders(text: &str) -> (Vec<u32>, Vec<u32>) {
+    let parsed = signature(text);
+    let mut cones: Vec<u32> = parsed
+        .cone_orders()
+        .iter()
+        .filter_map(|order| order.finite())
+        .collect();
+    let mut corners: Vec<u32> = parsed
+        .boundaries()
+        .iter()
+        .flat_map(|boundary| {
+            boundary
+                .corner_orders()
+                .iter()
+                .filter_map(|order| order.finite())
+        })
+        .collect();
+    cones.sort_unstable();
+    corners.sort_unstable();
+    (cones, corners)
+}
+
 fn is_inside(domain: &FundamentalDomain, point: DVec2) -> bool {
     domain
         .sides()
         .iter()
         .all(|side| euclidean::side(side.covector(), point.extend(1.0)) <= WALL_TOLERANCE)
+}
+
+fn point_group_order(text: &str) -> u32 {
+    match text {
+        "o" => 1,
+        "**" | "xx" | "*x" | "2222" => 2,
+        "333" => 3,
+        "22x" | "22*" | "2*22" | "442" => 4,
+        "3*3" | "*333" | "632" => 6,
+        "4*2" | "*442" => 8,
+        "*632" => 12,
+        text => panic!("{text} has no listed point group"),
+    }
+}
+
+fn certified(
+    text: &str,
+    label: &str,
+    domain: &FundamentalDomain,
+    points: &[DVec2],
+) -> (usize, Classes) {
+    let elements = enumerate_group(domain);
+    for (index, &point) in points.iter().enumerate() {
+        let images = elements
+            .iter()
+            .filter(|element| is_inside(domain, element.apply(point)))
+            .count();
+        assert_eq!(images, 1, "{label}: sample {index} at {point:?}");
+    }
+    let classes = classify(&elements, domain.centre().truncate());
+    let expected_order = point_group_order(text);
+    assert_eq!(classes.point_group, expected_order, "{label}");
+    let expected_covolume = f64::from(expected_order) * domain.area();
+    assert!(
+        (classes.covolume - expected_covolume).abs() <= COVOLUME_TOLERANCE,
+        "{label}: covolume {} against {expected_covolume}",
+        classes.covolume
+    );
+    let (cones, corners) = cone_and_corner_orders(text);
+    assert_eq!(classes.cone_orders, cones, "{label}");
+    assert_eq!(classes.corner_orders, corners, "{label}");
+    assert_eq!(
+        classes.reflection,
+        !signature(text).boundaries().is_empty(),
+        "{label}"
+    );
+    (elements.len(), classes)
 }
 
 #[test]
@@ -792,61 +949,18 @@ fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signa
     for setting in named_settings() {
         let label = setting.label();
         let domain = setting.domain();
-        let elements = enumerate_group(&domain);
-        for (index, &point) in points.iter().enumerate() {
-            let images = elements
-                .iter()
-                .filter(|element| is_inside(&domain, element.apply(point)))
-                .count();
-            assert_eq!(images, 1, "{label}: sample {index} at {point:?}");
-        }
-        let classes = classify(&elements, domain.centre().truncate());
-        let parsed = signature(setting.text);
-        let expected_order: u32 = match setting.text {
-            "o" => 1,
-            "**" | "xx" | "*x" | "2222" => 2,
-            "22x" | "22*" | "2*22" => 4,
-            text => panic!("{text} has no listed point group"),
-        };
-        assert_eq!(classes.point_group, expected_order, "{label}");
-        let expected_covolume = f64::from(expected_order) * domain.area();
-        assert!(
-            (classes.covolume - expected_covolume).abs() <= COVOLUME_TOLERANCE,
-            "{label}: covolume {} against {expected_covolume}",
-            classes.covolume
-        );
-        let mut cones: Vec<u32> = parsed
-            .cone_orders()
-            .iter()
-            .filter_map(|order| order.finite())
-            .collect();
-        let mut corners: Vec<u32> = parsed
-            .boundaries()
-            .iter()
-            .flat_map(|boundary| {
-                boundary
-                    .corner_orders()
-                    .iter()
-                    .filter_map(|order| order.finite())
-            })
-            .collect();
-        cones.sort_unstable();
-        corners.sort_unstable();
-        assert_eq!(classes.cone_orders, cones, "{label}");
-        assert_eq!(classes.corner_orders, corners, "{label}");
-        assert_eq!(
-            classes.reflection,
-            !parsed.boundaries().is_empty(),
-            "{label}"
-        );
+        let (elements, classes) = certified(setting.text, &label, &domain, &points);
         assert_eq!(
             classes.glide_off_mirrors,
-            matches!(setting.text, "xx" | "*x" | "22x" | "22*" | "2*22"),
+            matches!(
+                setting.text,
+                "xx" | "*x" | "22x" | "22*" | "2*22" | "4*2" | "3*3"
+            ),
             "{label}"
         );
+        let expected_covolume = f64::from(classes.point_group) * domain.area();
         println!(
-            "{label}: {} elements within {CERTIFICATE_RADIUS}, point group of order {}, reflection {}, glide reflection off the mirror lines {}, cone orders {:?}, corner orders {:?}, covolume error {:e}",
-            elements.len(),
+            "{label}: {elements} elements within {CERTIFICATE_RADIUS}, point group of order {}, reflection {}, glide reflection off the mirror lines {}, cone orders {:?}, corner orders {:?}, covolume error {:e}",
             classes.point_group,
             classes.reflection,
             classes.glide_off_mirrors,
@@ -913,6 +1027,153 @@ fn skew_of_zero_leaves_the_domain_of_2222_bit_for_bit() {
                 presentation_text(&unset, &label),
                 "{label}"
             );
+        }
+    }
+}
+
+#[test]
+fn kites_keep_the_entries_of_their_triangles_and_doubles_bit_for_bit() {
+    for text in KITES {
+        let (reflection, rotation, _) = kite_sources(text);
+        let kite = built(text);
+        let triangle = built(reflection);
+        let double = built(rotation);
+        assert_eq!(
+            domain_bits_of_vertices(&kite),
+            domain_bits_of_vertices(&double),
+            "{text}"
+        );
+        assert_eq!(
+            kite.centre().to_array().map(f64::to_bits),
+            triangle.centre().to_array().map(f64::to_bits),
+            "{text}"
+        );
+        assert_eq!(
+            double.centre().to_array().map(f64::to_bits),
+            triangle.centre().to_array().map(f64::to_bits),
+            "{text}"
+        );
+        for (index, (side, doubled)) in kite.sides().iter().zip(double.sides()).enumerate() {
+            assert_eq!(
+                bits(&side.normal().to_array()),
+                bits(&doubled.normal().to_array()),
+                "{text}, side {index}"
+            );
+            assert_eq!(
+                bits(&side.covector().to_array()),
+                bits(&doubled.covector().to_array()),
+                "{text}, side {index}"
+            );
+        }
+        let pairing_bits = |matrix: DMat3| bits(&matrix.to_cols_array());
+        let sides = kite.sides();
+        assert_eq!(
+            pairing_bits(sides[0].pairing()),
+            pairing_bits(triangle.sides()[0].pairing()),
+            "{text}, side 0"
+        );
+        assert_eq!(
+            pairing_bits(sides[1].pairing()),
+            pairing_bits(euclidean::reflection(sides[1].covector())),
+            "{text}, side 1"
+        );
+        for index in [2, 3] {
+            assert_eq!(
+                pairing_bits(sides[index].pairing()),
+                pairing_bits(double.sides()[index].pairing()),
+                "{text}, side {index}"
+            );
+        }
+        for (index, side) in sides.iter().enumerate().take(2) {
+            assert_eq!(side.kind(), PairingKind::Mirror, "{text}, side {index}");
+            assert_eq!(side.partner(), index, "{text}, side {index}");
+        }
+    }
+}
+
+fn domain_bits_of_vertices(domain: &FundamentalDomain) -> Vec<u64> {
+    domain
+        .vertices()
+        .iter()
+        .flat_map(|vertex| bits(&vertex.to_array()))
+        .collect()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Feature {
+    PointGroup,
+    Reflection,
+    CentresOffMirrors,
+    CentresOnMirrors,
+}
+
+const FEATURES: [Feature; 4] = [
+    Feature::PointGroup,
+    Feature::Reflection,
+    Feature::CentresOffMirrors,
+    Feature::CentresOnMirrors,
+];
+
+fn differs(feature: Feature, first: &Classes, second: &Classes) -> bool {
+    match feature {
+        Feature::PointGroup => first.point_group != second.point_group,
+        Feature::Reflection => first.reflection != second.reflection,
+        Feature::CentresOffMirrors => first.cone_orders != second.cone_orders,
+        Feature::CentresOnMirrors => first.corner_orders != second.corner_orders,
+    }
+}
+
+type Control = (&'static str, &'static [Feature]);
+
+#[test]
+fn wallpaper_certificate_tells_the_kites_from_the_groups_of_their_triangles() {
+    use Feature::{CentresOffMirrors, CentresOnMirrors, PointGroup, Reflection};
+    let points = samples();
+    let classes_of = |text: &str| {
+        let (_, classes) = certified(text, text, &built(text), &points);
+        println!(
+            "{text}: point group of order {}, reflection {}, rotation centres off the mirror lines {:?}, on the mirror lines {:?}",
+            classes.point_group, classes.reflection, classes.cone_orders, classes.corner_orders
+        );
+        classes
+    };
+    let cases: [(&str, &[Control]); 2] = [
+        (
+            "4*2",
+            &[
+                ("*442", &[CentresOffMirrors, CentresOnMirrors]),
+                (
+                    "442",
+                    &[PointGroup, Reflection, CentresOffMirrors, CentresOnMirrors],
+                ),
+            ],
+        ),
+        (
+            "3*3",
+            &[
+                ("*333", &[CentresOffMirrors, CentresOnMirrors]),
+                (
+                    "333",
+                    &[PointGroup, Reflection, CentresOffMirrors, CentresOnMirrors],
+                ),
+                ("632", &[Reflection, CentresOffMirrors, CentresOnMirrors]),
+                ("*632", &[PointGroup, CentresOffMirrors, CentresOnMirrors]),
+            ],
+        ),
+    ];
+    for (kite, controls) in cases {
+        let found = classes_of(kite);
+        assert!(found.reflection, "{kite}");
+        assert!(!found.cone_orders.is_empty(), "{kite}");
+        for &(control, expected) in controls {
+            let other = classes_of(control);
+            for feature in FEATURES {
+                assert_eq!(
+                    differs(feature, &found, &other),
+                    expected.contains(&feature),
+                    "{kite} against {control}: {feature:?}"
+                );
+            }
         }
     }
 }

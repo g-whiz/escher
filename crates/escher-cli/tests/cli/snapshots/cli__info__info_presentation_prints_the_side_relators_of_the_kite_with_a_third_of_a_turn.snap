@@ -1,0 +1,33 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"3*3\"])"
+---
+status: Success
+--- stdout
+Signature: 3*3
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Domain: 4 sides, 2 mirror sides and 1 pair
+Mirror sides: 0 and 1
+Side pairs: 2 and 3 by rotation
+Corner angles in degrees: 60.000000, 90.000000, 120.000000, 90.000000
+Side lengths: 1.000000, 1.000000, 0.577350, 0.577350
+Domain area: 0.577350
+Colourings: 76, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
+Colourings with 3 colours: 4
+Colourings with 4 colours: 4
+Colourings with 6 colours: 10
+Colourings with 8 colours: 4
+Colourings with 9 colours: 21
+Colourings with 12 colours: 31
+Presentation: 4 generators, 6 relators
+Generators: g1, r1, r2, l1
+Relators: g1^3, r1^2, (r1 r2)^3, r2^2, l1^-1 r1 l1 r2^-1, g1 l1
+Side presentation: 4 generators, 6 relators
+Side generators: s0, s1, s2, s3
+Side relators: s0^2, s1^2, s2 s3, (s1 s0)^3, s2 s0 s3 s1, s3^3
+--- stderr
+--- end

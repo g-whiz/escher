@@ -1,11 +1,14 @@
 use escher_domain::{ErrorKind, FundamentalDomain};
+use escher_signature::Geometry;
 
 use crate::common::signature;
 
-const UNSUPPORTED: [&str; 18] = [
+const UNSUPPORTED: [&str; 20] = [
     "3*2",
-    "3*3",
+    "2*",
+    "x",
     "4*3",
+    "3*22",
     "*(inf)32",
     "(inf)32",
     "*(inf)(inf)",
@@ -42,6 +45,30 @@ fn build_rejects_every_unsupported_signature() {
                 )
             )),
             "{text}"
+        );
+    }
+}
+
+#[test]
+fn build_gives_a_domain_of_every_euclidean_signature_of_its_list() {
+    let euclidean = [
+        "*632", "*442", "*333", "*2222", "632", "442", "333", "2222", "o", "**", "xx", "*x", "22*",
+        "22x", "2*22", "4*2", "3*3",
+    ];
+    let canonical: std::collections::BTreeSet<String> = euclidean
+        .iter()
+        .map(|text| {
+            let parsed = signature(text);
+            assert_eq!(parsed.geometry(), Geometry::Euclidean, "{text}");
+            parsed.to_string()
+        })
+        .collect();
+    assert_eq!(canonical.len(), 17);
+    for text in euclidean {
+        let built = FundamentalDomain::build(&signature(text));
+        assert!(
+            built.as_ref().is_ok_and(|domain| domain.verify().passed()),
+            "{text}: {built:?}"
         );
     }
 }
@@ -117,6 +144,8 @@ fn build_accepts_the_order_at_the_limit() {
         "2x2",
         "22*",
         "2*22",
+        "4*2",
+        "3*3",
     ] {
         let built = FundamentalDomain::build(&signature(text));
         assert!(built.is_ok(), "{text}: {built:?}");

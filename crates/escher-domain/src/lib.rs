@@ -50,8 +50,7 @@
 //! The third kind is a wallpaper signature: one of the nine Euclidean
 //! signatures that are neither a reflection signature nor a rotation
 //! signature of the kinds above, which are `o`, `**`, `xx`, `*x`, `22*`,
-//! `22x`, `2*22`, `4*2`, and `3*3`. The crate builds seven of them, all but
-//! `4*2` and `3*3`. The signature `o` has a parallelogram whose opposite
+//! `22x`, `2*22`, `4*2`, and `3*3`. The crate builds all nine. The signature `o` has a parallelogram whose opposite
 //! sides are paired by translations, with the shape parameters `aspect` and
 //! `skew`. The signatures `**`, `xx`, `*x`, `22x`, `22*`, and `2*22` have the
 //! rectangle of `*2222`, with the shape parameter `aspect`. Its bottom and top
@@ -63,7 +62,11 @@
 //! that the half-turn about that midpoint pairs, and the left and right sides
 //! are mirrors, which gives six sides. For `2*22`, only the bottom side is
 //! split in this way, and the other three sides are mirrors, which gives five
-//! sides. The crate returns such a domain only when it passes its checks.
+//! sides. The signatures `4*2` and `3*3` have the kite of `442` or `632`, with
+//! no shape parameter. Its sides 0 and 1 are mirrors, and its sides 2 and 3
+//! are paired by the rotation about vertex 2, through a quarter turn for
+//! `4*2` and a third of a turn for `3*3`. The crate returns such a domain only
+//! when it passes its checks.
 //!
 //! Every other signature gives an [`Error`]. The causes are an unsupported
 //! signature, more than eight corner or cone orders, an order above 1000, and

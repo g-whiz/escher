@@ -1,4 +1,4 @@
-use escher_domain::{FundamentalDomain, ShapeParameters};
+use escher_domain::{FundamentalDomain, ShapeParameters, parameters};
 use escher_group::{Presentation, Relator};
 use escher_signature::Signature;
 
@@ -25,12 +25,16 @@ pub(crate) fn build_with_aspect(
     aspect: f64,
     skew: Option<f64>,
 ) -> escher_domain::Result<FundamentalDomain> {
+    let parsed = signature(text);
     let mut settings = ShapeParameters::new();
-    settings.set("aspect", aspect);
-    if let Some(skew) = skew {
-        settings.set("skew", skew);
+    for spec in parameters(&parsed) {
+        match (spec.name(), skew) {
+            ("aspect", _) => settings.set("aspect", aspect),
+            ("skew", Some(skew)) => settings.set("skew", skew),
+            _ => None,
+        };
     }
-    FundamentalDomain::build_with(&signature(text), &settings)
+    FundamentalDomain::build_with(&parsed, &settings)
 }
 
 pub(crate) fn built_with_aspect(text: &str, aspect: f64, skew: Option<f64>) -> FundamentalDomain {

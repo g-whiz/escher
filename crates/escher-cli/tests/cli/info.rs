@@ -343,6 +343,21 @@ fn info_check_prints_each_check_of_two_half_turns_and_a_mirror() {
 }
 
 #[test]
+fn info_prints_the_domain_summary_of_the_kite_with_two_mirrors_and_a_quarter_turn() {
+    insta::assert_snapshot!(snapshot(&["info", "4*2"]));
+}
+
+#[test]
+fn info_prints_the_domain_summary_of_the_kite_with_two_mirrors_and_a_third_of_a_turn() {
+    insta::assert_snapshot!(snapshot(&["info", "3*3"]));
+}
+
+#[test]
+fn info_presentation_prints_the_side_relators_of_the_kite_with_a_third_of_a_turn() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "3*3"]));
+}
+
+#[test]
 fn info_presentation_prints_the_side_relators_of_the_mobius_strip() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "*x"]));
 }

@@ -292,8 +292,8 @@ impl Verification {
     /// `2 pi / n` at such a vertex.
     ///
     /// The domain of `2222` and the wallpaper domains, those of `o`, `**`,
-    /// `xx`, `*x`, `22x`, `22*`, and `2*22`, are checked by their vertex
-    /// cycles instead, as the check of the relators walks them:
+    /// `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, and `3*3`, are checked by
+    /// their vertex cycles instead, as the check of the relators walks them:
     /// the residual is the largest absolute difference between `2 pi / n` and
     /// the sum of the angles that the walk of a cycle of order `n` visits,
     /// which counts a vertex that the walk visits from both of its sides
@@ -2456,9 +2456,21 @@ mod tests {
 
     const TORUS_CYCLES: &[ExpectedCycle] = &[(0, 1, "(0+)(3+)(2+)(1+)", &[1, 0, 3, 2])];
 
+    const FOUR_MIRROR_TWO_CYCLES: &[ExpectedCycle] = &[
+        (0, 2, "(0+)(0-)", &[1, 0]),
+        (1, 1, "(1+)(3+)(3-)(1-)", &[2, 0, 3, 1]),
+        (2, 4, "(2+)", &[3]),
+    ];
+
+    const THREE_MIRROR_THREE_CYCLES: &[ExpectedCycle] = &[
+        (0, 3, "(0+)(0-)", &[1, 0]),
+        (1, 1, "(1+)(3+)(3-)(1-)", &[2, 0, 3, 1]),
+        (2, 3, "(2+)", &[3]),
+    ];
+
     #[test]
     fn walk_finds_the_cycles_of_the_built_wallpaper_domains() {
-        let cases: [(&str, Option<f64>, &[ExpectedCycle]); 11] = [
+        let cases: [(&str, Option<f64>, &[ExpectedCycle]); 13] = [
             ("o", Some(0.0), TORUS_CYCLES),
             ("o", Some(0.25), TORUS_CYCLES),
             ("**", None, ANNULUS_CYCLES),
@@ -2470,6 +2482,8 @@ mod tests {
             ("2222", Some(0.0), TWO_TWO_TWO_TWO_CYCLES),
             ("2222", Some(0.25), TWO_TWO_TWO_TWO_CYCLES),
             ("2222", Some(-0.5), TWO_TWO_TWO_TWO_CYCLES),
+            ("4*2", None, FOUR_MIRROR_TWO_CYCLES),
+            ("3*3", None, THREE_MIRROR_THREE_CYCLES),
         ];
         for (text, skew, expected) in cases {
             let domain = built_with_aspect(text, 1.0, skew);
@@ -2534,6 +2548,9 @@ mod tests {
                     &format!("{text} at {aspect} and {skew:?}"),
                 );
             }
+        }
+        for text in ["4*2", "3*3"] {
+            assert_each_state_is_covered_once(&built(text), text);
         }
     }
 
@@ -2729,6 +2746,36 @@ mod tests {
     }
 
     #[test]
+    fn verify_fails_on_a_kite_with_a_cycle_of_the_wrong_order() {
+        let cases: [(&str, &[usize], u32, &[&str]); 4] = [
+            ("4*2", &[2], 2, &["relators", "angles"]),
+            ("4*2", &[0], 4, &["angles"]),
+            ("4*2", &[1, 3], 2, &["angles"]),
+            ("3*3", &[1], 2, &["relators", "angles"]),
+        ];
+        for (text, vertices, order, expected) in cases {
+            let mut corrupted = built(text);
+            for &vertex in vertices {
+                corrupted.corners[vertex].order = order;
+            }
+            assert_failed(
+                &corrupted,
+                expected,
+                &format!("{text} with vertices {vertices:?} of order {order}"),
+            );
+        }
+        let mut corrupted = built("3*3");
+        corrupted.corners[1].order = 2;
+        assert_eq!(
+            corrupted
+                .side_presentation()
+                .map_err(|error| error.kind())
+                .err(),
+            Some(crate::ErrorKind::InvalidPairing)
+        );
+    }
+
+    #[test]
     fn walk_counts_copies_for_doubles_only() {
         for text in ["732", "442", "2222", "22", "3333"] {
             let domain = built(text);
@@ -2749,7 +2796,7 @@ mod tests {
         for text in ["*2222", "*732", "732", "442", "532", "22", "3333", "*3333"] {
             assert_eq!(built(text).closure, Closure::PerVertex, "{text}");
         }
-        for text in ["**", "xx", "*x", "22x", "22*", "2*22"] {
+        for text in ["**", "xx", "*x", "22x", "22*", "2*22", "4*2", "3*3"] {
             assert_eq!(
                 built_with_aspect(text, 1.0, None).closure,
                 Closure::Wallpaper,

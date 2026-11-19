@@ -11,6 +11,7 @@ use crate::triangle::Wallpaper;
 enum Construction {
     Torus,
     Rectangle(&'static [Planned]),
+    Kite([u32; 3]),
 }
 
 #[derive(Clone, Copy)]
@@ -111,28 +112,36 @@ const TWO_MIRROR_TWO_TWO: [Planned; 5] = [
     corner(3, Pairing::Mirror, 1),
 ];
 
-fn construction(wallpaper: Wallpaper) -> Option<Construction> {
+const fn construction(wallpaper: Wallpaper) -> Construction {
     match wallpaper {
-        Wallpaper::Torus => Some(Construction::Torus),
-        Wallpaper::Annulus => Some(Construction::Rectangle(&ANNULUS)),
-        Wallpaper::KleinBottle => Some(Construction::Rectangle(&KLEIN_BOTTLE)),
-        Wallpaper::MobiusStrip => Some(Construction::Rectangle(&MOBIUS_STRIP)),
-        Wallpaper::TwoTwoCrossCap => Some(Construction::Rectangle(&TWO_TWO_CROSS_CAP)),
-        Wallpaper::TwoTwoMirror => Some(Construction::Rectangle(&TWO_TWO_MIRROR)),
-        Wallpaper::TwoMirrorTwoTwo => Some(Construction::Rectangle(&TWO_MIRROR_TWO_TWO)),
-        Wallpaper::FourMirrorTwo | Wallpaper::ThreeMirrorThree => None,
+        Wallpaper::Torus => Construction::Torus,
+        Wallpaper::Annulus => Construction::Rectangle(&ANNULUS),
+        Wallpaper::KleinBottle => Construction::Rectangle(&KLEIN_BOTTLE),
+        Wallpaper::MobiusStrip => Construction::Rectangle(&MOBIUS_STRIP),
+        Wallpaper::TwoTwoCrossCap => Construction::Rectangle(&TWO_TWO_CROSS_CAP),
+        Wallpaper::TwoTwoMirror => Construction::Rectangle(&TWO_TWO_MIRROR),
+        Wallpaper::TwoMirrorTwoTwo => Construction::Rectangle(&TWO_MIRROR_TWO_TWO),
+        Wallpaper::FourMirrorTwo => Construction::Kite([4, 4, 2]),
+        Wallpaper::ThreeMirrorThree => Construction::Kite([6, 3, 2]),
     }
 }
 
-pub(crate) fn is_built(wallpaper: Wallpaper) -> bool {
-    construction(wallpaper).is_some()
+pub(crate) const fn kite_triangle(wallpaper: Wallpaper) -> Option<[u32; 3]> {
+    match construction(wallpaper) {
+        Construction::Kite(orders) => Some(orders),
+        Construction::Torus | Construction::Rectangle(_) => None,
+    }
 }
 
-pub(crate) fn construct(wallpaper: Wallpaper, values: &[f64]) -> Result<FundamentalDomain> {
+pub(crate) fn construct(
+    wallpaper: Wallpaper,
+    values: &[f64],
+    kite: Option<&FundamentalDomain>,
+) -> Result<FundamentalDomain> {
     let domain = match construction(wallpaper) {
-        Some(Construction::Torus) => torus(values),
-        Some(Construction::Rectangle(layout)) => on_rectangle(values, layout),
-        None => Err(None),
+        Construction::Torus => torus(values),
+        Construction::Rectangle(layout) => on_rectangle(values, layout),
+        Construction::Kite(_) => kite.ok_or(None).and_then(on_kite),
     }
     .map_err(Error::numerical)?;
     sound(domain)
@@ -277,6 +286,31 @@ fn on_rectangle(
     Ok(wallpaper_domain(sides, vertices, &orders))
 }
 
+fn on_kite(
+    doubled: &FundamentalDomain,
+) -> core::result::Result<FundamentalDomain, Option<escher_geometry::Error>> {
+    let (&[first, second, third, fourth], &[corner, _, cone, _]) =
+        (&doubled.sides[..], &doubled.corners[..])
+    else {
+        return Err(None);
+    };
+    Ok(FundamentalDomain {
+        plane: Plane::Euclidean,
+        corners: [corner.order / 2, 1, cone.order, 1]
+            .map(Corner::single)
+            .to_vec(),
+        sides: vec![
+            Side::euclidean_mirror(first.covector, 0),
+            Side::euclidean_mirror(second.covector, 1),
+            third,
+            fourth,
+        ],
+        vertices: doubled.vertices.clone(),
+        centre: doubled.centre,
+        closure: Closure::Wallpaper,
+    })
+}
+
 pub(crate) fn half_turn(centre: DVec3) -> DMat3 {
     product(
         reflection(DVec3::new(0.0, 1.0, -centre.y)),
@@ -387,7 +421,7 @@ mod tests {
     use crate::shared::{GRID_ASPECTS, GRID_SKEWS, built_with_aspect};
 
     fn built(wallpaper: Wallpaper, text: &str, values: &[f64]) -> crate::FundamentalDomain {
-        match construct(wallpaper, values) {
+        match construct(wallpaper, values, None) {
             Ok(domain) => domain,
             Err(error) => panic!("{text} at {values:?}: {error}"),
         }

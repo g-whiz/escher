@@ -457,6 +457,52 @@ fn render_writes_a_png_file_of_a_half_turn_and_two_mirror_corners() {
 }
 
 #[test]
+fn render_writes_a_png_file_of_the_kite_with_a_quarter_turn() {
+    small_png("four_mirror_two_file", &["4*2"]);
+}
+
+#[test]
+fn render_writes_a_png_file_of_the_kite_with_a_third_of_a_turn() {
+    small_png("three_mirror_three_file", &["3*3"]);
+}
+
+#[test]
+fn render_draws_each_kite_by_parity_and_with_one_colour_as_its_rotation_signature() {
+    for (kite, rotation, name) in [("4*2", "442", "quarter"), ("3*3", "632", "third")] {
+        let default = small_png(&format!("{name}_kite_default_file"), &[kite]);
+        let one = small_png(
+            &format!("{name}_kite_one_file"),
+            &[kite, "--colouring", "one"],
+        );
+        let doubled = small_png(&format!("{name}_double_file"), &[rotation]);
+        assert_ne!(default, doubled, "{kite}");
+        assert_eq!(one, doubled, "{kite}");
+    }
+}
+
+#[test]
+fn render_draws_the_same_default_picture_for_groups_that_share_their_tiles() {
+    for (index, group) in [&["*x", "22x", "*2222"][..], &["**", "22*"][..]]
+        .into_iter()
+        .enumerate()
+    {
+        let files: Vec<Vec<u8>> = group
+            .iter()
+            .enumerate()
+            .map(|(position, signature)| {
+                small_png(
+                    &format!("shared_default_{index}_{position}_file"),
+                    &[signature],
+                )
+            })
+            .collect();
+        for (signature, file) in group.iter().zip(&files).skip(1) {
+            assert_eq!(*file, files[0], "{signature} against {}", group[0]);
+        }
+    }
+}
+
+#[test]
 fn render_applies_the_skew_of_2222_and_leaves_its_default_at_a_skew_of_zero() {
     let default = square_image("2222", "sheared_default", &[]);
     let skewed = square_image("2222", "sheared_skew", &["--set", "skew=0.25"]);

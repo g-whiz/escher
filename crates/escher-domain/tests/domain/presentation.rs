@@ -417,7 +417,7 @@ fn side_relators_evaluate_to_the_identity() {
             samples: 0,
         })
     };
-    let (mut largest, mut polygons) = (empty(), empty());
+    let (mut largest, mut polygons, mut wallpapers) = (empty(), empty(), empty());
     let mut domains: Vec<(String, FundamentalDomain)> = texts
         .iter()
         .map(|text| (text.clone(), built(text)))
@@ -427,7 +427,8 @@ fn side_relators_evaluate_to_the_identity() {
             .into_iter()
             .map(|setting| (setting.label(), setting.domain())),
     );
-    for (text, domain) in &domains {
+    for (position, (text, domain)) in domains.iter().enumerate() {
+        let wallpaper = position >= texts.len();
         let presentation = match domain.side_presentation() {
             Ok(presentation) => presentation,
             Err(error) => panic!("{text} has no side presentation: {error}"),
@@ -444,7 +445,11 @@ fn side_relators_evaluate_to_the_identity() {
                 kind.tolerance()
             );
             let reflection_polygon = NAMED_POLYGONS.contains(&text.as_str());
-            for (table, kept) in [(&mut largest, true), (&mut polygons, reflection_polygon)] {
+            for (table, kept) in [
+                (&mut largest, true),
+                (&mut polygons, reflection_polygon),
+                (&mut wallpapers, wallpaper),
+            ] {
                 let entry = &mut table[kind.index()];
                 if kept {
                     entry.samples += 1;
@@ -456,7 +461,11 @@ fn side_relators_evaluate_to_the_identity() {
             }
         }
     }
-    for (label, table) in [("", &largest), ("reflection polygons, ", &polygons)] {
+    for (label, table) in [
+        ("", &largest),
+        ("reflection polygons, ", &polygons),
+        ("wallpaper domains, ", &wallpapers),
+    ] {
         for kind in KINDS {
             let entry = &table[kind.index()];
             if entry.samples == 0 {
@@ -549,6 +558,8 @@ fn side_presentations_of_the_wallpaper_domains_have_the_documented_text() {
                 "(s3 s5)^2",
                 "s4^2",
             ],
+            "4*2" => &["s0^2", "s1^2", "s2 s3", "(s1 s0)^2", "s2 s0 s3 s1", "s3^4"],
+            "3*3" => &["s0^2", "s1^2", "s2 s3", "(s1 s0)^3", "s2 s0 s3 s1", "s3^3"],
             text => panic!("{text} has no documented side presentation"),
         };
         let domain = setting.domain();
@@ -581,6 +592,8 @@ fn side_and_conway_presentations_of_the_wallpaper_domains_give_equal_colouring_c
         ("22*", [1, 7, 6, 23, 10]),
         ("2*22", [1, 7, 6, 31, 10]),
         ("2222", [1, 7, 12, 31, 30]),
+        ("4*2", [1, 3, 0, 11, 0]),
+        ("3*3", [1, 1, 4, 4, 0]),
     ] {
         let side = match built(text).side_presentation() {
             Ok(presentation) => presentation,

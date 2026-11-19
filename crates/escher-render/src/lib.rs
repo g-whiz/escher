@@ -24,9 +24,11 @@
 //! rectangle whose sides are paired by glide reflections and by translations,
 //! of `*x`, a rectangle with two mirror sides and two sides paired by a glide
 //! reflection, of `22x`, a rectangle whose sides are paired by glide
-//! reflections, or of `22*` and `2*22`, a rectangle with mirror sides whose
+//! reflections, of `22*` and `2*22`, a rectangle with mirror sides whose
 //! bottom side, and for `22*` also its top side, is split at its midpoint into
-//! two sides paired by the half-turn about that midpoint. Each is drawn in the
+//! two sides paired by the half-turn about that midpoint, or of `4*2` and
+//! `3*3`, the kite of `442` or `632` with two mirror sides and two sides
+//! paired by the rotation about the vertex between them. Each is drawn in the
 //! view of the Euclidean plane, with borders on all of its sides. A glide reflection reverses orientation, so
 //! [`Fill::Parity`] gives its two colours across a side paired by one. For
 //! `o`, which has no reversing side, [`Fill::Parity`] gives every tile its
