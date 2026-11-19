@@ -95,21 +95,41 @@ impl Shape {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Wallpaper {
+    Torus,
+    Annulus,
+    KleinBottle,
+    MobiusStrip,
+    TwoTwoMirror,
+    TwoTwoCrossCap,
+    TwoMirrorTwoTwo,
+    FourMirrorTwo,
+    ThreeMirrorThree,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Supported {
     Reflection(Shape),
     Rotation(Shape),
+    Wallpaper(Wallpaper),
 }
 
 impl Supported {
-    pub(crate) fn shape(self) -> Shape {
+    pub(crate) fn shape(self) -> Option<Shape> {
         match self {
-            Self::Reflection(shape) | Self::Rotation(shape) => shape,
+            Self::Reflection(shape) | Self::Rotation(shape) => Some(shape),
+            Self::Wallpaper(_) => None,
         }
     }
 }
 
 pub(crate) fn supported(signature: &Signature) -> Result<Supported, Error> {
+    reflection_or_rotation(signature)
+        .or_else(|error| wallpaper(signature).map(Supported::Wallpaper).ok_or(error))
+}
+
+fn reflection_or_rotation(signature: &Signature) -> Result<Supported, Error> {
     let unsupported = || Error::unsupported(signature);
     if signature.handles() != 0 || signature.crosscaps() != 0 {
         return Err(unsupported());
@@ -158,11 +178,58 @@ pub(crate) fn supported(signature: &Signature) -> Result<Supported, Error> {
     Ok(class(shape))
 }
 
+fn wallpaper(signature: &Signature) -> Option<Wallpaper> {
+    if signature.geometry() != Geometry::Euclidean {
+        return None;
+    }
+    let cones: Vec<u32> = signature
+        .cone_orders()
+        .iter()
+        .map(|order| order.finite())
+        .collect::<Option<_>>()?;
+    let mut boundaries = Vec::new();
+    for boundary in signature.boundaries() {
+        let corners: Option<Vec<u32>> = boundary
+            .corner_orders()
+            .iter()
+            .map(|order| order.finite())
+            .collect();
+        boundaries.push(corners?);
+    }
+    let structure = (
+        signature.handles(),
+        signature.crosscaps(),
+        cones.as_slice(),
+        boundaries.as_slice(),
+    );
+    Some(match structure {
+        (1, 0, [], []) => Wallpaper::Torus,
+        (0, 0, [], [first, second]) if first.is_empty() && second.is_empty() => Wallpaper::Annulus,
+        (0, 2, [], []) => Wallpaper::KleinBottle,
+        (0, 1, [], [boundary]) if boundary.is_empty() => Wallpaper::MobiusStrip,
+        (0, 0, [2, 2], [boundary]) if boundary.is_empty() => Wallpaper::TwoTwoMirror,
+        (0, 1, [2, 2], []) => Wallpaper::TwoTwoCrossCap,
+        (0, 0, [2], [boundary]) if boundary.as_slice() == [2, 2] => Wallpaper::TwoMirrorTwoTwo,
+        (0, 0, [4], [boundary]) if boundary.as_slice() == [2] => Wallpaper::FourMirrorTwo,
+        (0, 0, [3], [boundary]) if boundary.as_slice() == [3] => Wallpaper::ThreeMirrorThree,
+        _ => return None,
+    })
+}
+
 pub(crate) fn admitted(signature: &Signature) -> Result<Supported, Error> {
     let supported = supported(signature)?;
-    let largest = supported.shape().orders().into_iter().fold(0, u32::max);
-    if largest > LARGEST_ORDER {
-        return Err(Error::limit_exceeded(largest));
+    match supported {
+        Supported::Reflection(shape) | Supported::Rotation(shape) => {
+            let largest = shape.orders().into_iter().fold(0, u32::max);
+            if largest > LARGEST_ORDER {
+                return Err(Error::limit_exceeded(largest));
+            }
+        }
+        Supported::Wallpaper(class) => {
+            if !crate::wallpaper::is_built(class) {
+                return Err(Error::unsupported(signature));
+            }
+        }
     }
     Ok(supported)
 }
@@ -291,7 +358,9 @@ mod tests {
 
     use crate::ErrorKind;
 
-    use super::{Shape, Supported, construct, signed_to_f64, supported, unsigned_to_f64};
+    use super::{
+        Shape, Supported, Wallpaper, admitted, construct, signed_to_f64, supported, unsigned_to_f64,
+    };
 
     fn signature(text: &str) -> Signature {
         match text.parse() {
@@ -369,8 +438,66 @@ mod tests {
     }
 
     #[test]
+    fn supported_reads_each_wallpaper_signature_by_its_structure() {
+        for (text, wallpaper) in [
+            ("o", Wallpaper::Torus),
+            ("**", Wallpaper::Annulus),
+            ("xx", Wallpaper::KleinBottle),
+            ("*x", Wallpaper::MobiusStrip),
+            ("x*", Wallpaper::MobiusStrip),
+            ("22*", Wallpaper::TwoTwoMirror),
+            ("22x", Wallpaper::TwoTwoCrossCap),
+            ("x22", Wallpaper::TwoTwoCrossCap),
+            ("2x2", Wallpaper::TwoTwoCrossCap),
+            ("2*22", Wallpaper::TwoMirrorTwoTwo),
+            ("4*2", Wallpaper::FourMirrorTwo),
+            ("3*3", Wallpaper::ThreeMirrorThree),
+        ] {
+            assert_eq!(
+                supported(&signature(text)).ok(),
+                Some(Supported::Wallpaper(wallpaper)),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn admitted_builds_the_torus_and_the_annulus_only() {
+        for text in ["o", "**"] {
+            assert!(admitted(&signature(text)).is_ok(), "{text}");
+        }
+        for text in ["xx", "*x", "22*", "22x", "2*22", "4*2", "3*3"] {
+            assert_eq!(
+                admitted(&signature(text))
+                    .map_err(|error| error.kind())
+                    .err(),
+                Some(ErrorKind::UnsupportedSignature),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
     fn supported_rejects_a_signature_without_a_construction() {
-        for text in ["3*2", "*(inf)32", "*(inf)222", "(inf)222"] {
+        for text in [
+            "3*2",
+            "*(inf)32",
+            "*(inf)222",
+            "(inf)222",
+            "3*22",
+            "4*3",
+            "oo",
+            "xxx",
+            "*",
+            "x",
+            "2*",
+            "1",
+            "*22*",
+            "o*",
+            "ox",
+            "*(inf)(inf)",
+            "22(inf)",
+        ] {
             assert_eq!(supported(&signature(text)).ok(), None, "{text}");
         }
     }
@@ -395,7 +522,7 @@ mod tests {
         );
         let polygon = supported(&signature("*2345")).ok();
         assert_eq!(
-            polygon.map(|supported| supported.shape().orders()),
+            polygon.and_then(Supported::shape).map(Shape::orders),
             Some(vec![5, 4, 3, 2])
         );
     }

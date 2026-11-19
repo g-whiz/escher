@@ -281,19 +281,23 @@ impl Verification {
         self.relators
     }
 
-    /// Returns the check that each corner of order `n` has the angle `pi / n`.
+    /// Returns the check that the corner angles agree with the orders of the
+    /// corners or of the vertex cycles.
     ///
-    /// A vertex of a double where two corners of the domain that it doubles
-    /// meet has twice that angle. The residual is the largest absolute
-    /// difference between an angle that
+    /// For most domains, each corner of order `n` must have the angle
+    /// `pi / n`, and a vertex of a double where two corners of the domain
+    /// that it doubles meet has twice that angle. The residual is then the
+    /// largest absolute difference between an angle that
     /// [`FundamentalDomain::corner_angles`] measures and `pi / n`, or
     /// `2 pi / n` at such a vertex.
     ///
-    /// The double of `2222` is checked by its vertex cycles instead, as the
-    /// check of the relators walks them: the residual is the largest absolute
-    /// difference between `2 pi / n` and the sum of the angles that the walk
-    /// of a cycle of order `n` visits, which counts a vertex that the walk
-    /// visits from both of its sides twice.
+    /// The double of `2222` and the wallpaper domains, those of `o` and `**`,
+    /// are checked by their vertex cycles instead, as the check of the relators walks them:
+    /// the residual is the largest absolute difference between `2 pi / n` and
+    /// the sum of the angles that the walk of a cycle of order `n` visits,
+    /// which counts a vertex that the walk visits from both of its sides
+    /// twice. The four corners of the parallelogram of `o` form one cycle of
+    /// order 1, so their angles must sum to `2 pi`.
     ///
     /// The residual is infinite in these cases:
     ///
@@ -2397,70 +2401,190 @@ mod tests {
         }
     }
 
+    fn assert_each_state_is_covered_once(domain: &FundamentalDomain, label: &str) {
+        let count = domain.sides.len();
+        let cycles = match vertex_cycles(domain) {
+            Ok(cycles) => cycles,
+            Err(defect) => panic!("{label}: the walk fails with {defect:?}"),
+        };
+        let index = |state: State| {
+            2 * state.vertex
+                + match state.direction {
+                    Direction::Forward => 0,
+                    Direction::Backward => 1,
+                }
+        };
+        let mut visits = vec![0_u32; 2 * count];
+        for cycle in &cycles {
+            let case = format!("{label}, cycle from {}", cycle.start);
+            let flipped_start = flipped(cycle.states[0]);
+            let Some(reverse) = walk_from(domain, flipped_start) else {
+                panic!("{case}: the walk from the flipped start does not return");
+            };
+            let mut expected = vec![flipped_start];
+            expected.extend(cycle.states[1..].iter().rev().map(|&state| flipped(state)));
+            assert_eq!(reverse.states, expected, "{case}");
+            for &state in &cycle.states {
+                visits[index(state)] += 1;
+            }
+            let is_chain = cycle
+                .states
+                .iter()
+                .all(|&state| cycle.states.contains(&flipped(state)));
+            let overlaps = cycle
+                .states
+                .iter()
+                .any(|&state| cycle.states.contains(&flipped(state)));
+            assert_eq!(is_chain, overlaps, "{case}");
+            if !is_chain {
+                for &state in &reverse.states {
+                    visits[index(state)] += 1;
+                }
+            }
+        }
+        assert_eq!(visits, vec![1; 2 * count], "{label}");
+        let mut characteristic = 1.0;
+        for _ in &domain.sides {
+            characteristic -= 0.5;
+        }
+        for cycle in &cycles {
+            let chain = cycle
+                .sides
+                .iter()
+                .any(|&side| domain.sides[side].kind == PairingKind::Mirror);
+            let share = if chain { 0.5 } else { 1.0 };
+            characteristic += share / f64::from(cycle.order);
+        }
+        assert!(characteristic.abs() <= 1e-15, "{label}: {characteristic}");
+    }
+
     #[test]
     fn walk_covers_each_state_once_with_its_flip_on_hand_built_domains() {
         for name in WALLPAPER_NAMES {
             for aspect in WALLPAPER_ASPECTS {
-                let domain = wallpaper(name, aspect);
-                let count = domain.sides.len();
-                let cycles = match vertex_cycles(&domain) {
-                    Ok(cycles) => cycles,
-                    Err(defect) => panic!("{name} at {aspect}: the walk fails with {defect:?}"),
-                };
-                let index = |state: State| {
-                    2 * state.vertex
-                        + match state.direction {
-                            Direction::Forward => 0,
-                            Direction::Backward => 1,
-                        }
-                };
-                let mut visits = vec![0_u32; 2 * count];
-                for cycle in &cycles {
-                    let case = format!("{name} at {aspect}, cycle from {}", cycle.start);
-                    let flipped_start = flipped(cycle.states[0]);
-                    let Some(reverse) = walk_from(&domain, flipped_start) else {
-                        panic!("{case}: the walk from the flipped start does not return");
-                    };
-                    let mut expected = vec![flipped_start];
-                    expected.extend(cycle.states[1..].iter().rev().map(|&state| flipped(state)));
-                    assert_eq!(reverse.states, expected, "{case}");
-                    for &state in &cycle.states {
-                        visits[index(state)] += 1;
-                    }
-                    let is_chain = cycle
-                        .states
-                        .iter()
-                        .all(|&state| cycle.states.contains(&flipped(state)));
-                    let overlaps = cycle
-                        .states
-                        .iter()
-                        .any(|&state| cycle.states.contains(&flipped(state)));
-                    assert_eq!(is_chain, overlaps, "{case}");
-                    if !is_chain {
-                        for &state in &reverse.states {
-                            visits[index(state)] += 1;
-                        }
-                    }
-                }
-                assert_eq!(visits, vec![1; 2 * count], "{name} at {aspect}");
-                let mut characteristic = 1.0;
-                for _ in &domain.sides {
-                    characteristic -= 0.5;
-                }
-                for cycle in &cycles {
-                    let chain = cycle
-                        .sides
-                        .iter()
-                        .any(|&side| domain.sides[side].kind == PairingKind::Mirror);
-                    let share = if chain { 0.5 } else { 1.0 };
-                    characteristic += share / f64::from(cycle.order);
-                }
-                assert!(
-                    characteristic.abs() <= 1e-15,
-                    "{name} at {aspect}: {characteristic}"
+                assert_each_state_is_covered_once(
+                    &wallpaper(name, aspect),
+                    &format!("{name} at {aspect}"),
                 );
             }
         }
+    }
+
+    fn built_wallpaper(text: &str, aspect: f64, skew: Option<f64>) -> FundamentalDomain {
+        let mut settings = crate::ShapeParameters::new();
+        settings.set("aspect", aspect);
+        if let Some(skew) = skew {
+            settings.set("skew", skew);
+        }
+        match FundamentalDomain::build_with(&signature(text), &settings) {
+            Ok(domain) => domain,
+            Err(error) => panic!("{text} at {aspect} and {skew:?} has no domain: {error}"),
+        }
+    }
+
+    #[test]
+    fn walk_finds_the_cycles_of_the_built_torus_and_annulus() {
+        let cases: [(&str, Option<f64>, &[ExpectedCycle]); 3] = [
+            ("o", Some(0.0), &[(0, 1, "(0+)(3+)(2+)(1+)", &[1, 0, 3, 2])]),
+            (
+                "o",
+                Some(0.25),
+                &[(0, 1, "(0+)(3+)(2+)(1+)", &[1, 0, 3, 2])],
+            ),
+            (
+                "**",
+                None,
+                &[
+                    (0, 1, "(0+)(0-)(1-)(1+)", &[1, 0, 1, 2]),
+                    (2, 1, "(2+)(2-)(3-)(3+)", &[3, 2, 3, 0]),
+                ],
+            ),
+        ];
+        for (text, skew, expected) in cases {
+            let domain = built_wallpaper(text, 1.0, skew);
+            assert_eq!(domain.closure, Closure::Wallpaper, "{text}");
+            let cycles = match vertex_cycles(&domain) {
+                Ok(cycles) => cycles,
+                Err(defect) => panic!("{text}: the walk fails with {defect:?}"),
+            };
+            let found: Vec<(usize, u32, String, Vec<usize>)> = cycles
+                .iter()
+                .map(|cycle| {
+                    (
+                        cycle.start,
+                        cycle.order,
+                        text_of(&cycle.states),
+                        cycle.sides.clone(),
+                    )
+                })
+                .collect();
+            let expected: Vec<(usize, u32, String, Vec<usize>)> = expected
+                .iter()
+                .map(|&(start, order, states, sides)| {
+                    (start, order, states.to_owned(), sides.to_vec())
+                })
+                .collect();
+            assert_eq!(found, expected, "{text} at {skew:?}");
+            let parsed = signature(text);
+            let mut cones: Vec<u32> = Vec::new();
+            let mut corners: Vec<u32> = Vec::new();
+            for cycle in cycles.iter().filter(|cycle| cycle.order > 1) {
+                let chain = cycle
+                    .sides
+                    .iter()
+                    .any(|&side| domain.sides[side].kind == PairingKind::Mirror);
+                if chain {
+                    corners.push(cycle.order);
+                } else {
+                    cones.push(cycle.order);
+                }
+            }
+            let finite = |orders: &[escher_signature::Order]| -> Vec<u32> {
+                orders.iter().filter_map(|order| order.finite()).collect()
+            };
+            let mut corner_orders: Vec<u32> = parsed
+                .boundaries()
+                .iter()
+                .flat_map(|boundary| finite(boundary.corner_orders()))
+                .collect();
+            let mut cone_orders = finite(parsed.cone_orders());
+            for orders in [
+                &mut cones,
+                &mut corners,
+                &mut cone_orders,
+                &mut corner_orders,
+            ] {
+                orders.sort_unstable();
+            }
+            assert_eq!(cones, cone_orders, "{text}");
+            assert_eq!(corners, corner_orders, "{text}");
+        }
+        for aspect in WALLPAPER_ASPECTS {
+            for (text, skew) in [
+                ("o", Some(-0.5)),
+                ("o", Some(0.25)),
+                ("o", Some(0.5)),
+                ("**", None),
+            ] {
+                assert_each_state_is_covered_once(
+                    &built_wallpaper(text, aspect, skew),
+                    &format!("{text} at {aspect} and {skew:?}"),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_torus_with_its_partners_exchanged() {
+        let mut corrupted = built_wallpaper("o", 1.0, None);
+        for (index, partner) in [3, 2, 1, 0].into_iter().enumerate() {
+            corrupted.sides[index].partner = partner;
+        }
+        assert_failed(
+            &corrupted,
+            &["pairings", "relators", "angles"],
+            "partners set to 0 and 3 and 1 and 2",
+        );
     }
 
     #[test]

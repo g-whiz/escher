@@ -12,7 +12,7 @@ use crate::sheets::{Cuts, side_lengths};
 use crate::spherical::{lune, triangle as spherical_triangle};
 use crate::triangle::{Shape, Supported, admitted, construct};
 use crate::verify::Verification;
-use crate::walk;
+use crate::{walk, wallpaper};
 
 /// The fundamental domain of a symmetry group of the hyperbolic plane, the
 /// Euclidean plane, or the sphere, a polygon whose copies under the group
@@ -95,10 +95,6 @@ pub struct FundamentalDomain {
 pub(crate) enum Closure {
     PerVertex,
     DoubleByCycles,
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "only the unit tests build a wallpaper domain")
-    )]
     Wallpaper,
 }
 
@@ -231,9 +227,10 @@ impl FundamentalDomain {
     /// Builds the fundamental domain of a signature, with the shape
     /// parameters that the settings give.
     ///
-    /// The signature must have no handle or crosscap, and either one mirror
-    /// boundary with finite corner orders and no cone point, or finite cone
-    /// orders and no boundary. With a boundary, it must be one of these:
+    /// The signature must be `o` or `**`, or have no handle or crosscap and
+    /// either one mirror boundary with finite corner orders and no cone point,
+    /// or finite cone orders and no boundary. With a boundary, it must be one
+    /// of these:
     ///
     /// - A hyperbolic triangle `*pqr`, whose corner orders have reciprocals
     ///   that sum to less than 1.
@@ -256,6 +253,15 @@ impl FundamentalDomain {
     /// a polygon has no shape parameter: it doubles the polygon at the default
     /// value of each of its parameters.
     ///
+    /// The domain of `o` is a parallelogram with the area 1 whose opposite
+    /// sides are paired by translations. Its sides 0 and 2 are paired by the
+    /// translation by its second lattice vector `(skew * w, 1 / w)` and its
+    /// inverse, and its sides 1 and 3 by the translation by the first lattice
+    /// vector `(w, 0)` and its inverse, with `w` the square root of `aspect`.
+    /// The domain of `**` is the rectangle of `*2222`, whose sides 1 and 3 are
+    /// mirrors and whose sides 0 and 2 are paired by the vertical translation
+    /// by its height and its inverse. Both have their centre at the origin.
+    ///
     /// The reflection triangle of a Euclidean signature has side 0 of length 1,
     /// and the reflection rectangle has area 1. A spherical domain lies on the
     /// unit sphere and has no shape parameter. A hyperbolic polygon has its
@@ -266,8 +272,9 @@ impl FundamentalDomain {
     /// signature, and each value must lie in the range of that parameter. A
     /// parameter without a setting takes its default value.
     ///
-    /// A hyperbolic polygon or its double is returned only when it passes
-    /// every check of [`verify`](FundamentalDomain::verify), because rounding
+    /// A hyperbolic polygon, its double, or the domain of `o` or `**` is
+    /// returned only when it passes every check of
+    /// [`verify`](FundamentalDomain::verify), because rounding
     /// keeps some domains from meeting the tolerances of the checks. A polygon
     /// with lengths near the ends of their ranges can have errors that are too
     /// large. The check of the vertex cycles of the double of a polygon with
@@ -319,11 +326,12 @@ impl FundamentalDomain {
     ///    of its parameter.
     /// 5. An error of kind
     ///    [`ErrorKind::Numerical`](crate::ErrorKind::Numerical) when rounding
-    ///    makes the construction degenerate, or when a hyperbolic polygon or
-    ///    its double fails a check of [`verify`](FundamentalDomain::verify).
+    ///    makes the construction degenerate, or when a hyperbolic polygon, its
+    ///    double, or the domain of `o` or `**` fails a check of
+    ///    [`verify`](FundamentalDomain::verify).
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
         let supported = admitted(signature)?;
-        let cuts = supported.shape().cuts();
+        let cuts = supported.shape().and_then(Shape::cuts);
         let values = validate(signature, supported, cuts.as_ref(), parameters)?;
         let domain = match supported {
             Supported::Reflection(shape) => Self::reflection(shape, cuts.as_ref(), &values)?,
@@ -332,15 +340,23 @@ impl FundamentalDomain {
                 plane(shape),
                 double_closure(shape),
             )?,
+            Supported::Wallpaper(class) => wallpaper::construct(class, &values)?,
         };
-        let guarded = matches!(supported.shape(), Shape::HyperbolicPolygon { .. });
-        if guarded && !domain.verify().passed() {
-            return Err(match supported {
-                Supported::Reflection(_) => Error::refused(),
-                Supported::Rotation(_) => Error::refused_double(),
-            });
+        Self::guarded(supported, domain)
+    }
+
+    fn guarded(supported: Supported, domain: Self) -> Result<Self> {
+        let refusal = match supported {
+            Supported::Reflection(Shape::HyperbolicPolygon { .. }) => Error::refused(),
+            Supported::Rotation(Shape::HyperbolicPolygon { .. }) => Error::refused_double(),
+            Supported::Wallpaper(_) => Error::refused_wallpaper(),
+            Supported::Reflection(_) | Supported::Rotation(_) => return Ok(domain),
+        };
+        if domain.verify().passed() {
+            Ok(domain)
+        } else {
+            Err(refusal)
         }
-        Ok(domain)
     }
 
     fn reflection(shape: Shape, cuts: Option<&Cuts>, values: &[f64]) -> Result<Self> {
@@ -554,18 +570,29 @@ impl FundamentalDomain {
     /// It is true for a domain with a mirror side or a side paired by a
     /// [glide reflection](PairingKind::GlideReflection), because both reverse
     /// orientation, and false for a domain whose pairings are all rotations or
-    /// translations, such as the double of `732`. Only a domain for which it
-    /// is true can be coloured by whether a tile is reached from the domain by
-    /// an even or an odd number of pairings that reverse orientation.
+    /// translations, such as the double of `732` or the domain of `o`. Only a
+    /// domain for which it is true can be coloured by whether a tile is
+    /// reached from the domain by an even or an odd number of pairings that
+    /// reverse orientation.
+    ///
+    /// It does not say that every side is a mirror. The domain of `**` has two
+    /// mirror sides and two sides paired by a translation, so a caller that
+    /// needs the kind of each side reads [`Side::kind`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use escher_domain::FundamentalDomain;
+    /// use escher_domain::{FundamentalDomain, PairingKind};
     /// use escher_signature::Signature;
     ///
     /// assert!(FundamentalDomain::build(&"*732".parse::<Signature>()?)?.reverses_orientation());
     /// assert!(!FundamentalDomain::build(&"732".parse::<Signature>()?)?.reverses_orientation());
+    /// assert!(!FundamentalDomain::build(&"o".parse::<Signature>()?)?.reverses_orientation());
+    ///
+    /// let annulus = FundamentalDomain::build(&"**".parse::<Signature>()?)?;
+    /// assert!(annulus.reverses_orientation());
+    /// let mirrors = annulus.sides().iter().filter(|side| side.kind() == PairingKind::Mirror);
+    /// assert_eq!(mirrors.count(), 2);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
@@ -954,8 +981,9 @@ pub enum Orientation {
 mod tests {
     use escher_signature::Signature;
 
-    use super::FundamentalDomain;
-    use crate::triangle::{LARGEST_ORDER, MOST_ORDERS, admitted};
+    use super::{FundamentalDomain, Orientation};
+    use crate::triangle::{LARGEST_ORDER, MOST_ORDERS, Supported, admitted};
+    use crate::wallpaper;
     use crate::{ErrorKind, ShapeParameters};
 
     fn signature(text: &str) -> Signature {
@@ -978,8 +1006,9 @@ mod tests {
 
     #[test]
     fn reflection_refuses_settings_of_another_shape() {
-        let shape = |text| match admitted(&signature(text)) {
-            Ok(supported) => supported.shape(),
+        let shape = |text| match admitted(&signature(text)).map(Supported::shape) {
+            Ok(Some(shape)) => shape,
+            Ok(None) => panic!("{text} has no shape"),
             Err(error) => panic!("{text}: {error}"),
         };
         let polygon = shape("*3333");
@@ -1053,6 +1082,51 @@ mod tests {
             let kind = FundamentalDomain::build_with(&signature(text), &settings)
                 .map_err(|error| error.kind());
             assert_eq!(kind.err(), Some(expected), "{text}");
+        }
+    }
+
+    #[test]
+    fn guard_refuses_a_wallpaper_domain_that_fails_its_checks() {
+        let construct = |text: &str, values: &[f64]| {
+            let supported = admitted(&signature(text));
+            let Ok(Supported::Wallpaper(class)) = supported else {
+                panic!("{text} is not a built wallpaper signature");
+            };
+            match wallpaper::construct(class, values) {
+                Ok(domain) => (Supported::Wallpaper(class), domain),
+                Err(error) => panic!("{text}: {error}"),
+            }
+        };
+        let (torus_class, mut torus) = construct("o", &[1.0, 0.0]);
+        for (index, partner) in [3, 2, 1, 0].into_iter().enumerate() {
+            torus.sides[index].partner = partner;
+        }
+        let (annulus_class, mut annulus) = construct("**", &[1.0]);
+        annulus.sides[0].pairing.z_axis.y *= 2.0;
+        let (_, mut mirror) = construct("**", &[1.0]);
+        mirror.sides[1].orientation = Orientation::Preserving;
+        for (label, class, corrupted) in [
+            ("torus with exchanged partners", torus_class, torus),
+            ("annulus with a doubled translation", annulus_class, annulus),
+            ("annulus with a preserving mirror", annulus_class, mirror),
+        ] {
+            let error = FundamentalDomain::guarded(class, corrupted).err();
+            assert_eq!(
+                error.as_ref().map(crate::Error::kind),
+                Some(ErrorKind::Numerical),
+                "{label}"
+            );
+            assert_eq!(
+                error.map(|error| error.to_string()).as_deref(),
+                Some(
+                    "cannot build fundamental domain: the wallpaper domain fails its verification"
+                ),
+                "{label}"
+            );
+        }
+        for (text, values) in [("o", &[1.0, 0.0][..]), ("**", &[1.0][..])] {
+            let (class, domain) = construct(text, values);
+            assert!(FundamentalDomain::guarded(class, domain).is_ok(), "{text}");
         }
     }
 

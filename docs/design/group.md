@@ -1171,9 +1171,9 @@ These figures support the statements of Sections 7.10 to 7.17 and of Section 15:
 
 ### 11.5. Figures of the Wallpaper Prototype
 
-Milestone `M10` adds the domains of the nine remaining Euclidean groups and the skew of `2222` to `escher-domain`, and their side presentations by DOM-52 of `docs/design/domain.md`. It adds no code and no rule to this crate. The search, the Conway presentations, and the ids serve the new side presentations unchanged.
+`escher-domain` gives the domains of `o`, `**`, `xx`, `*x`, `22*`, `22x`, `2*22`, `4*2`, and `3*3` and the sheared `2222` their side presentations by DOM-52 of `docs/design/domain.md`. They need no code and no rule in this crate. The search, the Conway presentations, and the ids serve these side presentations unchanged.
 
-A prototype outside the repository tested the design of `M10` before its code existed. A copy of the workspace gained the ten domains of DOM-50, the walk of DOM-55, and the side presentation of DOM-52 of `docs/design/domain.md`, and called `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. The figures of this section are those of that prototype. The test "Equal counts" of DOM-57 of `docs/design/domain.md` measures them on the crates up to index 16. Times are of one thread on a host with 16 cores, in a release build unless marked.
+A prototype outside the repository tested this design. A copy of the workspace gained the ten domains of DOM-50, the walk of DOM-55, and the side presentation of DOM-52 of `docs/design/domain.md`, and called `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. Apart from the second table, the figures of this section are those of that prototype. The test "Equal counts" of DOM-57 of `docs/design/domain.md` measures the counts on the crates up to index 16, as the second table gives. Times are of one thread on a host with 16 cores, in a release build unless marked.
 
 The numbers of subgroups of the side presentation equal those of the Conway presentation at every index from 1 to 12, for all ten signatures. Each cell of the second column holds both. "Smallest budget" is the smallest `SearchBudget` that completes index 12, which bisection found, for the side presentation and then the Conway presentation:
 
@@ -1191,6 +1191,13 @@ The numbers of subgroups of the side presentation equal those of the Conway pres
 | `2222` | 1 7 12 31 30 76 56 127 117 186 132 348 | 0.002 s | 1245792 and 857812 | 0.057 s and 0.919 s | 36.8 s and 18.7 s |
 
 The row of `2222` equals its row in Section 11.4.
+
+The test "Equal counts" measured these figures on the crates for `o` and `**`, at `aspect` 1, with `IndexLimit` 16 and `SearchBudget::DEFAULT`. Both searches completed 16 colours and gave equal counts, and the counts to 12 equal the row of the prototype above. Times are in a debug build:
+
+| Signature | Subgroups of index 1 to 16 | Debug time to 16, side and Conway |
+| --- | --- | --- |
+| `o` | 1 3 4 7 6 12 8 15 13 18 12 28 14 24 24 31 | 0.051 s and 0.067 s |
+| `**` | 1 7 4 19 6 28 8 43 13 42 12 76 14 56 24 91 | 0.039 s and 0.036 s |
 
 The prototype also measured these figures:
 

@@ -539,7 +539,13 @@ fn push_domain_summary(
     match domain {
         Ok(domain) => {
             let sides = domain.sides();
-            if domain.reverses_orientation() {
+            let mirrors: Vec<usize> = sides
+                .iter()
+                .enumerate()
+                .filter(|(_, side)| side.kind() == PairingKind::Mirror)
+                .map(|(index, _)| index)
+                .collect();
+            if mirrors.len() == sides.len() {
                 lines.push(("Domain".into(), format!("{} mirror sides", sides.len())));
             } else {
                 let pairs: Vec<String> = sides
@@ -554,12 +560,29 @@ fn push_domain_summary(
                         )
                     })
                     .collect();
-                let noun = if pairs.len() == 1 { "pair" } else { "pairs" };
-                lines.push((
-                    "Domain".into(),
-                    format!("{} sides in {} {noun}", sides.len(), pairs.len()),
-                ));
+                let pair_noun = if pairs.len() == 1 { "pair" } else { "pairs" };
+                let summary = if mirrors.is_empty() {
+                    format!("{} sides in {} {pair_noun}", sides.len(), pairs.len())
+                } else {
+                    let mirror_noun = if mirrors.len() == 1 {
+                        "mirror side"
+                    } else {
+                        "mirror sides"
+                    };
+                    format!(
+                        "{} sides, {} {mirror_noun} and {} {pair_noun}",
+                        sides.len(),
+                        mirrors.len(),
+                        pairs.len()
+                    )
+                };
+                lines.push(("Domain".into(), summary));
+                if !mirrors.is_empty() {
+                    lines.push(("Mirror sides".into(), index_list(&mirrors)));
+                }
                 lines.push(("Side pairs".into(), pairs.join(", ")));
+            }
+            if !domain.reverses_orientation() {
                 lines.push((
                     "Parity colouring".into(),
                     "none, every side pairing preserves orientation".to_owned(),
@@ -579,11 +602,24 @@ fn push_domain_summary(
     }
 }
 
+fn index_list(indices: &[usize]) -> String {
+    match indices {
+        [] => String::new(),
+        [only] => only.to_string(),
+        [first, second] => format!("{first} and {second}"),
+        [init @ .., last] => {
+            let leading: Vec<String> = init.iter().map(ToString::to_string).collect();
+            format!("{}, and {last}", leading.join(", "))
+        }
+    }
+}
+
 fn kind_name(kind: PairingKind) -> &'static str {
     match kind {
         PairingKind::Mirror => "reflection",
         PairingKind::Rotation => "rotation",
         PairingKind::Translation => "translation",
+        PairingKind::GlideReflection => "glide reflection",
         _ => "another isometry",
     }
 }
@@ -675,14 +711,14 @@ fn area_text(area_over_pi: Rational) -> String {
 mod tests {
     use core::num::NonZeroU64;
 
-    use escher_domain::FundamentalDomain;
+    use escher_domain::{FundamentalDomain, PairingKind};
     use escher_group::{CosetLimit, IndexLimit, SearchBudget, conway_presentation};
     use escher_signature::Signature;
 
     use super::{
         Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, check_text, count_label,
-        enumerate_order, failed_checks, joined, listed_text, order_mismatch, order_text,
-        push_colourings, push_order, push_verification, reported, reversing_sides,
+        enumerate_order, failed_checks, index_list, joined, kind_name, listed_text, order_mismatch,
+        order_text, push_colourings, push_order, push_verification, reported, reversing_sides,
         search_colourings, size_text, summary_text, write_text,
     };
     use crate::Status;
@@ -954,6 +990,22 @@ mod tests {
             enumerate_order(&presentation, ten, limit),
             Outcome::LimitReached
         );
+    }
+
+    #[test]
+    fn index_list_joins_one_two_and_more_indices() {
+        assert_eq!(index_list(&[2]), "2");
+        assert_eq!(index_list(&[2, 5]), "2 and 5");
+        assert_eq!(index_list(&[2, 3, 4]), "2, 3, and 4");
+        assert_eq!(index_list(&[0, 1, 2, 3]), "0, 1, 2, and 3");
+    }
+
+    #[test]
+    fn kind_name_names_each_kind_of_pairing() {
+        assert_eq!(kind_name(PairingKind::Mirror), "reflection");
+        assert_eq!(kind_name(PairingKind::Rotation), "rotation");
+        assert_eq!(kind_name(PairingKind::Translation), "translation");
+        assert_eq!(kind_name(PairingKind::GlideReflection), "glide reflection");
     }
 
     #[test]

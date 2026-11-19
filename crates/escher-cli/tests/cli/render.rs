@@ -266,6 +266,39 @@ fn render_diagnostic_names_the_positions_of_a_parameter_set_twice() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn render_diagnostic_gives_the_cause_of_a_skew_outside_its_range() {
+    insta::assert_snapshot!(render_snapshot("skew_range", &["o", "--set", "skew=0.6"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_gives_the_cause_of_a_skew_on_the_annulus() {
+    insta::assert_snapshot!(render_snapshot(
+        "annulus_skew",
+        &["**", "--set", "skew=0.1"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn render_diagnostic_says_parity_does_not_exist_for_the_torus() {
+    insta::assert_snapshot!(render_snapshot(
+        "torus_parity",
+        &["o", "--colouring", "parity"]
+    ));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn render_diagnostic_gives_the_cause_of_an_unknown_parameter() {
     insta::assert_snapshot!(render_snapshot(
         "unknown_parameter",
@@ -509,6 +542,29 @@ fn render_writes_a_png_file_of_a_euclidean_tiling() {
     assert_png_header(&output, 48, 32);
 }
 
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_a_png_file_of_a_skewed_torus() {
+    let output = output_path("skewed_torus_file");
+    let outcome = run_args(&[
+        "render",
+        "o",
+        "--set",
+        "skew=0.25",
+        "--size",
+        "48x32",
+        "--samples",
+        "2",
+        "-o",
+        path_text(&output),
+    ]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    assert_png_header(&output, 48, 32);
+}
+
 fn small_png(test: &str, args: &[&str]) -> Vec<u8> {
     let mut all = args.to_vec();
     all.extend_from_slice(&["--size", "48x32", "--samples", "2"]);
@@ -546,6 +602,17 @@ fn render_fills_a_polygon_by_the_cosets_of_a_colouring_id() {
     let one = small_png("polygon_one_file", &["*3333", "--colouring", "one"]);
     assert_ne!(cosets, default);
     assert_ne!(cosets, one);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the thread pool library fails the checks of the interpreter"
+)]
+fn render_writes_the_annulus_by_parity_by_default() {
+    let default = small_png("annulus_file", &["**"]);
+    let one = small_png("annulus_one_file", &["**", "--colouring", "one"]);
+    assert_ne!(default, one);
 }
 
 fn polygon(test: &str, extra: &[&str]) -> Vec<u8> {
@@ -806,6 +873,13 @@ fn render_without_a_domain_changes_no_file() {
 #[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_parity_for_a_domain_without_a_reversing_side_changes_no_file() {
     assert_no_file_changes("parity_rotation_file", &["732", "--colouring", "parity"]);
+}
+
+#[test]
+#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
+fn render_of_the_torus_with_a_skew_outside_its_range_or_parity_changes_no_file() {
+    assert_no_file_changes("torus_skew_file", &["o", "--set", "skew=0.6"]);
+    assert_no_file_changes("torus_parity_file", &["o", "--colouring", "parity"]);
 }
 
 #[test]
@@ -1176,6 +1250,26 @@ fn render_with_parity_for_a_domain_without_a_reversing_side_returns_failure() {
             "error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation"
                 .to_owned()
         )
+    );
+}
+
+#[test]
+fn render_with_parity_for_the_torus_returns_failure() {
+    assert_eq!(
+        first_error_line(&["o", "--colouring", "parity"]),
+        (
+            Status::Failure,
+            "error: cannot render o: the colouring parity does not exist, because no side pairing reverses orientation"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_with_a_skew_outside_its_range_returns_failure() {
+    assert_eq!(
+        first_error_line(&["o", "--set", "skew=0.6"]),
+        (Status::Failure, "error: cannot render o".to_owned())
     );
 }
 

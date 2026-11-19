@@ -16,6 +16,12 @@
 //! rotations and translations. It has the place and the view of its reflection
 //! domain and draws borders only on its own sides, and [`Fill::Parity`] gives
 //! every tile its first colour.
+//! It can also be the domain of the Euclidean signature `o`, a parallelogram
+//! whose opposite sides are paired by translations, or of `**`, a rectangle
+//! with two mirror sides and two sides paired by a translation. Each is drawn
+//! in the view of the Euclidean plane, with borders on all of its sides. For
+//! `o`, which has no reversing side, [`Fill::Parity`] gives every tile its
+//! first colour.
 //!
 //! The view follows the geometry of the domain. For a hyperbolic domain, the
 //! Poincare disk is centred in the image, with the centre of the domain at the

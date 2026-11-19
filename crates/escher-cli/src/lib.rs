@@ -17,11 +17,13 @@
 //! signature, its geometry, its Euler characteristic, the values that depend
 //! on them, and the shape parameters of the signature with their ranges and
 //! default values. It then prints a summary of the fundamental domain, or
-//! `none` and the reason when the signature has no domain. A signature
-//! without a mirror boundary, such as `732`, has a domain with no mirror
-//! sides, which are sides where the group reflects. The summary then lists the
-//! pairs of sides that the side pairings join and states that the domain has no
-//! colouring by the parity of reflections. For a domain, the command also
+//! `none` and the reason when the signature has no domain. A domain whose
+//! sides are not all mirrors, the sides where the group reflects, such as the
+//! domain of `732` or of `**`, has sides that the side pairings join in pairs.
+//! The summary then lists the mirror sides, if the domain has any, and the
+//! pairs of sides. When no side pairing reverses orientation, as for `732` and
+//! `o`, the summary also states that the domain has no colouring by the parity
+//! of reflections. For a domain, the command also
 //! counts the colourings of the tiles that the symmetry respects, one for each
 //! subgroup of finite index, for each number of colours up to the limit that
 //! the option `--max-colours` sets, 12 by default. With the option

@@ -260,3 +260,60 @@ fn build_with_rejects_a_name_that_the_polygon_does_not_have() {
         );
     }
 }
+
+const SKEW_RANGE_TEXT: &str =
+    "cannot build fundamental domain: the parameter skew is outside its range of -0.5 to 0.5";
+
+#[test]
+fn parameters_of_the_torus_and_the_annulus_have_their_names_ranges_and_defaults() {
+    let entry = |name: &str, minimum: f64, maximum: f64, default: f64| {
+        (name.to_owned(), minimum, maximum, default)
+    };
+    assert_eq!(
+        listed("o"),
+        [
+            entry("aspect", 0.125, 8.0, 1.0),
+            entry("skew", -0.5, 0.5, 0.0)
+        ]
+    );
+    assert_eq!(listed("**"), [entry("aspect", 0.125, 8.0, 1.0)]);
+}
+
+#[test]
+fn build_with_rejects_a_skew_outside_its_range_and_accepts_both_ends() {
+    for value in [
+        -0.5001,
+        0.5001,
+        0.6,
+        f64::NAN,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    ] {
+        assert_eq!(
+            error_of("o", &settings("skew", value)),
+            Some((ErrorKind::ParameterOutOfRange, SKEW_RANGE_TEXT.to_owned())),
+            "{value}"
+        );
+    }
+    for value in [-0.5, 0.5] {
+        let built = FundamentalDomain::build_with(&signature("o"), &settings("skew", value));
+        assert!(built.is_ok(), "{value}: {built:?}");
+    }
+}
+
+#[test]
+fn build_with_rejects_skew_on_a_signature_without_it() {
+    for text in ["**", "*2222"] {
+        let canonical = signature(text).to_string();
+        assert_eq!(
+            error_of(text, &settings("skew", 0.1)),
+            Some((
+                ErrorKind::UnknownParameter,
+                format!(
+                    "cannot build fundamental domain: the signature {canonical} has no shape parameter with one of the given names"
+                )
+            )),
+            "{text}"
+        );
+    }
+}

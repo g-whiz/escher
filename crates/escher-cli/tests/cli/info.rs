@@ -462,6 +462,24 @@ fn info_prints_the_domain_summary_of_the_rectangle() {
     miri,
     ignore = "the snapshot library reads snapshot files and starts a process"
 )]
+fn info_prints_the_domain_summary_of_the_torus() {
+    insta::assert_snapshot!(snapshot(&["info", "o"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
+fn info_prints_the_domain_summary_of_the_annulus_with_its_mirror_sides() {
+    insta::assert_snapshot!(snapshot(&["info", "**"]));
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the snapshot library reads snapshot files and starts a process"
+)]
 fn info_check_prints_each_check_of_the_rectangle() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*2222"]));
 }

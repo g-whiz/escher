@@ -1,8 +1,11 @@
 use std::time::{Duration, Instant};
 
-use escher_domain::FundamentalDomain;
+use escher_domain::{FundamentalDomain, PairingKind};
 use escher_geometry::{hyperbolic, spherical};
-use escher_group::{CosetLimit, Letter, Presentation, Relator, Word, enumerate};
+use escher_group::{
+    CosetLimit, IndexLimit, Letter, Presentation, Relator, SearchBudget, Word, conway_presentation,
+    count_colourings, enumerate,
+};
 use escher_signature::Geometry;
 use glam::{DMat3, DVec3};
 
@@ -15,6 +18,7 @@ use crate::reference::{
     matrix, mul, power, product as exact_product, sqrt, sub, vector,
 };
 use crate::shared::{NAMED_POLYGONS, relator_text, relator_texts};
+use crate::wallpaper::named_settings;
 
 const PAIRING_TOLERANCE: f64 = 1e-9;
 
@@ -349,9 +353,13 @@ fn relator_residual(
 fn classified(domain: &FundamentalDomain, presentation: &Presentation) -> Vec<(Kind, usize)> {
     let count = domain.sides().len();
     let relators = presentation.relators();
-    if domain.reverses_orientation() {
+    let all_mirrors = domain
+        .sides()
+        .iter()
+        .all(|side| side.kind() == PairingKind::Mirror);
+    if all_mirrors {
         assert_eq!(relators.len(), 2 * count);
-        relators
+        return relators
             .iter()
             .enumerate()
             .map(|(position, relator)| {
@@ -363,27 +371,31 @@ fn classified(domain: &FundamentalDomain, presentation: &Presentation) -> Vec<(K
                     (Kind::Corner, first)
                 }
             })
-            .collect()
-    } else {
-        let pairs = domain
-            .sides()
-            .iter()
-            .enumerate()
-            .filter(|&(index, side)| side.partner() > index)
-            .count();
-        relators
-            .iter()
-            .enumerate()
-            .map(|(position, relator)| {
-                let first = sides_of(relator.base())[0];
-                if position < pairs {
-                    (Kind::Pair, first)
-                } else {
-                    (Kind::Cycle, (first + count - 1) % count)
-                }
-            })
-            .collect()
+            .collect();
     }
+    let heads: Vec<Kind> = domain
+        .sides()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, side)| {
+            if side.kind() == PairingKind::Mirror {
+                Some(Kind::Square)
+            } else {
+                (side.partner() > index).then_some(Kind::Pair)
+            }
+        })
+        .collect();
+    relators
+        .iter()
+        .enumerate()
+        .map(|(position, relator)| {
+            let first = sides_of(relator.base())[0];
+            match heads.get(position) {
+                Some(&kind) => (kind, first),
+                None => (Kind::Cycle, (first + count - 1) % count),
+            }
+        })
+        .collect()
 }
 
 struct Largest {
@@ -414,13 +426,25 @@ fn side_relators_evaluate_to_the_identity() {
         })
     };
     let (mut largest, mut polygons) = (empty(), empty());
-    for text in &texts {
-        let (domain, presentation) = presentation(text);
-        for ((kind, vertex), relator) in classified(&domain, &presentation)
+    let mut domains: Vec<(String, FundamentalDomain)> = texts
+        .iter()
+        .map(|text| (text.clone(), built(text)))
+        .collect();
+    domains.extend(
+        named_settings()
+            .into_iter()
+            .map(|setting| (setting.label(), setting.domain())),
+    );
+    for (text, domain) in &domains {
+        let presentation = match domain.side_presentation() {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{text} has no side presentation: {error}"),
+        };
+        for ((kind, vertex), relator) in classified(domain, &presentation)
             .into_iter()
             .zip(presentation.relators())
         {
-            let residual = relator_residual(&domain, relator, kind, vertex, &mut reference);
+            let residual = relator_residual(domain, relator, kind, vertex, &mut reference);
             assert!(
                 residual <= kind.tolerance(),
                 "{text}: {} {residual:e} above {:e}",
@@ -495,5 +519,74 @@ fn corner_words_of_a_reflection_domain_generate_a_subgroup_of_index_two() {
             Err(error) => panic!("{text}: {error}"),
         };
         assert_eq!(table.index(), 2, "{text}");
+    }
+}
+
+#[test]
+fn side_presentations_of_the_wallpaper_domains_have_the_documented_text() {
+    for setting in named_settings() {
+        let label = setting.label();
+        let expected: &[&str] = match setting.text {
+            "o" => &["s0 s2", "s1 s3", "s1 s0 s3 s2"],
+            "**" => &["s0 s2", "s1^2", "s3^2", "s1 s0 s1 s2", "s3 s2 s3 s0"],
+            text => panic!("{text} has no documented side presentation"),
+        };
+        let presentation = match setting.domain().side_presentation() {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{label} has no side presentation: {error}"),
+        };
+        assert_eq!(presentation.generator_names(), side_names(4), "{label}");
+        assert_eq!(relator_texts(&presentation), expected, "{label}");
+    }
+}
+
+const WALLPAPER_COLOUR_LIMIT: u32 = 16;
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the colouring search runs loops too long for the interpreter"
+)]
+fn side_and_conway_presentations_of_the_wallpaper_domains_give_equal_colouring_counts() {
+    let Ok(limit) = IndexLimit::new(WALLPAPER_COLOUR_LIMIT) else {
+        panic!("{WALLPAPER_COLOUR_LIMIT} colours are out of range");
+    };
+    for (text, first_counts) in [("o", [1, 3, 4, 7, 6]), ("**", [1, 7, 4, 19, 6])] {
+        let side = match built(text).side_presentation() {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{text} has no side presentation: {error}"),
+        };
+        let conway = match conway_presentation(&signature(text)) {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{text} has no Conway presentation: {error}"),
+        };
+        let counts = [("side", &side), ("Conway", &conway)].map(|(name, presentation)| {
+            let started = Instant::now();
+            let counts = match count_colourings(presentation, limit, SearchBudget::DEFAULT) {
+                Ok(counts) => counts,
+                Err(error) => panic!("{text}: the search of the {name} presentation fails: {error}"),
+            };
+            println!(
+                "{text}: search of the {name} presentation to {WALLPAPER_COLOUR_LIMIT} colours in {:.3} s",
+                started.elapsed().as_secs_f64()
+            );
+            counts
+        });
+        let found: Vec<[Option<u64>; 2]> = (1..=WALLPAPER_COLOUR_LIMIT)
+            .map(|colours| counts.clone().map(|count| count.colourings(colours)))
+            .collect();
+        println!(
+            "{text}: colourings with 1 to {WALLPAPER_COLOUR_LIMIT} colours, side and Conway: {found:?}"
+        );
+        for (colours, [by_sides, by_conway]) in (1..=WALLPAPER_COLOUR_LIMIT).zip(&found) {
+            assert!(by_sides.is_some(), "{text}: {colours} colours not counted");
+            assert_eq!(by_sides, by_conway, "{text}: {colours} colours");
+        }
+        let first: Vec<Option<u64>> = found
+            .iter()
+            .take(5)
+            .map(|[by_sides, _]| *by_sides)
+            .collect();
+        assert_eq!(first, first_counts.map(Some), "{text}");
     }
 }

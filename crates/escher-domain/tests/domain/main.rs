@@ -26,3 +26,5 @@ mod spherical;
 mod triangles;
 #[cfg(test)]
 mod unsupported;
+#[cfg(test)]
+mod wallpaper;

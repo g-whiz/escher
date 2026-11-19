@@ -79,6 +79,13 @@ impl Error {
         }
     }
 
+    pub(crate) fn refused_wallpaper() -> Self {
+        Self {
+            operation: OPERATION,
+            detail: Detail::RefusedWallpaper,
+        }
+    }
+
     pub(crate) fn numerical(source: Option<escher_geometry::Error>) -> Self {
         Self {
             operation: OPERATION,
@@ -120,7 +127,10 @@ impl Error {
         match self.detail {
             Detail::UnsupportedSignature(_) => ErrorKind::UnsupportedSignature,
             Detail::LimitExceeded(_) | Detail::TooManyOrders(_) => ErrorKind::LimitExceeded,
-            Detail::Numerical(_) | Detail::Refused | Detail::RefusedDouble => ErrorKind::Numerical,
+            Detail::Numerical(_)
+            | Detail::Refused
+            | Detail::RefusedDouble
+            | Detail::RefusedWallpaper => ErrorKind::Numerical,
             Detail::UnknownParameter(_) => ErrorKind::UnknownParameter,
             Detail::ParameterOutOfRange(_) => ErrorKind::ParameterOutOfRange,
             Detail::InvalidPairing(_) | Detail::RejectedPresentation(_) => {
@@ -147,6 +157,7 @@ impl core::error::Error for Error {
             | Detail::Numerical(None)
             | Detail::Refused
             | Detail::RefusedDouble
+            | Detail::RefusedWallpaper
             | Detail::UnknownParameter(_)
             | Detail::ParameterOutOfRange(_)
             | Detail::InvalidPairing(_) => None,
@@ -174,7 +185,8 @@ impl core::error::Error for Error {
 pub enum ErrorKind {
     /// The crate does not build a fundamental domain for the signature.
     ///
-    /// Only a reflection domain and its double have one. A reflection domain
+    /// Only a reflection domain, its double, and the domains of `o` and `**`
+    /// have one. A reflection domain
     /// is a triangle, a hyperbolic polygon, the rectangle, or the lune, and
     /// its sides are mirrors. The signature of a triangle has the form `*pqr`
     /// with three finite corner orders. It is hyperbolic when their
@@ -188,7 +200,9 @@ pub enum ErrorKind {
     /// domain is the domain together with its mirror image across one of its
     /// walls. Its signature has the same orders as cone points, the centres of
     /// rotation, and no mirror boundary, such as `732`, `2222`, `nn`, or
-    /// `3333`.
+    /// `3333`. The signature `o` has a parallelogram whose sides are paired by
+    /// translations, and `**` has a rectangle with two mirror sides and two
+    /// sides paired by a translation.
     UnsupportedSignature,
     /// The signature has more than eight corner or cone orders, or a corner or
     /// cone order above 1000, beyond which the accuracy of the domain is not
@@ -196,8 +210,8 @@ pub enum ErrorKind {
     LimitExceeded,
     /// Rounding made the construction degenerate, such as a sum of vertices
     /// that is not a point of the hyperbolic plane or of the sphere, a wall
-    /// that cannot be found or is not finite, or a hyperbolic polygon or its
-    /// double that failed a check of
+    /// that cannot be found or is not finite, or a hyperbolic polygon, its
+    /// double, or the domain of `o` or `**` that failed a check of
     /// [`FundamentalDomain::verify`](crate::FundamentalDomain::verify).
     ///
     /// A hyperbolic polygon gives it when its shape parameters are too
@@ -208,7 +222,10 @@ pub enum ErrorKind {
     /// `(967)(967)(967)(967)(967)(967)(967)(967)`, because the side pairings
     /// of the double, stored as `f64` matrices, are too inexact for the check
     /// of its vertex cycles. The text of the error then names the side
-    /// pairings. No other rotation signature is known to give it.
+    /// pairings. No other rotation signature is known to give it. The domain
+    /// of `o` or `**` gives it when it fails a check, which no setting in the
+    /// ranges of its parameters is known to cause, and its text then names the
+    /// verification.
     Numerical,
     /// A setting names no shape parameter of the signature.
     ///
@@ -247,6 +264,8 @@ enum Detail {
     Refused,
     #[error("the side pairings of the domain cannot be stored accurately enough")]
     RefusedDouble,
+    #[error("the wallpaper domain fails its verification")]
+    RefusedWallpaper,
     #[error("the signature {0} has no shape parameter with one of the given names")]
     UnknownParameter(String),
     #[error(
@@ -302,7 +321,7 @@ mod tests {
         }
     }
 
-    fn errors() -> [Error; 11] {
+    fn errors() -> [Error; 13] {
         [
             Error::unsupported(&signature("3*2")),
             Error::limit_exceeded(1001),
@@ -315,6 +334,8 @@ mod tests {
             Error::parameter_out_of_range(Parameter::Slice(1)),
             Error::parameter_out_of_range(Parameter::CornerPair(2)),
             Error::refused_double(),
+            Error::refused_wallpaper(),
+            Error::parameter_out_of_range(Parameter::Skew),
         ]
     }
 
@@ -360,6 +381,8 @@ mod tests {
                 "cannot build fundamental domain: the parameter slice1.length is outside its range of 0.5 to 3.5",
                 "cannot build fundamental domain: the parameter cornerpair2.length is outside its range of 0.5 to 3.5",
                 "cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough",
+                "cannot build fundamental domain: the wallpaper domain fails its verification",
+                "cannot build fundamental domain: the parameter skew is outside its range of -0.5 to 0.5",
             ],
         );
         let texts = pairing_errors().map(|error| error.to_string());
@@ -391,6 +414,8 @@ mod tests {
                 ErrorKind::ParameterOutOfRange,
                 ErrorKind::ParameterOutOfRange,
                 ErrorKind::Numerical,
+                ErrorKind::Numerical,
+                ErrorKind::ParameterOutOfRange,
             ],
         );
         assert_eq!(

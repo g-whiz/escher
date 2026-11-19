@@ -7,13 +7,16 @@ use crate::error::{Error, Result};
 use glam::DVec3;
 
 use crate::sheets::{Cuts, Feature, LONGEST, SHORTEST, default_length, inscribed};
-use crate::triangle::{Shape, Supported, admitted};
+use crate::triangle::{Shape, Supported, Wallpaper, admitted};
 
 const ASPECT_DEFAULT: f64 = 1.0;
+
+const SKEW_DEFAULT: f64 = 0.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Parameter {
     Aspect,
+    Skew,
     CornerPair(u8),
     Slice(u8),
 }
@@ -22,6 +25,7 @@ impl Parameter {
     pub(crate) fn name(self) -> String {
         match self {
             Self::Aspect => "aspect".to_owned(),
+            Self::Skew => "skew".to_owned(),
             Self::CornerPair(number) => format!("cornerpair{number}.length"),
             Self::Slice(number) => format!("slice{number}.length"),
         }
@@ -30,6 +34,7 @@ impl Parameter {
     pub(crate) const fn minimum(self) -> f64 {
         match self {
             Self::Aspect => 0.125,
+            Self::Skew => -0.5,
             Self::CornerPair(_) | Self::Slice(_) => SHORTEST,
         }
     }
@@ -37,6 +42,7 @@ impl Parameter {
     pub(crate) const fn maximum(self) -> f64 {
         match self {
             Self::Aspect => 8.0,
+            Self::Skew => 0.5,
             Self::CornerPair(_) | Self::Slice(_) => LONGEST,
         }
     }
@@ -51,7 +57,12 @@ impl Parameter {
 /// through [`ShapeParameters`]. The rectangle of `*2222` has the one parameter
 /// `aspect`, the length of its side 0 divided by the length of its side 1.
 /// The domain of `2222` is two such rectangles side by side, and its parameter
-/// `aspect` is that of each rectangle.
+/// `aspect` is that of each rectangle. The rectangle of `**` has the same
+/// parameter `aspect`. The parallelogram of `o` has `aspect` and then `skew`,
+/// from -0.5 to 0.5 with the default 0. Its first lattice vector is
+/// `(w, 0)` and its second `(skew * w, 1 / w)`, with `w` the square root of
+/// `aspect`, so `skew` is the first coordinate of the second vector divided by
+/// the length of the first.
 ///
 /// A hyperbolic polygon `*p1...pn` with four to eight corners, each of order
 /// at most 1000, has `n - 3` parameters, each a hyperbolic length from 0.5 to
@@ -85,6 +96,12 @@ impl Parameter {
 /// assert_eq!(parameters(&"2222".parse::<Signature>()?), specs);
 /// assert!(parameters(&"*632".parse::<Signature>()?).is_empty());
 ///
+/// let torus = parameters(&"o".parse::<Signature>()?);
+/// assert_eq!(torus.len(), 2);
+/// assert_eq!(torus[1].name(), "skew");
+/// assert_eq!((torus[1].minimum(), torus[1].maximum()), (-0.5, 0.5));
+/// assert_eq!(torus[1].default_value(), 0.0);
+///
 /// let square = parameters(&"*3333".parse::<Signature>()?);
 /// assert_eq!(square.len(), 1);
 /// assert_eq!(square[0].name(), "slice1.length");
@@ -97,22 +114,32 @@ pub fn parameters(signature: &Signature) -> Vec<ParameterSpec> {
         return Vec::new();
     };
     let shape = supported.shape();
-    let cuts = shape.cuts();
+    let cuts = shape.and_then(Shape::cuts);
     let defaults = Defaults::new(shape);
     listed(supported, cuts.as_ref())
         .into_iter()
         .map(|(parameter, feature)| ParameterSpec {
             parameter,
             name: parameter.name(),
-            default_value: defaults.of(feature),
+            default_value: defaults.of(parameter, feature),
         })
         .collect()
 }
 
 fn listed(supported: Supported, cuts: Option<&Cuts>) -> Vec<(Parameter, Option<Feature>)> {
     match supported {
-        Supported::Reflection(Shape::Rectangle) | Supported::Rotation(Shape::Rectangle) => {
-            vec![(Parameter::Aspect, None)]
+        Supported::Reflection(Shape::Rectangle)
+        | Supported::Rotation(Shape::Rectangle)
+        | Supported::Wallpaper(
+            Wallpaper::Annulus
+            | Wallpaper::KleinBottle
+            | Wallpaper::MobiusStrip
+            | Wallpaper::TwoTwoMirror
+            | Wallpaper::TwoTwoCrossCap
+            | Wallpaper::TwoMirrorTwoTwo,
+        ) => vec![(Parameter::Aspect, None)],
+        Supported::Wallpaper(Wallpaper::Torus) => {
+            vec![(Parameter::Aspect, None), (Parameter::Skew, None)]
         }
         Supported::Reflection(Shape::HyperbolicPolygon { .. }) => cuts
             .map_or_default(Cuts::parameters)
@@ -131,7 +158,10 @@ fn listed(supported: Supported, cuts: Option<&Cuts>) -> Vec<(Parameter, Option<F
             | Shape::EuclideanTriangle { .. }
             | Shape::SphericalTriangle { .. }
             | Shape::Lune { .. },
-        ) => Vec::new(),
+        )
+        | Supported::Wallpaper(Wallpaper::FourMirrorTwo | Wallpaper::ThreeMirrorThree) => {
+            Vec::new()
+        }
     }
 }
 
@@ -141,19 +171,23 @@ struct Defaults {
 }
 
 impl Defaults {
-    fn new(shape: Shape) -> Self {
+    fn new(shape: Option<Shape>) -> Self {
         Self {
-            orders: shape.orders(),
+            orders: shape.map_or_else(Vec::new, Shape::orders),
             inscribed: OnceCell::new(),
         }
     }
 
-    fn of(&self, feature: Option<Feature>) -> f64 {
-        let Some(feature) = feature else {
-            return ASPECT_DEFAULT;
-        };
-        let vertices = self.inscribed.get_or_init(|| inscribed(&self.orders));
-        default_length(vertices.as_deref(), feature)
+    fn of(&self, parameter: Parameter, feature: Option<Feature>) -> f64 {
+        match (parameter, feature) {
+            (Parameter::Aspect, _) => ASPECT_DEFAULT,
+            (Parameter::Skew, _) => SKEW_DEFAULT,
+            (Parameter::CornerPair(_) | Parameter::Slice(_), Some(feature)) => {
+                let vertices = self.inscribed.get_or_init(|| inscribed(&self.orders));
+                default_length(vertices.as_deref(), feature)
+            }
+            (Parameter::CornerPair(_) | Parameter::Slice(_), None) => SHORTEST,
+        }
     }
 }
 
@@ -286,16 +320,19 @@ pub(crate) fn validate(
             }
         }
     }
-    let shape = supported.shape();
-    let defaults = Defaults::new(shape);
-    Ok(listed(Supported::Reflection(shape), cuts)
+    let generating = match supported {
+        Supported::Rotation(shape) => Supported::Reflection(shape),
+        Supported::Reflection(_) | Supported::Wallpaper(_) => supported,
+    };
+    let defaults = Defaults::new(supported.shape());
+    Ok(listed(generating, cuts)
         .into_iter()
         .map(|(parameter, feature)| {
             settings
                 .values
                 .get(&parameter.name())
                 .copied()
-                .unwrap_or_else(|| defaults.of(feature))
+                .unwrap_or_else(|| defaults.of(parameter, feature))
         })
         .collect())
 }

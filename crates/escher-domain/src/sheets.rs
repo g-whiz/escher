@@ -496,6 +496,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the interpreter adds rounding errors of its own to the inverse hyperbolic cosine, which can exceed the bound of four units in the last place"
+    )]
     fn slice_default_is_the_distance_between_two_walls() {
         let vertices =
             [0.0, 1.0, 2.0, 3.0].map(|turn| rotation(turn * PI / 2.0) * (boost(1.0) * ORIGIN));

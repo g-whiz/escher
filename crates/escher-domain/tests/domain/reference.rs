@@ -300,6 +300,77 @@ impl Reference {
     }
 }
 
+pub(crate) fn wallpaper(text: &str, aspect: f64, skew: f64) -> Polygon {
+    let width = sqrt(&num(aspect));
+    let height = div(&int(1), &width);
+    let half = |value: &BigFloat| div(value, &int(2));
+    let (placed, shifts): (Vec<[BigFloat; 2]>, Vec<Option<[BigFloat; 2]>>) = match text {
+        "o" => {
+            let lean = mul(&num(skew), &width);
+            let first = [width.clone(), int(0)];
+            let second = [lean, height.clone()];
+            let combine = |sign_first: bool, sign_second: bool| {
+                [0, 1].map(|axis| {
+                    let one = if sign_first {
+                        first[axis].clone()
+                    } else {
+                        first[axis].neg()
+                    };
+                    let other = if sign_second {
+                        second[axis].clone()
+                    } else {
+                        second[axis].neg()
+                    };
+                    half(&add(&one, &other))
+                })
+            };
+            (
+                vec![
+                    combine(true, false),
+                    combine(true, true),
+                    combine(false, true),
+                    combine(false, false),
+                ],
+                vec![
+                    Some(second.clone()),
+                    Some([first[0].neg(), first[1].neg()]),
+                    Some([second[0].neg(), second[1].neg()]),
+                    Some(first.clone()),
+                ],
+            )
+        }
+        "**" => {
+            let (x, y) = (half(&width), half(&height));
+            (
+                vec![
+                    [x.clone(), y.neg()],
+                    [x.clone(), y.clone()],
+                    [x.neg(), y.clone()],
+                    [x.neg(), y.neg()],
+                ],
+                vec![
+                    Some([int(0), height.clone()]),
+                    None,
+                    Some([int(0), height.neg()]),
+                    None,
+                ],
+            )
+        }
+        _ => panic!("the reference has no wallpaper domain of {text}"),
+    };
+    let mut built = polygon(&placed, Vec::new());
+    for (pairing, shift) in built.pairings.iter_mut().zip(shifts) {
+        if let Some([x, y]) = shift {
+            *pairing = [
+                [int(1), int(0), x],
+                [int(0), int(1), y],
+                [int(0), int(0), int(1)],
+            ];
+        }
+    }
+    built
+}
+
 fn polygon(placed: &[[BigFloat; 2]], angles: Vec<BigFloat>) -> Polygon {
     let count = int(u32::try_from(placed.len()).unwrap_or(0));
     let mut sum = [int(0), int(0)];

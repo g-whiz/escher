@@ -10,7 +10,7 @@
 //! the unit sphere of the crate [`escher_geometry`]. A renderer can use the
 //! domain to fold each pixel into one tile.
 //!
-//! The crate supports two kinds of signature. A signature with one mirror
+//! The crate supports three kinds of signature. A signature with one mirror
 //! boundary, such as `*632`, has a reflection domain, a polygon whose sides
 //! are mirrors, the walls in which the group reflects. A signature with cone
 //! points, the centres of rotation, and no mirror boundary, such as `632`, has
@@ -42,9 +42,20 @@
 //! doubles the polygon with every length at its default, so it has no shape
 //! parameter, and the crate returns it only when it passes its checks.
 //!
+//! The third kind is a wallpaper signature: one of the nine Euclidean
+//! signatures that are neither a reflection signature nor a rotation
+//! signature of the kinds above, which are `o`, `**`, `xx`, `*x`, `22*`,
+//! `22x`, `2*22`, `4*2`, and `3*3`. The crate builds two of them. The signature `o` has a parallelogram whose
+//! opposite sides are paired by translations, with the shape parameters
+//! `aspect` and `skew`. The signature `**` has the rectangle of `*2222`, with
+//! its left and right sides as mirrors and its bottom and top sides paired by
+//! a translation, with the shape parameter `aspect`. The crate returns such a
+//! domain only when it passes its checks.
+//!
 //! Every other signature gives an [`Error`]. The causes are an unsupported
 //! signature, more than eight corner or cone orders, an order above 1000, and
-//! a polygon or a double of a polygon that fails its checks.
+//! a polygon, a double of a polygon, or a wallpaper domain that fails its
+//! checks.
 //! [`FundamentalDomain::verify`] checks a domain numerically, and
 //! [`FundamentalDomain::side_presentation`] reads a
 //! [`Presentation`](escher_group::Presentation) of its group from its sides.
@@ -84,6 +95,7 @@ mod spherical;
 mod triangle;
 mod verify;
 mod walk;
+mod wallpaper;
 
 #[cfg(test)]
 extern crate self as escher_domain;
