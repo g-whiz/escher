@@ -32,7 +32,7 @@ cargo run -p escher-cli --bin escher -- --help
 Running the checks also needs these tools:
 
 - `just`, a command runner, and Python 3, which runs the custom checkers.
-- The Rust components Clippy and rustfmt, and a nightly Rust toolchain with Miri and `rust-src`.
+- The Rust components Clippy and rustfmt.
 - cargo-nextest, cargo-deny, cargo-machete, typos, taplo, actionlint, and shellcheck.
 - cargo-hack and cargo-llvm-cov, for the checks that continuous integration runs outside `just check`.
 - pre-commit, for the git hooks.

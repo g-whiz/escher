@@ -105,10 +105,6 @@ fn check(
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter, and the test reads files"
-)]
 fn golden_images_match_the_committed_files() {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/render/golden");
     let update = std::env::var_os(UPDATE).is_some_and(|value| value == "1");
@@ -127,10 +123,6 @@ fn golden_images_match_the_committed_files() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn render_equals_render_rows_over_any_split_into_bands() {
     let [yaw, pitch, roll] = [20.0_f64, 35.0, 0.0].map(f64::to_radians);
     let options = options(
@@ -301,10 +293,6 @@ const PERIODS: [Period; 8] = [
 const PERIOD_SIZE: u32 = 512;
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn euclidean_images_equal_themselves_shifted_by_a_translation_of_the_group() {
     let [even, odd] = GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
     let options = options(
@@ -369,10 +357,6 @@ fn euclidean_images_equal_themselves_shifted_by_a_translation_of_the_group() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn square_tiling_at_one_sample_per_pixel_has_no_border_pixel_and_at_two_by_two_has_some() {
     let fill = Colour::from_srgb8(70, 130, 180);
     let domain = domain_with_aspect("*2222", Some(1.0));
@@ -425,10 +409,6 @@ fn assert_folds_within_the_group_order(text: &str) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn spherical_golden_domains_fold_every_sample_within_the_group_order() {
     let mut texts: Vec<&str> = Vec::new();
     for image in &GOLDEN_IMAGES {
@@ -448,28 +428,16 @@ fn spherical_golden_domains_fold_every_sample_within_the_group_order() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn triangle_of_order_1000_folds_every_sample_within_the_group_order() {
     assert_folds_within_the_group_order("*(1000)22");
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn lune_of_order_1000_folds_every_sample_within_the_group_order() {
     assert_folds_within_the_group_order("*(1000)(1000)");
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn parity_fill_of_a_rotation_domain_equals_its_first_colour() {
     let first = Colour::from_srgb8(245, 222, 179);
     let second = Colour::from_srgb8(70, 130, 180);
@@ -510,10 +478,6 @@ fn parity_colouring(domain: &escher_domain::FundamentalDomain) -> escher_group::
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
-)]
 fn coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_parity_fill() {
     let first = Colour::from_srgb8(245, 222, 179);
     let second = Colour::from_srgb8(70, 130, 180);
@@ -549,10 +513,6 @@ fn coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_par
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
-)]
 fn coset_fill_render_equals_render_rows_over_any_split_into_bands() {
     for (text, id) in [("*642", "3a"), ("532", "5a")] {
         let domain = domain_with_aspect(text, None);
@@ -569,10 +529,6 @@ fn coset_fill_render_equals_render_rows_over_any_split_into_bands() {
 const POLYGON_UNCONVERGED: [usize; POLYGON_DOMAINS.len()] = [0; POLYGON_DOMAINS.len()];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn polygon_images_fold_every_sample_within_the_cap() {
     for (shape, measured) in POLYGON_DOMAINS.iter().zip(POLYGON_UNCONVERGED) {
         let name = shape.name();
@@ -599,10 +555,6 @@ fn polygon_images_fold_every_sample_within_the_cap() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
-)]
 fn coset_golden_colouring_of_the_pentagon_fixes_the_numbering_of_its_sides() {
     let domain = domain_with_aspect("*22222", None);
     let colouring = golden_colouring(&domain, "3k");

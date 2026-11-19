@@ -1395,10 +1395,6 @@ impl Worst {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn reference_arithmetic_reproduces_known_values() {
     let mut reference = Reference::new();
     let tolerance = reference.parse("1e-70");

@@ -196,7 +196,6 @@ fn fixture(source: &str) -> &'static SearchFixture {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
 fn search_examples_give_the_printed_tables_and_counts() {
     for fixture in SEARCH_FIXTURES {
         check(fixture);
@@ -604,7 +603,6 @@ fn rotation_sides(p: u32, q: u32) -> Presentation {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
 fn frettloh_table_1_counts_the_classes_with_a_fixed_coset() {
     for case in TABLE_1 {
         let (p, q) = triangle(case.signature);
@@ -635,7 +633,6 @@ fn mirror_class(table: &CosetTable) -> Vec<Vec<u32>> {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
 fn frettloh_table_2_counts_the_classes_with_a_fixed_coset_up_to_the_mirror() {
     for case in TABLE_2 {
         let (p, q) = triangle(case.signature);
@@ -664,7 +661,6 @@ fn frettloh_table_2_counts_the_classes_with_a_fixed_coset_up_to_the_mirror() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
 fn the_cube_has_one_perfect_colouring_with_1_3_and_6_colours() {
     let found = listing(&coxeter(4, 3, 2), 48);
     assert_eq!(found.complete_to(), 48);
@@ -673,7 +669,6 @@ fn the_cube_has_one_perfect_colouring_with_1_3_and_6_colours() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
 fn triangles_with_even_orders_have_seven_two_colourings() {
     for (p, q) in [(6, 4), (8, 4), (6, 6)] {
         let counts = count_colourings(&coxeter(p, q, 2), index_limit(2), SearchBudget::DEFAULT)
@@ -684,7 +679,6 @@ fn triangles_with_even_orders_have_seven_two_colourings() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
 fn bulatov_colour_counts_exist() {
     let cases: [(&str, Presentation, &[u32]); 4] = [
         ("*642", coxeter(6, 4, 2), &[3, 8, 12]),
@@ -753,7 +747,6 @@ fn schreier_generators(table: &CosetTable) -> Vec<Word> {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
 fn the_search_agrees_with_coset_enumeration() {
     for (label, presentation, limit) in
         [("*642", coxeter(6, 4, 2), 10), ("2222", conway("2222"), 8)]

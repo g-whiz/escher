@@ -8,13 +8,7 @@ use crate::{
 };
 
 pub(crate) fn proptest_config() -> Config {
-    if cfg!(miri) {
-        let mut config = Config::with_cases(8);
-        config.failure_persistence = None;
-        config
-    } else {
-        Config::default()
-    }
+    Config::default()
 }
 
 pub(crate) fn names(count: usize) -> Vec<String> {

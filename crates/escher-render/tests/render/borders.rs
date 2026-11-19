@@ -132,10 +132,6 @@ fn compare_with_tiles(
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn border_pixels_lie_where_the_tile_of_a_sample_changes() {
     for orders in PLAN_TRIPLES {
         assert_borders_where_the_tile_changes(&text(orders), &domain(orders));
@@ -165,10 +161,6 @@ fn assert_borders_where_the_tile_changes(name: &str, domain: &escher_domain::Fun
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn border_pixels_of_a_polygon_lie_where_the_tile_of_a_sample_changes() {
     assert_borders_where_the_tile_changes("*3333", &domain_with_settings("*3333", &[]));
 }
@@ -183,10 +175,6 @@ fn plane_position(size: u32, column: u32, row: u32) -> DVec2 {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn euclidean_border_pixels_lie_where_the_tile_of_a_sample_changes() {
     let size = usize::try_from(EUCLIDEAN_SIZE).unwrap_or(usize::MAX);
     for index in 0..EUCLIDEAN_DOMAINS.len() {
@@ -231,10 +219,6 @@ fn grid_oracle(width: f64, height: f64, position: DVec2, pixel: f64, half_width:
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn rectangle_borders_and_parities_match_the_grid_of_the_rectangle() {
     let even = Colour::from_srgb8(245, 222, 179);
     let odd = Colour::from_srgb8(70, 130, 180);
@@ -288,10 +272,6 @@ fn rectangle_borders_and_parities_match_the_grid_of_the_rectangle() {
 const SPHERE_DOMAINS: [&str; 5] = ["*532", "*432", "*332", "*722", "*55"];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn spherical_border_pixels_lie_where_the_tile_of_a_sample_changes() {
     let size = usize::try_from(SIZE).unwrap_or(usize::MAX);
     for text in SPHERE_DOMAINS {
@@ -374,10 +354,6 @@ fn fill_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool> 
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn every_border_pixel_of_a_rotation_domain_is_a_border_pixel_of_its_reflection_domain() {
     for ((starred, aspect), measured) in BORDER_SUBSET_DOMAINS
         .into_iter()

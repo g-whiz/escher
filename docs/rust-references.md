@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-16 |
+| Date | 2026-11-19 |
 | Applies to | Agents that write, review, or extend Rust code in this repository, and the standards document `docs/rust-coding-standards.md` |
 
 ## Abstract
@@ -1984,9 +1984,9 @@ The catalogue holds 104 entries: one for each of the 95 entries of the curated l
 - Read status: full for the README.
 - Current: yes.
 - Relevance: medium. It checks the unsafe code of a crate, but it cannot run a native library.
-- Consult when: deciding which tests run under Miri, setting up its CI job, or testing a wrapper without its native library.
+- Consult when: a crate opts out of the denial of `unsafe_code` and needs a check of its unsafe code, such as deciding which tests run under Miri, setting up its CI job, or testing a wrapper without its native library.
 - Chapters: the README sections on foreign functions, what Miri cannot do, the CI example, and nextest.
-- Cited by: TEST-7, TEST-11.
+- Cited by: TEST-7.
 
 **[S-9] The Rust Performance Book: Build Configuration**
 

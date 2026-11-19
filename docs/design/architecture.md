@@ -304,11 +304,10 @@ Several sources use the band constant $4/\pi$ with this strip, while [B1] prints
 
 ## 6. Constraints From the Standards
 
-Eight facts of the repository shape the design. Each row names the document that imposes the fact and its consequence for the crates.
+Seven facts of the repository shape the design. Each row names the document that imposes the fact and its consequence for the crates.
 
 | Fact | Imposed by | Consequence |
 | --- | --- | --- |
-| Miri runs every test | The command `cargo +nightly miri nextest run --workspace --no-tests=warn` of Section 4.8 of `docs/rust-coding-standards.md`, and the profile `default-miri` without a filter of Section 4 of `docs/design/tooling.md` | A test that reads a file, starts a process, or calls native code fails under Miri, and a heavy numeric test is too slow for the 60-minute timeout of every CI job (Section 7.1 of `docs/design/tooling.md`). Section 4 of `docs/design/tooling.md` and TEST-11 of `docs/rust-coding-standards.md` state how such a test is ignored under Miri and how property tests run fewer cases there (`DEC-5`) |
 | Rust source has no licence header | Hard Rule 5 of `AGENTS.md`, Section 7.2 of `docs/writing-documentation.md`, and `check-rust-comments` | The MIT notice that Section 3.3 of `docs/research/symmhub.md` requires for ported code needs another place (`DEC-18`) |
 | Code cites no project document | Hard Rule 15 of `AGENTS.md` | Code and tests use no milestone wording, so unverified statements are tracked only in design documents |
 | Documents mirror configuration | Section 8 of `docs/design/tooling.md` states the settings of `deny.toml` and says that it has no `skip` or `ignore` list. Section 3.2 lists every recipe (TOOL-6). Section 1.1 of `docs/rust-coding-standards.md` lists the workspace members. Repository Layout and Project Status of `AGENTS.md` and the crate table of `README.md` do the same | Each of these changes in the same change as the first crates, dependencies, and recipes (Hard Rule 1 of `AGENTS.md`). Section 6 of `docs/design/poc-plan.md` lists the updates of each milestone |
@@ -357,7 +356,6 @@ TEST-14 in Section 11 of `docs/rust-coding-standards.md` states the general rule
 - The design of the crate sets the number of pixels allowed to differ and records the evidence for it. Section 8.4 of `docs/design/render.md` gives the allowance of `escher-render` and the figures behind it.
 - On failure, the test writes the actual image and the difference image under the directory that `CARGO_TARGET_TMPDIR` names, which is under `target/`.
 - Golden files change only through the recipe `update-golden`. Section 3.2 of `docs/design/tooling.md` lists the recipe, and its Section 14.2 lists its environment variable.
-- Golden image tests and process tests do not run under Miri (`DEC-5`).
 
 ## 8. Performance
 
@@ -440,15 +438,15 @@ Engineering:
 
 Decided defaults, which keep their labels in Section 10.2 because other documents cite them:
 
-- `DEC-3`, reference arithmetic: astro-float, which is pure Rust under the MIT licence, with one comparison against MPFR recorded (`UNV-25`). The tests use `astro-float-num`, the number crate of the astro-float project, for the reason that Section 11 of `docs/design/geometry.md` states. Section 12.1 of `docs/research/rust-ecosystem.md` recommends `rug` if a C toolchain in CI is acceptable, because MPFR is the reference standard, and `astro-float` for pure Rust, checked once against `rug` or MPFR because nobody has verified its claims of correct rounding. `DEC-3` takes the pure-Rust branch, because a native build rebuilds in every CI job (Section 6, last row) and native code fails under Miri (Section 6, first row). `rug` also adds the licence `LGPL-3.0-or-later`.
+- `DEC-3`, reference arithmetic: astro-float, which is pure Rust under the MIT licence, with one comparison against MPFR recorded (`UNV-25`). The tests use `astro-float-num`, the number crate of the astro-float project, for the reason that Section 11 of `docs/design/geometry.md` states. Section 12.1 of `docs/research/rust-ecosystem.md` recommends `rug` if a C toolchain in CI is acceptable, because MPFR is the reference standard, and `astro-float` for pure Rust, checked once against `rug` or MPFR because nobody has verified its claims of correct rounding. `DEC-3` takes the pure-Rust branch, because a native build rebuilds in every CI job (Section 6, last row). `rug` also adds the licence `LGPL-3.0-or-later`.
 - `DEC-4`, linear algebra: the real vectors and matrices are the `glam` types `DVec2`, `DVec3`, and `DMat3`, and the project writes no vector or matrix type of its own. `num-complex` provides complex numbers from `M12`. The owner chose `glam` because much of the logic moves to Slang after the proof of concept, so a vector and matrix library of the project's own would be wasted work. The double-precision types are the ones that Section 6.1 of `docs/research/rust-ecosystem.md` recommends. Section 5.1 states the conventions over these types, and Section 3.5 states what rule DEP-3 requires as a result.
-- `DEC-5`, Miri: tests that use files, processes, or long numeric loops carry `#[cfg_attr(miri, ignore = "...")]`, and property tests use fewer cases under Miri. Section 6, first row, gives the reason and names the documents that state the rule.
-- `DEC-18`, MIT notice: ported SymmHub code carries its MIT notice in a notices file at the repository root and in a section of the crate-level documentation of each crate with ported code. The notice arrives in the first change that ports SymmHub code, and not before, and that change records it in `AGENTS.md` and `docs/design/tooling.md`. Rust source holds no licence header (Section 6, second row), and `UNV-24` tracks the open licence question.
+- `DEC-5`, Miri: the owner withdrew this decision on 2026-11-19, as the last list of decisions in this section states.
+- `DEC-18`, MIT notice: ported SymmHub code carries its MIT notice in a notices file at the repository root and in a section of the crate-level documentation of each crate with ported code. The notice arrives in the first change that ports SymmHub code, and not before, and that change records it in `AGENTS.md` and `docs/design/tooling.md`. Rust source holds no licence header (Section 6, first row), and `UNV-24` tracks the open licence question.
 - `DEC-19`, completion: the general non-compact signatures (Section 2.1) are not part of the proof of concept and are a workstream of Section 4 of `docs/design/roadmap.md`, because the research records no implementation for them (Section 5.18 of `docs/design/poc-plan.md`). The friezes and the triangle groups with ideal corners stay in milestone `M18`, and the completion audit `M19` covers every other valid signature. Section 5.8 states how `info` and `render` treat such a signature.
 
 The owner decided these defaults on 2026-11-16, for milestone `M3`:
 
-- `DEC-21`, threads: `rayon` in the binary, although `rayon` fails under Miri. Run under Miri on a prototype outside the repository, a pool of `rayon` made Miri report undefined behaviour inside `crossbeam-epoch`. The owner accepts this for the proof of concept and wants developer work kept minimal until a minimum viable product exists. The design gives the binary the option `--threads` and ignores under Miri every test that reaches the thread pool, as Section 8.3 of `docs/design/cli.md` states.
+- `DEC-21`, threads: `rayon` in the binary. On 2026-11-16, a two-thread pool of `rayon`, run under Miri on a prototype outside the repository, made Miri report undefined behaviour inside `crossbeam-epoch` 0.9.21, a dependency of `rayon`. With the option `-Zmiri-tree-borrows`, Miri reported memory leaks instead. The owner accepts this for the proof of concept and wants developer work kept minimal until a minimum viable product exists. The design gives the binary the option `--threads`. Since the owner removed Miri on 2026-11-19, no check of this repository looks for that undefined behaviour.
 - `DEC-28`, border estimate: the gradient form. No source states this construction in the linear model, so it is recorded as an unverified claim (`UNV-15`) and tested against the distance form of Section 6.2 of `docs/research/rendering.md` and against an oracle of tile identity. `docs/design/render.md` specifies the estimate and its tests.
 - `DEC-29`, colour input: colours are given in hexadecimal only, in the forms `#rgb` and `#rrggbb`, and a small parser in the project reads them. No colour crate is a dependency in `M3`. A prototype outside the repository measured that `palette` fails the ban on duplicate versions, and that `csscolorparser` fails it with its default features and passes without them but then reads no colour name. Section 9.2 of `docs/design/cli.md` records the measurement. At `M8` the owner kept this decision and added no colour crate (`DEC-39`).
 - `DEC-30`, existing output file: `escher render` replaces an existing output file without asking. It has no `--overwrite` option.
@@ -463,11 +461,22 @@ The owner decided these defaults on 2026-11-18, for milestone `M8`:
 - `DEC-38`, the colourings in `info`: `escher info` prints by default the number of colourings of each colour count up to the maximum colour count, and an option lists every colouring with its id. `escher-group` therefore counts colourings without storing every table, and lists the colourings of one colour count. CLI-45 and CLI-46 of `docs/design/cli.md` state the lines and the option.
 - `DEC-39`, the palette: the default colours are a fixed table of 12 colours in `escher-cli`, with no colour crate, and a colouring with more than 12 colours needs `--colours`. Colours stay hexadecimal only (`DEC-29`). CLI-44 of `docs/design/cli.md` states the table.
 
+The owner made this decision on 2026-11-19:
+
+- `DEC-5`, Miri: withdrawn. The project no longer uses Miri, or the nightly toolchain, which only Miri used. The owner decided this on the recommendation of an agent, which gave these reasons:
+  - The workspace denies `unsafe_code`, and no crate opts out, so Miri can find almost nothing in the code of this project.
+  - Miri cost minutes in every run of `just check` and of CI, and a skip attribute on about 400 tests.
+  - The interpreter's own rounding of floating-point functions gave fragile results.
+
+  The owner added that the Slang work will not use Miri here, because the Slang library does that itself.
+
+  TEST-7 of `docs/rust-coding-standards.md` states the check that a crate that opts out of the denial of `unsafe_code` adds.
+
 The layout of the planning documents is a proposal that the owner may change. It follows the sibling project slang-rust and has three documents under `docs/design/`. This document holds the architecture and the decisions, `docs/design/poc-plan.md` holds the milestones of the proof of concept, and `docs/design/roadmap.md` holds the phases after it.
 
 ### 10.2. Proposed Defaults
 
-The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-5`, `DEC-18`, `DEC-19`, `DEC-21`, `DEC-28`, `DEC-29`, `DEC-30`, `DEC-37`, `DEC-38`, and `DEC-39`, the view of a rotation signature in `DEC-12`, and the listing of each subgroup in place of each conjugacy class in `DEC-15`, and Section 10.1 states them. Every other default is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
+The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-18`, `DEC-19`, `DEC-21`, `DEC-28`, `DEC-29`, `DEC-30`, `DEC-37`, `DEC-38`, and `DEC-39`, the view of a rotation signature in `DEC-12`, and the listing of each subgroup in place of each conjugacy class in `DEC-15`, and has withdrawn `DEC-5`. Section 10.1 states these decisions. Every other default is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
 
 | Label | Topic | Proposed default | Reason |
 | --- | --- | --- | --- |
@@ -475,7 +484,7 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-2` | Location of the plan and roadmap | The milestone plan `docs/design/poc-plan.md` and the roadmap `docs/design/roadmap.md`, next to this document, as plans without status (Section 10.1) | Section 3.6 of `docs/writing-documentation.md` |
 | `DEC-3` | Reference-arithmetic crate | Decided by the owner: astro-float. The tests use its number crate `astro-float-num`, which Section 13.3 of `docs/design/geometry.md` raises with the owner | Section 10.1 |
 | `DEC-4` | Linear algebra | Decided by the owner: `glam` and `num-complex`, with no vector or matrix type of the project's own | Section 10.1 |
-| `DEC-5` | Miri | Decided by the owner: tests that cannot run under Miri carry `#[cfg_attr(miri, ignore = "...")]` | Section 10.1 |
+| `DEC-5` | Miri | Withdrawn by the owner on 2026-11-19: the project does not use Miri | Section 10.1 |
 | `DEC-6` | Golden images | As Section 7.2, compared in linear light | TEST-14 of `docs/rust-coding-standards.md` defines the test, and samples are averaged in linear light |
 | `DEC-7` | Render defaults | A 4 by 4 sample grid, a black border 1 pixel wide, and a fold cap of 1500. Samples at the cap take the border colour. An opaque white background, and no `transparent` background. `--output` is required. The default colouring is `parity` when a side pairing of the domain reverses orientation, else one colour, as CLI-34 of `docs/design/cli.md` states, so a default rendering runs no search (`DEC-44`). The default fill colours are `#e9c46a` and `#2a9d8f` | Section 9.1. Published caps range from 10 to 4000. `escher-domain` accepts a corner of order 1000, which needed 1000 folds on a prototype, and the cap covers every fold count that the prototype measured (Section 11 of `docs/design/render.md`). A fixed cap is simpler than one derived from the signature. Averaging samples with alpha has no source. The fill colours are the example pair of `M3` in `docs/design/poc-plan.md` |
 | `DEC-8` | Input text | Features in any order, as SymmHub accepts them, but text with two readings is rejected, such as an order after a `*` and an `o` or `x`, and a `1` directly followed by a digit, so `11` and `*11` are errors. Whitespace and the empty string are rejected. Upper-case `O` and `X` are accepted. Of the characters outside American Standard Code for Information Interchange (ASCII), only the infinity sign is accepted. An order 1 is accepted and dropped, with `1` as the trivial group. Section 4.2 of `docs/design/signature.md` states the reading rules | The SymmHub parser is the precedent (Section 11.1 of `docs/research/orbifold-notation.md`), and the proposal accepts only input whose meaning is unambiguous. `UNV-20` |
@@ -491,7 +500,7 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-18` | MIT notice | Decided by the owner: a notices file and a section in the crate-level documentation, from the first change that ports SymmHub code | Section 10.1 |
 | `DEC-19` | Completion and the general non-compact signatures | Decided by the owner: the general non-compact signatures move to the roadmap | Section 10.1 |
 | `DEC-20` | Other notations in `info` | Omitted until a primary source is read | Tables A.1 and A.2 of [CBG] give primary names for the 17 plane groups and the spherical groups. The frieze names, the order of the numbers in five Coxeter symbols, and the Thurston column have no primary source (item 11 of Section 12 of `docs/research/orbifold-notation.md`) |
-| `DEC-21` | Threads | Decided by the owner: `rayon` in the binary, although it fails under Miri | Section 10.1 |
+| `DEC-21` | Threads | Decided by the owner: `rayon` in the binary, although Miri reported undefined behaviour inside `crossbeam-epoch` | Section 10.1 |
 | `DEC-22` | Publication | `publish = false` on every crate through the proof of concept | TOOL-27, and nothing is published without the owner's go-ahead |
 | `DEC-23` | Information format | Text, covered by snapshots, and declared unstable. A machine-readable form is a roadmap item | A snapshot shows every change to the text for review |
 | `DEC-24` | Bad orbifolds | `info` exits with a non-zero status and a diagnostic | A bad orbifold corresponds to no group (Section 7.2 of `docs/research/orbifold-notation.md`) |

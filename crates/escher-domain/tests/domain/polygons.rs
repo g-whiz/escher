@@ -10,14 +10,12 @@ use proptest::prelude::{prop_assert, prop_assert_eq, prop_oneof, proptest};
 use proptest::sample::select;
 use proptest::strategy::Strategy;
 
-use crate::common::{big, largest_coordinate_error, proptest_config_with_miri_cases, signature};
+use crate::common::{big, largest_coordinate_error, proptest_config, signature};
 use crate::reference::{
     Cuts, FeatureKind, Reference, ReflectionPolygon, Worst, add, div, error, form, int,
     largest_magnitude, mul, num, sub, vector,
 };
 use crate::shared::{NAMED_POLYGONS, corner_orders, small_polygons};
-
-const RANDOM_POLYGON_MIRI_CASES: u32 = 3;
 
 const VERTEX_BOUND: f64 = 4e-15;
 
@@ -134,10 +132,6 @@ fn assert_canonical_corners(domain: &FundamentalDomain, signature: &Signature, i
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the sweep of the small polygons runs loops too long for the interpreter"
-)]
 fn every_polygon_has_its_corners_in_the_canonical_cyclic_order() {
     let mut random = Random(0x9e37_79b9_7f4a_7c15);
     let named = NAMED_POLYGONS.map(signature);
@@ -235,10 +229,6 @@ fn rotations_and_reversals_give_one_canonical_signature() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn closing_side_has_the_length_of_its_gaps() {
     let mut reference = Reference::new();
     let mut random = Random(0x2545_f491_4f6c_dd1d);
@@ -285,10 +275,6 @@ fn random_polygon(random: &mut Random, count: usize) -> Signature {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the checks of the largest orders run loops too long for the interpreter"
-)]
 fn guard_refuses_few_random_settings() {
     let mut random = Random(0x1234_5678_9abc_def1);
     for (count, recorded) in REFUSED_SHARES {
@@ -325,7 +311,7 @@ fn polygon_orders() -> impl Strategy<Value = Vec<u32>> {
 }
 
 proptest! {
-    #![proptest_config(proptest_config_with_miri_cases(RANDOM_POLYGON_MIRI_CASES))]
+    #![proptest_config(proptest_config())]
 
     #[test]
     fn random_polygons_build_and_pass_or_are_refused(
@@ -554,10 +540,6 @@ impl PolygonColumn {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn polygons_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut random = Random(0x6a09_e667_f3bc_c908);
@@ -642,10 +624,6 @@ fn slice_walls(
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn each_cut_has_the_length_of_its_parameter_in_the_reference() {
     let mut reference = Reference::new();
     let mut random = Random(0xbb67_ae85_84ca_a73b);
@@ -690,10 +668,6 @@ fn each_cut_has_the_length_of_its_parameter_in_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn walk_agrees_with_the_welded_sheets_in_the_reference() {
     let mut reference = Reference::new();
     let mut distances = Identity::new(
@@ -846,10 +820,6 @@ struct DefaultShape {
 const BOUNDARY_POLYGONS: [&str; 2] = ["*422322", "*432232"];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn default_shapes_are_the_inscribed_polygons_of_the_reference() {
     let mut reference = Reference::new();
     let mut record = DefaultShape {
@@ -901,10 +871,6 @@ fn default_shapes_are_the_inscribed_polygons_of_the_reference() {
 const COLOUR_LIMIT: u32 = 4;
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the colouring search runs loops too long for the interpreter"
-)]
 fn side_and_conway_presentations_give_equal_colouring_counts() {
     let Ok(limit) = IndexLimit::new(COLOUR_LIMIT) else {
         panic!("{COLOUR_LIMIT} colours are out of range");

@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies how the deterministic checks of the Escher repository are configured and run. It defines the `just` recipes, the aggregate check that runs before every merge, the nextest profiles, and the git hooks. It also specifies the custom checkers that move rules from review to a tool and the continuous integration workflow that runs all of these checks.
+This document specifies how the deterministic checks of the Escher repository are configured and run. It defines the `just` recipes, the aggregate check that runs before every merge, the nextest profile, and the git hooks. It also specifies the custom checkers that move rules from review to a tool and the continuous integration workflow that runs all of these checks.
 
 ## 1. Introduction
 
@@ -167,14 +167,9 @@ This table lists every recipe, what it runs, and whether `check` runs it. The co
 | `check-toml` | `checks` | The taplo command of Section 4.8, with `taplo.toml` (TOOL-30) | Yes |
 | `check-workflows` | `checks` | The actionlint command of Section 4.8, which checks every workflow | Yes |
 | `check-unused-deps` | `checks` | The cargo machete command of Section 4.8 | Yes, through `check-rust` |
-| `check-miri` | `checks` | The Miri command of Section 4.8, for the tests that the nextest profile `default-miri` selects | Yes, through `check-rust` |
 | `check-features` | `checks` | The cargo hack command of Section 4.8 for the feature powerset, which includes each single feature | No, the CI job `ci-only` runs it |
 | `check-msrv` | `checks` | The MSRV command of Section 4.8, which checks the workspace with `cargo hack check` and the toolchain that `rust-version` names | No, the CI job `ci-only` runs it, and its first local run downloads that toolchain (Section 14.3) |
 | `coverage` | `rust` | The cargo llvm-cov command of Section 4.8 with the `default` profile and the arguments that Section 4.8 names for it, which write the LCOV report `target/lcov.info`. It prints no coverage summary, and it is not a gate | No, the CI job `coverage` runs it (Section 7.1) |
-
-`check-miri` runs Miri through nextest, for the reason that Section 4.8 of the coding standard gives. Under Miri, nextest uses the profile named `default-miri`, which `.config/nextest.toml` defines (Section 4).
-
-Miri emulates some functions of libc and libm, but it cannot call an arbitrary native library or start a process. `default-miri` sets no filter of its own, so it selects every test of the workspace, and a test that calls a native library or starts a process fails under Miri.
 
 ### 3.3. Aggregate Recipes
 
@@ -199,38 +194,30 @@ Miri emulates some functions of libc and libm, but it cannot call an arbitrary n
 
 `check-workflows` can run in `check` only while the repository has a workflow, because actionlint exits with status 3 when it finds none. `check` needs network access (Section 14.6).
 
-`check-rust` runs `check-rust-comments`, `check-doc-headings`, `check-doctest-attributes`, `check-feature-docs`, `check-fmt`, `check-unused-deps`, `check-deny`, `check-clippy`, `check-doc`, `check-doctest`, `test`, and `check-miri`, in that order, so that the checks that do not compile the workspace report first.
+`check-rust` runs `check-rust-comments`, `check-doc-headings`, `check-doctest-attributes`, `check-feature-docs`, `check-fmt`, `check-unused-deps`, `check-deny`, `check-clippy`, `check-doc`, `check-doctest`, and `test`, in that order, so that the checks that do not compile the workspace report first.
 
 ## 4. nextest Profiles
 
-The file `.config/nextest.toml` defines the nextest profiles. nextest reads that file, and a recipe selects a profile with the option `--profile` (TOOL-7).
+nextest reads the file `.config/nextest.toml`, and a recipe selects a profile of it with the option `--profile` (TOOL-7).
 
-The file defines two profiles. `default` is the profile of `test` and `coverage`. `default-miri` is the profile that nextest uses under Miri (Section 3.2). It holds no setting, so it takes every setting from `default`:
+The file defines one profile, `default`, which is the profile of `test` and `coverage`:
 
 ```toml
 [profile.default]
 retries = 0
-
-[profile.default-miri]
 ```
 
-Neither profile sets `default-filter`, so each selects every test of the workspace. A filter that the command line adds with `-E` is intersected with the default filter of the profile, so it narrows the selection of the profile and never widens it. Only the recipe `update-golden` adds such a filter (TOOL-7).
+The profile does not set `default-filter`, so it selects every test of the workspace. A filter that the command line adds with `-E` is intersected with the default filter of the profile, so it narrows the selection of the profile and never widens it. Only the recipe `update-golden` adds such a filter (TOOL-7).
 
 TOOL-11. A profile MUST NOT retry a failed test, because a retry turns an intermittent failure into a pass, which hides the defect that caused the failure.
 
-Zero retries is the default of nextest, and the `default` profile sets `retries = 0` explicitly so that the configuration states this rule instead of relying on the default. Every other profile inherits the value.
+Zero retries is the default of nextest, and the `default` profile sets `retries = 0` explicitly so that the configuration states this rule instead of relying on the default.
 
 TOOL-12. A recipe that runs nextest MUST pass when its profile selects no test. An empty selection is not a test failure, and a workspace can hold no test. nextest 0.9.151 fails such a run with the message "error: no tests to run" and exit status 4.
 
 Every nextest command of Section 4.8 of the coding standard therefore passes `--no-tests=warn`, with which an empty run passes and nextest still prints that no test ran. A recipe keeps that option.
 
 nextest does not run doctests, so `check-doctest` runs them, as Section 4.8 of the coding standard states.
-
-Under Miri, `default-miri` selects every test, so the tests themselves decide what runs in the interpreter, as TEST-11 of the coding standard requires:
-
-- A test that runs a loop too long for the interpreter carries `#[cfg_attr(miri, ignore = "...")]` with a reason in plain words. nextest reports such a test as skipped under Miri and runs it in `test` and `coverage`. Section 12.2 of `docs/design/signature.md` names the tests of `escher-signature` that carry it, and Section 10.4 of `docs/design/geometry.md` names those of `escher-geometry`, which are its tests against high-precision reference arithmetic, with two exceptions, and its deterministic sweeps. Section 12.3 of `docs/design/domain.md` names those of `escher-domain`, which are its tests against high-precision reference arithmetic, including the self-check of the reference arithmetic in both of its test binaries, its test of the checks at the worst cases with its companion test of the margins of polygons with a corner of order 1000, the deterministic companion of its test of random polygons, its sweeps of the small polygons, its exhaustive certificates, its evaluation of the side relators, its tests that run a coset enumeration of a side presentation beyond that of `22`, and its search of the colourings of four polygons. Section 8.5 of `docs/design/render.md` names those of `escher-render`, which are its tests against high-precision reference arithmetic, including one property test and the self-check of the reference arithmetic in both of its test binaries, its tests that render whole images, and its tests that search colourings beyond those of `22`. Section 10.4 of `docs/design/group.md` names those of `escher-group`, which are its tests that run a coset enumeration or a search beyond the smallest cases and its test that writes out the largest accepted relators. Section 8.3 of `docs/design/cli.md` names those of `escher-cli`, which are its plain tests that run `info` on a built domain other than that of `22`, because every such run includes a colouring search.
-- A test that does something that the isolation of Miri refuses, such as opening a file, or that reaches a library that fails the checks of Miri, carries the same attribute with its own reason. Section 8.3 of `docs/design/cli.md` names the tests of `escher-cli` that carry such an attribute: its snapshot tests, its tests of `render` that reach the thread pool or open a file, and its smoke test, which starts a process. Section 8.5 of `docs/design/render.md` names the golden image test of `escher-render`.
-- Every property test takes its `proptest` configuration from one helper in the `common` module of its crate's integration tests. Under `cfg!(miri)` the helper returns 8 cases with `failure_persistence` set to `None`, or fewer cases where the design document of the crate names a smaller number for a slow test, and otherwise it returns the default configuration of `proptest`, with 256 cases. The file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and 256 cases take too long in the interpreter.
 
 The root `Cargo.toml` sets `opt-level = 3` for the dev-dependency `astro-float-num` alone in the `dev` profile, from which the `test` profile of Cargo inherits, for the reason that Section 11 of `docs/design/geometry.md` states. The crates of the workspace stay unoptimized in that profile.
 
@@ -554,7 +541,7 @@ This table lists the jobs, with the name that GitHub shows for each and the host
 | `ci-only` | Run `check-features` on Linux, Run `check-msrv` on Linux | `ubuntu-latest`, Linux x86_64, as a matrix of the two recipes, with `fail-fast: false` | `just check-features` and `just check-msrv` |
 | `coverage` | Measure test coverage on Linux | `ubuntu-latest`, Linux x86_64 | `just coverage`, then the upload of `target/lcov.info` as the artifact `coverage-lcov` |
 
-Every job first checks out the repository and installs the Rust toolchains and the tools that it needs. Then it runs its own steps:
+Every job first checks out the repository and installs the Rust toolchain and the tools that it needs. Then it runs its own steps:
 
 - The `check` job installs actionlint and runs `just check`.
 - The `ci-only` job runs the recipe of its matrix entry.
@@ -568,9 +555,9 @@ The action `actions/upload-artifact`, pinned by commit SHA (TOOL-20), uploads `t
 
 CI installs the tools on each runner, because no container image is published for CI to run in. Each job installs only the tools that its recipes need:
 
-- The Rust toolchains, through rustup, which the hosted runners provide. Each job installs the stable toolchain with the minimal profile and the components that it needs, which are rustfmt and clippy in the `check` job, none in the `ci-only` job, and rustfmt and llvm-tools in the `coverage` job.
+- The Rust toolchain, through rustup, which the hosted runners provide. Each job installs only the stable toolchain, in a step named `Install the stable Rust toolchain`, with the minimal profile and the components that it needs, which are rustfmt and clippy in the `check` job, none in the `ci-only` job, and rustfmt and llvm-tools in the `coverage` job.
 
-  `check-fmt` needs rustfmt, and cargo llvm-cov needs llvm-tools. The `check` job also installs the nightly toolchain with the components miri and rust-src, and lets rustup choose an older nightly when the latest one lacks a component.
+  `check-fmt` needs rustfmt, and cargo llvm-cov needs llvm-tools.
 - `just` in every job, cargo-nextest in the `check` and `coverage` jobs, shellcheck, typos, taplo, cargo-machete, and cargo-deny in the `check` job, cargo-hack in the `ci-only` job, and cargo-llvm-cov in the `coverage` job, through the action `taiki-e/install-action`, pinned by commit SHA. The action installs prebuilt binaries and verifies the SHA-256 checksum of each one against the manifest of versions and checksums that it carries. The workflow sets `fallback: none`, so the action fails instead of installing a tool by a route that its manifest does not cover.
 - actionlint, in the `check` job, through an inline step. It reads the latest release from GitHub, downloads the release archive for Linux x86_64 and the checksums file of the same release, verifies the archive with `sha256sum --check --strict`, and fails on a mismatch before it extracts the archive.
 
@@ -707,7 +694,7 @@ A document that calls an installed tool missing leaves its rules as judgement ru
 TOOL-29. The container image MUST provide these, because the recipes of Section 3.2 run them:
 
 - Every tool that Section 4.8 of the coding standard lists.
-- A nightly toolchain with the components miri and rust-src, used only for checkers, as DEP-4 of the coding standard requires, with the stable toolchain as the default.
+- The stable toolchain as the default, which is the only toolchain that the recipes of Section 3.2 use apart from that of `check-msrv` (DEP-4 of the coding standard).
 - The component llvm-tools of the stable toolchain, which cargo llvm-cov needs.
 - GitHub's Secure Shell (SSH) host keys in the user's known hosts file, so that git can verify GitHub when it pushes.
 
@@ -727,8 +714,9 @@ Each row is a question that this document leaves open. The design document in th
 | --- | --- | --- |
 | TQ-4 | How is a release carried out: which recipe publishes, in which order the crates are published, and where the crates.io token is kept outside the repository? | This document |
 | TQ-6 | How does each published crate carry the text of its licence, which the GPL requires to accompany the work, given that Cargo does not package the root `LICENSE` when a manifest sets only the `license` field (Section 9)? | This document |
+| TQ-11 | Some tests are split or use small inputs for a reason that does not apply, because the owner withdrew `DEC-5` of `docs/design/architecture.md`: the single cases of Section 10.1 of `docs/design/group.md`, the row "Side order of `22`" of Section 12.1 of `docs/design/domain.md`, and the tests "of its own" of Section 8.1 of `docs/design/cli.md`. They stay because they cost nothing. Should they be merged into their table tests? Also, the helper `proptest_config()` of each crate returns the default configuration of `proptest`, so TEST-11 of the coding standard requires a wrapper that changes nothing. Should the helpers be removed and TEST-11 withdrawn, or kept as the one place to change the number of cases? | `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/cli.md` for the tests, and `docs/rust-coding-standards.md` for TEST-11 |
 
-An identifier is never reused, so the next question takes TQ-11.
+An identifier is never reused, so the next question takes TQ-12.
 
 ## 13. Security Considerations
 
@@ -834,7 +822,6 @@ This table says what a failure of each check means and what the developer does.
 | `check-toml` | A TOML file is not formatted | Runs `just fmt` |
 | `check-workflows` | actionlint reported a finding in a workflow | Fixes the workflow |
 | `check-unused-deps` | A dependency is declared and not used | Removes it |
-| `check-miri` | Miri found undefined behaviour, or a test called something that Miri cannot run, such as a native library | Fixes the unsafe code, following Section 9 of the coding standard, or changes the test |
 | `coverage` | A test failed, or cargo llvm-cov did not write the report. In the CI job `coverage`, the upload step also fails when `target/lcov.info` does not exist | Reads the message of cargo llvm-cov, and fixes a failing test as for `test` |
 | `check-features`, `check-msrv` | A feature combination does not compile, or the code needs a newer toolchain than `rust-version` | Fixes the code, or raises `rust-version` under TOOL-5 |
 
@@ -859,8 +846,6 @@ The recipe `coverage` prints the output of the build and the tests and no covera
 `just check` needs network access. `check-deny` fetches the advisory database from <https://github.com/RustSec/advisory-db> on every run, and fails with exit status 1 when it cannot.
 
 With a database already cached, `cargo deny --offline check`, with the global option `--offline` before `check`, works without network access. `check-deny` runs the command of Section 4.8 of the coding standard without that option, so it always checks against the current database.
-
-The first run of `check-miri` after an image rebuild also needs network access, because Miri builds a sysroot and fetches the dependencies of the standard library. Later runs of `check-miri` work offline.
 
 Outside `check`, the first run of `check-msrv` on a machine downloads a toolchain (Section 14.3).
 
@@ -941,6 +926,6 @@ This table lists every labelled requirement of this document with a one-line sum
 | TOOL-26 | 8 | Advisories, duplicates, and other sources fail cargo-deny, with exceptions only per item and with a reason. |
 | TOOL-27 | 9 | Published crates carry the full metadata, and unpublished members set `publish = false`. |
 | TOOL-28 | 10 | Image changes happen in the repository that defines the image, and the first change after a rebuild that adds or removes a tool updates the documents. |
-| TOOL-29 | 10 | The image provides the tools of Section 4.8, the nightly toolchain with Miri, llvm-tools, and GitHub's SSH host keys. |
+| TOOL-29 | 10 | The image provides the tools of Section 4.8, the stable toolchain as the default, llvm-tools, and GitHub's SSH host keys. |
 | TOOL-30 | 3.1 | `taplo.toml` sets four-space indentation and excludes `target/` and `.worktrees/`, and `typos.toml` accepts the correct words that typos reports. |
 | TOOL-31 | 8 | `deny.toml` denies unused licence allow-list entries and unused advisory ignores. |

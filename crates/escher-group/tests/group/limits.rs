@@ -9,10 +9,6 @@ fn outcome(presentation: &Presentation, cosets: u32) -> Result<usize, ErrorKind>
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn infinite_groups_reach_the_limit() {
     for signature in ["*632", "2222", "o", "*732"] {
         assert_eq!(
@@ -32,10 +28,6 @@ fn an_infinite_group_reaches_a_small_limit() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn limit_counts_coset_zero() {
     let presentation = conway("532");
     assert_eq!(outcome(&presentation, 60), Ok(60));
@@ -68,10 +60,6 @@ fn sims(n: u32) -> Presentation {
 const SIMS_DEFINED: [(u32, u32); 6] = [(3, 8), (4, 15), (5, 28), (6, 47), (7, 83), (8, 138)];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn sims_presentation_finishes_at_its_count_and_not_below() {
     for (n, defined) in SIMS_DEFINED {
         let presentation = sims(n);
@@ -94,10 +82,6 @@ fn sims_presentation_finishes_at_its_count_and_not_below() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn the_maximum_limit_fills_the_largest_table() {
     let free = match Presentation::new(names(8), Vec::new()) {
         Ok(presentation) => presentation,
@@ -134,10 +118,6 @@ fn a_long_subgroup_generator_finishes_within_the_index() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn many_long_subgroup_generators_finish_within_the_index() {
     let [x, y] = [0, 1].map(Letter::generator);
     let klein = presentation(2, &[(&[x], 2), (&[y], 2), (&[x, y], 2)]);

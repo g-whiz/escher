@@ -70,10 +70,6 @@ impl Search {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn enumeration_of_euclidean_compact_signatures_finds_exactly_the_seventeen_plane_signatures() {
     let mut search = Search {
         model: Model::default(),
@@ -215,10 +211,6 @@ fn assert_one_canonical_string_per_class(models: &[Model]) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn equivalence_classes_with_cone_points_have_one_canonical_string_each() {
     let models = universe(&Bounds {
         cone_values: &[Value::Finite(2), Value::Finite(3), Value::Infinite],
@@ -237,10 +229,6 @@ fn equivalence_classes_with_cone_points_have_one_canonical_string_each() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn equivalence_classes_with_long_boundaries_have_one_canonical_string_each() {
     let models = universe(&Bounds {
         cone_values: &[],

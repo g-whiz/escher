@@ -215,10 +215,6 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration of the groups runs loops too long for the interpreter"
-)]
 fn wallpaper_checks_pass_with_a_margin_over_the_grid() {
     for text in ["o", "**"] {
         let mut largest = LargestResiduals::new();
@@ -281,10 +277,6 @@ proptest! {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn wallpaper_domains_match_their_closed_forms() {
     let mut reference = Reference::new();
     let one = int(1);
@@ -350,10 +342,6 @@ fn wallpaper_domains_match_their_closed_forms() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn skewed_tori_are_shears_of_the_rectangle() {
     let mut reference = Reference::new();
     let one = int(1);
@@ -558,10 +546,6 @@ fn is_inside(domain: &FundamentalDomain, point: DVec2) -> bool {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration of the groups runs loops too long for the interpreter"
-)]
 fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signatures() {
     let points = samples();
     for setting in named_settings() {

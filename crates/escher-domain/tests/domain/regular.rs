@@ -10,10 +10,6 @@ const EDGE_TOLERANCE: f64 = 2e-13;
 const CIRCUMRADIUS_TOLERANCE: f64 = 1e-13;
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn edge_of_the_heptagonal_tiling_is_twice_the_side_from_vertex_1_to_vertex_2() {
     let mut reference = Reference::new();
     let built = domain([7, 3, 2]);
@@ -31,10 +27,6 @@ fn edge_of_the_heptagonal_tiling_is_twice_the_side_from_vertex_1_to_vertex_2() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn circumradius_of_the_heptagonal_tiling_is_the_disk_radius_of_vertex_1_seen_from_vertex_0() {
     let mut reference = Reference::new();
     let built = domain([7, 3, 2]);
@@ -60,10 +52,6 @@ const RIGHT_ANGLED: [&str; 2] = ["*22222", "*222222"];
 const INSCRIBED: [&str; 5] = ["*3333", "*4444", "*33333", "*2222222", "*22222222"];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn regular_polygons_have_the_edges_and_circumradii_of_their_tilings() {
     let mut reference = Reference::new();
     let pi = reference.pi();

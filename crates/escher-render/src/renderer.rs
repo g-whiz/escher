@@ -496,10 +496,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "rendering whole images runs loops too long for the interpreter"
-    )]
     fn perturbing_every_normal_by_one_unit_in_the_last_place_changes_the_golden_images_within_their_allowance()
      {
         let linear = linear_table();
@@ -569,10 +565,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn gradient_form_of_the_border_agrees_with_the_distance_form() {
         const MEASURED: [[usize; 2]; 6] = [[0, 2], [7, 0], [0, 0], [0, 0], [0, 0], [0, 0]];
         let domains = FOLD_TRIPLES.map(|text| (text.to_owned(), domain(text)));
@@ -580,10 +572,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn gradient_form_of_the_border_agrees_with_the_distance_form_on_the_polygons() {
         const NONE: [[usize; 2]; 6] = [[0; 2]; 6];
         const fn second_band(first: [usize; 2], second: [usize; 2]) -> [[usize; 2]; 6] {
@@ -734,10 +722,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn gradient_form_of_the_border_agrees_with_the_euclidean_distance_form() {
         const ANGLES: u32 = 512;
         const NEAR: f64 = 4.0;
@@ -869,10 +853,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn shading_agrees_with_the_reference() {
         let mut reference = Reference::new();
         let normals = hemisphere(32);
@@ -1010,10 +990,6 @@ mod tests {
     const BRIGHT_SIZE: u32 = 192;
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "rendering whole images runs loops too long for the interpreter"
-    )]
     fn brightest_pixel_follows_the_light_and_a_quarter_turn_of_the_light_turns_the_image() {
         let size = usize::try_from(BRIGHT_SIZE).unwrap_or(usize::MAX);
         let grey = Colour::from_srgb8(128, 128, 128).linear();
@@ -1128,10 +1104,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn gradient_form_of_the_border_agrees_with_the_oracle_on_the_ball() {
         const SAMPLES: u32 = 4000;
         const CIRCLE: u32 = 64;
@@ -1262,10 +1234,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
-    )]
     fn coset_fill_gives_each_converged_sample_the_colour_of_the_sides_of_its_fold() {
         let mut cases: Vec<(FundamentalDomain, Colouring)> = COSET_GOLDEN_IMAGES
             .iter()
@@ -1307,10 +1275,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
-    )]
     fn renderer_refuses_a_coset_fill_of_a_domain_with_another_side_presentation() {
         let triangle = domain("*732");
         let fill = coset_fill(&triangle, colouring(&triangle, "2a"));

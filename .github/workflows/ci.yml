@@ -27,10 +27,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install the stable and nightly Rust toolchains
-        run: |
-          rustup toolchain install stable --profile minimal --component rustfmt,clippy
-          rustup toolchain install nightly --profile minimal --component miri,rust-src --allow-downgrade
+      - name: Install the stable Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
       - name: Install the check tools
         uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:

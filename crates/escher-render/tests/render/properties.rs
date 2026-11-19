@@ -13,8 +13,8 @@ use proptest::sample::Index;
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
     Measure, REPLAY_BOUNDS, ROTATION_EUCLIDEAN_REPLAY_BOUNDS, ROTATION_REPLAY_BOUNDS,
-    SPHERICAL_DOMAINS, TOLERANCE, domain, euclidean_band, euclidean_domain, polygon_cases,
-    proptest_config, rotation_domain, spherical_domain, text,
+    SPHERICAL_DOMAINS, TOLERANCE, domain, euclidean_band, euclidean_domain, proptest_config,
+    rotation_domain, spherical_domain, text,
 };
 use crate::golden_images::{POLYGON_DOMAINS, domain_with_aspect};
 use crate::reference::{self, Reference, num, vector};
@@ -168,10 +168,6 @@ proptest! {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn rotation_fold_of_a_paired_point_keeps_its_parity_and_its_folded_point(
         index in 0..ROTATION_DOMAINS,
         unit in 0.0..=1.0_f64,
@@ -278,10 +274,6 @@ proptest! {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn fold_of_a_paired_point_takes_one_step_more_or_less_with_the_other_parity(
         triple in 0..FOLD_TRIPLES.len(),
         exponent in 0.0..=6.0_f64,
@@ -386,10 +378,6 @@ proptest! {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn euclidean_fold_of_a_paired_point_takes_one_step_more_or_less_with_the_other_parity(
         index in 0..EUCLIDEAN_DOMAINS.len(),
         distance in 0.0..=EUCLIDEAN_RANGE,
@@ -547,7 +535,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = POLYGON_DOMAINS[POLYGON_CASES[index.index(POLYGON_CASES.len())]].domain();
+        let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
         let result = fold(&domain, point_in_range(exponent, angle), DEFAULT_CAP, |_| {});
         prop_assert!(result.converged());
         prop_assert!(result.reversals() <= result.steps());
@@ -568,7 +556,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = POLYGON_DOMAINS[POLYGON_CASES[index.index(POLYGON_CASES.len())]].domain();
+        let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
         let first = fold(&domain, point_in_range(exponent, angle), DEFAULT_CAP, |_| {});
         prop_assert!(first.converged());
         let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
@@ -583,7 +571,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = POLYGON_DOMAINS[POLYGON_CASES[index.index(POLYGON_CASES.len())]].domain();
+        let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
         let point = point_in_range(exponent, angle);
         let mut sides = Vec::new();
         let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
@@ -605,7 +593,7 @@ proptest! {
         bits in any::<[u64; 3]>(),
         cap in 0..=2000_u32,
     ) {
-        let domain = POLYGON_DOMAINS[POLYGON_CASES[index.index(POLYGON_CASES.len())]].domain();
+        let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
         let point = DVec3::from_array(bits.map(f64::from_bits));
         let result = fold(&domain, point, cap, |_| {});
         prop_assert!(result.steps() <= cap);
@@ -622,8 +610,6 @@ proptest! {
     }
 }
 
-static POLYGON_CASES: LazyLock<Vec<usize>> = LazyLock::new(polygon_cases);
-
 const SPHERICAL_PAIRING_BOUNDS: [f64; 17] = [
     2e-14, 3e-14, 5e-14, 9e-15, 2e-14, 2e-14, 3e-14, 3e-12, 3e-10, 3e-10, 8e-15, 2e-14, 5e-15,
     6e-15, 9e-15, 2e-14, 3e-14,
@@ -632,10 +618,6 @@ const SPHERICAL_PAIRING_BOUNDS: [f64; 17] = [
 const PAIRING_GRID: u32 = 32;
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_folds_of_paired_points_on_the_sphere_stay_within_the_pairing_bound() {
     let mut reference = Reference::new();
     for (index, (&name, &bound)) in SPHERICAL_DOMAINS
@@ -771,10 +753,6 @@ proptest! {
     #![proptest_config(proptest_config())]
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the search of the colourings and the folds of many samples run loops too long for the interpreter"
-    )]
     fn each_side_moves_the_coset_colour_by_the_inverse_column_of_its_generator(
         index in 0..COLOURED_DOMAINS.len(),
         chosen in any::<Index>(),

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-17 |
+| Date | 2026-11-19 |
 | Applies to | `crates/escher-geometry` |
 
 ## Abstract
@@ -564,7 +564,7 @@ GEO-11. Every function other than the two functions `normalize_point` and the th
 
 GEO-12. Each function MUST meet the accuracy of this table over the stated range of inputs, because `docs/design/domain.md` sets its own tolerances on top of these, and a function that is less accurate than stated makes a correct domain fail its verification.
 
-The figures are measured on the Rust code of this crate against the reference arithmetic of Section 10.2, by the tests of Section 10.1, which assert each bound and print the largest error. The tests run on Linux, where the `f64` methods of Rust call the transcendental functions of the C library. Each random range draws 100,000 cases from a fixed seed, plus the edge cases that the row names. Each test also asserts that it measured at least a stated number of cases, so a test that measures nothing fails. For most tests that number is the number of values that the random loops record. The test of `distance` asserts at least 80,000 cases with $d > 0$. The test of the close points of `wall_through` asserts at least 95,000 results that are not `DegenerateWall` and whose points have a reference distance above 0. Where the column "Largest error" says "four samples", the figure is the largest over four samples of 100,000 cases, drawn from the seed of the test and the seeds 100, 200, and 300 above it. Every other figure is over one sample. A test draws only the sample of its own seed, so the figure that it prints can be lower than a figure of four samples. No figure is measured under the Miri interpreter, whose transcendental functions are its own.
+The figures are measured on the Rust code of this crate against the reference arithmetic of Section 10.2, by the tests of Section 10.1, which assert each bound and print the largest error. The tests run on Linux, where the `f64` methods of Rust call the transcendental functions of the C library. Each random range draws 100,000 cases from a fixed seed, plus the edge cases that the row names. Each test also asserts that it measured at least a stated number of cases, so a test that measures nothing fails. For most tests that number is the number of values that the random loops record. The test of `distance` asserts at least 80,000 cases with $d > 0$. The test of the close points of `wall_through` asserts at least 95,000 results that are not `DegenerateWall` and whose points have a reference distance above 0. Where the column "Largest error" says "four samples", the figure is the largest over four samples of 100,000 cases, drawn from the seed of the test and the seeds 100, 200, and 300 above it. Every other figure is over one sample. A test draws only the sample of its own seed, so the figure that it prints can be lower than a figure of four samples.
 
 Each bound uses the scales of Section 2.1. The column "Largest error" gives the largest error measured, in the form of the bound, and the margin is the constant of the bound divided by the measured constant. Every margin is at least 8, as TEST-13 of the coding standard requires:
 
@@ -734,7 +734,11 @@ Each test below names the item of the field "Tests and acceptance" of Section 5.
 | G26 Spherical reference | None | Reference, `formulas` | Each row of Section 8.6 against the reference arithmetic, on the inputs of the row and within its bound | Sections 5.5, 6.7, and 8.6 |
 | G27 Spherical properties | None | `proptest` and a sweep, `properties` | A reflection in the great circle of a random normal is an involution, fixes the points of its great circle, and has an `isometry_defect` within the bound of its row. The product of the reflections in two great circles through one random sphere point at the angle $\pi/n$, for $n$ from 2 to 12, raised to the power $n$ by repeated multiplication, is the identity. `wall_through` of two points of the range of Section 8.6 has the three properties of Section 5.5 within the bounds of its rows, and swapping the points gives exactly the negated result. Each within its row of Section 10.3. A second sweep, of pairs below the separation floor of Section 8.6, asserts only that each result is a finite vector or `DegenerateWall` | Sections 5.5, 6.7, and 8.6 |
 
-The property tests commit their regression files (TEST-9 of the coding standard). G14 guards against a wrong precision or rounding argument and does not test correct rounding, which Section 12 treats under `UNV-25`.
+The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest` (TEST-11 of the coding standard).
+
+G14 guards against a wrong precision or rounding argument and does not test correct rounding, which Section 12 treats under `UNV-25`.
+
+GEO-17. Withdrawn on 2026-11-19.
 
 ### 10.2. Reference Arithmetic
 
@@ -751,7 +755,7 @@ These rules apply to the module:
 
 ### 10.3. Tolerances
 
-Each test compares with the tolerance of this table, with the scales of Section 2.1. A row that names a row of Section 8.4 takes its tolerance, its range of inputs, and its measured margin from that row, and the test draws its inputs from that range. The other rows state their own input set, tolerance, largest error, and margin, measured as Section 8.4 states, each over one sample from the seed of its sweep. The property tests assert the same tolerances on 256 cases, or 8 under Miri:
+Each test compares with the tolerance of this table, with the scales of Section 2.1. A row that names a row of Section 8.4 takes its tolerance, its range of inputs, and its measured margin from that row, and the test draws its inputs from that range. The other rows state their own input set, tolerance, largest error, and margin, measured as Section 8.4 states, each over one sample from the seed of its sweep. The property tests assert the same tolerances on 256 cases:
 
 | Quantity | Test | Tolerance | Largest error | Margin |
 | --- | --- | --- | --- | --- |
@@ -811,29 +815,6 @@ GEO-16. Every test that compares a floating-point result MUST use the tolerance 
 
 TEST-13 of the coding standard states the general rule that GEO-15, GEO-16, and GEO-19 apply to this crate.
 
-### 10.4. Tests Under Miri
-
-`DEC-5` and TEST-11 of the coding standard apply to the tests of this crate in this way:
-
-| Tests | Under Miri | Attribute or configuration |
-| --- | --- | --- |
-| The reference tests of G1 to G6, G17, G22, and G26 | Ignored | `#[cfg_attr(miri, ignore = "the high-precision arithmetic runs loops too long for the interpreter")]` |
-| The sweeps of G3, G7, G9, G10, G19, G23, and G27 | Ignored | `#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]` |
-| The property tests of G7 to G10, G13, G19, G23, and G27 | Run with 8 cases and no failure persistence | The helper of GEO-17 |
-| G14, the reference test of G11, and G18 | Run unchanged | None |
-| The unit tests of G21 and G25 that compare `euclidean::rotation` and `spherical::rotation` with `hyperbolic::rotation` bit for bit | Ignored, because Miri rounds the result of each call of `sin_cos` differently, so the two calls give different matrices | `#[cfg_attr(miri, ignore = "the interpreter rounds the sine and cosine of each call differently")]` |
-| The unit test of G11 `to_disk_of_a_point_at_distance_38_point_2_is_within_rounding_of_the_unit_circle` | Ignored, because Miri adds a random rounding error to each result of $\sinh$ and $\cosh$, and with some draws the radius misses its bound of $4\varepsilon$ | `#[cfg_attr(miri, ignore = "the interpreter adds rounding errors of its own to the hyperbolic sine and cosine")]` |
-| The other unit tests of G11, G21, and G25, and the unit tests of G12, G15, G20, and G24 | Run unchanged | None |
-| G16 | Not run, because Miri runs the tests through nextest, which runs no doctest | None |
-
-The sweeps of G27 are `spherical_reflections_relators_and_walls_are_within_their_bounds` and `spherical_wall_through_below_the_separation_floor_gives_finite_normals_or_degenerate_walls`, and its property tests are the three `spherical_` tests of `properties`. The unit test at distance 38.2 gives the radius $0.9999999999999988$ under Miri with some seeds. Its result depends on the random draws of the interpreter and not on the module `spherical`, because it fails with the Miri seed 3 and passes with the seeds 0, 1, 2, and 4 on code that has no such module. The unit test at distance 37 and the reference test of G11 pass under the Miri seeds 0 to 7.
-
-Each reason in an attribute is in plain words and cites no document (Hard Rule 15 of `AGENTS.md`). The property tests and the unit tests run the arithmetic of `glam` under Miri, which Section 11 records as supported.
-
-G14 and the reference test of G11 use the reference arithmetic and still run under Miri, because they compute a few values. Under Miri, G14 takes about 30 seconds alone and the radius check about 3 seconds, while the triangle test of G17 does not finish within 8 minutes. The tests run in parallel, so G14 adds little to the time of `just check-miri`.
-
-GEO-17. The property tests MUST take their configuration from one helper in `common`, with the numbers of cases and the failure persistence that Section 4 of `docs/design/tooling.md` states, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and a full set of cases takes too long in the interpreter.
-
 ## 11. Dependencies
 
 GEO-18. The crate MUST declare `glam` and `thiserror` as its only normal dependencies and MUST NOT re-export `glam`, because each further dependency adds build time, licence obligations, and supply-chain risk (DEP-2 of the coding standard), and a re-export would be a second path to the `glam` types that every crate declares itself (Section 3.1 of the architecture, API-10).
@@ -857,7 +838,6 @@ These facts about the dependencies hold for the workspace, as `cargo tree`, the 
 
 - `glam` resolves to 0.34.3 under `MIT OR Apache-2.0`, with a declared MSRV of 1.85, below the workspace MSRV of 1.99. `cargo tree -e features -i glam` shows only the features `float-types`, which turns on the double-precision types, and `std`. With them, `glam` has no transitive dependency. `glam` 0.34.3 computes `dot`, `cross`, and the product of a matrix and a vector with plain multiplications and additions, with no fused multiply-add.
 - `astro-float-num` resolves to 0.3.7 under `MIT`, with only the feature `std`. It adds `itertools` 0.10.5, whose manifest writes its licence as `MIT/Apache-2.0`, and `either` 1.19.0 and `lazy_static` 1.5.1, each under `MIT OR Apache-2.0`. Of these, only `either` declares an MSRV, 1.63. The manifest of `astro-float-num` in the registry declares three features, all on by default: `std`, `random`, which enables the optional dependency `rand` 0.8.5, and `serde`, which enables the optional dependency `serde`. Without `random` and `serde`, it adds no `rand` 0.8 beside the `rand` 0.10 of the workspace.
-- Under Miri on the nightly toolchain, the arithmetic of `DVec3`, `DMat3`, and `DVec2` runs with the features `std` and `float-types` of `glam`. The source of the double-precision types of `glam` 0.34.3 uses no `core::arch` or SIMD intrinsics. So the feature `scalar-math`, which the plan names as a possible remedy, is not needed.
 - `astro-float` 0.9.6 with `default-features = false` and the feature `std` fails the ban on duplicates with `syn` 1.0.109. With its default features it also fails on duplicates of `rand`, `rand_core`, and `getrandom`.
 
 `cargo tree -d --workspace -e normal,dev,build` reports no duplicate version. The allow-list of Section 8 of `docs/design/tooling.md` already covers `MIT` and `MIT OR Apache-2.0`, so `deny.toml` needs no new licence and no exception.
@@ -913,7 +893,6 @@ No other document dictates these choices:
 | The term in $K$ in the tolerance for a point of a wall, and the points of a wall that the tests use: the two points that define it and their normalized sum | 10.3 |
 | An exact assertion for the swap of the arguments of `wall_through` | 10.3 |
 | Inputs from a SplitMix64 generator with a fixed seed per test, and at most 1,000 attempts for an input that must meet a condition | 10.1 |
-| G14 and the reference test of G11 run under Miri, and the other reference tests and the sweeps do not | 10.4 |
 | `astro-float-num` instead of `astro-float`, at 256 bits | 10.2, 11 |
 | `glam` without its default features, and caret requirements at the patch level for `glam` and `astro-float-num` | 11 |
 | `opt-level = 3` for `astro-float-num` in the `dev` profile | 11 |
@@ -1015,7 +994,7 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-14 | The `Display` text of each kind is the one stated | 9.2 |
 | GEO-15 | The reference arithmetic implements each formula independently, without this crate or `glam` | 10.2 |
 | GEO-16 | Every floating-point comparison uses the stated tolerance, and a bit-for-bit comparison only where TEST-13 allows it | 10.3 |
-| GEO-17 | Property tests take their configuration from one helper that is Miri-aware | 10.4 |
+| GEO-17 | Withdrawn on 2026-11-19. | 10.1 |
 | GEO-18 | `glam` and `thiserror` are the only normal dependencies, and `glam` is not re-exported | 11 |
 | GEO-19 | A test of a quantity without a measured bound here sets and records its tolerance as TEST-13 requires, in the same change | 10.3 |
 | GEO-20 | Every Euclidean isometry of the module `euclidean` has the last row $(0, 0, 1)$ exactly | 4.5 |

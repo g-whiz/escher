@@ -166,9 +166,9 @@ fmt:
     cargo fmt --all -- "${files[@]}"
     taplo fmt
 
-# Run the Rust checks: comments, headings, doctest attributes, feature documentation, formatting, unused and denied dependencies, Clippy, documentation, doctests, tests, and Miri
+# Run the Rust checks: comments, headings, doctest attributes, feature documentation, formatting, unused and denied dependencies, Clippy, documentation, doctests, and tests
 [group('checks')]
-check-rust: check-rust-comments check-doc-headings check-doctest-attributes check-feature-docs check-fmt check-unused-deps check-deny check-clippy check-doc check-doctest test check-miri
+check-rust: check-rust-comments check-doc-headings check-doctest-attributes check-feature-docs check-fmt check-unused-deps check-deny check-clippy check-doc check-doctest test
 
 # Check that the Rust code of the workspace and every Rust file that git tracks or does not ignore, which includes the files that a crate pulls in with include!, is formatted
 [group('checks')]
@@ -237,11 +237,6 @@ check-toml:
 [group('checks')]
 check-unused-deps:
     cargo machete
-
-# Run the tests under Miri on the nightly toolchain to find undefined behaviour
-[group('checks')]
-check-miri:
-    cargo +nightly miri nextest run --workspace --no-tests=warn
 
 # Check that every combination of Cargo features compiles, run by CI only
 [group('checks')]

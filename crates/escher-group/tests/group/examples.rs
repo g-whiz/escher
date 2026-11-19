@@ -21,10 +21,6 @@ fn fixture(source: &str) -> &'static Fixture {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn worked_examples_give_the_printed_index_and_rows() {
     for fixture in FIXTURES {
         let table = table(fixture);
@@ -41,10 +37,6 @@ fn worked_examples_give_the_printed_index_and_rows() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn worked_examples_give_the_printed_permutations() {
     let [first, second] = [0, 1].map(Letter::generator);
     let hulpke = table(fixture("Hulpke pp. 72-75"));

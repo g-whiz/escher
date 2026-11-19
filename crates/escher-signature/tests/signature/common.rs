@@ -2,13 +2,7 @@ use escher_signature::{Error, ErrorKind, Signature};
 use proptest::test_runner::Config;
 
 pub(crate) fn proptest_config() -> Config {
-    if cfg!(miri) {
-        let mut config = Config::with_cases(8);
-        config.failure_persistence = None;
-        config
-    } else {
-        Config::default()
-    }
+    Config::default()
 }
 
 pub(crate) fn parse(text: &str) -> Result<Signature, Error> {

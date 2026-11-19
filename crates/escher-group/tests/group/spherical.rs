@@ -55,10 +55,6 @@ fn assert_index_is_group_order(signature: &Signature) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration runs a loop too long for the interpreter"
-)]
 fn spherical_orders_equal_the_group_order() {
     assert_eq!(spherical_texts().len(), 91);
     let signatures = spherical_signatures();

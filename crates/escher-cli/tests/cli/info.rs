@@ -7,118 +7,66 @@ use escher_signature::Signature;
 use crate::common::{FailingWriter, run_args, snapshot};
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_rigid_compact_hyperbolic_signature() {
     insta::assert_snapshot!(snapshot(&["info", "*732"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_spherical_signature_with_its_group_order() {
     insta::assert_snapshot!(snapshot(&["info", "*532"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_spherical_signature_without_a_domain() {
     insta::assert_snapshot!(snapshot(&["info", "3*2"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_hyperbolic_signature_with_a_cone_point_and_a_corner() {
     insta::assert_snapshot!(snapshot(&["info", "4*3"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_signature_with_one_deformation_parameter() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*3333"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_reflection_polygon_typed_in_another_order() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*2223"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_reflection_pentagon() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*22222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_reflection_polygon_with_four_orders() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*5432"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_reflection_octagon() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "3", "*22222222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_doubled_polygon() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "3333"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_doubled_pentagon() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "22222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_no_domain_for_a_polygon_with_more_than_eight_corners() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "4", "*222222222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_prints_each_check_of_a_reflection_polygon() {
     insta::assert_snapshot!(snapshot(&[
         "info",
@@ -130,10 +78,6 @@ fn info_check_prints_each_check_of_a_reflection_polygon() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_a_doubled_polygon() {
     insta::assert_snapshot!(snapshot(&[
         "info",
@@ -145,91 +89,51 @@ fn info_presentation_prints_the_presentations_of_a_doubled_polygon() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_an_order_of_ten_or_more_in_parentheses() {
     insta::assert_snapshot!(snapshot(&["info", "2*(12)"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_frieze_with_the_infinite_order_first() {
     insta::assert_snapshot!(snapshot(&["info", "*22(inf)"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_euclidean_signature() {
     insta::assert_snapshot!(snapshot(&["info", "*632"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_trivial_signature() {
     insta::assert_snapshot!(snapshot(&["info", "1"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_general_non_compact_signature_with_its_area() {
     insta::assert_snapshot!(snapshot(&["info", "3*(inf)"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_non_compact_triangle_group_as_not_general() {
     insta::assert_snapshot!(snapshot(&["info", "*(inf)32"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_a_handle_and_a_crosscap_as_three_crosscaps() {
     insta::assert_snapshot!(snapshot(&["info", "ox"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_canonical_order_of_the_corners() {
     insta::assert_snapshot!(snapshot(&["info", "*236"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_an_area_of_exactly_pi_without_a_coefficient() {
     insta::assert_snapshot!(snapshot(&["info", "2*"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the colouring search runs loops too long for the interpreter"
-)]
 fn info_returns_success_for_a_valid_signature() {
     let outcome = run_args(&["info", "*732"]);
     assert_eq!(outcome.status, Status::Success);
@@ -314,190 +218,106 @@ fn info_keeps_failure_when_standard_error_fails_too() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_triangle_with_a_right_angle() {
     insta::assert_snapshot!(snapshot(&["info", "*542"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_triangle_with_two_equal_corners() {
     insta::assert_snapshot!(snapshot(&["info", "*433"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_no_domain_for_a_corner_order_over_the_limit() {
     insta::assert_snapshot!(snapshot(&["info", "*(1001)32"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_prints_each_check_of_a_verified_domain() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*732"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_prints_a_diagnostic_for_a_signature_without_a_domain() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "3*2"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_hyperbolic_kite() {
     insta::assert_snapshot!(snapshot(&["info", "732"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_prints_each_check_of_a_hyperbolic_kite() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "732"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_euclidean_kite() {
     insta::assert_snapshot!(snapshot(&["info", "442"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_the_doubled_rectangle() {
     insta::assert_snapshot!(snapshot(&["info", "2222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_spherical_kite() {
     insta::assert_snapshot!(snapshot(&["info", "532"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_spherical_kite_with_a_flat_vertex() {
     insta::assert_snapshot!(snapshot(&["info", "(12)22"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_doubled_lune() {
     insta::assert_snapshot!(snapshot(&["info", "55"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_the_hemisphere() {
     insta::assert_snapshot!(snapshot(&["info", "22"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_euclidean_triangle_with_two_equal_corners() {
     insta::assert_snapshot!(snapshot(&["info", "*442"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_the_equilateral_euclidean_triangle() {
     insta::assert_snapshot!(snapshot(&["info", "*333"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_the_rectangle() {
     insta::assert_snapshot!(snapshot(&["info", "*2222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_the_torus() {
     insta::assert_snapshot!(snapshot(&["info", "o"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_the_annulus_with_its_mirror_sides() {
     insta::assert_snapshot!(snapshot(&["info", "**"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_prints_each_check_of_the_rectangle() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*2222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_verifies_a_domain_at_the_largest_corner_order() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*(1000)32"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the colouring search runs loops too long for the interpreter"
-)]
 fn info_check_returns_success_when_every_check_passes() {
     let outcome = run_args(&["info", "--check", "*732"]);
     assert_eq!(outcome.status, Status::Success);
@@ -510,10 +330,6 @@ fn info_check_returns_success_when_every_check_passes() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the colouring search runs loops too long for the interpreter"
-)]
 fn info_check_after_the_signature_returns_success_when_every_check_passes() {
     let outcome = run_args(&["info", "*732", "--check"]);
     assert_eq!(outcome.status, Status::Success);
@@ -526,73 +342,41 @@ fn info_check_after_the_signature_returns_success_when_every_check_passes() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_the_spherical_triangle_of_the_tetrahedron() {
     insta::assert_snapshot!(snapshot(&["info", "*332"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_spherical_triangle_of_a_dihedral_group() {
     insta::assert_snapshot!(snapshot(&["info", "*722"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_a_lune() {
     insta::assert_snapshot!(snapshot(&["info", "*55"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_prints_the_domain_summary_of_the_lune_of_two_right_angles() {
     insta::assert_snapshot!(snapshot(&["info", "*22"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_prints_each_check_of_a_spherical_triangle() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*532"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_prints_each_check_of_a_lune() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*55"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_verifies_a_spherical_triangle_at_the_largest_corner_order() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*(1000)22"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_prints_a_diagnostic_for_a_lune_over_the_limit() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*(1001)(1001)"]));
 }
@@ -629,10 +413,6 @@ fn info_returns_success_for_a_signature_without_a_domain() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the colouring search runs loops too long for the interpreter"
-)]
 fn info_check_gives_failure_and_no_diagnostic_on_a_broken_pipe() {
     let mut stdout = FailingWriter::failing_write(io::ErrorKind::BrokenPipe);
     let mut stderr = Vec::new();
@@ -665,10 +445,6 @@ fn info_check_writes_no_verification_diagnostic_when_standard_output_fails() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the interpreter rounds the transcendental functions differently on each call, so two builds of one domain differ in the last digits of a residual"
-)]
 fn info_check_prints_the_residual_of_each_check_beside_its_label() {
     let text = "*(11)(10)5";
     let signature: Signature = text.parse().expect("the signature is valid");
@@ -704,118 +480,66 @@ fn info_check_prints_the_residual_of_each_check_beside_its_label() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_a_reflection_triangle_on_the_sphere() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "*532"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_a_spherical_kite() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "532"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_the_rectangle() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "*2222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_the_doubled_rectangle() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "2222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_a_hyperbolic_triangle() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "*732"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_a_spherical_signature_without_a_domain() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "3*2"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_the_projective_plane() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "x"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_the_doubled_hemisphere() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "22"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_a_boundary_without_corners() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "*"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_the_trivial_signature() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "1"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_a_frieze() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "*(inf)22"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_presentation_prints_the_presentations_of_a_group_order_above_the_coset_limit() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "*(9000)(9000)"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_check_presentation_prints_the_presentations_before_the_checks() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "--presentation", "*532"]));
 }
@@ -856,10 +580,6 @@ fn info_presentation_confirms_the_order_of_signatures_without_a_domain() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_colourings_lists_a_hyperbolic_triangle_up_to_eight_colours() {
     insta::assert_snapshot!(snapshot(&[
         "info",
@@ -871,10 +591,6 @@ fn info_colourings_lists_a_hyperbolic_triangle_up_to_eight_colours() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_colourings_lists_a_hyperbolic_triangle_up_to_three_colours() {
     insta::assert_snapshot!(snapshot(&[
         "info",
@@ -886,19 +602,11 @@ fn info_colourings_lists_a_hyperbolic_triangle_up_to_three_colours() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_colourings_lists_the_doubled_hemisphere() {
     insta::assert_snapshot!(snapshot(&["info", "--colourings", "22"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_colourings_lists_the_rectangle_up_to_four_colours() {
     insta::assert_snapshot!(snapshot(&[
         "info",
@@ -910,10 +618,6 @@ fn info_colourings_lists_the_rectangle_up_to_four_colours() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_colourings_lists_a_hyperbolic_kite_up_to_nine_colours() {
     insta::assert_snapshot!(snapshot(&[
         "info",
@@ -925,10 +629,6 @@ fn info_colourings_lists_a_hyperbolic_kite_up_to_nine_colours() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_colourings_lists_a_spherical_kite_up_to_six_colours() {
     insta::assert_snapshot!(snapshot(&[
         "info",
@@ -940,10 +640,6 @@ fn info_colourings_lists_a_spherical_kite_up_to_six_colours() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn info_counts_the_colourings_of_one_colour() {
     insta::assert_snapshot!(snapshot(&["info", "--max-colours", "1", "*732"]));
 }

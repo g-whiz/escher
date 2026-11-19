@@ -323,10 +323,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the search of the colourings of a hyperbolic triangle runs loops too long for the interpreter"
-    )]
     fn coset_fill_refuses_a_colouring_of_another_triangle_with_as_many_sides() {
         let colouring = colouring(&domain_with_aspect("*642", None), "3a");
         let triangle = domain_with_aspect("*732", None);
@@ -370,10 +366,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the search of the colourings of a hyperbolic triangle runs loops too long for the interpreter"
-    )]
     fn coset_fill_refuses_a_colouring_of_the_side_presentation_with_its_sides_renumbered() {
         let triangle = domain_with_aspect("*642", None);
         let presentation = match triangle.side_presentation() {
@@ -437,10 +429,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn transfer_function_agrees_with_the_reference_for_every_byte() {
         let mut reference = Reference::new();
         let mut decoding = Worst::new("decoding, absolute error in linear light", 256);
@@ -474,10 +462,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn transfer_function_agrees_with_the_reference_between_the_current_and_the_obsolete_thresholds()
     {
         const STEPS: u32 = 64;

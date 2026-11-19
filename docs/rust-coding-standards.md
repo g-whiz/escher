@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-17 |
+| Date | 2026-11-19 |
 | Applies to | All Rust code in this repository, and the agents that write or review it |
 
 ## Abstract
@@ -37,7 +37,7 @@ This document does not define `just` recipes or continuous integration (CI) work
 
 Every lint name, lint group, and default level in this document was verified against the Rust 1.99.1 stable toolchain, including Cargo and Clippy, for crates on edition 2024 with Cargo resolver 3. This holds unless Section 4.7 says otherwise or the text says that a statement is not yet verified. The whole configuration of Sections 4.2 and 4.3 was run on a scratch workspace with that toolchain, cargo-nextest 0.9.151, and cargo-deny 0.20.2, and it produced no diagnostic for an unknown, renamed, or removed lint.
 
-The commands of Section 4.8 for the other tools were run on a scratch workspace with cargo-semver-checks 0.51.0, cargo-hack 0.6.46, cargo-machete 0.9.2, cargo-llvm-cov 0.9.1, typos 1.52.1, taplo 0.10.0, actionlint 1.7.12, and the nightly toolchain 1.102.0 of 2026-11-09 with Miri. Statements in this document that describe what a lint or a tool reported come from those runs. CI installs the latest version of each tool when it runs, so its versions can differ from these (Section 7.1 of `docs/design/tooling.md`).
+The commands of Section 4.8 for the other tools were run on a scratch workspace with cargo-semver-checks 0.51.0, cargo-hack 0.6.46, cargo-machete 0.9.2, cargo-llvm-cov 0.9.1, typos 1.52.1, taplo 0.10.0, and actionlint 1.7.12. Statements in this document that describe what a lint or a tool reported come from those runs. CI installs the latest version of each tool when it runs, so its versions can differ from these (Section 7.1 of `docs/design/tooling.md`).
 
 ### 1.2. How to Use This Document
 
@@ -483,7 +483,6 @@ The configuration of the tools that need one exists in the repository: `deny.tom
 | `typos` | Spelling mistakes in identifiers and text | Run by the check |
 | `taplo` | Formatting and validity of Tom's Obvious Minimal Language (TOML) files | Run by the check |
 | `actionlint` | GitHub Actions workflow files | Run by the check |
-| Miri | Undefined behaviour in unsafe code under test (TEST-7), run through nextest on the nightly toolchain | Run by the check |
 | `scripts/check-rust-comments` | That Rust source holds no comment other than API documentation and safety comments (Section 7.2 of the writing guide) | Run by the check |
 | `scripts/check-doc-headings` | The names, levels, order, and uniqueness of the headings in item documentation (Section 7.3 of the writing guide) | Run by the check |
 | `scripts/check-doctest-attributes` | That no documentation code block is marked `ignore` (Section 7.5 of the writing guide) | Run by the check |
@@ -505,14 +504,13 @@ cargo deny check
 
 Every command of this section that runs Clippy, runs the tests or the doctests, builds the documentation, or measures coverage passes `--workspace` and `--all-features`, so that it covers every member and the code of every Cargo feature, as Section 3.1 of `docs/design/tooling.md` states.
 
-These commands run the checks of the tools from `cargo hack` to Miri. The first checks the features, and the second checks the MSRV. The feature powerset includes every combination of one feature, so no separate command for each single feature is needed.
+These commands run the checks of the tools from `cargo hack` to `actionlint`. The first checks the features, and the second checks the MSRV. The feature powerset includes every combination of one feature, so no separate command for each single feature is needed.
 
 ```sh
 CARGO_BUILD_WARNINGS=deny cargo hack check --workspace --all-targets --feature-powerset
 CARGO_BUILD_WARNINGS=deny cargo hack check --workspace --all-targets --rust-version
 cargo machete
 cargo llvm-cov nextest --workspace --all-features --profile default --no-tests=warn --lcov --output-path target/lcov.info
-cargo +nightly miri nextest run --workspace --no-tests=warn
 typos
 taplo fmt --check
 actionlint
@@ -523,8 +521,6 @@ These command lines are those of the recipes, except that the recipe `update-gol
 The command for `cargo semver-checks` is chosen with the first release, because the tool fails on a crate that has no published version.
 
 The CI job `coverage` runs the `coverage` recipe on Linux and uploads the report as an artifact, which is the only result of the job (Section 7.1 of `docs/design/tooling.md`). Every command that runs nextest passes `--no-tests=warn`, because nextest otherwise fails a run that selects no test, and only a command-line option or an environment variable changes that.
-
-Miri runs through nextest, which runs each test in its own process, because `cargo miri test` aborts the whole test binary at the first operation that Miri does not support, such as a foreign call.
 
 `cargo fmt --all` alone formats only the files that the module tree of each crate reaches, so it skips a file that a crate includes with `include!`. The file list after `--` makes rustfmt read every Rust file of the repository, including those. The recipes `fmt` and `check-fmt` compute the list, and each fails with its own message when `git ls-files` fails or lists no Rust file.
 
@@ -896,9 +892,9 @@ Reason: CI runs the tests on a hosted Linux runner, which is not required to pro
 
 Reason: failure paths rarely run in normal use, so users find their bugs, and a panic on malformed input violates ERR-5. [IR-36] [IR-84] [S-10]
 
-**TEST-7.** Test unsafe code under Miri, with a fake written in Rust in place of any native library that the code calls. Do not treat a clean Miri run as a proof of soundness.
+**TEST-7.** When a crate opts out of the denial of `unsafe_code`, add in the same change a check of its unsafe code by a tool, such as Miri, with a fake written in Rust in place of any native library that the code calls, and record the check and the reason for the unsafe code in the design document of the crate. Do not treat a clean run of such a tool as a proof of soundness.
 
-Reason: Miri cannot call native code, but it detects undefined behaviour in the crate's own unsafe code when that code runs, and it checks the executions that the tests run, not all executions. The check runs Miri through nextest (Section 4.8). [S-8] [S-10] [IR-27]
+Reason: the workspace denies `unsafe_code` and no crate opts out, so the check runs no tool for undefined behaviour, and a crate that opted out without one would add unsafe code that nothing checks. A tool such as Miri cannot call native code, but it detects undefined behaviour in the crate's own unsafe code when that code runs, and it checks the executions that the tests run, not all executions. [S-8] [S-10] [IR-27]
 
 **TEST-8.** Withdrawn on 2026-11-15.
 
@@ -910,15 +906,15 @@ Reason: each Rust file directly in `tests/` is a separate test binary, so a help
 
 A helper outside `#[cfg(test)]` code also triggers `clippy::unwrap_used` and `unreachable_pub`, because the test options of Section 4.3 cover only `#[test]` functions and `#[cfg(test)]` code. The single-binary layout produced no findings in the run of Section 1.1.
 
-**TEST-11.** Mark each test that runs a loop too long for the Miri interpreter with `#[cfg_attr(miri, ignore = "...")]` and a reason in plain words, and give every property test its configuration from one helper in the crate's shared test module, which under `cfg!(miri)` runs fewer cases and turns off failure persistence. Section 4 of `docs/design/tooling.md` gives the numbers of cases.
+**TEST-11.** Give every property test its configuration from one helper, `proptest_config()`, in the crate's shared test module.
 
-Reason: the check runs every test under Miri, which interprets the code far more slowly than it runs natively, so a long loop or a full set of property cases makes the check impractically slow. An `ignore` with a reason stays visible as a skipped test in the report of nextest, and the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses. One helper keeps the case counts in one place. [S-8]
+Reason: one helper keeps the configuration of the property tests of a crate, such as the number of cases, in one place, so a change to it reaches every property test.
 
 **TEST-12.** Write a snapshot of the output of a program as its status and each of its output streams after a fixed marker line, and end the snapshot with a final marker line. Reason: `insta` trims the whitespace at the end of a snapshot before it compares, so without a final marker a missing or extra line feed at the end of the last stream passes the test, and without a marker before each stream a reviewer cannot tell which stream a line belongs to.
 
 **TEST-13.** Compare a floating-point result that a transcendental function or a sequence of rounded operations produces with a tolerance that follows the scale of the quantity, and never bit for bit. Assert exact equality of two computed values only where IEEE 754 arithmetic makes them equal, such as a value and its negation, and state why in the design document of the crate. Check the formulas of a numeric crate against an independent implementation in high-precision arithmetic, in the test suite, that shares no code with the crate or with its vector library. Set each tolerance to at least 8 times the largest error measured over a stated deterministic input set, and record the input set, the tolerance, the largest error, and the margin in the design document of the crate.
 
-Reason: the last bits of a transcendental function differ between platform libraries and between the host and the Miri interpreter, so a bit-for-bit assertion fails on a correct result. A tolerance without the scale of its quantity either fails on large inputs or hides a defect on small ones. An implementation that shares code with the crate shares its transcription errors. A tolerance set from a measurement with a margin passes on a correct implementation, while a guessed tolerance either fails on it or hides a defect, and the record lets a reviewer check each tolerance against its measurement.
+Reason: the last bits of a transcendental function differ between platform libraries, so a bit-for-bit assertion fails on a correct result. A tolerance without the scale of its quantity either fails on large inputs or hides a defect on small ones. An implementation that shares code with the crate shares its transcription errors. A tolerance set from a measurement with a margin passes on a correct implementation, while a guessed tolerance either fails on it or hides a defect, and the record lets a reviewer check each tolerance against its measurement.
 
 **TEST-14.** Compare a golden image, a committed PNG file that a test renders again, by its decoded pixels and not by the bytes of the file, within an allowance of a largest difference per pixel and a number of pixels that may differ, and set the allowance from a measurement that the design document of the crate records with its input. On a failure, write the actual image and an image of the differences to a directory under the build output, and change the committed files only through the recipe that regenerates them.
 
@@ -938,9 +934,9 @@ The one exception is a member that needs another version requirement on a worksp
 
 Reason: a breaking change of a public dependency is a breaking change of the crate, whether or not the crate's own code changed. [IR-8] [S-10] [IR-86]
 
-**DEP-4.** Declare the MSRV as `rust-version` in the workspace manifest, and do not use language or library features newer than it. Develop on the latest stable toolchain, and use the nightly toolchain only for checkers such as Miri, never to build the crates.
+**DEP-4.** Declare the MSRV as `rust-version` in the workspace manifest, and do not use language or library features newer than it. Develop on the latest stable toolchain, and build the crates on stable toolchains only. No tool of the project needs the nightly toolchain, except a checker of unsafe code, such as Miri, that a crate adds under TEST-7.
 
-Reason: the declared version is a promise to users, and Clippy reads it to hold back suggestions that need a newer compiler. [S-10] [IR-4]
+Reason: the declared version is a promise to users, and Clippy reads it to hold back suggestions that need a newer compiler. A feature of the nightly toolchain can change or go away in any nightly release, so a crate that needs one cannot keep that promise. [S-10] [IR-4]
 
 ## 13. Simplicity
 
@@ -1125,18 +1121,18 @@ The identifiers FFI-1 to FFI-11, SYS-1 to SYS-8, and COM-1 to COM-13 are reserve
 | TEST-4 | Every bug fix comes with a regression test. |
 | TEST-5 | Examples are complete programs that build in every check and run where their tags allow. |
 | TEST-6 | Failure paths are tested and return the documented error kinds. |
-| TEST-7 | Unsafe code is tested under Miri, with a fake in Rust for any native library. |
+| TEST-7 | A crate that opts out of the denial of `unsafe_code` adds a tool check of its unsafe code, such as Miri, in the same change. |
 | TEST-8 | Withdrawn on 2026-11-15. |
 | TEST-9 | No tests that restate the implementation, and property tests for round trips. |
 | TEST-10 | One integration-test binary per crate, `tests/<suite>/main.rs`, with sibling modules and a `#[cfg(test)] mod common;`. |
-| TEST-11 | Tests too slow for Miri carry `#[cfg_attr(miri, ignore = "...")]` with a plain reason, and property tests take a Miri-aware configuration from one helper. |
+| TEST-11 | Property tests take their configuration from one helper, `proptest_config()`, in the shared test module of the crate. |
 | TEST-12 | A snapshot of program output holds the status and each stream after a fixed marker line, and ends with a final marker line. |
 | TEST-13 | Floating-point results are compared with a tolerance that follows their scale and checked against an independent high-precision implementation, with each tolerance at least 8 times a recorded measured error. |
 | TEST-14 | Golden images are compared by decoded pixels within a recorded, measured allowance, write the actual and difference images on failure, and change only through their recipe. |
 | DEP-1 | Cargo features are additive and named after what they enable. |
 | DEP-2 | Dependencies are few, preferably standard, and declared once in the workspace, except another version requirement on a member. |
 | DEP-3 | A crate that exposes a dependency below 1.0 stays below 1.0, and a breaking upgrade of a public dependency is a breaking release. |
-| DEP-4 | The MSRV is declared and respected, and nightly serves checkers only. |
+| DEP-4 | The MSRV is declared and respected, the crates build on stable only, and no tool needs nightly except a checker of unsafe code under TEST-7. |
 | SIMP-1 | Concrete types first, and abstractions only for two implementations that exist now. |
 | SIMP-2 | No backend abstraction before a second backend exists, with the code of one backend contained. |
 | SIMP-3 | Examples of a new API are written first and the API is reworked until they are clean. |

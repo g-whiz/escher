@@ -100,12 +100,6 @@ const SPHERICAL_SAMPLES: Samples = Samples {
     flats: 12,
 };
 
-const REFLECTION_VERTEX_BOUNDS: [(Geometry, f64); 3] = [
-    (Geometry::Hyperbolic, 1e-13),
-    (Geometry::Euclidean, 2e-15),
-    (Geometry::Spherical, 4e-13),
-];
-
 const MEASURED_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
 
 const CHECK_AGREEMENT_TOLERANCE: f64 = 1e-9;
@@ -201,13 +195,6 @@ fn bounds(geometry: Geometry) -> Bounds {
         Geometry::Euclidean => EUCLIDEAN_BOUNDS,
         Geometry::Spherical => SPHERICAL_BOUNDS,
     }
-}
-
-fn reflection_vertex_bound(geometry: Geometry) -> f64 {
-    REFLECTION_VERTEX_BOUNDS
-        .iter()
-        .find(|(known, _)| *known == geometry)
-        .map_or(0.0, |(_, bound)| *bound)
 }
 
 fn source(sides: usize, index: usize) -> (usize, bool) {
@@ -332,17 +319,12 @@ fn rotation_signatures_build_their_doubles_with_the_table_of_pairs() {
     }
 }
 
-fn assert_bits(first: DVec3, second: DVec3, tolerance: f64, input: &str) {
-    if cfg!(miri) {
-        let difference = (first - second).abs().max_element();
-        assert!(difference <= tolerance, "{input}: {difference:e}");
-    } else {
-        assert_eq!(
-            first.to_array().map(f64::to_bits),
-            second.to_array().map(f64::to_bits),
-            "{input}"
-        );
-    }
+fn assert_bits(first: DVec3, second: DVec3, input: &str) {
+    assert_eq!(
+        first.to_array().map(f64::to_bits),
+        second.to_array().map(f64::to_bits),
+        "{input}"
+    );
 }
 
 #[test]
@@ -364,26 +346,24 @@ fn doubles_keep_their_generating_domain_bit_for_bit() {
             )
         }));
     for (text, double, generating) in doubles {
-        let tolerance = 2.0 * reflection_vertex_bound(double.geometry());
         let count = double.sides().len();
         for index in 0..count {
             let (original, image) = source(count, index);
             if !image {
                 let (side, kept) = (double.sides()[index], generating.sides()[original]);
                 let input = format!("{text}: side {index}");
-                assert_bits(side.normal(), kept.normal(), tolerance, &input);
-                assert_bits(side.covector(), kept.covector(), tolerance, &input);
+                assert_bits(side.normal(), kept.normal(), &input);
+                assert_bits(side.covector(), kept.covector(), &input);
             }
             if let Some(original) = original_of(count, index) {
                 assert_bits(
                     double.vertices()[index],
                     generating.vertices()[original],
-                    tolerance,
                     &format!("{text}: vertex {index}"),
                 );
             }
         }
-        assert_bits(double.centre(), generating.centre(), tolerance, &text);
+        assert_bits(double.centre(), generating.centre(), &text);
     }
 }
 
@@ -648,10 +628,6 @@ fn model_bounds(model: Model) -> Bounds {
 const MODELS: [Model; 3] = [Model::Hyperbolic, Model::Euclidean, Model::Spherical];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn doubles_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let cases = all_cases(&mut reference);
@@ -691,10 +667,6 @@ fn largest_entry_error(computed: DMat3, exact: &crate::reference::Matrix) -> Big
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn pairings_are_accurately_rounded_products_of_the_stored_reflections() {
     let mut reference = Reference::new();
     let cases = all_cases(&mut reference);
@@ -816,10 +788,6 @@ fn exact_cycle_residual(
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn cycle_relator_check_agrees_with_the_exact_powers() {
     let mut reference = Reference::new();
     let mut agreement = Worst::new(
@@ -984,13 +952,11 @@ fn assert_rotation_polygon(text: &str) {
     );
     assert!(counterclockwise(&double), "{text}");
     let wall = generating.sides()[1].pairing();
-    let bit_tolerance = 2.0 * reflection_vertex_bound(Geometry::Hyperbolic);
     for index in 0..count {
         if let Some(image) = image_of(count, index) {
             assert_bits(
                 double.vertices()[index],
                 wall * generating.vertices()[image],
-                bit_tolerance,
                 &format!("{text}: image vertex {index}"),
             );
         }
@@ -998,19 +964,18 @@ fn assert_rotation_polygon(text: &str) {
         if !image {
             let (side, kept) = (double.sides()[index], generating.sides()[original]);
             let input = format!("{text}: side {index}");
-            assert_bits(side.normal(), kept.normal(), bit_tolerance, &input);
-            assert_bits(side.covector(), kept.covector(), bit_tolerance, &input);
+            assert_bits(side.normal(), kept.normal(), &input);
+            assert_bits(side.covector(), kept.covector(), &input);
         }
         if let Some(original) = original_of(count, index) {
             assert_bits(
                 double.vertices()[index],
                 generating.vertices()[original],
-                bit_tolerance,
                 &format!("{text}: vertex {index}"),
             );
         }
     }
-    assert_bits(double.centre(), generating.centre(), bit_tolerance, text);
+    assert_bits(double.centre(), generating.centre(), text);
 }
 
 #[test]
@@ -1021,10 +986,6 @@ fn small_rotation_polygons_build_their_doubles_with_the_table_of_pairs() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the checks of the largest orders run loops too long for the interpreter"
-)]
 fn named_rotation_polygons_build_their_doubles() {
     for text in clear_rotation_polygons() {
         assert_rotation_polygon(&text);
@@ -1037,10 +998,6 @@ fn named_rotation_polygons_build_their_doubles() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the checks of the largest orders run loops too long for the interpreter"
-)]
 fn a_refused_double_names_its_side_pairings() {
     let text = "(967)(967)(967)(967)(967)(967)(967)(967)";
     assert!(FundamentalDomain::build(&signature(&starred(text))).is_ok());
@@ -1052,10 +1009,6 @@ fn a_refused_double_names_its_side_pairings() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn pairings_of_rotation_polygons_are_accurately_rounded_products() {
     let mut entries = 0;
     let mut misrounded: Vec<String> = Vec::new();
@@ -1180,10 +1133,6 @@ fn rotation_quantities(label: &str) -> Vec<Worst> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_polygons_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = rotation_quantities("named doubles without the double at the limit");

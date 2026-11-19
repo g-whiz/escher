@@ -221,10 +221,6 @@ impl Quantities {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_domains_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let shapes = measured_shapes();
@@ -452,10 +448,6 @@ fn assert_floor(floor: &Floor, bound: f64, name: &str) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration of the groups runs loops too long for the interpreter"
-)]
 fn spherical_groups_have_their_order_and_fold_back_their_images() {
     let (mut reflections, mut doubles) = (Floor::new(), Floor::new());
     certify(
@@ -469,10 +461,6 @@ fn spherical_groups_have_their_order_and_fold_back_their_images() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the checks of the largest orders run loops too long for the interpreter"
-)]
 fn spherical_groups_at_the_limit_have_their_order_and_fold_back_their_images() {
     let (mut reflections, mut doubles) = (Floor::new(), Floor::new());
     let shapes = [

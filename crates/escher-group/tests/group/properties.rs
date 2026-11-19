@@ -107,7 +107,6 @@ proptest! {
     #![proptest_config(proptest_config())]
 
     #[test]
-    #[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]
     fn returned_tables_obey_the_table_laws((presentation, subgroup) in random_presentation()) {
         let limit = CosetLimit::new(2000);
         prop_assert!(limit.is_ok());
@@ -140,7 +139,6 @@ proptest! {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]
     fn enumerate_returns_without_a_panic(
         generators in 0_u8..=3,
         bases in vec((vec(letter(4), 1..=6), 1_u32..=3), 0..=4),
@@ -237,7 +235,6 @@ proptest! {
     #![proptest_config(proptest_config())]
 
     #[test]
-    #[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]
     fn equal_subgroups_give_equal_tables(
         choice in any::<usize>(),
         relator_keys in vec(any::<u32>(), 16),
@@ -338,14 +335,12 @@ proptest! {
     #![proptest_config(proptest_config())]
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn classes_are_least_and_hold_their_relabellings((presentation, limit) in small_presentation()) {
         let found = search(&presentation, limit, SEARCH_BUDGET);
         prop_assert_eq!(class_laws(&found, &presentation, limit), Ok(()));
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn equal_presentations_give_equal_colourings(
         (presentation, limit) in small_presentation(),
         relator_keys in vec(any::<u32>(), 4),
@@ -373,7 +368,6 @@ proptest! {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn budgets_and_limits_change_only_how_far_a_call_is_complete(
         (presentation, limit) in small_presentation(),
         other_limit in 1_u32..=5,
@@ -395,7 +389,6 @@ proptest! {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn counts_and_single_colour_counts_agree_with_the_list((presentation, limit) in small_presentation()) {
         let found = search(&presentation, limit, SEARCH_BUDGET);
         let counts = count_colourings(&presentation, index_limit(limit), budget(SEARCH_BUDGET));
@@ -462,7 +455,6 @@ proptest! {
     #![proptest_config(proptest_config())]
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn a_relator_inside_a_side_sequence_keeps_the_colour(
         choice in any::<usize>(),
         first in vec(0_u8..4, 0..=6),

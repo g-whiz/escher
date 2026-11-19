@@ -20,37 +20,21 @@ fn render_snapshot(test: &str, args: &[&str]) -> String {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_marks_a_bad_orbifold() {
     insta::assert_snapshot!(render_snapshot("bad_orbifold", &["23"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_a_non_compact_signature_is_not_supported() {
     insta::assert_snapshot!(render_snapshot("non_compact", &["3*(inf)"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_an_order_over_the_limit() {
     insta::assert_snapshot!(render_snapshot("order_limit", &["*(1001)32"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_parity_does_not_exist_without_a_reversing_side() {
     insta::assert_snapshot!(render_snapshot(
         "parity_without_reversing_side",
@@ -59,10 +43,6 @@ fn render_diagnostic_says_parity_does_not_exist_without_a_reversing_side() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_counts_two_colours_for_the_default_colouring_of_a_rotation_domain() {
     insta::assert_snapshot!(render_snapshot(
         "two_colours_for_rotation_domain",
@@ -71,10 +51,6 @@ fn render_diagnostic_counts_two_colours_for_the_default_colouring_of_a_rotation_
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_counts_three_colours_for_parity() {
     insta::assert_snapshot!(render_snapshot(
         "three_colours",
@@ -83,10 +59,6 @@ fn render_diagnostic_counts_three_colours_for_parity() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_counts_one_colour_for_parity() {
     insta::assert_snapshot!(render_snapshot(
         "one_colour",
@@ -95,10 +67,6 @@ fn render_diagnostic_counts_one_colour_for_parity() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_position_of_a_colour_name() {
     insta::assert_snapshot!(render_snapshot(
         "colour_name",
@@ -107,10 +75,6 @@ fn render_diagnostic_gives_the_position_of_a_colour_name() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_a_colouring_id_does_not_exist() {
     insta::assert_snapshot!(render_snapshot(
         "missing_id",
@@ -119,10 +83,6 @@ fn render_diagnostic_says_a_colouring_id_does_not_exist() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_asks_for_the_colours_of_an_id_with_more_than_twelve() {
     insta::assert_snapshot!(render_snapshot(
         "fifteen_colours",
@@ -131,10 +91,6 @@ fn render_diagnostic_asks_for_the_colours_of_an_id_with_more_than_twelve() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_counts_two_colours_for_an_id_with_three() {
     insta::assert_snapshot!(render_snapshot(
         "two_colours_for_id",
@@ -143,10 +99,6 @@ fn render_diagnostic_counts_two_colours_for_an_id_with_three() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_the_search_for_an_id_stopped_at_a_limit() {
     insta::assert_snapshot!(render_snapshot(
         "search_limit",
@@ -155,10 +107,6 @@ fn render_diagnostic_says_the_search_for_an_id_stopped_at_a_limit() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_names_a_bad_border_colour() {
     insta::assert_snapshot!(render_snapshot(
         "border_colour",
@@ -167,10 +115,6 @@ fn render_diagnostic_names_a_bad_border_colour() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_names_a_bad_background() {
     insta::assert_snapshot!(render_snapshot(
         "background",
@@ -179,19 +123,11 @@ fn render_diagnostic_names_a_bad_background() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_an_empty_size() {
     insta::assert_snapshot!(render_snapshot("empty_size", &["*732", "--size", "0x0"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_size_over_the_limit() {
     insta::assert_snapshot!(render_snapshot(
         "size_limit",
@@ -200,28 +136,16 @@ fn render_diagnostic_gives_the_cause_of_a_size_over_the_limit() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_an_empty_sample_grid() {
     insta::assert_snapshot!(render_snapshot("empty_grid", &["*732", "--samples", "0"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_sample_grid_over_the_limit() {
     insta::assert_snapshot!(render_snapshot("grid_limit", &["*732", "--samples", "17"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_negative_border_width() {
     insta::assert_snapshot!(render_snapshot(
         "negative_border",
@@ -230,10 +154,6 @@ fn render_diagnostic_gives_the_cause_of_a_negative_border_width() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_missing_directory() {
     let output = output_path("missing_directory");
     let missing = output.with_file_name("missing").join("tiling.png");
@@ -250,10 +170,6 @@ fn render_diagnostic_gives_the_cause_of_a_missing_directory() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_names_the_positions_of_a_parameter_set_twice() {
     insta::assert_snapshot!(render_snapshot(
         "repeated_setting",
@@ -262,19 +178,11 @@ fn render_diagnostic_names_the_positions_of_a_parameter_set_twice() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_skew_outside_its_range() {
     insta::assert_snapshot!(render_snapshot("skew_range", &["o", "--set", "skew=0.6"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_skew_on_the_annulus() {
     insta::assert_snapshot!(render_snapshot(
         "annulus_skew",
@@ -283,10 +191,6 @@ fn render_diagnostic_gives_the_cause_of_a_skew_on_the_annulus() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_parity_does_not_exist_for_the_torus() {
     insta::assert_snapshot!(render_snapshot(
         "torus_parity",
@@ -295,10 +199,6 @@ fn render_diagnostic_says_parity_does_not_exist_for_the_torus() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_an_unknown_parameter() {
     insta::assert_snapshot!(render_snapshot(
         "unknown_parameter",
@@ -307,10 +207,6 @@ fn render_diagnostic_gives_the_cause_of_an_unknown_parameter() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_parameter_outside_its_range() {
     insta::assert_snapshot!(render_snapshot(
         "parameter_range",
@@ -319,10 +215,6 @@ fn render_diagnostic_gives_the_cause_of_a_parameter_outside_its_range() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_names_a_rotation_angle_that_is_not_finite() {
     insta::assert_snapshot!(render_snapshot(
         "rotation_nan",
@@ -331,19 +223,11 @@ fn render_diagnostic_names_a_rotation_angle_that_is_not_finite() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_zero_light_direction() {
     insta::assert_snapshot!(render_snapshot("light_zero", &["*532", "--light", "0,0,0"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_an_infinite_light_direction() {
     insta::assert_snapshot!(render_snapshot(
         "light_infinite",
@@ -352,10 +236,6 @@ fn render_diagnostic_gives_the_cause_of_an_infinite_light_direction() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_parameter_of_a_spherical_signature() {
     insta::assert_snapshot!(render_snapshot(
         "spherical_parameter",
@@ -378,10 +258,6 @@ const REFUSED_SHAPE: &[&str] = &[
 ];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_polygon_parameter_outside_its_range() {
     insta::assert_snapshot!(render_snapshot(
         "polygon_parameter_range",
@@ -390,10 +266,6 @@ fn render_diagnostic_gives_the_cause_of_a_polygon_parameter_outside_its_range() 
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_a_parameter_of_a_doubled_polygon() {
     insta::assert_snapshot!(render_snapshot(
         "doubled_polygon_parameter",
@@ -402,19 +274,11 @@ fn render_diagnostic_gives_the_cause_of_a_parameter_of_a_doubled_polygon() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_a_polygon_shape_is_too_extreme() {
     insta::assert_snapshot!(render_snapshot("refused_shape", REFUSED_SHAPE));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_says_the_pairings_of_a_double_cannot_be_stored() {
     insta::assert_snapshot!(render_snapshot(
         "refused_double",
@@ -423,19 +287,11 @@ fn render_diagnostic_says_the_pairings_of_a_double_cannot_be_stored() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_diagnostic_gives_the_cause_of_more_than_eight_orders() {
     insta::assert_snapshot!(render_snapshot("nine_orders", &["222222222"]));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_statistics_hold_the_samples_and_masked_values() {
     insta::assert_snapshot!(render_snapshot(
         "statistics",
@@ -444,10 +300,6 @@ fn render_statistics_hold_the_samples_and_masked_values() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the snapshot library reads snapshot files and starts a process"
-)]
 fn render_statistics_of_a_spherical_tiling_hold_the_samples_and_masked_values() {
     insta::assert_snapshot!(render_snapshot(
         "statistics_spherical",
@@ -477,10 +329,6 @@ fn chunk_types(file: &[u8]) -> Vec<[u8; 4]> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_a_png_file_of_the_requested_size() {
     let output = output_path("written_file");
     let outcome = run_args(&[
@@ -522,10 +370,6 @@ fn assert_png_bytes(file: &[u8], width: u32, height: u32) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_a_png_file_of_a_euclidean_tiling() {
     let output = output_path("euclidean_file");
     let outcome = run_args(&[
@@ -543,10 +387,6 @@ fn render_writes_a_png_file_of_a_euclidean_tiling() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_a_png_file_of_a_skewed_torus() {
     let output = output_path("skewed_torus_file");
     let outcome = run_args(&[
@@ -574,28 +414,16 @@ fn small_png(test: &str, args: &[&str]) -> Vec<u8> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_a_png_file_of_a_polygon() {
     small_png("polygon_file", &["*22222"]);
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_a_png_file_of_a_doubled_polygon() {
     small_png("double_file", &["3333"]);
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_fills_a_polygon_by_the_cosets_of_a_colouring_id() {
     let cosets = small_png("polygon_colouring_file", &["*3333", "--colouring", "3a"]);
     let default = small_png("polygon_default_file", &["*3333"]);
@@ -605,10 +433,6 @@ fn render_fills_a_polygon_by_the_cosets_of_a_colouring_id() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_the_annulus_by_parity_by_default() {
     let default = small_png("annulus_file", &["**"]);
     let one = small_png("annulus_one_file", &["**", "--colouring", "one"]);
@@ -622,10 +446,6 @@ fn polygon(test: &str, extra: &[&str]) -> Vec<u8> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_applies_a_polygon_setting_and_writes_the_same_bytes_for_one_thread_and_four() {
     let default = polygon("polygon_default", &[]);
     let one = polygon(
@@ -651,10 +471,6 @@ fn rectangle(test: &str, extra: &[&str]) -> Vec<u8> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_applies_a_setting_and_writes_the_same_bytes_for_one_thread_and_four() {
     let square = rectangle("square", &[]);
     let one = rectangle(
@@ -700,10 +516,6 @@ fn rendered_with_threads(test: &str, threads: &str) -> Vec<u8> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_the_same_bytes_for_one_thread_and_four() {
     let signature: Signature = "*732".parse().expect("the signature is valid");
     let domain = FundamentalDomain::build(&signature).expect("the domain is built");
@@ -742,10 +554,6 @@ fn rendered_colouring_with_threads(test: &str, threads: &str) -> Vec<u8> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_the_same_bytes_of_a_colouring_for_one_thread_and_four() {
     let signature: Signature = "*642".parse().expect("the signature is valid");
     let domain = FundamentalDomain::build(&signature).expect("the domain is built");
@@ -789,10 +597,6 @@ fn render_writes_the_same_bytes_of_a_colouring_for_one_thread_and_four() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_leaves_the_global_thread_pool_unused() {
     let output = output_path("global_pool");
     assert_eq!(small_render(&output), Status::Success);
@@ -817,10 +621,6 @@ fn small_render(output: &Path) -> Status {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_replaces_an_existing_file() {
     let output = output_path("existing_file");
     std::fs::write(&output, b"old").expect("the existing file is written");
@@ -830,10 +630,6 @@ fn render_replaces_an_existing_file() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_through_a_symbolic_link() {
     let link = output_path("symbolic_link");
     let target = link.with_file_name("target.png");
@@ -864,32 +660,27 @@ fn assert_no_file_changes(test: &str, args: &[&str]) {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_without_a_domain_changes_no_file() {
     assert_no_file_changes("no_domain_file", &["3*2"]);
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_parity_for_a_domain_without_a_reversing_side_changes_no_file() {
     assert_no_file_changes("parity_rotation_file", &["732", "--colouring", "parity"]);
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_of_the_torus_with_a_skew_outside_its_range_or_parity_changes_no_file() {
     assert_no_file_changes("torus_skew_file", &["o", "--set", "skew=0.6"]);
     assert_no_file_changes("torus_parity_file", &["o", "--colouring", "parity"]);
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_a_parameter_outside_its_range_changes_no_file() {
     assert_no_file_changes("parameter_range_file", &["*2222", "--set", "aspect=9"]);
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_a_polygon_parameter_outside_its_range_changes_no_file() {
     assert_no_file_changes(
         "polygon_parameter_range_file",
@@ -898,31 +689,26 @@ fn render_with_a_polygon_parameter_outside_its_range_changes_no_file() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_a_refused_polygon_shape_changes_no_file() {
     assert_no_file_changes("refused_shape_file", REFUSED_SHAPE);
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_an_empty_size_changes_no_file() {
     assert_no_file_changes("empty_size_file", &["*732", "--size", "0x0"]);
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_a_bad_colour_changes_no_file() {
     assert_no_file_changes("bad_colour_file", &["*732", "--colours", "#e9c46a,red"]);
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_a_rotation_that_is_not_finite_changes_no_file() {
     assert_no_file_changes("rotation_nan_file", &["*532", "--rotation", "nan,0,0"]);
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter refuses file access")]
 fn render_with_a_zero_light_direction_changes_no_file() {
     assert_no_file_changes("light_zero_file", &["*532", "--light", "0,0,0"]);
 }
@@ -951,10 +737,6 @@ fn statistics_to(test: &str, stdout: &mut FailingWriter) -> (Status, Vec<u8>, Ve
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_statistics_to_a_broken_pipe_fail_without_a_diagnostic() {
     let mut stdout = FailingWriter::failing_write(io::ErrorKind::BrokenPipe);
     let (status, stderr, file) = statistics_to("broken_pipe", &mut stdout);
@@ -964,10 +746,6 @@ fn render_statistics_to_a_broken_pipe_fail_without_a_diagnostic() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_statistics_to_a_failing_writer_give_a_diagnostic() {
     let mut stdout = FailingWriter::failing_write(io::ErrorKind::Other);
     let (status, stderr, file) = statistics_to("failing_writer", &mut stdout);
@@ -992,10 +770,6 @@ fn ball(test: &str, extra: &[&str]) -> Vec<u8> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_a_png_file_of_a_spherical_tiling() {
     let output = output_path("spherical_file");
     let outcome = run_args(&[
@@ -1013,10 +787,6 @@ fn render_writes_a_png_file_of_a_spherical_tiling() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_the_same_bytes_of_a_ball_for_one_thread_and_four() {
     let one = ball("ball_one_thread", &["--threads", "1"]);
     let four = ball("ball_four_threads", &["--threads", "4"]);
@@ -1024,10 +794,6 @@ fn render_writes_the_same_bytes_of_a_ball_for_one_thread_and_four() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_accepts_a_value_that_starts_with_a_hyphen_for_the_rotation_and_the_light() {
     let output = output_path("hyphen_values");
     let rotation = run_args(&[
@@ -1058,10 +824,6 @@ fn render_accepts_a_value_that_starts_with_a_hyphen_for_the_rotation_and_the_lig
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_turns_the_ball_with_the_rotation() {
     let turned = ball("ball_turned", &["--rotation", "20,35,0"]);
     let default = ball("ball_default", &[]);
@@ -1086,10 +848,6 @@ fn small_file(test: &str, args: &[&str]) -> Vec<u8> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_colours_a_rotation_domain_with_one_colour_by_default() {
     assert_eq!(
         small_file("default_rotation", &["732"]),
@@ -1098,10 +856,6 @@ fn render_colours_a_rotation_domain_with_one_colour_by_default() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_colours_a_reflection_domain_by_parity_by_default() {
     assert_eq!(
         small_file("default_reflection", &["*732"]),
@@ -1110,10 +864,6 @@ fn render_colours_a_reflection_domain_by_parity_by_default() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_writes_a_png_file_of_each_geometry_of_a_rotation_domain() {
     for (test, args) in [
         ("rotation_euclidean", &["442"][..]),
@@ -1173,10 +923,6 @@ fn parity_id(signature: &str) -> String {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_draws_the_trivial_colouring_as_one() {
     for (test, signature) in [("trivial_reflection", "*732"), ("trivial_rotation", "732")] {
         assert_eq!(
@@ -1188,10 +934,6 @@ fn render_draws_the_trivial_colouring_as_one() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_draws_the_parity_colouring_as_parity() {
     for (test, signature) in [
         ("parity_hyperbolic", "*732"),
@@ -1210,21 +952,17 @@ fn render_draws_the_parity_colouring_as_parity() {
 
 fn first_error_line(args: &[&str]) -> (Status, String) {
     let never_written = Path::new(NEVER_WRITTEN);
-    if !cfg!(miri) {
-        match std::fs::remove_file(never_written) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => {
-                panic!("cannot remove a stale output file: {error}")
-            }
-            _ => {}
+    match std::fs::remove_file(never_written) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => {
+            panic!("cannot remove a stale output file: {error}")
         }
+        _ => {}
     }
     let mut all = vec!["render"];
     all.extend_from_slice(args);
     all.extend_from_slice(&["-o", NEVER_WRITTEN]);
     let outcome = run_args(&all);
-    if !cfg!(miri) {
-        assert!(!never_written.exists(), "the output file was written");
-    }
+    assert!(!never_written.exists(), "the output file was written");
     assert_eq!(outcome.stdout, "");
     let first = outcome.stderr.lines().next().unwrap_or_default().to_owned();
     (outcome.status, first)
@@ -1398,10 +1136,6 @@ fn render_without_an_output_returns_usage() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the thread pool library fails the checks of the interpreter"
-)]
 fn render_reports_a_broken_pipe_on_the_output_file() {
     let fifo = output_path("output_fifo");
     let created = std::process::Command::new("mkfifo")

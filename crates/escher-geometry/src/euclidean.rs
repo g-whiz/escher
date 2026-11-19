@@ -330,10 +330,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the interpreter rounds the sine and cosine of each call differently"
-    )]
     fn rotation_is_the_hyperbolic_rotation() {
         for angle in [0.0, 1.0, -2.5, core::f64::consts::PI, 1000.0, 1e-300] {
             assert_eq!(

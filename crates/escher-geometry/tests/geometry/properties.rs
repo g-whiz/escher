@@ -587,7 +587,6 @@ fn boost_product(rng: &mut Rng) -> Product {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn inverse_and_isometry_defect_of_products_are_within_their_bounds() {
     let mut reference = Reference::new();
     let mut inverses = Worst::new(
@@ -627,7 +626,6 @@ fn inverse_and_isometry_defect_of_products_are_within_their_bounds() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn reflections_are_involutions_that_fix_their_walls_within_their_bounds() {
     let mut reference = Reference::new();
     let mut twice = Worst::new(
@@ -669,7 +667,6 @@ fn reflections_are_involutions_that_fix_their_walls_within_their_bounds() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn isometries_preserve_form_and_distance_within_their_bounds() {
     let mut reference = Reference::new();
     let mut forms = Worst::new("preserved form, scaled by eps * mu^2 * x3 * y3", 2 * CASES);
@@ -701,7 +698,6 @@ fn isometries_preserve_form_and_distance_within_their_bounds() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn distances_of_boosts_and_disk_positions_are_within_their_bounds() {
     let mut reference = Reference::new();
     let mut boosts = Worst::new("distance(ORIGIN, boost(l) * ORIGIN) against |l|", CASES);
@@ -740,7 +736,6 @@ fn distances_of_boosts_and_disk_positions_are_within_their_bounds() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn wall_through_swapped_points_is_the_exact_negation() {
     let mut rng = Rng::new(24);
     for _ in 0..CASES {
@@ -775,7 +770,6 @@ fn normalize_point_beyond_distance_15_rejects_only_vectors_whose_computed_form_i
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn wall_through_sweep_of_points_closer_than_1e_minus_5_gives_finite_normals_or_degenerate_walls() {
     let mut rng = Rng::new(26);
     let mut degenerate = 0;
@@ -794,7 +788,6 @@ fn wall_through_sweep_of_points_closer_than_1e_minus_5_gives_finite_normals_or_d
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn euclidean_reflections_and_relators_are_within_their_bounds() {
     let mut largest: [(f64, String); 4] = Default::default();
     let mut record = |slot: usize, value: f64, input: &dyn Fn() -> String| {
@@ -853,7 +846,6 @@ fn euclidean_reflections_and_relators_are_within_their_bounds() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn spherical_reflections_relators_and_walls_are_within_their_bounds() {
     let mut largest: [(f64, String); 4] = Default::default();
     let mut record = |slot: usize, value: f64, input: &dyn Fn() -> String| {
@@ -915,7 +907,6 @@ fn spherical_reflections_relators_and_walls_are_within_their_bounds() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn spherical_wall_through_below_the_separation_floor_gives_finite_normals_or_degenerate_walls() {
     let mut rng = Rng::new(39);
     let mut degenerate = 0;

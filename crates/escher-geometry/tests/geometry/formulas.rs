@@ -79,10 +79,6 @@ fn check_side(worst: &mut Worst, normal: DVec3, x: DVec3) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn form_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let table = table_vectors();
@@ -105,10 +101,6 @@ fn form_is_within_its_bound_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn side_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut triangles = Worst::new(
@@ -155,10 +147,6 @@ fn check_normalize(worst: &mut Worst, x: DVec3) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn normalize_point_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("normalize_point, scaled by eps * kappa * y3", 6 * CASES);
@@ -214,10 +202,6 @@ impl DistanceWorst {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn distance_of_two_points_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let table: Vec<DVec3> = table_points()
@@ -243,10 +227,6 @@ fn distance_of_two_points_is_within_its_bound_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn distance_of_a_point_to_itself_is_at_least_zero_and_within_its_bound() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("distance(x, x), scaled by sqrt(eps) * x3", CASES);
@@ -325,10 +305,6 @@ impl WallWorst {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn wall_through_close_points_is_orthogonal_and_unit_within_its_bounds() {
     let mut reference = Reference::new();
     let mut worst = WallWorst::new(
@@ -349,10 +325,6 @@ fn wall_through_close_points_is_orthogonal_and_unit_within_its_bounds() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn wall_through_points_near_the_origin_is_orthogonal_and_unit_within_its_bounds() {
     let mut reference = Reference::new();
     let mut worst = WallWorst::new(
@@ -374,10 +346,6 @@ fn relative_error(value: f64, exact: &BigFloat) -> (BigFloat, BigFloat) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn boost_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
@@ -421,10 +389,6 @@ fn boost_entries_are_within_their_bound_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("rotation entries, absolute", 4 * CASES);
@@ -467,10 +431,6 @@ fn record_terms(worst: &mut Worst, computed: DVec3, terms: &[[BigFloat; 2]; 3], 
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn boost_and_rotation_of_a_point_match_the_componentwise_maps() {
     let mut reference = Reference::new();
     let mut boosts = Worst::new(
@@ -536,10 +496,6 @@ fn check_translation(reference: &mut Reference, worst: &mut Worst, target: DVec3
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn translation_maps_the_origin_to_its_target_within_its_bound() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
@@ -569,10 +525,6 @@ const SMALL_TARGETS: [DVec3; 3] = [
 ];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn translation_of_the_three_small_targets_maps_the_origin_to_the_rounded_point() {
     for target in SMALL_TARGETS {
         let image = translation(target) * ORIGIN;
@@ -625,10 +577,6 @@ fn translation_radius(rng: &mut Rng, index: usize, largest: f64) -> f64 {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn translation_maps_points_off_the_axis_as_its_composition_does() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
@@ -658,7 +606,6 @@ fn translation_maps_points_off_the_axis_as_its_composition_does() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn translation_is_an_isometry_within_the_bound_of_longer_boosts() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
@@ -679,7 +626,6 @@ fn translation_is_an_isometry_within_the_bound_of_longer_boosts() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "the sweep runs a loop too long for the interpreter")]
 fn inverse_of_translation_maps_its_target_to_the_origin() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
@@ -741,10 +687,6 @@ fn check_reflected_normal(worst: &mut Worst, normal: DVec3) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn reflection_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut points = Worst::new("reflection(u) * x, scaled by eps * sigma_i", 3 * CASES);
@@ -781,10 +723,6 @@ fn check_to_disk(worst: &mut Worst, x: DVec3) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn to_disk_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("to_disk, relative to eps * |reference|", 2 * CASES);
@@ -822,10 +760,6 @@ fn check_from_disk(worst: &mut Worst, z: DVec2) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn from_disk_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("from_disk, relative to eps / (1 - |z|^2)", 3 * CASES);
@@ -840,10 +774,6 @@ fn from_disk_is_within_its_bound_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn disk_round_trips_are_within_their_bounds() {
     let mut reference = Reference::new();
     let mut from_then_to = Worst::new("from_disk then to_disk, absolute in eps", 2 * (CASES + 2));
@@ -884,10 +814,6 @@ fn disk_round_trips_are_within_their_bounds() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn domain_triangle_inputs_are_within_the_bounds_of_each_row() {
     let mut reference = Reference::new();
     let sides = 3 * DOMAIN_TRIPLES.len();
@@ -992,10 +918,6 @@ fn line_value(c: &Vector, x: &Vector) -> BigFloat {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn euclidean_reflection_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut points = Worst::new(
@@ -1025,10 +947,6 @@ fn euclidean_reflection_is_within_its_bounds_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn euclidean_wall_through_and_distance_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut orthogonality = Worst::new(
@@ -1096,10 +1014,6 @@ fn record_vector(worst: &mut Worst, computed: DVec3, exact: &Vector, input: &dyn
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_side_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("spherical side, scaled by eps * sum |u_i x_i|", CASES);
@@ -1127,10 +1041,6 @@ fn spherical_side_is_within_its_bound_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_normalize_point_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
@@ -1160,10 +1070,6 @@ fn spherical_normalize_point_is_within_its_bound_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_distance_and_wall_through_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut distances = Worst::new("spherical distance, scaled by eps / sin d", CASES);
@@ -1199,10 +1105,6 @@ fn spherical_distance_and_wall_through_are_within_their_bounds_of_the_reference(
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_distance_of_a_point_to_itself_is_at_least_zero_and_within_its_bound() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("spherical distance(x, x), scaled by sqrt(eps)", CASES);
@@ -1217,10 +1119,6 @@ fn spherical_distance_of_a_point_to_itself_is_at_least_zero_and_within_its_bound
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_boost_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("spherical boost entries, absolute", 4 * CASES);
@@ -1283,10 +1181,6 @@ fn sphere_translation_composition(target: &Vector, x: &Vector) -> Vector {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_translation_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut images = Worst::new(
@@ -1332,10 +1226,6 @@ fn spherical_translation_is_within_its_bounds_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_reflection_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut points = Worst::new(
@@ -1378,10 +1268,6 @@ fn spherical_reflection_is_within_its_bounds_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_isometry_defect_of_products_is_within_its_bound() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(

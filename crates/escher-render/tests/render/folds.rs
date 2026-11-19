@@ -13,9 +13,8 @@ use crate::common::{
     SPHERICAL_REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane, describe_polygon,
     describe_sphere, domain, euclidean_domain, euclidean_fold_set, euclidean_name,
     euclidean_rotation_cases, fold_set, hyperbolic_rotation_cases, one_fill, options,
-    pixel_position, polygon_cases, polygon_fold_set, reference_walls, render_in_bands, rim_set,
-    rotation_domain, rotation_text, spherical_domain, spherical_fold_set, spherical_rotation_cases,
-    text,
+    pixel_position, polygon_fold_set, reference_walls, render_in_bands, rim_set, rotation_domain,
+    rotation_text, spherical_domain, spherical_fold_set, spherical_rotation_cases, text,
 };
 use crate::golden_images::{POLYGON_DOMAINS, domain_with_aspect, renderer};
 use crate::reference::{self, Reference, Worst, count_bound, num, vector};
@@ -54,10 +53,6 @@ fn sides_of(
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn fold_replay_stays_within_the_bound_of_each_band_and_triple() {
     let mut reference = Reference::new();
     for (triple, bounds) in FOLD_TRIPLES.iter().zip(REPLAY_BOUNDS) {
@@ -93,10 +88,6 @@ fn fold_replay_stays_within_the_bound_of_each_band_and_triple() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn fold_decisions_differ_from_the_exact_fold_within_the_count_of_each_band() {
     let mut differing = [0_usize; 6];
     for triple in FOLD_TRIPLES {
@@ -146,10 +137,6 @@ fn fold_decisions_differ_from_the_exact_fold_within_the_count_of_each_band() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn every_fold_converges_within_the_default_cap() {
     for triple in FOLD_TRIPLES {
         let domain = domain(triple);
@@ -263,10 +250,6 @@ fn every_vertex_folds_in_zero_steps() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_within_the_default_cap()
  {
     let mut reference = Reference::new();
@@ -364,10 +347,6 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn spherical_fold_replay_and_decisions_stay_within_their_bounds_and_converge_within_the_default_cap()
  {
     let mut reference = Reference::new();
@@ -485,10 +464,6 @@ fn image_bound(largest: usize, first: usize, order: u32) -> f64 {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration of the group runs loops too long for the interpreter"
-)]
 fn images_of_the_centre_under_the_group_fold_back_in_as_many_steps_as_their_depth() {
     let mut reference = Reference::new();
     let signatures = [("*332", 0), ("*432", 1), ("*532", 2)]
@@ -548,10 +523,6 @@ fn images_of_the_centre_under_the_group_fold_back_in_as_many_steps_as_their_dept
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "folding thousands of points of a large group runs loops too long for the interpreter"
-)]
 fn fold_near_a_vertex_of_the_largest_order_and_its_antipode_returns_within_the_cap() {
     let domain = domain_with_aspect("*(1000)22", None);
     let target = core::f64::consts::PI / 1000.0;
@@ -705,10 +676,6 @@ fn fold_of_a_point_that_overflows_during_the_fold_does_not_converge() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn fold_and_render_beyond_the_range_of_accuracy_return_without_a_panic() {
     let mut converged = 0;
     let mut unconverged = 0;
@@ -876,37 +843,21 @@ fn assert_rotation_replay(cases: &[RotationCase]) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_fold_replay_of_hyperbolic_domains_stays_within_its_bounds() {
     assert_rotation_replay(&hyperbolic_rotation_cases());
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_fold_replay_of_euclidean_domains_stays_within_its_bounds() {
     assert_rotation_replay(&euclidean_rotation_cases());
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_fold_replay_of_spherical_kites_stays_within_its_bounds() {
     assert_rotation_replay(&spherical_rotation_cases(0..SPHERICAL_LUNES));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_fold_replay_of_spherical_lunes_stays_within_its_bounds() {
     assert_rotation_replay(&spherical_rotation_cases(
         SPHERICAL_LUNES..SPHERICAL_DOMAINS.len(),
@@ -991,37 +942,21 @@ fn assert_double_oracle(cases: &[RotationCase]) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_folds_of_hyperbolic_domains_agree_with_the_folds_of_their_reflection_domains() {
     assert_double_oracle(&hyperbolic_rotation_cases());
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_folds_of_euclidean_domains_agree_with_the_folds_of_their_reflection_domains() {
     assert_double_oracle(&euclidean_rotation_cases());
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_folds_of_spherical_kites_agree_with_the_folds_of_their_reflection_domains() {
     assert_double_oracle(&spherical_rotation_cases(0..SPHERICAL_LUNES));
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn rotation_folds_of_spherical_lunes_agree_with_the_folds_of_their_reflection_domains() {
     assert_double_oracle(&spherical_rotation_cases(
         SPHERICAL_LUNES..SPHERICAL_DOMAINS.len(),
@@ -1085,37 +1020,21 @@ fn assert_rotation_image_converges(text: &str) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn rotation_triangle_of_order_1000_converges_at_every_sample() {
     assert_rotation_image_converges("(1000)32");
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn rotation_triangle_of_three_orders_1000_converges_at_every_sample() {
     assert_rotation_image_converges("(1000)(1000)(1000)");
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn rotation_kite_of_order_1000_on_the_sphere_converges_at_every_sample() {
     assert_rotation_image_converges("(1000)22");
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "rendering whole images runs loops too long for the interpreter"
-)]
 fn rotation_lune_of_order_1000_converges_at_every_sample() {
     assert_rotation_image_converges("(1000)(1000)");
 }
@@ -1157,10 +1076,6 @@ const ROTATION_CENTRE_BOUNDS: [f64; 27] = [
 ];
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the enumeration of the group runs loops too long for the interpreter"
-)]
 fn images_of_the_centre_under_a_rotation_group_fold_back_in_at_least_as_many_steps_as_their_depth()
 {
     let mut reference = Reference::new();
@@ -1219,10 +1134,6 @@ fn images_of_the_centre_under_a_rotation_group_fold_back_in_at_least_as_many_ste
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "folding thousands of points of a large group runs loops too long for the interpreter"
-)]
 fn fold_near_a_vertex_of_a_rotation_domain_converges_beyond_the_measured_distance() {
     for (starred, clear) in NEAR_VERTEX_DOMAINS {
         let name = rotation_text(starred);
@@ -1339,37 +1250,21 @@ fn assert_polygon_replay(domains: core::ops::Range<usize>) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn polygon_fold_replay_of_squares_stays_within_its_bounds() {
     assert_polygon_replay(0..4);
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn polygon_fold_replay_of_pentagons_and_quadrilaterals_stays_within_its_bounds() {
     assert_polygon_replay(4..12);
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn polygon_fold_replay_of_octagons_stays_within_its_bounds() {
     assert_polygon_replay(12..15);
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn polygon_fold_replay_of_doubles_stays_within_its_bounds() {
     assert_polygon_replay(15..POLYGON_DOMAINS.len());
 }
@@ -1377,9 +1272,8 @@ fn polygon_fold_replay_of_doubles_stays_within_its_bounds() {
 #[test]
 fn every_vertex_of_a_polygon_folds_in_zero_steps() {
     let shapes = |reflection: bool| {
-        polygon_cases()
-            .into_iter()
-            .map(|index| &POLYGON_DOMAINS[index])
+        POLYGON_DOMAINS
+            .iter()
             .filter(move |shape| shape.signature.starts_with('*') == reflection)
             .map(|shape| (shape.name(), shape.domain()))
     };

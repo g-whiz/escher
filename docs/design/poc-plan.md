@@ -186,8 +186,7 @@ Section 5 of `docs/design/cli.md` gives the exact text of each command, and its 
 - Euler characteristic: an exact rational by the defect rule, including the two defects of infinite order (`orbifold-notation.md` 6.1).
 - Bad orbifolds (7.2), classification (7.1), order and area (7.3), the deformation dimension of compact hyperbolic signatures (10.1), the equivalence rules 1 to 6 (4.1), and a canonical form, all in `orbifold-notation.md`.
 
-**Design documents.** `docs/design/signature.md` specifies the crate `escher-signature`, and `docs/design/cli.md` specifies the commands, options, output format, exit status, and diagnostics of `escher-cli`. The first tests also carry the Miri policy of `DEC-5`, and Section 6 of `docs/design/architecture.md` lists the documents that change with it.
-
+**Design documents.** `docs/design/signature.md` specifies the crate `escher-signature`, and `docs/design/cli.md` specifies the commands, options, output format, exit status, and diagnostics of `escher-cli`.
 **Sources.** Every item of the scope is primary in `orbifold-notation.md`, from [CH], [TH], [FG], [TG], [CBG], and [BH], except the parts that `UNV-20` and `UNV-21` name.
 
 **Unverified statements relied on.**
@@ -266,12 +265,12 @@ Sections 5 and 6.7 of `docs/design/cli.md` define the exact lines and diagnostic
 **Dependencies and `deny.toml` work.** `glam` (`DEC-4`) and `thiserror` for `escher-geometry` and `escher-domain`, `escher-domain` for `escher-cli`, and the reference-arithmetic dev-dependency `astro-float-num` of `DEC-3`. Each is declared once in `[workspace.dependencies]` (DEP-2).
 
 - `astro-float-num` is the number crate of the astro-float project. Section 11 of `docs/design/geometry.md` states why the design uses it in place of `astro-float`.
-- Section 11 of `docs/design/geometry.md` records the resolution of `glam` and `astro-float-num` with their versions, features, licences, and transitive dependencies, and the run of `glam` arithmetic under Miri. The allow-list of the tooling design already covers their licences.
+- Section 11 of `docs/design/geometry.md` records the resolution of `glam` and `astro-float-num` with their versions, features, licences, and transitive dependencies. The allow-list of the tooling design already covers their licences.
 - `glam` is a public dependency of `escher-geometry` and `escher-domain` under rule DEP-3, with the obligations that Section 3.5 of `docs/design/architecture.md` states.
 - `astro-float-num` needs no native build (`rust-ecosystem.md` 12).
 - The change updates Section 8 of the tooling design for every change to `deny.toml`.
 
-**Risks.** Slips in the conventions, precision at very large orders, and the maturity of the reference crate (`UNV-25`). The run of `glam` under Miri is recorded in Section 11 of `docs/design/geometry.md`, so the remaining risk is that a test of the crates themselves fails under `just check-miri`.
+**Risks.** Slips in the conventions, precision at very large orders, and the maturity of the reference crate (`UNV-25`).
 
 ### 5.3. M3: First Image
 
@@ -339,7 +338,7 @@ The performance expectation of Section 8 of `docs/design/architecture.md` is con
 - No colour crate is a dependency (`DEC-29`), and at M8 the owner kept it so (`DEC-39`). On the prototype, `palette` failed the ban on duplicate versions, and `csscolorparser` failed it with its default features. Section 9.2 of `docs/design/cli.md` records the resolution of `rayon` and of the two colour crates.
 - New licences are added only as cargo-deny reports them.
 
-**Risks.** Speed. The appearance of the rim. Golden images that differ between the container and CI because of the platform mathematics library. The estimate near vertices. `rayon` fails under Miri, so Miri checks no test that reaches the thread pool (`DEC-21`). A plain `cargo update` brings the duplicate `miniz_oxide` back.
+**Risks.** Speed. The appearance of the rim. Golden images that differ between the container and CI because of the platform mathematics library. The estimate near vertices. No check of the repository looks for undefined behaviour in `rayon` (`DEC-21`). A plain `cargo update` brings the duplicate `miniz_oxide` back.
 
 **Split.** Three branches, in this order:
 
@@ -522,7 +521,7 @@ For a spherical signature it also prints the line `Order by coset enumeration: 1
 **Split.** Three branches, in this order:
 
 1. The design branch `feature/group-design`, with `docs/design/group.md`, the extensions of `domain.md` and `cli.md`, the changes to `docs/design/architecture.md` and this plan, and the lines of `AGENTS.md` that the documents make false. Every figure of the crates is stated as to be measured.
-2. The branch of the crate `escher-group`, with `Word`, `Relator`, `Presentation`, `conway_presentation`, `CosetTable`, `enumerate`, and all their tests, with the workspace manifest, `README.md`, `AGENTS.md`, the member list of the coding standard, and the Miri list of the tooling design. The measured limits and times go into `docs/design/group.md`.
+2. The branch of the crate `escher-group`, with `Word`, `Relator`, `Presentation`, `conway_presentation`, `CosetTable`, `enumerate`, and all their tests, with the workspace manifest, `README.md`, `AGENTS.md`, and the member list of the coding standard. The measured limits and times go into `docs/design/group.md`.
 3. The branch of `side_presentation` in `escher-domain`, with its tests and its measured residuals, and of `info --presentation` in `escher-cli`, with its snapshots. It declares `escher-group` in both manifests, because an unused dependency fails `check-unused-deps`, and it updates Project Status in `AGENTS.md` for the completion of the milestone.
 
 ### 5.8. M8: Colouring Search With Ids
@@ -666,7 +665,7 @@ Out of scope: the spherical types (M11), the hyperbolic signatures that mix cone
 
 The milestone does not rely on `UNV-8`, which concerns the cap generator of a hyperbolic signature: its glide reflections are explicit matrices that `verify()` checks. `DEC-52` settles `UNV-9` for the Euclidean plane as a project convention. The reliance is limited, because `build_with` returns only a domain that passes `verify()` (DOM-54).
 
-**Tests and acceptance.** A table-driven test over the 17 signatures of `orbifold-notation.md` 8.1, with the vertices, partners, kinds, orientations, cycle orders, and parameters of DOM-50. `verify()` with a margin of at least 8 over a grid of `aspect` and `skew` and on random settings. The vertices and pairings against the reference arithmetic. `2222` at a skew of 0 equal bit for bit to the domain of M6. Relators evaluated as matrices. The wallpaper certificate of DOM-57, which is required and not a companion: its point group tells `o` from `xx`, whose counts of subgroups are equal at every index computed (Section 11.5 of `group.md`), its glide reflections tell `**` from `*x`, and its rotations on mirror lines tell `22*` from `2*22`. Beside it, equal counts of subgroups up to 16 colours between the side presentation and the Conway presentation, a test skipped under Miri. The fold and the borders of `escher-render` on the wallpaper domains against the reference arithmetic, periodicity and glide symmetry of the image, and the borders of `3*3` inside those of `*632` and of `4*2` inside those of `*442`. One golden image of a colouring for each of the nine groups, pairwise distinct, because the default pictures of several groups are equal (`DEC-55`). The snapshots of `escher info` and the diagnostics of `--set skew`.
+**Tests and acceptance.** A table-driven test over the 17 signatures of `orbifold-notation.md` 8.1, with the vertices, partners, kinds, orientations, cycle orders, and parameters of DOM-50. `verify()` with a margin of at least 8 over a grid of `aspect` and `skew` and on random settings. The vertices and pairings against the reference arithmetic. `2222` at a skew of 0 equal bit for bit to the domain of M6. Relators evaluated as matrices. The wallpaper certificate of DOM-57, which is required and not a companion: its point group tells `o` from `xx`, whose counts of subgroups are equal at every index computed (Section 11.5 of `group.md`), its glide reflections tell `**` from `*x`, and its rotations on mirror lines tell `22*` from `2*22`. Beside it, equal counts of subgroups up to 16 colours between the side presentation and the Conway presentation. The fold and the borders of `escher-render` on the wallpaper domains against the reference arithmetic, periodicity and glide symmetry of the image, and the borders of `3*3` inside those of `*632` and of `4*2` inside those of `*442`. One golden image of a colouring for each of the nine groups, pairwise distinct, because the default pictures of several groups are equal (`DEC-55`). The snapshots of `escher info` and the diagnostics of `--set skew`.
 
 **Dependencies and `deny.toml` work.** None new.
 
@@ -994,7 +993,6 @@ The plan has these failure modes:
 | --- | --- |
 | A milestone grows beyond a design branch and a few code branches | It splits along its Split field |
 | A research prerequisite finds no construction | The milestone proceeds on the unverified statements of Section 7, or the owner decides to move the work to the roadmap (`DEC-19`) |
-| A test reads a file, starts a process, or runs long numeric loops | It is excluded from Miri under the policy of `DEC-5`, in the form that TEST-11 of the coding standard and Section 4 of the tooling design state |
 | A golden image differs between the container and CI | The comparison limits of Section 7 of `docs/design/architecture.md` apply, and a golden file changes only through its recipe |
 | A CI job is cancelled because no runner acquired it | The job is rerun, and the merge waits (Section 14.4 of the tooling design) |
 

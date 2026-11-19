@@ -266,10 +266,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn tangents_agree_with_central_differences_of_the_disk_map() {
         const POSITIONS: u32 = 2048;
         const BOUND: f64 = 1.0e-9;
@@ -298,10 +294,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "rendering whole images runs loops too long for the interpreter"
-    )]
     fn symmetric_view_differs_from_its_mirror_image_in_the_first_axis_within_the_golden_allowance()
     {
         let linear = linear_table();
@@ -402,10 +394,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "rendering whole images runs loops too long for the interpreter"
-    )]
     fn periodic_view_of_a_rectangle_equals_itself_shifted_by_a_translation_within_the_golden_allowance()
      {
         const SIZE: u32 = 512;
@@ -561,10 +549,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn ball_tangents_and_lift_agree_with_the_reference_lift() {
         const POSITIONS: u32 = 2048;
         const ANGLES: u32 = 512;
@@ -669,10 +653,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "rendering whole images runs loops too long for the interpreter"
-    )]
     fn turning_the_ball_by_an_element_of_the_group_leaves_the_image_within_the_golden_allowance() {
         let linear = linear_table();
         let [first, second] = [

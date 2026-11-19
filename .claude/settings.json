@@ -25,7 +25,6 @@
       "Bash(just check-typos)",
       "Bash(just check-toml)",
       "Bash(just check-unused-deps)",
-      "Bash(just check-miri)",
       "Bash(just check-features)",
       "Bash(just check-workflows)",
       "Bash(just check-workflow-pins:*)",

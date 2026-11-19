@@ -338,7 +338,7 @@ The crate has these private modules, each a file named after the module:
 - `src/search.rs`: `IndexLimit`, `SearchBudget`, `count_colourings`, `colourings`, `colourings_of_index`, the steps of Sections 7.10 to 7.14, the crate-private settings, which hold the budget, the stored limits, and a switch of the first-in-class test (every node, complete tables only, or off), and the crate-private search statistics and capacities.
 - `src/colouring.rs`: `ColouringCounts`, `Colourings`, `ColouringsOfIndex`, `Colouring`, `ColouringId`, the ids of Section 7.15, and `colour_of`.
 
-The integration tests form one binary, `tests/group/main.rs`, with the modules `common`, `examples`, `spherical`, `properties`, `limits`, and `search` (TEST-10 of the coding standard). `main.rs` declares each module under `#[cfg(test)]`, as the integration tests of `escher-domain` do, so that the Clippy options for test code cover the panics of their helpers (TEST-10 of the coding standard). `common` holds the fixtures of Section 10.2, including the fixtures of the search, the strategy of random presentations and the strategy of letters that it uses, the `proptest` helper of GRP-28, and the helpers that build generator names, words, signatures, presentations from text, Coxeter presentations, Conway presentations, coset limits, index limits, and search budgets. `search` also holds the helpers that read the rows of a table, relabel rows from a base coset, and select the class tables of a listing, which `properties` uses. Each helper exists once, and no test module defines its own copy.
+The integration tests form one binary, `tests/group/main.rs`, with the modules `common`, `examples`, `spherical`, `properties`, `limits`, and `search` (TEST-10 of the coding standard). `main.rs` declares each module under `#[cfg(test)]`, as the integration tests of `escher-domain` do, so that the Clippy options for test code cover the panics of their helpers (TEST-10 of the coding standard). `common` holds the fixtures of Section 10.2, including the fixtures of the search, the strategy of random presentations and the strategy of letters that it uses, the `proptest` helper `proptest_config()`, and the helpers that build generator names, words, signatures, presentations from text, Coxeter presentations, Conway presentations, coset limits, index limits, and search budgets. `search` also holds the helpers that read the rows of a table, relabel rows from a base coset, and select the class tables of a listing, which `properties` uses. Each helper exists once, and no test module defines its own copy.
 
 ## 4. Words, Relators, and Presentations
 
@@ -365,6 +365,8 @@ A relator stores its base and exponent and never expands them. A corner or cone 
 GRP-5. `Presentation::new` MUST check the generator names, the number of generators and relators, and that every letter of every relator names a generator of the presentation, and MUST NOT reduce or reorder a relator, because a caller reads the relators back as it gave them and the text of Section 4.4 is what it gave.
 
 A generator name is 1 to 32 bytes, matches `[A-Za-z][A-Za-z0-9]*`, and differs from every other name of the presentation. The names are therefore printable ASCII, and a caller can print them without escaping. A presentation has at most 256 generators and at most 1024 relators (Section 15). A presentation with no generator and no relator is valid, and it presents the trivial group.
+
+`Presentation::new` keeps a `BTreeMap` from each name to its position. The map lets the check find an earlier equal name by lookup and read its position for the error.
 
 The checks run in this order, and the first failure is returned: the number of generators, each name in order, the number of relators, and each relator in order.
 
@@ -775,7 +777,7 @@ Each test names the item of that field, or of the field "Tests and acceptance" o
 | Invariance | None | `proptest`, `properties` | Over the finite presentations of the fixtures and of the spherical signatures up to order 24, a permutation of the relators, a rotation or an inversion of a relator, and a reordering of the subgroup generators give an equal table | GRP-15, GRP-18 |
 | Word laws | None | `proptest`, `properties` | Free reduction is idempotent, a word followed by its inverse reduces to the empty word, and a cyclically reduced word has no cancelling ends | Section 4.1 |
 | Text form | None | Unit tests in `presentation.rs` | Each rule of Section 4.4, including `(g1^-1)^3`, the empty word `1`, and `None` for a word with a letter outside the generators | GRP-3 |
-| Input limits | None | Unit tests in `presentation.rs`, `table.rs`, and `enumerate.rs` | Each limit of Section 15 at its value is accepted and one above returns `LimitExceeded`. The limit on table entries is tested with 8 generators at `CosetLimit::MAX`, exactly $2^{24}$ entries, which is accepted, and with 9 generators, which is refused with the text `the coset limit 1048576 times 18 columns is more than 16777216 table entries`. The acceptance of exactly 65536 expanded letters is a separate test from the refusal of 65537. `Relator::new` with an exponent of 0 and an empty base, and each name rule, return `InvalidPresentation`. `Presentation::new` checks the generators before the relators | GRP-4, GRP-5, GRP-19 |
+| Input limits | None | Unit tests in `presentation.rs`, `table.rs`, and `enumerate.rs` | Each limit of Section 15 at its value is accepted and one above returns `LimitExceeded`. The limit on table entries is tested with 8 generators at `CosetLimit::MAX`, exactly $2^{24}$ entries, which is accepted, and with 9 generators, which is refused with the text `the coset limit 1048576 times 18 columns is more than 16777216 table entries`. Each generator adds two columns, so 8 and 9 generators are the counts on either side of the limit at `CosetLimit::MAX`, and the test uses no more generators than it needs to cross it. The acceptance of exactly 65536 expanded letters is a separate test from the refusal of 65537. `Relator::new` with an exponent of 0 and an empty base, and each name rule, return `InvalidPresentation`. `Presentation::new` checks the generators before the relators | GRP-4, GRP-5, GRP-19 |
 | Error text | None | Unit test in `error.rs` | The `Display` of every kind starts with `cannot build presentation: `, `cannot enumerate cosets: `, `cannot search subgroups: `, or `cannot read colouring id: ` and is in lower case, and each text of the search and of the id is the text of Section 8.2 | GRP-22 |
 | Zero generators | None | Unit test in `table.rs` | The presentation with no generator enumerates to a table of index 1 with no column, and `row(0)` is an empty slice | GRP-9 |
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type has the auto traits of Section 3.2 | CONC-1 of the coding standard |
@@ -823,7 +825,15 @@ Each test names the item of that field, or of the field "Tests and acceptance" o
 
 "Colour rule" checks only that the code follows GRP-38, and "Word invariance" holds for the forward trace too, because a relator acts trivially on the cosets either way. Neither checks that GRP-38 is the right rule. Only the assertion of GRP-41 on samples of a rendering checks that, and it belongs to `escher-render`, which has the fold.
 
-The property tests commit their regression files (TEST-9 of the coding standard). "Closing pass idle" runs as a unit test, because the run statistics are crate-private, and it loads the `proptest` helper and the strategy of `common` through the `#[path]` module of Section 3.3, as `escher-render` loads its golden comparison.
+The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest` (TEST-11 of the coding standard). "Closing pass idle" runs as a unit test, because the run statistics are crate-private, and it loads the `proptest` helper and the strategy of `common` through the `#[path]` module of Section 3.3, as `escher-render` loads its golden comparison.
+
+These single cases of the table tests above also run as separate tests:
+
+- The cases `2*3` and `3*2` of "Spherical orders".
+- The case `2222` at a limit of 50 of "Infinite groups".
+- Three cases of the search: $\langle x, y \mid x^2, y^3, (xy)^2 \rangle$, which is $S_3$, to the colour count 3, the fixture of [SIMS1994] p. 209, $\langle x, y \mid x^2 \rangle$ to 3, and the fixture of [HOLT2005] Example 5.10, $\langle x, y \mid x^2, y^3, (xy)^4 \rangle$ to 4. The case of $S_3$ asserts 1, 1, and 3 colourings of the colour counts 1 to 3 and 3 classes.
+
+GRP-28. Withdrawn on 2026-11-19.
 
 This design leaves out a property test that the index of a cyclic subgroup times its order equals the order of a finite group, because it relies on Lagrange's theorem, which no section of `docs/research/` states.
 
@@ -904,8 +914,8 @@ These defects of the search were applied to the crate in the same way, with the 
 
 | Defect | Tests that fail |
 | --- | --- |
-| Swap the two comparisons of the first-in-class test | First in class, Search examples, the single cases of [SIMS1994] p. 209 and [HOLT2005] Example 5.10 of Section 10.4, Least in class, and Frettloh Table 2. The search keeps the greatest table of each class, so every count is unchanged and only the tables catch it. On the prototype, Sims's p. 209 gave the tables 1, 2, 4, 6, 8, 10, and 11 in place of 1, 2, 3, 4, 5, 6, and 8 |
-| Compare an undefined entry as 0 and continue | 14 tests: First in class, Search examples, the single cases of [SIMS1994] p. 209, [HOLT2005] Example 5.10, and $S_3$ of Section 10.4, Frettloh Table 1, Frettloh Table 2, Cube, Two colours, Bulatov counts, Pruning, Stored limits, Search capacities, and Colour rule. On the prototype, classes were lost on most presentations (GRP-32) |
+| Swap the two comparisons of the first-in-class test | First in class, Search examples, the single cases of [SIMS1994] p. 209 and [HOLT2005] Example 5.10 of Section 10.1, Least in class, and Frettloh Table 2. The search keeps the greatest table of each class, so every count is unchanged and only the tables catch it. On the prototype, Sims's p. 209 gave the tables 1, 2, 4, 6, 8, 10, and 11 in place of 1, 2, 3, 4, 5, 6, and 8 |
+| Compare an undefined entry as 0 and continue | 14 tests: First in class, Search examples, the single cases of [SIMS1994] p. 209, [HOLT2005] Example 5.10, and $S_3$ of Section 10.1, Frettloh Table 1, Frettloh Table 2, Cube, Two colours, Bulatov counts, Pruning, Stored limits, Search capacities, and Colour rule. On the prototype, classes were lost on most presentations (GRP-32) |
 | Do not push the deductions of a scan | Leaf statistics, because the leaf check then discards tables, and Frettloh Table 2, because the default budget then stops `732` at 13 of its 24 colours. On the prototype, the output stayed right with the leaf check, at more steps (GRP-31) |
 | Do not push the deductions of a scan, and drop the leaf check | Search examples, Frettloh Table 1, Frettloh Table 2, Pruning, Stored limits, Least in class, Word invariance, Search agrees with enumeration, and Colour rule. On the prototype, the output was wrong on some presentations (GRP-31), such as 12 classes of `*732` up to 10 in place of 4 |
 | Drop the leaf check | None. No test can detect it, and the check stays for the reason of GRP-33 |
@@ -917,29 +927,6 @@ These defects of the search were applied to the crate in the same way, with the 
 | Rank the tables in the order in which a run finds them | Search examples, through the order of Sims's tables, and Pruning |
 
 Ranking the tables in the order in which a run finds them was no defect for the prototype's ids of classes, because within one run that order was the lexicographic order (Section 7.17). It is one for the ids of GRP-37, because the expansion of a class does not keep that order.
-
-### 10.4. Tests Under Miri
-
-`DEC-5` and TEST-11 of the coding standard apply in this way:
-
-| Tests | Under Miri | Attribute or configuration |
-| --- | --- | --- |
-| Order two, Conway words, Reflection numbering, Infinite order, Text form, Input limits other than the acceptance of 65536 expanded letters, Error text, Zero generators, Standard form, Distinct conjugates, Empty relators, Auto traits, Long subgroup generator, Fixture rows | Run | None |
-| The single cases `2*3` and `3*2` of "Spherical orders" | Run | Separate tests outside the table test |
-| One case of "Infinite groups", `2222` at a limit of 50 | Run | A separate test outside the table test |
-| Word laws | Run, with fewer cases | The helper of GRP-28 |
-| Spherical orders, Worked examples, Printed permutations, Infinite groups, Limit at its value, Finite at a larger limit, Largest table, One-letter relators, Stack cap one, Closing pass idle, Table laws, Invariance, No panic, Long subgroup generators, Fill steps, Capacities, Queue capacity | Skipped | `#[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]` |
-| The acceptance of exactly 65536 expanded letters in "Input limits" | Skipped | `#[cfg_attr(miri, ignore = "writing out 65536 letters is a loop too long for the interpreter")]` |
-| First in class, Colouring id text, Search limits, Trivial group, Search letter limit, Search fixture rows, Colouring size, Pending size, and Budget helper | Run | None |
-| Three single cases of the search: $\langle x, y \mid x^2, y^3, (xy)^2 \rangle$, which is $S_3$, to the colour count 3, the fixture of [SIMS1994] p. 209, $\langle x, y \mid x^2 \rangle$ to 3, and the fixture of [HOLT2005] Example 5.10, $\langle x, y \mid x^2, y^3, (xy)^4 \rangle$ to 4 | Run | Separate tests outside the table tests. The case of $S_3$ asserts 1, 1, and 3 colourings of the colour counts 1 to 3 and 3 classes |
-| Search examples, Frettloh Table 1, Frettloh Table 2, Cube, Two colours, Bulatov counts, Search agrees with enumeration, Least in class, Pruning, Leaf statistics, Search invariance, Budget and limit, Counts agree, Runs by index, Stored limits, Search capacities, Colour rule, Word invariance | Skipped | `#[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]` |
-| Doctests | Not run | Miri runs the tests through nextest, which runs no doctest |
-
-Section 11.4 gives the time of each search test under Miri. The side presentation of `732` to 12 is too slow there (Section 11.3), while one run of the side presentation of `22` to 12 takes 160 steps (Section 11.4), so a caller can run it under Miri.
-
-The Conway presentation of `*532` and the small worked examples are not run under Miri, because they were too slow there on the prototype (Section 11.1). The acceptance of 65536 expanded letters, "Capacities", and "Fill steps" took more than 100 s each under Miri (Section 11.2), so they are skipped there, and the refusal of 65537 and "Long subgroup generator" run. Each reason in an attribute is in plain words and cites no document.
-
-GRP-28. The property tests MUST take their configuration from one helper in `common`, with the numbers of cases and the failure persistence that Section 4 of `docs/design/tooling.md` states, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and a full set of cases takes too long in the interpreter.
 
 ## 11. Prototype Measurements
 
@@ -966,7 +953,6 @@ These statements of this design rest on figures that no test of the crate measur
 | Conway text | 5.4 | The generators and relators that the prototype printed for `*532`, `532`, `3*2`, `x`, `*`, and `1` matched the rows of Section 5.4 character for character. Section 5.7 of `docs/design/cli.md` states which texts of `info --presentation` the prototype reproduced |
 | Residual risk on time | 15 | 2 generators with 16 random cyclically reduced relators of 4096 letters over the trivial subgroup at the default limit took 20.3 s and 3.5 MiB and reached the limit. With 4 such relators it took 5.1 s, with 1 it took 1.3 s, and with 128 generators 0.25 s. The Conway presentation of a spherical signature of order $N$ expands to at most $2N + 11$ letters |
 | Expanded letters | 15 | The relators of `*(1000)32` expand to 2023 letters, and those of `*(1000)22` to 2021. `*(30000)(30000)` expands to 120011 letters and is refused |
-| Tests under Miri | 10.4 | With one thread: the Conway presentation of `*532` 19.7 s, the small worked examples together 15.6 s, "Infinite groups" at a limit of 50 3.8 s, `3*2` 2.7 s, `2*3` 1.7 s, and `x`, `22`, and `*` 1.3 s |
 
 The prototype did not run SymPy or GAP. Its comparisons use the printed tables of Section 7.20 of the colouring reference and a rewrite of SymPy's routines from its source.
 
@@ -1020,7 +1006,6 @@ These figures support the statements of this design:
 | Order of the input | 6.2 | Over 5000 presentations of the same strategy from its deterministic runner, at a limit of 2000, reversing only the subgroup generators changed the number of cosets defined, which is the smallest limit at which the run finishes, in 285 of the 3184 cases that finished in both orders. Whether a run finished at 2000 changed in none, and reversing only the relators changed the number of cosets defined in none. Every pair that finished gave equal tables |
 | Debug times of the enumeration | 6.3 | Cox 5.1 ms, B_2_4 15.7 ms, `*532` 0.9 ms, `*(1000)22` 563 ms, `(1000)22` 88 ms, `*(1000)32` to the default limit 78 ms, and `*(4096)22` 9.43 s. `*(4096)22` finishes at exactly 16384, its order, because of the rule of Section 7.5 |
 | Debug time of each test | 10.1 | "Closing pass idle" 2.4 s alone, and 3.6 s and 10.0 s inside the two runs of `just check` and `just coverage`. With its cap-1 half at a limit of 1000 it took 8.0 s alone, 15 to 23 s inside `just check`, and 45 to 51 s under `just coverage`, and at 2000 it took 36 s alone. "Largest table" 0.35 s alone, and 0.49 s and 1.10 s inside the same two runs. "Invariance" 0.39 s, "Table laws" 0.20 s, "Stack cap one" 0.036 s, "Capacities" 0.033 s, "Worked examples" 0.031 s, "Fill steps" 0.027 s, and every other test under 0.025 s |
-| Time of each test under Miri | 10.4 | With one thread, for the tests of the enumeration, the slowest are the generator limit of `Presentation::new` 4.0 s, the subgroup checks of `enumerate` 4.0 s, "Distinct conjugates" 3.4 s, "Long subgroup generator" 2.7 s, the relator limit of `Presentation::new` 2.6 s, `3*2` 1.6 s, "Word laws" with 8 cases 1.5 s, and `2222` at a limit of 50 1.5 s. Every other test took under 1.4 s. "Capacities" took 138 s and "Fill steps" 102 s, so both are skipped. The acceptance of 65536 expanded letters took 408 s, so it is skipped. A test of the table entries with 256 generators took 24 s, so the test uses 8 and 9 generators. A quadratic check of repeated names took 39 s, so the name check uses a `BTreeMap` |
 | Peak memory at `CosetLimit::MAX` | 15 | In a release build: $\mathbb{Z}_{32}^4$ with 8 columns, index $2^{20}$, 1.12 s and 75.69 MiB against a bound of 76.0 MiB. $\mathbb{Z}_{16}^5$ with 10 columns, index $2^{20}$, 1.09 s and 91.66 MiB against 92.0 MiB. The free group on 8 generators with 16 columns at a limit of 540000, which reaches it, 0.025 s and about 34.9 MiB against 37.1 MiB for the enumeration phase. The same at `CosetLimit::MAX`, the input of "Largest table", 0.046 s and 67.7 MiB against 72 MiB for the enumeration phase, because a run that reaches its limit makes no relabelled copy, so the table and the representatives take 68 MiB |
 | Residual risk on time | 15 | In a release build, on a host with 16 cores that ran other jobs at the same time. At `CosetLimit::MAX`: $\langle x, y \mid x^{1024}, y^{1024}, [x, y] \rangle$ over the trivial subgroup, 2052 expanded letters, index $2^{20}$ in 35.7 s. The same group with the redundant relator $x^{1024}$ added, 3076 letters, 55.4 s, with $x^{4096}$, 6148 letters, 72.3 s, and with $x^{62464}$, 64516 letters, 393.0 s, the slowest finishing input measured. At `CosetLimit::DEFAULT`: the first of these inputs reaches the limit in 0.010 s. 2 generators with 16 random cyclically reduced relators of 4096 letters, 65536 expanded letters, reach the limit in 11.92 s, the slowest input found there. $\mathbb{Z}_{128} \times \mathbb{Z}_{128}$ finishes in 0.026 s, 388 letters, and with a redundant power of $x$ added in 0.56 s at 16260 letters, 1.10 s at 32260 letters, and 2.17 s at 64260 letters, the slowest finishing input found there. $\mathbb{Z}_{32768} \times \mathbb{Z}_2$, whose order is above the limit, takes about 0.27 s, and $\langle x \mid x^{65536} \rangle$ 0.55 s. The time grew about as $N (\alpha + \beta E)$ for $N$ cosets defined and $E$ expanded letters. The padded series at the default limit is linear in $E$ with $\beta$ about 2.1 ns. At the maximum limit $\beta$ is 5.2 to 5.8 ns, because the table of 16 MiB does not fit the cache: $(72.3 - 55.4)$ s over 3072 letters and $2^{20}$ cosets gives 5.2 ns, and 393 s over 64516 letters and $2^{20}$ cosets gives 5.8 ns. Most of the time of a finishing run is the closing pass, which scans every relator at every coset, and the scans of long conjugates. Random long relators cost more for each coset than one long power |
 | Scan-and-fill | 7.3 | In a release build, at `CosetLimit::MAX`. The free group on 2 generators with 256 random reduced subgroup generators of 4096 letters reaches the limit in 0.031 s with a largest stack of 1. A variant that restarts each trace from coset 0 after each definition and processes the deductions only after all subgroup generators took 4.99 s with a largest stack of 1046232. The Klein four-group with the first 250 of those words gives index 2 after 4 cosets defined in 0.005 s, where the variant took 4.27 s and defined 1021474 cosets. In debug builds, the Klein four-group with 5 random subgroup generators of 4096 letters gives index 2 after 4 cosets defined at the default limit, and $\langle x \mid x^2 \rangle$ with $x^{4096}$ gives index 2 after 2 cosets defined at limits of 2 and 4095. The variant returned `CosetLimitReached` on these three inputs, with a largest stack of 16387 on the first |
@@ -1052,7 +1037,6 @@ These statements of Sections 7.10 to 7.17 rest on figures of a second prototype 
 | Fold word | 7.16 | For 300 samples of each of 12 signatures, the product of $P_i^{-1}$ in fold order mapped the folded point back onto the sample within $5.9 \times 10^{-6}$ in hyperbolic distance, $1.4 \times 10^{-14}$ in the plane, and $2.1 \times 10^{-8}$ on the sphere. The product in reverse order missed by 1.5 to 2.5 |
 | Colour rule | 7.16 | The rule of GRP-38 was perfect with the exact permutation on every class of `*732` up to 12, `*642` up to 8, `532`, `432`, `*532` up to 12, `2222` up to 6, `732` up to 9, `*2222` up to 5, `632` up to 8, `333` up to 7, `(1000)22` up to 8, and `22`. Reversed without the inverse, the exact permutation failed on 37 of 64 classes of `2222` and 4 of 4 of `532`, and on no reflection domain, and the picture was the right one reflected in a wall of the starred domain on every class of `732`, `432`, `2222`, `642`, and `532` tried |
 | Schreier generators | 10.1 | The Schreier generators of every table found, given to `enumerate` at `CosetLimit::MAX`, gave the same table: 73 of 73 for `*642`, 116 of 116 for `2222`, 197 of 197 for `*2222`, and every table of `732`, `432`, `*(1000)32`, and `(1000)22` tried |
-| Tests under Miri | 10.4 | With nightly Miri, the side presentation of `732` to 12, 89549 steps, took 32 s |
 
 ### 11.4. Figures of the Search in the Crate
 
@@ -1167,7 +1151,6 @@ These figures support the statements of Sections 7.10 to 7.17 and of Section 15:
 | Peak memory | 15 | Against the bound of GRP-40: 0.68 to 0.99 of it for every call that completed at limits 12 and 24, such as `*642` at 12 with 352 KB of 407 KB, `*2222` at 12 with 0.972, and `2222` at 24 with 8.63 MB of 8.73 MB. For every call that stopped at a limit, 0.48 to 0.80 of the bound at $T = 2^{22}$ and $M = 65536$, which is 27.3 MB for $L = 12$ and $c = 6$. `*664` and `*666` peak at 19.9 MB and `664` at 21.7 MB |
 | Subgroups of a class | 7.13 | Under the ids of GRP-37: the class `3a` of `*642` has 3 members, `3a`, `3b`, and `3c`, the only class of 3 colours. `8a` of `*642` has 4, `8a`, `8o`, `8z`, and `8az`. `8a` of `*732` has 8, `8a` to `8h`, the only class of 8 colours. `9a` of `732` has 9, `9a` to `9i`. `3a` of `432` has 3, `3a` to `3c`. `4a` of `432` has 4. `5a` of `532` has 5, `5a` to `5e`, and `6a` of `532` has 6. `5a` of `*532` has 5, `5a` to `5e`. `4a` of `*2222` has 2, `4a` and `4h`, and `4c` of `*2222` is a class of one. `2222` has 12 colourings of 3 colours in 4 classes of 3, `3a`, `3b`, `3c`, and `3d` |
 | Debug time of each test | 10.1 | One thread: "Closing pass idle" 2.25 s, "Frettloh Table 1" 1.42 s, "Search examples" 1.04 s, "Counts agree" 0.51 s, "Runs by index" 0.29 s, "Pruning" 0.25 to 1.1 s, because `proptest` draws new cases on each run, "Least in class" 0.22 s, "Stored limits" 0.18 s, "Budget and limit" 0.15 s, "Leaf statistics" 0.14 s, "Frettloh Table 2" 0.14 s, "Search invariance" 0.14 s, "Search agrees with enumeration" 0.06 s, "Bulatov counts" 0.05 s, "Search capacities" 0.04 s, "Cube" 0.02 s, "Word invariance" 0.02 s, which searches its fixed presentations once for all cases, and every other search test under 0.01 s. The whole crate takes 2.5 s on many threads |
-| Time of each test under Miri | 10.4 | With nightly Miri, one thread, and an idle host, 54 tests run and 36 are skipped, in 54.5 s. The search tests that run: "First in class" 3.16 s, "Search fixture rows" 2.76 s, "Trivial group" 2.66 s, "Search letter limit" 2.43 s, "Search limits" 1.89 s, the case of [HOLT2005] Example 5.10 to 4 1.21 s, the case of [SIMS1994] p. 209 to 3 1.06 s, the case of $S_3$ to 3 0.87 s, each id test of "Colouring id text" 0.58 to 0.64 s, "Colouring size" 0.57 s, "Pending size" 0.55 s, and "Budget helper" 0.52 s. Under the load of a run of `just check`, each took 4 to 10 s |
 
 ### 11.5. Figures of the Wallpaper Prototype
 
@@ -1177,18 +1160,18 @@ A prototype outside the repository tested this design. A copy of the workspace g
 
 The numbers of subgroups of the side presentation equal those of the Conway presentation at every index from 1 to 12, for all ten signatures. Each cell of the second column holds both. "Smallest budget" is the smallest `SearchBudget` that completes index 12, which bisection found, for the side presentation and then the Conway presentation:
 
-| Signature | Subgroups of index 1 to 12 | Release time to 12 | Smallest budget to 12 | Debug time to 12 and to 24 | Miri time to 6, side and Conway |
-| --- | --- | --- | --- | --- | --- |
-| `o` | 1 3 4 7 6 12 8 15 13 18 12 28 | 0.001 s | 539165 and 577191 | 0.019 s and 0.264 s for the side, 0.419 s for the Conway presentation | 9.3 s and 9.6 s |
-| `**` | 1 7 4 19 6 28 8 43 13 42 12 76 | 0.001 s | 481105 and 464143 | 0.016 s and 0.159 s | 12.5 s and 12.7 s |
-| `xx` | 1 3 4 7 6 12 8 15 13 18 12 28 | Under 0.001 s | 199282 and 197929 | 0.007 s and 0.080 s | 5.3 s and 5.0 s |
-| `*x` | 1 3 4 11 6 12 8 27 13 18 12 44 | Under 0.001 s | 252905 and 248148 | 0.008 s and 0.094 s | 6.7 s and 6.3 s |
-| `22x` | 1 3 6 11 10 20 14 39 27 42 22 92 | Under 0.001 s | 235197 and 230421 | 0.009 s and 0.095 s | 6.2 s and 5.8 s |
-| `22*` | 1 7 6 23 10 44 14 67 27 82 22 156 | 0.001 s | 633890 and 421281 | 0.026 s and 0.234 s | 17.5 s and 15.9 s |
-| `2*22` | 1 7 6 31 10 44 14 111 27 82 22 212 | 0.001 s | 685143 and 669131 | 0.025 s and 0.284 s | 24.1 s and 28.2 s |
-| `4*2` | 1 3 0 11 0 12 0 39 9 30 0 52 | Under 0.001 s | 138488 and 132166 | 0.007 s and 0.073 s | 13.6 s and 11.6 s |
-| `3*3` | 1 1 4 4 0 10 0 4 21 0 0 31 | Under 0.001 s | 72040 and 73940 | 0.004 s and 0.031 s | 10.0 s and 12.1 s |
-| `2222` | 1 7 12 31 30 76 56 127 117 186 132 348 | 0.002 s | 1245792 and 857812 | 0.057 s and 0.919 s | 36.8 s and 18.7 s |
+| Signature | Subgroups of index 1 to 12 | Release time to 12 | Smallest budget to 12 | Debug time to 12 and to 24 |
+| --- | --- | --- | --- | --- |
+| `o` | 1 3 4 7 6 12 8 15 13 18 12 28 | 0.001 s | 539165 and 577191 | 0.019 s and 0.264 s for the side, 0.419 s for the Conway presentation |
+| `**` | 1 7 4 19 6 28 8 43 13 42 12 76 | 0.001 s | 481105 and 464143 | 0.016 s and 0.159 s |
+| `xx` | 1 3 4 7 6 12 8 15 13 18 12 28 | Under 0.001 s | 199282 and 197929 | 0.007 s and 0.080 s |
+| `*x` | 1 3 4 11 6 12 8 27 13 18 12 44 | Under 0.001 s | 252905 and 248148 | 0.008 s and 0.094 s |
+| `22x` | 1 3 6 11 10 20 14 39 27 42 22 92 | Under 0.001 s | 235197 and 230421 | 0.009 s and 0.095 s |
+| `22*` | 1 7 6 23 10 44 14 67 27 82 22 156 | 0.001 s | 633890 and 421281 | 0.026 s and 0.234 s |
+| `2*22` | 1 7 6 31 10 44 14 111 27 82 22 212 | 0.001 s | 685143 and 669131 | 0.025 s and 0.284 s |
+| `4*2` | 1 3 0 11 0 12 0 39 9 30 0 52 | Under 0.001 s | 138488 and 132166 | 0.007 s and 0.073 s |
+| `3*3` | 1 1 4 4 0 10 0 4 21 0 0 31 | Under 0.001 s | 72040 and 73940 | 0.004 s and 0.031 s |
+| `2222` | 1 7 12 31 30 76 56 127 117 186 132 348 | 0.002 s | 1245792 and 857812 | 0.057 s and 0.919 s |
 
 The row of `2222` equals its row in Section 11.4.
 
@@ -1207,8 +1190,7 @@ The prototype also measured these figures:
 | `o` and `xx` | The counts of `o` and `xx` are equal at every index computed, to 64 for `xx` and to 39 for the side presentation and 32 for the Conway presentation of `o`. Each count equals the sum of the divisors of its index. So no count tells `o` from `xx`. The test "Wallpaper certificate" of DOM-57 of `docs/design/domain.md` is required for that reason: its point group tells `o` from `xx`, its glide reflections whose axes are no mirror lines tell `**` from `*x`, and its rotations whose centres lie on mirror lines tell `22*` from `2*22` |
 | A dropped cycle relator | With the second cycle relator of `*x` left out of its side presentation, the counts of index 1 to 6 were 1, 3, 7, 23, 71, and 255, so the equal counts detect it |
 | A dropped mirror relator | With `s1^2` or `s3^2` left out of the side presentation of `*x`, the counts of index 1 to 6 stayed 1, 3, 4, 11, 6, and 12, so the equal counts do not detect it. The test "Relators evaluate" of `docs/design/domain.md` is the check that does |
-| Under Miri | A search to index 6 took 5.0 to 36.8 s for each presentation, as the last column of the table above gives, so the test of the equal counts cannot run under Miri at a useful index, and Section 12.3 of `docs/design/domain.md` skips it there |
-| Index of the test | The prototype recommended index 16 for the test of the equal counts in `just test`, which took under 5 ms in a release build and well under 1 s in a debug build for each presentation. The test "Equal counts" of DOM-57 of `docs/design/domain.md` runs to index 16 with `SearchBudget::DEFAULT` at `aspect` 1, and is skipped under Miri |
+| Index of the test | The prototype recommended index 16 for the test of the equal counts in `just test`, which took under 5 ms in a release build and well under 1 s in a debug build for each presentation. The test "Equal counts" of DOM-57 of `docs/design/domain.md` runs to index 16 with `SearchBudget::DEFAULT` at `aspect` 1 |
 
 ## 12. Dependencies
 
@@ -1252,7 +1234,7 @@ These readings of this design rest on no sentence of a source. Each names what c
 - The groups of the Euclidean and hyperbolic signatures `*632`, `2222`, `o`, and `*732` are infinite, so their enumeration reaches any limit. The test "Infinite groups" relies on it, and only reports a run that reached its limit (GRP-17). A source that states that a Euclidean or hyperbolic orbifold group is infinite would settle it.
 - Writing each entry of a one-letter relator when its row is created gives the same table as finding the entry by a scan. Rule (b) of [CANNON-HAVAS1992] forces the entry (Section 7.5), and the closing pass and the test "One-letter relators" check it. Neither [HOLT2005] nor [SIMS1994] treats a relator of one letter (Section 7.9 of the colouring reference), so a source that does, or Lean, would settle it.
 - The mirror of a class of a rotation side presentation, the class of the table whose generator and inverse columns are swapped, is the class that Frettloh identifies with it as conjugate in $G_{p,q}$ (Section 5.4 of the colouring reference). This is the prototype's reading of the automorphism $s_i \mapsto s_i^{-1}$, which conjugation by a reflection realizes, and no source states it. "Frettloh Table 2" relies on it and compares every count of the table under it.
-- The single case of $S_3$ under Miri (Section 10.4) asserts counts that no source of the colouring reference prints, and the test takes them from the subgroups of $S_3$. A source that prints the subgroups of $S_3$ with their indices would settle it.
+- The single case of $S_3$ (Section 10.1) asserts counts that no source of the colouring reference prints, and the test takes them from the subgroups of $S_3$. A source that prints the subgroups of $S_3$ with their indices would settle it.
 - The generators $c$, $b$, and $a$ of [FRETTLOH2008] are $s_0$, $s_1$, and $s_2$ of the Coxeter presentation of Section 10.1. The relators $(bc)^p$, $(ab)^q$, and $(ac)^2$ of $G_{p,q}$ (Section 5.1 of the colouring reference) match the relators of that presentation under this reading, and "Frettloh Table 1" relies on it.
 - A generic sample has a trivial stabilizer, so the fold of a sample names one tile. GRP-38 relies on it, and the measurement "Fold word" of Section 11.3 checks it on samples.
 
@@ -1314,6 +1296,7 @@ None of these blocks the crate. Each states what the design does until the owner
 6. Long power relators. The search at the default limit stops early for triangle groups whose corner orders are all near 1000, at 7 to 10 colours (Section 7.14). The design accepts this. The recorded idea is the scan of a power relator by the cycle of its base, which Section 7.14 describes. It is unmeasured and would need its own design and tests.
 7. Reference counts. The tests compare the search with printed counts only, because no GAP, Sage, or SymPy is available in the container. The alternative is fixtures generated offline with GAP or `low_index` and committed as data with their provenance, which would cover the Euclidean groups that no printed table covers.
 8. A higher limit can complete fewer colour counts. When the one run at the limit $N$ stops, the runs by index share one budget (GRP-35), so a call with a higher limit can complete fewer colour counts than a call with a lower limit whose one run ends. Section 11.3 of `docs/design/cli.md` records the measured cases of `escher info`.
+9. Tests kept for a reason that does not apply. TQ-11 of `docs/design/tooling.md` puts them to the owner, including the single cases of Section 10.1.
 
 ## 15. Security Considerations
 
@@ -1484,7 +1467,7 @@ The tags of the mathematical and software sources resolve to the reference secti
 | GRP-25 | The conjugate lists hold each distinct cyclic conjugate once | 7.2 |
 | GRP-26 | A one-letter relator fixes its entries at coset 0 and at each new coset | 7.5 |
 | GRP-27 | An overflowing stack is emptied before a lookahead that keeps its pushes, and the cap is a crate-private parameter | 7.6 |
-| GRP-28 | Property tests take their configuration from one Miri-aware helper | 10.4 |
+| GRP-28 | Withdrawn on 2026-11-19. | 10.1 |
 | GRP-29 | The search counts one step for each table read and two for each entry that the expansion compares, and stops at the first read beyond the budget, or at most $2kc$ reads past it in the expansion | 7.12 |
 | GRP-30 | The search finds one class table for each class and expands each class into its subgroups | 7.10 |
 | GRP-31 | Deductions use every relator, are pushed, are selected by letter, and a contradiction abandons the candidate | 7.11 |

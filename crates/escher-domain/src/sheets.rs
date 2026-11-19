@@ -373,10 +373,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the sweep of the small polygons runs loops too long for the interpreter"
-    )]
     fn no_sheet_holds_three_corners() {
         let signatures = small_polygons();
         assert!(signatures.len() > 4000, "{}", signatures.len());
@@ -486,20 +482,12 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the sweep of the small polygons runs loops too long for the interpreter"
-    )]
     fn defaults_of_the_small_polygons_are_unclamped_and_rounded_to_three_decimals() {
         let samples = assert_defaults(small_polygons().iter().map(corner_orders));
         assert!(samples >= 4000, "{samples}");
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the interpreter adds rounding errors of its own to the inverse hyperbolic cosine, which can exceed the bound of four units in the last place"
-    )]
     fn slice_default_is_the_distance_between_two_walls() {
         let vertices =
             [0.0, 1.0, 2.0, 3.0].map(|turn| rotation(turn * PI / 2.0) * (boost(1.0) * ORIGIN));

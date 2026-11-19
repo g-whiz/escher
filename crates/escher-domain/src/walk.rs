@@ -505,10 +505,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn cosh_and_sinh_match_the_reference_relatively() {
         let mut reference = Reference::new();
         let mut largest = [(0.0, String::new()), (0.0, String::new())];
@@ -535,10 +531,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn cos_and_sin_of_the_corner_angles_match_the_reference() {
         let mut reference = Reference::new();
         let pi = reference.pi();

@@ -774,10 +774,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the enumeration runs a loop too long for the interpreter"
-    )]
     fn one_letter_relators_define_exactly_the_group_order() {
         for (signature, order) in [("*532", 120), ("x", 2), ("*", 2)] {
             let (table, stats) = finished(&conway(signature), &[], STACK_CAP);
@@ -802,10 +798,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the enumeration runs a loop too long for the interpreter"
-    )]
     fn stack_cap_one_gives_the_tables_of_the_default_cap() {
         let mut cases: Vec<(String, Presentation, Vec<Word>)> = FIXTURES
             .iter()
@@ -843,10 +835,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the enumeration runs a loop too long for the interpreter"
-    )]
     fn filling_a_subgroup_generator_reads_each_letter_once() {
         let x = Letter::generator(0);
         let square = Relator::new(letters(&[x]), 2).expect("valid");
@@ -862,10 +850,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the enumeration runs a loop too long for the interpreter"
-    )]
     fn capacities_stay_within_the_limit() {
         let x = Letter::generator(0);
         let cyclic = Relator::new(letters(&[x]), 600).expect("valid");
@@ -885,10 +869,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the enumeration runs a loop too long for the interpreter"
-    )]
     fn coincidence_queue_stays_within_the_limit() {
         let [x, y] = [0, 1].map(Letter::generator);
         let power = |letter: Letter, other: Letter| {
@@ -911,7 +891,6 @@ mod tests {
         #![proptest_config(proptest_config())]
 
         #[test]
-        #[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]
         fn closing_pass_changes_nothing((presentation, subgroup) in random_presentation()) {
             let (default, stats) = run(&presentation, &subgroup, limit(2000), STACK_CAP);
             prop_assert_eq!(stats.closing_changes, 0);
@@ -968,10 +947,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "writing out 65536 letters is a loop too long for the interpreter"
-    )]
     fn enumerate_accepts_the_expanded_letters_at_their_limit() {
         assert_eq!(
             power_of_one_letter(65536).map(|table| table.index()),

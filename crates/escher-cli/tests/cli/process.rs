@@ -3,7 +3,6 @@ use std::process::Command;
 use crate::common::output_path;
 
 #[test]
-#[cfg_attr(miri, ignore = "the interpreter cannot start a process")]
 fn binary_renders_a_file_and_exits_with_status_zero() {
     let output = output_path("smoke");
     let result = Command::new(env!("CARGO_BIN_EXE_escher"))

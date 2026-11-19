@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-16 |
+| Date | 2026-11-19 |
 | Applies to | `crates/escher-signature` |
 
 ## Abstract
@@ -615,17 +615,9 @@ Each test below names the item of the field "Tests and acceptance" of Section 5.
 | Auto traits | None | Compile-time assertion in a unit test in `lib.rs`, which calls a generic function with the bounds `Send + Sync + 'static` once for each public type | Each public type is `Send`, `Sync`, and `'static` | CONC-1 of the coding standard |
 | Doctests | None | Doctests | The examples of the crate-level documentation | Sections 7.4 and 7.5 of `docs/writing-documentation.md` |
 
-The property tests commit their regression files (TEST-9 of the coding standard).
+The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest` (TEST-11 of the coding standard).
 
-### 12.2. Tests Under Miri
-
-`DEC-5` and TEST-11 of the coding standard apply to the tests of this crate in this way:
-
-- The table tests, the unit tests, the canonical examples, and the auto-trait test run under Miri unchanged.
-- The Euclidean enumeration and the equivalence classes carry `#[cfg_attr(miri, ignore = "the enumeration runs a loop too long for the interpreter")]`. The reason is in plain words and cites no document.
-- The doctests do not run under Miri, because Miri runs the tests through nextest, which runs no doctest.
-
-SIG-16. The property tests MUST take their configuration from one helper in `common`, with the numbers of cases and the failure persistence that Section 4 of `docs/design/tooling.md` states, because the file persistence of `proptest` asks for the current directory, which the isolation of Miri refuses, and a full set of cases takes too long in the interpreter.
+SIG-16. Withdrawn on 2026-11-19.
 
 ## 13. Dependencies
 
@@ -693,7 +685,6 @@ No other document dictates these choices:
 | The span is a `Range<usize>`, and the error holds no input text beyond the character or order that its text shows | 10.1 |
 | `Order` is opaque, `Geometry` has no `Display`, and `FromStr` is the only constructor | 3 |
 | The limits of 1024 bytes and 64 features, with a handle counted twice | 16 |
-| Fewer property-test cases under Miri | 12.2 |
 
 ### 15.3. Points for the Owner
 
@@ -785,6 +776,6 @@ The tags of the mathematical sources resolve to the reference sections of `docs/
 | SIG-13 | Each classification method returns its defined value, or `None` | 9.1 |
 | SIG-14 | `Error` follows ERR-1, with the operation that failed | 10.1 |
 | SIG-15 | The `Display` text of each kind is the one stated | 10.2 |
-| SIG-16 | Property tests take their configuration from one helper that is Miri-aware | 12.2 |
+| SIG-16 | Withdrawn on 2026-11-19. | 12.1 |
 | SIG-17 | `thiserror` is the only normal dependency, and no dependency type is public | 13 |
 | SIG-18 | The length, order, and size limits are enforced with `LimitExceeded` | 16 |

@@ -2005,10 +2005,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn regular_polygons_have_the_reference_angles_and_area() {
         let mut reference = Reference::new();
         let count = REGULAR_CORNERS.len() * REGULAR_ORDERS.len();
@@ -2050,10 +2046,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn doubles_of_regular_polygons_have_the_reference_angles_and_area() {
         let mut reference = Reference::new();
         let count = REGULAR_CORNERS.len() * REGULAR_ORDERS.len();
@@ -2112,10 +2104,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-    )]
     fn frame_angle_at_a_flat_vertex_is_pi() {
         let mut reference = Reference::new();
         let pi = reference.pi();
@@ -2262,11 +2250,7 @@ mod tests {
     }
 
     fn built_polygons() -> Vec<FundamentalDomain> {
-        if cfg!(miri) {
-            vec![built("*3333")]
-        } else {
-            ["*5432", "*3333", "*22222"].map(built).to_vec()
-        }
+        ["*5432", "*3333", "*22222"].map(built).to_vec()
     }
 
     #[test]
@@ -2788,10 +2772,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "the interpreter rounds each inverse cosine differently, so the two sums can differ in the last bit"
-    )]
     fn angles_of_2222_by_its_cycles_equal_those_by_its_vertices() {
         let mut aspects = vec![0.125, 1.0, 1.618, 8.0];
         aspects.extend((0..=64).map(|step| 0.125 * 64.0_f64.powf(f64::from(step) / 64.0)));

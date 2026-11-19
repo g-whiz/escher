@@ -575,7 +575,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn colour_of_applies_the_inverse_of_the_first_side_last() {
         let found = colourings(&conway("532"), index_limit(6), SearchBudget::DEFAULT)
             .expect("the search runs");

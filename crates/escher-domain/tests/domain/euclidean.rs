@@ -180,10 +180,6 @@ fn euclidean_signatures_build_with_their_sides_and_angles() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn euclidean_domains_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut quantities = Quantities::new();
@@ -239,10 +235,6 @@ fn symmhub_lines(reference: &mut Reference, orders: [u32; 3], exact: &Polygon) -
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn euclidean_triangle_walls_are_the_lines_of_symmhub() {
     let mut reference = Reference::new();
     let mut worst = Worst::new("wall against the line of SymmHub, up to sign", 9);

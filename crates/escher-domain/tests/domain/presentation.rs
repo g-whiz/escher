@@ -180,10 +180,6 @@ fn assert_side_order(text: &str) -> Duration {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the coset enumeration runs loops too long for the interpreter"
-)]
 fn side_presentations_give_the_group_order_on_the_sphere() {
     let mut texts = spherical_signatures();
     texts.extend(limit_signatures());
@@ -405,10 +401,6 @@ struct Largest {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the checks of the largest orders run loops too long for the interpreter"
-)]
 fn side_relators_evaluate_to_the_identity() {
     let mut texts: Vec<String> = triangles().map(text).collect();
     texts.extend(triangles().map(cone_text));
@@ -499,10 +491,6 @@ fn corner_words(count: usize) -> Vec<Word> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the coset enumeration runs loops too long for the interpreter"
-)]
 fn corner_words_of_a_reflection_domain_generate_a_subgroup_of_index_two() {
     let mut texts: Vec<String> = EXAMPLE_TRIPLES.into_iter().map(text).collect();
     texts.extend(
@@ -543,10 +531,6 @@ fn side_presentations_of_the_wallpaper_domains_have_the_documented_text() {
 const WALLPAPER_COLOUR_LIMIT: u32 = 16;
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the colouring search runs loops too long for the interpreter"
-)]
 fn side_and_conway_presentations_of_the_wallpaper_domains_give_equal_colouring_counts() {
     let Ok(limit) = IndexLimit::new(WALLPAPER_COLOUR_LIMIT) else {
         panic!("{WALLPAPER_COLOUR_LIMIT} colours are out of range");

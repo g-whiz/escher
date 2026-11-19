@@ -73,20 +73,8 @@ pub(crate) fn all_triangles() -> Vec<[u32; 3]> {
     triples
 }
 
-const MIRI_CASES: u32 = 8;
-
 pub(crate) fn proptest_config() -> Config {
-    proptest_config_with_miri_cases(MIRI_CASES)
-}
-
-pub(crate) fn proptest_config_with_miri_cases(cases: u32) -> Config {
-    if cfg!(miri) {
-        let mut config = Config::with_cases(cases);
-        config.failure_persistence = None;
-        config
-    } else {
-        Config::default()
-    }
+    Config::default()
 }
 
 pub(crate) fn order_text(order: u32) -> String {

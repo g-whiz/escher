@@ -1,4 +1,2 @@
 [profile.default]
 retries = 0
-
-[profile.default-miri]

@@ -157,10 +157,6 @@ fn exact_frames(built: &FundamentalDomain, orders: [u32; 3]) -> [Frames; 3] {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn relator_check_agrees_with_the_exact_powers_in_both_frames() {
     let mut reference = Reference::new();
     let mut check_agreement = Worst::new(
@@ -210,10 +206,6 @@ fn largest_in_each_frame(orders: [u32; 3]) -> (BigFloat, BigFloat, f64) {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn relators_in_the_domain_frame_exceed_the_tolerance_only_at_the_largest_orders() {
     let mut reference = Reference::new();
     for (orders, domain_bound, corner_bound) in FRAME_CASES {

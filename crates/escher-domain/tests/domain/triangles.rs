@@ -90,10 +90,6 @@ fn record(column: &mut Column, orders: [u32; 3], built: &FundamentalDomain, exac
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn triangles_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let (small, all) = (small_triangles(), all_triangles());
@@ -119,10 +115,6 @@ fn triangles_are_within_their_bounds_of_the_reference() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
-)]
 fn third_side_matches_the_law_of_cosines() {
     let mut reference = Reference::new();
     let placement_tolerance = reference.parse("1e-60");
@@ -154,10 +146,6 @@ fn third_side_matches_the_law_of_cosines() {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the checks of the largest orders run loops too long for the interpreter"
-)]
 fn checks_pass_at_the_worst_cases() {
     let mut largest = LargestResiduals::new();
     let mut kites = LargestResiduals::new();
@@ -267,10 +255,6 @@ fn is_claimed_polygon(orders: &[u32]) -> bool {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the checks of the largest orders run loops too long for the interpreter"
-)]
 fn checks_pass_at_the_default_shapes_of_the_polygons_and_their_doubles() {
     let small = small_polygons();
     assert_eq!(small.len(), SMALL_POLYGONS);
@@ -349,10 +333,6 @@ fn polygons_with_a_corner_of_order_1000(corners: usize) -> BTreeSet<String> {
 }
 
 #[test]
-#[cfg_attr(
-    miri,
-    ignore = "the checks of the largest orders run loops too long for the interpreter"
-)]
 fn polygons_of_four_to_six_corners_with_a_corner_of_order_1000_keep_their_claimed_margin() {
     for corners in SWEPT_CORNERS {
         let mut margins = Margins::new(format!(

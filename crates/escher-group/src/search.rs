@@ -1277,7 +1277,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn runs_by_index_end_at_the_last_bound_that_fits_the_budget() {
         let presentation = coxeter(6, 4, 2);
         let full = listed(&presentation, 12, Settings::new(SearchBudget::MAX)).0;
@@ -1335,7 +1334,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn stored_limits_stop_a_run_as_the_budget_does() {
         let presentation = coxeter(6, 4, 2);
         let full = listed(&presentation, 12, Settings::new(SearchBudget::MAX)).0;
@@ -1391,7 +1389,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
     fn capacities_stay_at_the_size_that_the_bound_sets() {
         let (_, stats) = search(
             &coxeter(6, 4, 2),
@@ -1420,7 +1417,6 @@ mod tests {
         #![proptest_config(proptest_config())]
 
         #[test]
-        #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
         fn pruning_partial_tables_loses_no_class((presentation, limit) in small_presentation()) {
             let partial = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Partial)).0;
             let complete = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Complete)).0;
@@ -1437,7 +1433,6 @@ mod tests {
         }
 
         #[test]
-        #[cfg_attr(miri, ignore = "the search runs a loop too long for the interpreter")]
         fn leaf_checks_discard_nothing_and_leaves_are_standard((presentation, limit) in small_presentation()) {
             for pruning in [Pruning::Partial, Pruning::Complete] {
                 let (_, stats) = search(&presentation, limit, Request::Count, settings(SEARCH_BUDGET, pruning))
