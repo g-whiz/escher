@@ -1,5 +1,5 @@
 use astro_float_num::BigFloat;
-use escher_domain::{Check, FundamentalDomain, ShapeParameters};
+use escher_domain::{Check, ErrorKind, FundamentalDomain, ShapeParameters, Verification};
 use glam::DVec3;
 use proptest::test_runner::Config;
 
@@ -184,7 +184,10 @@ impl LargestResiduals {
     }
 
     pub(crate) fn record(&mut self, built: &FundamentalDomain, input: &str) {
-        let verification = built.verify();
+        self.record_verification(&built.verify(), input);
+    }
+
+    pub(crate) fn record_verification(&mut self, verification: &Verification, input: &str) {
         let checks = [
             verification.isometries(),
             verification.pairings(),
@@ -267,6 +270,23 @@ pub(crate) fn starred(rotation: &str) -> String {
 
 pub(crate) const LIMIT_ROTATION_POLYGONS: [&str; 1] =
     ["(1000)(1000)(1000)(1000)(1000)(1000)(1000)(1000)"];
+
+pub(crate) const REFUSED_DOUBLE_TEXT: &str = "cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough";
+
+pub(crate) fn built_or_refused_at_the_limit(text: &str) -> Option<FundamentalDomain> {
+    assert!(LIMIT_ROTATION_POLYGONS.contains(&text), "{text}");
+    match FundamentalDomain::build(&signature(text)) {
+        Ok(domain) => Some(domain),
+        Err(error) => {
+            assert_eq!(
+                (error.kind(), error.to_string()),
+                (ErrorKind::Numerical, REFUSED_DOUBLE_TEXT.to_owned()),
+                "{text}"
+            );
+            None
+        }
+    }
+}
 
 pub(crate) fn named_rotation_polygons() -> Vec<String> {
     NAMED_POLYGONS

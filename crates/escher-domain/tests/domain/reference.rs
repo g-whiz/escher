@@ -583,6 +583,657 @@ impl Reference {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FeatureKind {
+    Corner,
+    Length(usize),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Feature {
+    pub(crate) kind: FeatureKind,
+    pub(crate) first: usize,
+    pub(crate) last: usize,
+}
+
+pub(crate) struct Cuts {
+    pub(crate) pairs: usize,
+    pub(crate) sheets: Vec<[Feature; 3]>,
+    pub(crate) slice_walls: Vec<(usize, usize)>,
+}
+
+impl Cuts {
+    pub(crate) fn of(orders: &[u32]) -> Self {
+        let count = orders.len();
+        let mut list = std::collections::VecDeque::new();
+        let mut pairs = 0;
+        let mut corner = 0;
+        while corner < count {
+            if orders[corner] == 2 && corner + 1 < count && orders[corner + 1] == 2 {
+                list.push_back(Feature {
+                    kind: FeatureKind::Length(pairs),
+                    first: corner,
+                    last: corner + 1,
+                });
+                pairs += 1;
+                corner += 2;
+            } else {
+                list.push_back(Feature {
+                    kind: FeatureKind::Corner,
+                    first: corner,
+                    last: corner,
+                });
+                corner += 1;
+            }
+        }
+        let mut sheets = Vec::new();
+        let mut slice_walls = Vec::new();
+        while list.len() > 3 {
+            let (Some(x), Some(y)) = (list.pop_back(), list.pop_back()) else {
+                panic!("{orders:?}: the list is shorter than it says");
+            };
+            let kind = FeatureKind::Length(pairs + slice_walls.len());
+            slice_walls.push((y.first, (x.last + 1) % count));
+            sheets.push([
+                y,
+                x,
+                Feature {
+                    kind,
+                    first: (x.last + 1) % count,
+                    last: (y.first + count - 1) % count,
+                },
+            ]);
+            list.push_front(Feature {
+                kind,
+                first: y.first,
+                last: x.last,
+            });
+        }
+        sheets.push([list[0], list[1], list[2]]);
+        Self {
+            pairs,
+            sheets,
+            slice_walls,
+        }
+    }
+}
+
+pub(crate) struct ReflectionPolygon {
+    pub(crate) walk: Vec<Vector>,
+    pub(crate) vertices: Vec<Vector>,
+    pub(crate) normals: Vec<Vector>,
+    pub(crate) lengths: Vec<BigFloat>,
+    pub(crate) angles: Vec<BigFloat>,
+}
+
+pub(crate) struct Inscribed {
+    pub(crate) radius: BigFloat,
+    pub(crate) vertices: Vec<Vector>,
+}
+
+pub(crate) struct Weld {
+    pub(crate) vertices: Vec<Vector>,
+    pub(crate) closures: Vec<BigFloat>,
+    pub(crate) slice_ends: Vec<BigFloat>,
+}
+
+struct Trig {
+    corner: bool,
+    cos: BigFloat,
+    sin: BigFloat,
+}
+
+struct LaidOut {
+    points: Vec<(Feature, usize, Vector, Matrix)>,
+    closure: BigFloat,
+}
+
+const POINT_STEPS: u32 = 170;
+
+pub(crate) fn boost_matrix(cosh: &BigFloat, sinh: &BigFloat) -> Matrix {
+    [
+        [cosh.clone(), int(0), sinh.clone()],
+        [int(0), int(1), int(0)],
+        [sinh.clone(), int(0), cosh.clone()],
+    ]
+}
+
+pub(crate) fn rotation_matrix(cos: &BigFloat, sin: &BigFloat) -> Matrix {
+    [
+        [cos.clone(), sin.neg(), int(0)],
+        [sin.clone(), cos.clone(), int(0)],
+        [int(0), int(0), int(1)],
+    ]
+}
+
+pub(crate) fn isometry_inverse(matrix: &Matrix) -> Matrix {
+    [0, 1, 2].map(|row| {
+        [0, 1, 2].map(|column| {
+            let entry = matrix[column][row].clone();
+            if (row == 2) == (column == 2) {
+                entry
+            } else {
+                entry.neg()
+            }
+        })
+    })
+}
+
+pub(crate) fn apply(matrix: &Matrix, x: &Vector) -> Vector {
+    [0, 1, 2].map(|row| {
+        add(
+            &add(&mul(&matrix[row][0], &x[0]), &mul(&matrix[row][1], &x[1])),
+            &mul(&matrix[row][2], &x[2]),
+        )
+    })
+}
+
+fn origin() -> Vector {
+    [int(0), int(0), int(1)]
+}
+
+fn column_two(matrix: &Matrix) -> Vector {
+    [
+        matrix[0][2].clone(),
+        matrix[1][2].clone(),
+        matrix[2][2].clone(),
+    ]
+}
+
+pub(crate) fn hyperbolic_normal(start: &Vector, end: &Vector) -> Vector {
+    let cross = [
+        sub(&mul(&start[1], &end[2]), &mul(&start[2], &end[1])),
+        sub(&mul(&start[2], &end[0]), &mul(&start[0], &end[2])),
+        sub(&mul(&start[0], &end[1]), &mul(&start[1], &end[0])),
+    ];
+    let normal = [cross[0].clone(), cross[1].clone(), cross[2].neg()];
+    let unit = scale(&div(&int(1), &sqrt(&form(&normal, &normal))), &normal);
+    if form(&unit, &origin()).is_positive() {
+        scale(&int(1).neg(), &unit)
+    } else {
+        unit
+    }
+}
+
+fn normalized(x: &Vector) -> Vector {
+    scale(&div(&int(1), &sqrt(&form(x, x).neg())), x)
+}
+
+fn golden_minimum(
+    steps: u32,
+    mut low: BigFloat,
+    mut high: BigFloat,
+    mut value: impl FnMut(&BigFloat) -> BigFloat,
+) -> BigFloat {
+    let ratio = div(&sub(&sqrt(&int(5)), &int(1)), &int(2));
+    let mut left = sub(&high, &mul(&ratio, &sub(&high, &low)));
+    let mut right = add(&low, &mul(&ratio, &sub(&high, &low)));
+    let (mut at_left, mut at_right) = (value(&left), value(&right));
+    for _ in 0..steps {
+        if at_left < at_right {
+            high = right;
+            right = left;
+            at_right = at_left;
+            left = sub(&high, &mul(&ratio, &sub(&high, &low)));
+            at_left = value(&left);
+        } else {
+            low = left;
+            left = right;
+            at_left = at_right;
+            right = add(&low, &mul(&ratio, &sub(&high, &low)));
+            at_right = value(&right);
+        }
+    }
+    if at_left < at_right {
+        at_left
+    } else {
+        at_right
+    }
+}
+
+fn geodesic(start: &Vector, end: &Vector) -> (Vector, Vector) {
+    let middle = normalized(&sum(start, end));
+    let along = sum(end, &scale(&form(end, &middle), &middle));
+    let unit = scale(&div(&int(1), &sqrt(&form(&along, &along))), &along);
+    (middle, unit)
+}
+
+fn open_interval() -> (BigFloat, BigFloat) {
+    (int(1).neg(), int(1))
+}
+
+impl Reference {
+    fn trig(&mut self, orders: &[u32], values: &[f64], feature: Feature) -> Trig {
+        match feature.kind {
+            FeatureKind::Corner => {
+                let angle = div(&self.pi(), &int(orders[feature.first]));
+                Trig {
+                    corner: true,
+                    cos: self.cos(&angle),
+                    sin: self.sin(&angle),
+                }
+            }
+            FeatureKind::Length(index) => {
+                let length = num(values[index]);
+                Trig {
+                    corner: false,
+                    cos: self.cosh(&length),
+                    sin: self.sinh(&length),
+                }
+            }
+        }
+    }
+
+    pub(crate) fn gap(
+        &mut self,
+        orders: &[u32],
+        values: &[f64],
+        sheet: &[Feature; 3],
+        start: usize,
+    ) -> BigFloat {
+        let [f, g, h] = [0, 1, 2].map(|offset| sheet[(start + offset) % 3]);
+        let (f, g, h) = (
+            self.trig(orders, values, f),
+            self.trig(orders, values, g),
+            self.trig(orders, values, h),
+        );
+        let argument = div(&add(&mul(&f.cos, &g.cos), &h.cos), &mul(&f.sin, &g.sin));
+        if f.corner == g.corner {
+            self.acosh(&argument)
+        } else {
+            self.asinh(&argument)
+        }
+    }
+
+    pub(crate) fn gap_sums(&mut self, orders: &[u32], values: &[f64]) -> Vec<BigFloat> {
+        let count = orders.len();
+        let cuts = Cuts::of(orders);
+        let mut sums = vec![int(0); count];
+        for sheet in &cuts.sheets {
+            for start in 0..3 {
+                let (f, g) = (sheet[start], sheet[(start + 1) % 3]);
+                assert_eq!(
+                    (f.last + 1) % count,
+                    g.first,
+                    "{orders:?}: a gap between {f:?} and {g:?}"
+                );
+                let side = g.first;
+                let gap = self.gap(orders, values, sheet, start);
+                sums[side] = add(&sums[side], &gap);
+            }
+        }
+        sums
+    }
+
+    pub(crate) fn reflection_polygon(
+        &mut self,
+        orders: &[u32],
+        values: &[f64],
+    ) -> ReflectionPolygon {
+        let count = orders.len();
+        let cuts = Cuts::of(orders);
+        let gap_sums = self.gap_sums(orders, values);
+        let mut lengths = gap_sums.clone();
+        for sheet in &cuts.sheets {
+            for feature in sheet {
+                if let FeatureKind::Length(index) = feature.kind
+                    && index < cuts.pairs
+                {
+                    lengths[feature.last] = num(values[index]);
+                }
+            }
+        }
+        let pi = self.pi();
+        let mut frame = identity();
+        let mut walk = vec![origin()];
+        for (side, &order) in lengths.iter().zip(orders).skip(1) {
+            frame = product(&frame, &boost_matrix(&self.cosh(side), &self.sinh(side)));
+            walk.push(column_two(&frame));
+            let angle = div(&pi, &int(order));
+            frame = product(
+                &frame,
+                &rotation_matrix(&self.cos(&angle).neg(), &self.sin(&angle)),
+            );
+        }
+        let vertices = placed(&walk);
+        let normals: Vec<Vector> = (0..count)
+            .map(|index| {
+                hyperbolic_normal(&vertices[(index + count - 1) % count], &vertices[index])
+            })
+            .collect();
+        let distances = (0..count)
+            .map(|index| self.distance(&vertices[(index + count - 1) % count], &vertices[index]))
+            .collect();
+        let angles = (0..count)
+            .map(|index| {
+                self.angle(
+                    &vertices[(index + count - 1) % count],
+                    &vertices[index],
+                    &vertices[(index + 1) % count],
+                )
+            })
+            .collect();
+        ReflectionPolygon {
+            walk,
+            vertices,
+            normals,
+            lengths: distances,
+            angles,
+        }
+    }
+
+    pub(crate) fn angle(&mut self, before: &Vector, vertex: &Vector, after: &Vector) -> BigFloat {
+        let cosh_of = |x: &Vector, y: &Vector| form(x, y).neg();
+        let sinh_of = |cosh: &BigFloat| sqrt(&sub(&mul(cosh, cosh), &int(1)));
+        let (a, b, c) = (
+            cosh_of(vertex, before),
+            cosh_of(vertex, after),
+            cosh_of(before, after),
+        );
+        let cosine = div(&sub(&mul(&a, &b), &c), &mul(&sinh_of(&a), &sinh_of(&b)));
+        self.acos(&cosine)
+    }
+
+    fn angle_sum(&mut self, halves: &[BigFloat], radius: &BigFloat) -> BigFloat {
+        let cosh = self.cosh(radius);
+        let mut total = int(0);
+        for half in halves {
+            total = add(&total, &self.asin(&div(half, &cosh)));
+        }
+        total
+    }
+
+    pub(crate) fn asin(&mut self, value: &BigFloat) -> BigFloat {
+        value.asin(PRECISION, ROUNDING, &mut self.consts)
+    }
+
+    pub(crate) fn atan(&mut self, value: &BigFloat) -> BigFloat {
+        value.atan(PRECISION, ROUNDING, &mut self.consts)
+    }
+
+    pub(crate) fn inscribed(&mut self, orders: &[u32]) -> Inscribed {
+        let pi = self.pi();
+        let halves: Vec<BigFloat> = orders
+            .iter()
+            .map(|&order| self.cos(&div(&pi, &int(2 * order))))
+            .collect();
+        let mut high = int(1);
+        while self.angle_sum(&halves, &high) >= pi {
+            high = mul(&high, &int(2));
+        }
+        let mut low = int(0);
+        let width = self.parse("1e-70");
+        while sub(&high, &low) > width {
+            let middle = div(&add(&low, &high), &int(2));
+            if self.angle_sum(&halves, &middle) > pi {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+        let radius = div(&add(&low, &high), &int(2));
+        let cosh = self.cosh(&radius);
+        let mut direction = int(0);
+        let mut previous: Option<BigFloat> = None;
+        let mut vertices = Vec::new();
+        for (&order, half) in orders.iter().zip(&halves) {
+            let sine = div(half, &cosh);
+            let alpha = self.asin(&sine);
+            if let Some(previous) = previous {
+                direction = add(&add(&direction, &previous), &alpha);
+            }
+            let cosine = sqrt(&sub(&int(1), &mul(&sine, &sine)));
+            let half_angle = div(&pi, &int(2 * order));
+            let cosh_rho = div(&mul(&cosine, half), &mul(&sine, &self.sin(&half_angle)));
+            let sinh_rho = sqrt(&sub(&mul(&cosh_rho, &cosh_rho), &int(1)));
+            vertices.push([
+                mul(&sinh_rho, &self.cos(&direction)),
+                mul(&sinh_rho, &self.sin(&direction)),
+                cosh_rho,
+            ]);
+            previous = Some(alpha);
+        }
+        Inscribed { radius, vertices }
+    }
+
+    pub(crate) fn distance_to_segment(
+        &mut self,
+        point: &Vector,
+        start: &Vector,
+        end: &Vector,
+    ) -> BigFloat {
+        let smallest = golden_minimum(POINT_STEPS, int(0), int(1), |fraction| {
+            let along = sum(
+                &scale(&sub(&int(1), fraction), start),
+                &scale(fraction, end),
+            );
+            div(
+                &form(point, &along).neg(),
+                &sqrt(&form(&along, &along).neg()),
+            )
+        });
+        self.acosh(&max(&int(1), &smallest))
+    }
+
+    pub(crate) fn distance_between_walls(
+        &mut self,
+        first: [&Vector; 2],
+        second: [&Vector; 2],
+    ) -> BigFloat {
+        let (middle_a, along_a) = geodesic(first[0], first[1]);
+        let (middle_b, along_b) = geodesic(second[0], second[1]);
+        let (low, high) = open_interval();
+        let squared = golden_minimum(POINT_STEPS, low, high, |s| {
+            let point = sum(&middle_a, &scale(s, &along_a));
+            let towards_middle = form(&point, &middle_b).neg();
+            let towards_along = form(&point, &along_b).neg();
+            div(
+                &sub(
+                    &mul(&towards_middle, &towards_middle),
+                    &mul(&towards_along, &towards_along),
+                ),
+                &sub(&int(1), &mul(s, s)),
+            )
+        });
+        self.acosh(&max(&int(1), &sqrt(&squared)))
+    }
+
+    fn lay_out(&mut self, orders: &[u32], values: &[f64], sheet: &[Feature; 3]) -> LaidOut {
+        let pi = self.pi();
+        let quarter = rotation_matrix(&int(0), &int(1));
+        let mut frame = identity();
+        let mut points = Vec::new();
+        for start in 0..3 {
+            let feature = sheet[start];
+            match feature.kind {
+                FeatureKind::Corner => {
+                    points.push((feature, 0, column_two(&frame), frame.clone()));
+                    let angle = div(&pi, &int(orders[feature.first]));
+                    let turn = rotation_matrix(&self.cos(&angle).neg(), &self.sin(&angle));
+                    frame = product(&frame, &turn);
+                }
+                FeatureKind::Length(index) => {
+                    frame = product(&frame, &quarter);
+                    points.push((feature, 0, column_two(&frame), frame.clone()));
+                    let length = num(values[index]);
+                    frame = product(
+                        &frame,
+                        &boost_matrix(&self.cosh(&length), &self.sinh(&length)),
+                    );
+                    points.push((feature, 1, column_two(&frame), frame.clone()));
+                    frame = product(&frame, &quarter);
+                }
+            }
+            let gap = self.gap(orders, values, sheet, start);
+            frame = product(&frame, &boost_matrix(&self.cosh(&gap), &self.sinh(&gap)));
+        }
+        LaidOut {
+            points,
+            closure: largest_entry_from_identity(&frame),
+        }
+    }
+
+    pub(crate) fn weld(&mut self, orders: &[u32], values: &[f64]) -> Weld {
+        let cuts = Cuts::of(orders);
+        let laid: Vec<LaidOut> = cuts
+            .sheets
+            .iter()
+            .map(|sheet| self.lay_out(orders, values, sheet))
+            .collect();
+        let half_turn = rotation_matrix(&int(1).neg(), &int(0));
+        let mut placements: Vec<Option<Matrix>> = vec![None; laid.len()];
+        let last = laid.len() - 1;
+        placements[last] = Some(identity());
+        let holder = |slice: usize, except: usize| {
+            laid.iter()
+                .enumerate()
+                .filter(|&(index, _)| index != except)
+                .find_map(|(index, sheet)| {
+                    sheet
+                        .points
+                        .iter()
+                        .position(|(feature, end, _, _)| {
+                            feature.kind == FeatureKind::Length(cuts.pairs + slice) && *end == 0
+                        })
+                        .map(|position| (index, position))
+                })
+        };
+        let mut slice_ends = Vec::new();
+        for index in (0..last).rev() {
+            let Some((other, position)) = holder(index, index) else {
+                panic!("{orders:?}: slice {index} has no second sheet");
+            };
+            let Some(placement) = placements[other].clone() else {
+                panic!("{orders:?}: sheet {other} is welded after sheet {index}");
+            };
+            let held = &laid[other].points;
+            let own = &laid[index].points;
+            let Some(start) = own.iter().position(|(feature, end, _, _)| {
+                feature.kind == FeatureKind::Length(cuts.pairs + index) && *end == 0
+            }) else {
+                panic!("{orders:?}: sheet {index} does not hold slice {index}");
+            };
+            let target = product(&product(&placement, &held[position + 1].3), &half_turn);
+            let map = product(&target, &isometry_inverse(&own[start].3));
+            let (held_count, own_count) = (held.len(), own.len());
+            for (end, before, after) in [
+                (
+                    position,
+                    apply(
+                        &placement,
+                        &held[(position + held_count - 1) % held_count].2,
+                    ),
+                    apply(&map, &own[(start + 2) % own_count].2),
+                ),
+                (
+                    position + 1,
+                    apply(&map, &own[(start + own_count - 1) % own_count].2),
+                    apply(&placement, &held[(position + 2) % held_count].2),
+                ),
+            ] {
+                let inverse = isometry_inverse(&product(&placement, &held[end].3));
+                let (before, after) = (apply(&inverse, &before), apply(&inverse, &after));
+                let cross = sub(&mul(&before[0], &after[1]), &mul(&before[1], &after[0])).abs();
+                let dot = add(&mul(&before[0], &after[0]), &mul(&before[1], &after[1]));
+                assert!(
+                    dot.is_negative(),
+                    "{orders:?}: the sides at an end of slice {index} turn back"
+                );
+                slice_ends.push(self.atan(&div(&cross, &dot.neg())));
+            }
+            placements[index] = Some(map);
+        }
+        Weld {
+            vertices: welded_vertices(orders, cuts.pairs, &laid, &placements),
+            closures: laid.into_iter().map(|sheet| sheet.closure).collect(),
+            slice_ends,
+        }
+    }
+}
+
+fn welded_vertices(
+    orders: &[u32],
+    pairs: usize,
+    laid: &[LaidOut],
+    placements: &[Option<Matrix>],
+) -> Vec<Vector> {
+    let mut vertices = vec![None; orders.len()];
+    for (sheet, placement) in laid.iter().zip(placements) {
+        let Some(placement) = placement else {
+            panic!("{orders:?}: a sheet is not welded");
+        };
+        for (feature, end, point, _) in &sheet.points {
+            let corner = match feature.kind {
+                FeatureKind::Corner => feature.first,
+                FeatureKind::Length(index) if index < pairs => {
+                    if *end == 0 {
+                        feature.first
+                    } else {
+                        feature.last
+                    }
+                }
+                FeatureKind::Length(_) => continue,
+            };
+            vertices[corner] = Some(apply(placement, point));
+        }
+    }
+    vertices
+        .into_iter()
+        .enumerate()
+        .map(|(corner, vertex)| match vertex {
+            Some(vertex) => vertex,
+            None => panic!("{orders:?}: corner {corner} has no vertex"),
+        })
+        .collect()
+}
+
+fn placed(walk: &[Vector]) -> Vec<Vector> {
+    let mut total = [int(0), int(0), int(0)];
+    for point in walk {
+        total = sum(&total, point);
+    }
+    let centre = normalized(&total);
+    let h = sqrt(&add(
+        &mul(&centre[0], &centre[0]),
+        &mul(&centre[1], &centre[1]),
+    ));
+    let (cos_phi, sin_phi) = (div(&centre[0], &h), div(&centre[1], &h));
+    let (sinh_rho, cosh_rho) = (h, centre[2].clone());
+    let moved: Vec<Vector> = walk
+        .iter()
+        .map(|x| {
+            let turned = [
+                add(&mul(&cos_phi, &x[0]), &mul(&sin_phi, &x[1])),
+                sub(&mul(&cos_phi, &x[1]), &mul(&sin_phi, &x[0])),
+                x[2].clone(),
+            ];
+            let boosted = [
+                sub(&mul(&cosh_rho, &turned[0]), &mul(&sinh_rho, &turned[2])),
+                turned[1].clone(),
+                sub(&mul(&cosh_rho, &turned[2]), &mul(&sinh_rho, &turned[0])),
+            ];
+            [
+                sub(&mul(&cos_phi, &boosted[0]), &mul(&sin_phi, &boosted[1])),
+                add(&mul(&sin_phi, &boosted[0]), &mul(&cos_phi, &boosted[1])),
+                boosted[2].clone(),
+            ]
+        })
+        .collect();
+    let first = &moved[0];
+    let r = sqrt(&add(&mul(&first[0], &first[0]), &mul(&first[1], &first[1])));
+    let (cos, sin) = (div(&first[0], &r), div(&first[1], &r).neg());
+    moved
+        .iter()
+        .map(|x| {
+            [
+                sub(&mul(&cos, &x[0]), &mul(&sin, &x[1])),
+                add(&mul(&sin, &x[0]), &mul(&cos, &x[1])),
+                x[2].clone(),
+            ]
+        })
+        .collect()
+}
+
 pub(crate) struct Triangle {
     pub(crate) vertices: [Vector; 3],
     pub(crate) normals: [Vector; 3],
@@ -637,6 +1288,14 @@ impl Worst {
 
     pub(crate) fn count(&self) -> usize {
         self.count
+    }
+
+    pub(crate) fn print(&self, reference: &mut Reference) {
+        let ratio = reference.approximate(&self.ratio);
+        println!(
+            "{}: largest error {ratio:.3e}, {} samples, at {}",
+            self.name, self.count, self.input
+        );
     }
 
     pub(crate) fn assert_at_most(&self, reference: &mut Reference, bound: f64) {

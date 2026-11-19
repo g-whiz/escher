@@ -9,11 +9,13 @@ use glam::{DMat3, DVec3};
 use proptest::prelude::{prop_assert, proptest};
 
 use crate::common::{
-    EUCLIDEAN_TRIANGLES, EXAMPLE_TRIPLES, LIMIT_ROTATION_POLYGONS, LargestResiduals, all_triangles,
-    aspects, assert_same_domain, built, clear_rotation_polygons, cone_text, domain, kite,
+    EUCLIDEAN_TRIANGLES, EXAMPLE_TRIPLES, LIMIT_ROTATION_POLYGONS, LargestResiduals,
+    REFUSED_DOUBLE_TEXT, all_triangles, aspects, assert_same_domain, built,
+    built_or_refused_at_the_limit, clear_rotation_polygons, cone_text, domain, kite,
     largest_coordinate_error, order_text, proptest_config, signature, starred, triangles,
     with_aspect,
 };
+use crate::polygons::signature_area;
 use crate::reference::{
     Double, Model, Reference, Worst, add, div, error, int, largest_entry_from_identity,
     largest_magnitude, matrix, max, mul, num, power, product, sub,
@@ -888,8 +890,6 @@ const SMALL_ROTATION_POLYGONS: [&str; 4] = ["3222", "3333", "5432", "22222"];
 
 const MISROUNDED_ENTRY_BOUND: f64 = 1e-30;
 
-const REFUSED_DOUBLE_TEXT: &str = "cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough";
-
 fn cycle_sets(domain: &FundamentalDomain) -> Vec<Vec<usize>> {
     let sides = domain.sides();
     let count = sides.len();
@@ -1030,13 +1030,8 @@ fn named_rotation_polygons_build_their_doubles() {
         assert_rotation_polygon(&text);
     }
     for text in LIMIT_ROTATION_POLYGONS {
-        match FundamentalDomain::build(&signature(text)) {
-            Ok(_) => assert_rotation_polygon(text),
-            Err(error) => assert_eq!(
-                (error.kind(), error.to_string()),
-                (ErrorKind::Numerical, REFUSED_DOUBLE_TEXT.to_owned()),
-                "{text}"
-            ),
+        if built_or_refused_at_the_limit(text).is_some() {
+            assert_rotation_polygon(text);
         }
     }
 }
@@ -1107,4 +1102,106 @@ fn pairings_of_rotation_polygons_are_accurately_rounded_products() {
     );
     assert!(entries > 0);
     assert!(largest <= MISROUNDED_ENTRY_BOUND, "{largest:e}");
+}
+
+const ROTATION_POLYGON_BOUNDS: [f64; 7] = [2e-13, 1e-11, 4e-12, 1e-15, 4e-12, 4e-13, 1e-11];
+
+const ROTATION_POLYGON_QUANTITIES: [&str; 7] = [
+    "doubled polygon vertex, largest coordinate error over the largest coordinate",
+    "doubled polygon normal, largest coordinate error",
+    "doubled polygon side length, absolute error",
+    "doubled polygon centre, largest coordinate distance from the origin",
+    "doubled polygon corner angle, absolute error against copies pi / n",
+    "doubled polygon flat vertex, absolute error against pi",
+    "doubled polygon area, absolute error against twice the area of the starred signature",
+];
+
+fn record_rotation_polygon(
+    reference: &mut Reference,
+    worst: &mut [Worst],
+    text: &str,
+    double: &FundamentalDomain,
+) {
+    let starred_text = starred(text);
+    let polygon = signature(&starred_text);
+    let generating = built(&starred_text);
+    assert_eq!(double.centre(), generating.centre(), "{text}");
+    let orders = corner_orders(&polygon);
+    let values: Vec<f64> = parameters(&polygon)
+        .iter()
+        .map(escher_domain::ParameterSpec::default_value)
+        .collect();
+    let exact = reference.reflection_polygon(&orders, &values);
+    let area = signature_area(reference, &polygon);
+    let exact = reference.double(Model::Hyperbolic, &exact.vertices, &exact.normals, &area);
+    let input = || text.to_owned();
+    let [vertices, normals, lengths, centre, angles, flats, areas] = worst else {
+        panic!("the double test has seven quantities");
+    };
+    for (vertex, exact_vertex) in double.vertices().iter().zip(&exact.vertices) {
+        vertices.record(
+            &largest_coordinate_error(*vertex, exact_vertex),
+            &largest_magnitude(exact_vertex),
+            input,
+        );
+    }
+    for (side, exact_wall) in double.sides().iter().zip(&exact.walls) {
+        normals.record(
+            &largest_coordinate_error(side.normal(), exact_wall),
+            &int(1),
+            input,
+        );
+    }
+    for (length, exact_length) in double.side_lengths().into_iter().zip(&exact.lengths) {
+        lengths.record(&error(length, exact_length), &int(1), input);
+    }
+    centre.record(
+        &largest_coordinate_error(double.centre(), &crate::common::big(hyperbolic::ORIGIN)),
+        &int(1),
+        input,
+    );
+    let pi = reference.pi();
+    for (angle, (order, copies)) in double.corner_angles().into_iter().zip(corners(&orders)) {
+        let expected = div(&mul(&int(copies), &pi), &int(order));
+        let difference = error(angle, &expected);
+        angles.record(&difference, &int(1), input);
+        if copies == order {
+            flats.record(&difference, &int(1), input);
+        }
+    }
+    areas.record(&error(double.area(), &exact.area), &int(1), input);
+}
+
+fn rotation_quantities(label: &str) -> Vec<Worst> {
+    ROTATION_POLYGON_QUANTITIES
+        .iter()
+        .map(|name| Worst::new(format!("{name}, {label}"), 1))
+        .collect()
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn rotation_polygons_are_within_their_bounds_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut worst = rotation_quantities("named doubles without the double at the limit");
+    for text in clear_rotation_polygons() {
+        record_rotation_polygon(&mut reference, &mut worst, &text, &built(&text));
+    }
+    for (quantity, bound) in worst.iter().zip(ROTATION_POLYGON_BOUNDS) {
+        quantity.assert_at_most(&mut reference, bound);
+    }
+    for text in LIMIT_ROTATION_POLYGONS {
+        let Some(double) = built_or_refused_at_the_limit(text) else {
+            println!("{text} refused by the guard");
+            continue;
+        };
+        let mut limit = rotation_quantities(text);
+        record_rotation_polygon(&mut reference, &mut limit, text, &double);
+        for quantity in &limit {
+            quantity.print(&mut reference);
+        }
+    }
 }

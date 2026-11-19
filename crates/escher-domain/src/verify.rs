@@ -917,7 +917,7 @@ mod tests {
             .collect()
     }
 
-    fn assert_failed(domain: &FundamentalDomain, expected: &[&str], defect: &str) {
+    fn assert_failed(domain: &FundamentalDomain, expected: &[&str], defect: &str) -> Verification {
         let verification = domain.verify();
         assert_eq!(
             failed(&verification),
@@ -926,6 +926,7 @@ mod tests {
             domain.corners
         );
         assert!(!verification.passed(), "{defect} on {:?}", domain.corners);
+        verification
     }
 
     fn tilt(domain: &mut FundamentalDomain, angle: f64) {
@@ -1083,8 +1084,7 @@ mod tests {
     }
 
     fn assert_infinite_failures(domain: &FundamentalDomain, expected: &[&str], defect: &str) {
-        assert_failed(domain, expected, defect);
-        let verification = domain.verify();
+        let verification = assert_failed(domain, expected, defect);
         let checks = [
             verification.isometries(),
             verification.pairings(),
@@ -2076,61 +2076,134 @@ mod tests {
         }
     }
 
-    #[test]
-    fn verify_fails_on_a_regular_polygon_with_a_corner_order_off_by_one() {
-        for polygon in [regular(5, 3), regular(6, 4)] {
+    fn assert_polygon_order_off_by_one_fails(
+        polygons: impl IntoIterator<Item = FundamentalDomain>,
+    ) {
+        for polygon in polygons {
             for corner in 0..polygon.corners.len() {
                 let mut corrupted = polygon.clone();
                 corrupted.corners[corner].order += 1;
-                let orders: Vec<u32> = corrupted
-                    .corners
-                    .iter()
-                    .map(|corner| corner.order)
-                    .collect();
+                let orders = orders_of(&corrupted);
                 corrupted.plane = Plane::Hyperbolic {
                     area: polygon_area(&orders),
                 };
                 let defect = format!("order of corner {corner} raised by 1");
-                assert_failed(&corrupted, &["relators", "angles", "area"], &defect);
-                println!("{defect} on {orders:?}: {:?}", corrupted.verify());
+                let verification =
+                    assert_failed(&corrupted, &["relators", "angles", "area"], &defect);
+                println!("{defect} on {orders:?}: {verification:?}");
             }
         }
     }
 
-    #[test]
-    fn verify_fails_on_a_regular_polygon_with_a_vertex_moved_toward_the_centre() {
+    fn assert_vertex_moved_toward_the_centre_fails(
+        polygons: impl IntoIterator<Item = FundamentalDomain>,
+    ) {
         let step = 1e-3;
-        for mut corrupted in pentagons_and_hexagon() {
+        for mut corrupted in polygons {
             let (vertex, centre) = (corrupted.vertices[2], corrupted.centre);
             let length = distance(vertex, centre);
             corrupted.vertices[2] =
                 ((length - step).sinh() * vertex + step.sinh() * centre) / length.sinh();
-            assert_failed(
+            let verification = assert_failed(
                 &corrupted,
                 &["pairings", "walls", "angles", "area"],
                 "vertex 2 moved toward the centre",
             );
             println!(
-                "vertex 2 moved toward the centre on {:?}: {:?}",
-                corrupted.corners,
-                corrupted.verify()
+                "vertex 2 moved toward the centre on {:?}: {verification:?}",
+                orders_of(&corrupted)
             );
         }
     }
 
-    #[test]
-    fn verify_fails_on_a_regular_polygon_with_its_last_vertex_removed() {
-        for mut corrupted in pentagons_and_hexagon() {
+    fn assert_last_vertex_removed_fails(polygons: impl IntoIterator<Item = FundamentalDomain>) {
+        for mut corrupted in polygons {
             corrupted.vertices.pop();
             assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "last vertex removed");
         }
     }
 
-    #[test]
-    fn verify_reports_infinite_residuals_for_a_nan_polygon_vertex() {
-        for mut corrupted in pentagons_and_hexagon() {
+    fn assert_nan_vertex_fails(polygons: impl IntoIterator<Item = FundamentalDomain>) {
+        for mut corrupted in polygons {
             corrupted.vertices[1].x = f64::NAN;
             assert_infinite_failures(&corrupted, &READ_THE_COUNTS, "NaN vertex");
         }
+    }
+
+    fn orders_of(domain: &FundamentalDomain) -> Vec<u32> {
+        domain.corners.iter().map(|corner| corner.order).collect()
+    }
+
+    #[test]
+    fn verify_fails_on_a_regular_polygon_with_a_corner_order_off_by_one() {
+        assert_polygon_order_off_by_one_fails([regular(5, 3), regular(6, 4)]);
+    }
+
+    #[test]
+    fn verify_fails_on_a_regular_polygon_with_a_vertex_moved_toward_the_centre() {
+        assert_vertex_moved_toward_the_centre_fails(pentagons_and_hexagon());
+    }
+
+    #[test]
+    fn verify_fails_on_a_regular_polygon_with_its_last_vertex_removed() {
+        assert_last_vertex_removed_fails(pentagons_and_hexagon());
+    }
+
+    #[test]
+    fn verify_reports_infinite_residuals_for_a_nan_polygon_vertex() {
+        assert_nan_vertex_fails(pentagons_and_hexagon());
+    }
+
+    fn built_polygons() -> Vec<FundamentalDomain> {
+        if cfg!(miri) {
+            vec![built("*3333")]
+        } else {
+            ["*5432", "*3333", "*22222"].map(built).to_vec()
+        }
+    }
+
+    #[test]
+    fn verify_passes_on_built_polygons() {
+        for polygon in built_polygons() {
+            let verification = polygon.verify();
+            assert!(
+                failed(&verification).is_empty(),
+                "{:?}: {verification:?}",
+                polygon.corners
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_built_polygon_with_two_adjacent_corners_exchanged() {
+        let mut corrupted = built("*5432");
+        corrupted.corners.swap(0, 1);
+        assert_eq!(orders_of(&corrupted), [4, 5, 3, 2]);
+        let verification = assert_failed(
+            &corrupted,
+            &["relators", "angles"],
+            "corners 0 and 1 exchanged",
+        );
+        println!("corners 0 and 1 exchanged on *5432: {verification:?}");
+    }
+
+    #[test]
+    fn verify_fails_on_a_built_polygon_with_a_corner_order_off_by_one() {
+        assert_polygon_order_off_by_one_fails(built_polygons());
+    }
+
+    #[test]
+    fn verify_fails_on_a_built_polygon_with_a_vertex_moved_toward_the_centre() {
+        assert_vertex_moved_toward_the_centre_fails(built_polygons());
+    }
+
+    #[test]
+    fn verify_fails_on_a_built_polygon_with_its_last_vertex_removed() {
+        assert_last_vertex_removed_fails(built_polygons());
+    }
+
+    #[test]
+    fn verify_reports_infinite_residuals_for_a_nan_vertex_of_a_built_polygon() {
+        assert_nan_vertex_fails(built_polygons());
     }
 }

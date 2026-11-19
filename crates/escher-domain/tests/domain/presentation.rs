@@ -14,7 +14,7 @@ use crate::reference::{
     Matrix, Reference, add, div, identity, int, largest_entry_from_identity as largest_entry,
     matrix, mul, power, product as exact_product, sqrt, sub, vector,
 };
-use crate::shared::{relator_text, relator_texts};
+use crate::shared::{NAMED_POLYGONS, relator_text, relator_texts};
 
 const PAIRING_TOLERANCE: f64 = 1e-9;
 
@@ -403,13 +403,17 @@ fn side_relators_evaluate_to_the_identity() {
     texts.extend(["*632", "*442", "*333", "*2222", "632", "442", "333", "2222"].map(str::to_owned));
     texts.extend(spherical_signatures());
     texts.extend(limit_signatures());
+    texts.extend(NAMED_POLYGONS.map(str::to_owned));
     texts.extend(clear_rotation_polygons());
     let mut reference = Reference::new();
-    let mut largest = KINDS.map(|_| Largest {
-        residual: 0.0,
-        input: String::new(),
-        samples: 0,
-    });
+    let empty = || {
+        KINDS.map(|_| Largest {
+            residual: 0.0,
+            input: String::new(),
+            samples: 0,
+        })
+    };
+    let (mut largest, mut polygons) = (empty(), empty());
     for text in &texts {
         let (domain, presentation) = presentation(text);
         for ((kind, vertex), relator) in classified(&domain, &presentation)
@@ -423,26 +427,36 @@ fn side_relators_evaluate_to_the_identity() {
                 relator_text(&presentation, relator),
                 kind.tolerance()
             );
-            let entry = &mut largest[kind.index()];
-            entry.samples += 1;
-            if residual > entry.residual || entry.input.is_empty() {
-                entry.residual = residual;
-                entry.input.clone_from(text);
+            let reflection_polygon = NAMED_POLYGONS.contains(&text.as_str());
+            for (table, kept) in [(&mut largest, true), (&mut polygons, reflection_polygon)] {
+                let entry = &mut table[kind.index()];
+                if kept {
+                    entry.samples += 1;
+                    if residual > entry.residual || entry.input.is_empty() {
+                        entry.residual = residual;
+                        entry.input.clone_from(text);
+                    }
+                }
             }
         }
     }
-    for kind in KINDS {
-        let entry = &largest[kind.index()];
-        assert!(entry.samples > 0, "no {} relator", kind.name());
-        println!(
-            "{} relators: largest residual {:e} at {}, tolerance {:e}, margin {:.1}, over {} relators",
-            kind.name(),
-            entry.residual,
-            entry.input,
-            kind.tolerance(),
-            kind.tolerance() / entry.residual,
-            entry.samples
-        );
+    for (label, table) in [("", &largest), ("reflection polygons, ", &polygons)] {
+        for kind in KINDS {
+            let entry = &table[kind.index()];
+            if entry.samples == 0 {
+                assert!(!label.is_empty(), "no {} relator", kind.name());
+                continue;
+            }
+            println!(
+                "{label}{} relators: largest residual {:e} at {}, tolerance {:e}, margin {:.1}, over {} relators",
+                kind.name(),
+                entry.residual,
+                entry.input,
+                kind.tolerance(),
+                kind.tolerance() / entry.residual,
+                entry.samples
+            );
+        }
     }
 }
 

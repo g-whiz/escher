@@ -1,16 +1,20 @@
 use core::f64::consts::PI;
-use std::collections::VecDeque;
+use std::time::Instant;
 
 use astro_float_num::BigFloat;
 use escher_domain::{ErrorKind, FundamentalDomain, ParameterSpec, ShapeParameters, parameters};
 use escher_geometry::hyperbolic;
+use escher_group::{IndexLimit, SearchBudget, conway_presentation, count_colourings};
 use escher_signature::{Geometry, Signature};
 use proptest::prelude::{prop_assert, prop_assert_eq, prop_oneof, proptest};
 use proptest::sample::select;
 use proptest::strategy::Strategy;
 
-use crate::common::{proptest_config_with_miri_cases, signature};
-use crate::reference::{Reference, add, div, int, mul, num, sub, vector};
+use crate::common::{big, largest_coordinate_error, proptest_config_with_miri_cases, signature};
+use crate::reference::{
+    Cuts, FeatureKind, Reference, ReflectionPolygon, Worst, add, div, error, form, int,
+    largest_magnitude, mul, num, sub, vector,
+};
 use crate::shared::{NAMED_POLYGONS, corner_orders, small_polygons};
 
 const RANDOM_POLYGON_MIRI_CASES: u32 = 3;
@@ -230,103 +234,6 @@ fn rotations_and_reversals_give_one_canonical_signature() {
     }
 }
 
-#[derive(Clone, Copy)]
-enum Kind {
-    Corner(usize),
-    Length(usize),
-}
-
-#[derive(Clone, Copy)]
-struct Feature {
-    kind: Kind,
-    first: usize,
-    last: usize,
-}
-
-fn reference_side_zero(reference: &mut Reference, orders: &[u32], values: &[f64]) -> BigFloat {
-    let count = orders.len();
-    let mut list = VecDeque::new();
-    let mut pairs = 0;
-    let mut corner = 0;
-    while corner < count {
-        let paired = orders[corner] == 2 && corner + 1 < count && orders[corner + 1] == 2;
-        if paired {
-            list.push_back(Feature {
-                kind: Kind::Length(pairs),
-                first: corner,
-                last: corner + 1,
-            });
-            pairs += 1;
-            corner += 2;
-        } else {
-            list.push_back(Feature {
-                kind: Kind::Corner(corner),
-                first: corner,
-                last: corner,
-            });
-            corner += 1;
-        }
-    }
-    let mut sheets = Vec::new();
-    let mut slices = 0;
-    while list.len() > 3 {
-        let (Some(x), Some(y)) = (list.pop_back(), list.pop_back()) else {
-            panic!("{orders:?}: the list is shorter than it says");
-        };
-        let kind = Kind::Length(pairs + slices);
-        slices += 1;
-        sheets.push([
-            y,
-            x,
-            Feature {
-                kind,
-                first: (x.last + 1) % count,
-                last: (y.first + count - 1) % count,
-            },
-        ]);
-        list.push_front(Feature {
-            kind,
-            first: y.first,
-            last: x.last,
-        });
-    }
-    sheets.push([list[0], list[1], list[2]]);
-    let pi = reference.pi();
-    let mut trig = |feature: Feature| match feature.kind {
-        Kind::Corner(corner) => {
-            let angle = div(&pi, &int(orders[corner]));
-            (true, reference.cos(&angle), reference.sin(&angle))
-        }
-        Kind::Length(index) => {
-            let length = num(values[index]);
-            (false, reference.cosh(&length), reference.sinh(&length))
-        }
-    };
-    let mut gaps = Vec::new();
-    for sheet in &sheets {
-        for start in 0..3 {
-            let (f, g, h) = (sheet[start], sheet[(start + 1) % 3], sheet[(start + 2) % 3]);
-            assert_eq!((f.last + 1) % count, g.first, "{orders:?}");
-            let ((f_corner, c_f, s_f), (g_corner, c_g, s_g), (_, c_h, _)) =
-                (trig(f), trig(g), trig(h));
-            let argument = div(&add(&mul(&c_f, &c_g), &c_h), &mul(&s_f, &s_g));
-            if g.first == 0 {
-                gaps.push((f_corner == g_corner, argument));
-            }
-        }
-    }
-    let mut total = num(0.0);
-    for (same, argument) in gaps {
-        let gap = if same {
-            reference.acosh(&argument)
-        } else {
-            reference.asinh(&argument)
-        };
-        total = add(&total, &gap);
-    }
-    total
-}
-
 #[test]
 #[cfg_attr(
     miri,
@@ -344,7 +251,7 @@ fn closing_side_has_the_length_of_its_gaps() {
             let Ok(domain) = FundamentalDomain::build_with(&polygon, &setting) else {
                 continue;
             };
-            let expected = reference_side_zero(&mut reference, &orders, &values);
+            let expected = reference.gap_sums(&orders, &values).swap_remove(0);
             let vertices = domain.vertices();
             let measured = reference.distance(
                 &vector(vertices[vertices.len() - 1].to_array()),
@@ -509,4 +416,522 @@ fn each_length_parameter_sets_the_length_that_it_names() {
     println!(
         "largest error of a parameter against its length {largest:.3e}, bound {BINDING_BOUND:e}"
     );
+}
+
+const POLYGON_BOUNDS: [f64; 6] = [4e-10, 2e-7, 2e-8, 1e-15, 1e-10, 1e-10];
+
+const SMALL_ORDER_POLYGON_BOUNDS: [f64; 6] = [1e-13, 4e-13, 4e-13, 1e-15, 1e-13, 1e-13];
+
+const SMALL_ORDER: u32 = 12;
+
+const POLYGON_QUANTITIES: [&str; 6] = [
+    "polygon vertex, largest coordinate error over the largest coordinate",
+    "polygon normal, largest coordinate error",
+    "polygon side length, absolute error",
+    "polygon centre, largest coordinate distance from the origin",
+    "polygon corner angle, absolute error against pi / n",
+    "polygon area, absolute error against the area of the signature",
+];
+
+const IDENTITY_TOLERANCE: &str = "1e-50";
+
+const TANGENCY_TOLERANCE: &str = "1e-60";
+
+const DEFAULT_ROUNDING: f64 = 5.0e-4;
+
+const UNROUNDED_DEFAULT_BOUND: f64 = 1e-12;
+
+const SMALL_POLYGON_STRIDE: usize = 256;
+
+pub(crate) fn signature_area(reference: &mut Reference, polygon: &Signature) -> BigFloat {
+    let Some(area) = polygon.area_over_pi() else {
+        panic!("{polygon} has no area");
+    };
+    let (Ok(numerator), Ok(denominator)) = (
+        i32::try_from(area.numerator()),
+        u32::try_from(area.denominator().get()),
+    ) else {
+        panic!("{polygon} has an area too large for the test");
+    };
+    div(
+        &mul(&reference.pi(), &num(f64::from(numerator))),
+        &int(denominator),
+    )
+}
+
+struct Identity {
+    name: String,
+    worst: Worst,
+    tolerance: BigFloat,
+}
+
+impl Identity {
+    fn new(reference: &mut Reference, name: &str, tolerance: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            worst: Worst::new(name, 1),
+            tolerance: reference.parse(tolerance),
+        }
+    }
+
+    fn record(&mut self, difference: &BigFloat, input: impl Fn() -> String) {
+        let difference = difference.abs();
+        assert!(
+            difference <= self.tolerance,
+            "{}: {difference} at {}",
+            self.name,
+            input()
+        );
+        self.worst.record(&difference, &int(1), input);
+    }
+
+    fn print(&self, reference: &mut Reference) {
+        let bound = reference.approximate(&self.tolerance);
+        self.worst.assert_at_most(reference, bound);
+    }
+}
+
+struct PolygonColumn {
+    bounds: [f64; 6],
+    worst: Vec<Worst>,
+}
+
+impl PolygonColumn {
+    fn new(label: &str, bounds: [f64; 6]) -> Self {
+        Self {
+            bounds,
+            worst: POLYGON_QUANTITIES
+                .iter()
+                .map(|name| Worst::new(format!("{name}, {label}"), 1))
+                .collect(),
+        }
+    }
+
+    fn record(
+        &mut self,
+        domain: &FundamentalDomain,
+        exact: &ReflectionPolygon,
+        expected: (&[BigFloat], &BigFloat),
+        input: impl Fn() -> String + Copy,
+    ) {
+        let (expected_angles, expected_area) = expected;
+        let [vertices, normals, lengths, centre, angles, area] = &mut self.worst[..] else {
+            panic!("the polygon test has six quantities");
+        };
+        for (vertex, exact_vertex) in domain.vertices().iter().zip(&exact.vertices) {
+            vertices.record(
+                &largest_coordinate_error(*vertex, exact_vertex),
+                &largest_magnitude(exact_vertex),
+                input,
+            );
+        }
+        for (side, exact_normal) in domain.sides().iter().zip(&exact.normals) {
+            normals.record(
+                &largest_coordinate_error(side.normal(), exact_normal),
+                &int(1),
+                input,
+            );
+        }
+        for (length, exact_length) in domain.side_lengths().into_iter().zip(&exact.lengths) {
+            lengths.record(&error(length, exact_length), &int(1), input);
+        }
+        centre.record(
+            &largest_coordinate_error(domain.centre(), &big(hyperbolic::ORIGIN)),
+            &int(1),
+            input,
+        );
+        for (angle, expected) in domain.corner_angles().into_iter().zip(expected_angles) {
+            angles.record(&error(angle, expected), &int(1), input);
+        }
+        area.record(&error(domain.area(), expected_area), &int(1), input);
+    }
+
+    fn assert_within_bounds(&self, reference: &mut Reference) {
+        for (quantity, bound) in self.worst.iter().zip(self.bounds) {
+            quantity.assert_at_most(reference, bound);
+        }
+    }
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn polygons_are_within_their_bounds_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut random = Random(0x6a09_e667_f3bc_c908);
+    let mut every_setting = PolygonColumn::new("named polygons at their settings", POLYGON_BOUNDS);
+    let mut small_orders = PolygonColumn::new(
+        "named polygons with orders up to 12 at the default shape",
+        SMALL_ORDER_POLYGON_BOUNDS,
+    );
+    let mut angles = Identity::new(
+        &mut reference,
+        "reference polygon, angle against pi / n",
+        IDENTITY_TOLERANCE,
+    );
+    let mut areas = Identity::new(
+        &mut reference,
+        "reference polygon, area of its angles against the area of the signature",
+        IDENTITY_TOLERANCE,
+    );
+    let (mut built, mut refused) = (0, 0);
+    let started = Instant::now();
+    for text in NAMED_POLYGONS {
+        let polygon = signature(text);
+        let orders = corner_orders(&polygon);
+        let expected_area = signature_area(&mut reference, &polygon);
+        let pi = reference.pi();
+        let expected_angles: Vec<BigFloat> =
+            orders.iter().map(|&order| div(&pi, &int(order))).collect();
+        let Ok(sides) = u32::try_from(orders.len()) else {
+            panic!("{text} has too many corners");
+        };
+        let small = orders.iter().all(|&order| order <= SMALL_ORDER);
+        for (index, (setting, values)) in polygon_settings(&polygon, &mut random)
+            .into_iter()
+            .enumerate()
+        {
+            let domain = match FundamentalDomain::build_with(&polygon, &setting) {
+                Ok(domain) => domain,
+                Err(error) => {
+                    assert_eq!(
+                        (error.kind(), error.to_string()),
+                        (ErrorKind::Numerical, GUARD_TEXT.to_owned()),
+                        "{text} {values:?}"
+                    );
+                    refused += 1;
+                    continue;
+                }
+            };
+            built += 1;
+            let input = || format!("{text} {values:?}");
+            let exact = reference.reflection_polygon(&orders, &values);
+            let expected = (expected_angles.as_slice(), &expected_area);
+            every_setting.record(&domain, &exact, expected, input);
+            if small && index == 0 {
+                small_orders.record(&domain, &exact, expected, input);
+            }
+            let mut angle_total = int(0);
+            for (exact_angle, expected) in exact.angles.iter().zip(&expected_angles) {
+                angles.record(&sub(exact_angle, expected), input);
+                angle_total = add(&angle_total, exact_angle);
+            }
+            let measured_area = sub(&mul(&int(sides - 2), &pi), &angle_total);
+            areas.record(&sub(&measured_area, &expected_area), input);
+        }
+    }
+    every_setting.assert_within_bounds(&mut reference);
+    small_orders.assert_within_bounds(&mut reference);
+    angles.print(&mut reference);
+    areas.print(&mut reference);
+    println!(
+        "{built} settings built, {refused} settings refused by the guard, in {:.1} s",
+        started.elapsed().as_secs_f64()
+    );
+    assert!(built > 900, "{built}");
+}
+
+fn slice_walls(
+    vertices: &[crate::reference::Vector],
+    side: usize,
+) -> [&crate::reference::Vector; 2] {
+    let count = vertices.len();
+    [&vertices[(side + count - 1) % count], &vertices[side]]
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn each_cut_has_the_length_of_its_parameter_in_the_reference() {
+    let mut reference = Reference::new();
+    let mut random = Random(0xbb67_ae85_84ca_a73b);
+    let mut pairs = Identity::new(
+        &mut reference,
+        "corner pair side against its parameter",
+        IDENTITY_TOLERANCE,
+    );
+    let mut slices = Identity::new(
+        &mut reference,
+        "slice walls against their parameter",
+        IDENTITY_TOLERANCE,
+    );
+    let started = Instant::now();
+    for text in NAMED_POLYGONS {
+        let polygon = signature(text);
+        let orders = corner_orders(&polygon);
+        let cuts = Cuts::of(&orders);
+        for (_, values) in polygon_settings(&polygon, &mut random) {
+            let walk = reference.reflection_polygon(&orders, &values).walk;
+            let input = || format!("{text} {values:?}");
+            for sheet in &cuts.sheets {
+                for feature in sheet {
+                    if let FeatureKind::Length(index) = feature.kind
+                        && index < cuts.pairs
+                    {
+                        let side = reference.distance(&walk[feature.first], &walk[feature.last]);
+                        pairs.record(&sub(&side, &num(values[index])), input);
+                    }
+                }
+            }
+            for (slice, &(first, second)) in cuts.slice_walls.iter().enumerate() {
+                let distance = reference
+                    .distance_between_walls(slice_walls(&walk, first), slice_walls(&walk, second));
+                slices.record(&sub(&distance, &num(values[cuts.pairs + slice])), input);
+            }
+        }
+    }
+    pairs.print(&mut reference);
+    slices.print(&mut reference);
+    println!("cut meaning in {:.1} s", started.elapsed().as_secs_f64());
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn walk_agrees_with_the_welded_sheets_in_the_reference() {
+    let mut reference = Reference::new();
+    let mut distances = Identity::new(
+        &mut reference,
+        "distance between two vertices, weld against walk",
+        IDENTITY_TOLERANCE,
+    );
+    let mut ends = Identity::new(
+        &mut reference,
+        "angle at an end of a welded slice against pi",
+        IDENTITY_TOLERANCE,
+    );
+    let mut closures = Identity::new(
+        &mut reference,
+        "closure of a laid-out sheet",
+        IDENTITY_TOLERANCE,
+    );
+    let started = Instant::now();
+    for text in NAMED_POLYGONS {
+        let polygon = signature(text);
+        let orders = corner_orders(&polygon);
+        let values: Vec<f64> = parameters(&polygon)
+            .iter()
+            .map(ParameterSpec::default_value)
+            .collect();
+        let walk = reference.reflection_polygon(&orders, &values).walk;
+        let weld = reference.weld(&orders, &values);
+        for first in 0..orders.len() {
+            for second in first + 1..orders.len() {
+                let walked = reference.distance(&walk[first], &walk[second]);
+                let welded = reference.distance(&weld.vertices[first], &weld.vertices[second]);
+                distances.record(&sub(&walked, &welded), || {
+                    format!("{text} vertices {first} and {second}")
+                });
+            }
+        }
+        for end in &weld.slice_ends {
+            ends.record(end, || text.to_owned());
+        }
+        for closure in &weld.closures {
+            closures.record(closure, || text.to_owned());
+        }
+    }
+    distances.print(&mut reference);
+    ends.print(&mut reference);
+    closures.print(&mut reference);
+    println!(
+        "walk against weld in {:.1} s",
+        started.elapsed().as_secs_f64()
+    );
+}
+
+fn default_shape_of(reference: &mut Reference, polygon: &Signature, record: &mut DefaultShape) {
+    let text = polygon.to_string();
+    let orders = corner_orders(polygon);
+    let count = orders.len();
+    let inscribed = reference.inscribed(&orders);
+    let pi = reference.pi();
+    let vertices = &inscribed.vertices;
+    for index in 0..count {
+        let angle = reference.angle(
+            &vertices[(index + count - 1) % count],
+            &vertices[index],
+            &vertices[(index + 1) % count],
+        );
+        record
+            .angles
+            .record(&sub(&angle, &div(&pi, &int(orders[index]))), || {
+                format!("{text} vertex {index}")
+            });
+        let origin = [int(0), int(0), int(1)];
+        let distance = reference.distance_to_segment(
+            &origin,
+            &vertices[(index + count - 1) % count],
+            &vertices[index],
+        );
+        record
+            .tangency
+            .record(&sub(&distance, &inscribed.radius), || {
+                format!("{text} side {index}")
+            });
+    }
+    let specs = parameters(polygon);
+    let exact = exact_defaults(reference, &orders, vertices);
+    let cuts = Cuts::of(&orders);
+    for (slice, &(first, second)) in cuts.slice_walls.iter().enumerate() {
+        let distance = reference
+            .distance_between_walls(slice_walls(vertices, first), slice_walls(vertices, second));
+        record
+            .walls
+            .record(&sub(&distance, &exact[cuts.pairs + slice]), || {
+                format!("{text} slice {}", slice + 1)
+            });
+    }
+    let (shortest, longest) = (num(0.5), num(3.5));
+    for (spec, exact) in specs.iter().zip(&exact) {
+        assert!(
+            *exact > shortest && *exact < longest,
+            "{text} {}: {exact}",
+            spec.name()
+        );
+        let difference = error(spec.default_value(), exact);
+        record
+            .defaults
+            .record(&difference, &int(1), || format!("{text} {}", spec.name()));
+        let thousandths = mul(exact, &int(1000));
+        let fraction = sub(&thousandths, &thousandths.floor());
+        let boundary = div(&sub(&fraction, &div(&int(1), &int(2))).abs(), &int(1000));
+        if boundary < record.boundary.0 {
+            record.boundary = (boundary, format!("{text} {}", spec.name()));
+        }
+    }
+}
+
+pub(crate) fn exact_defaults(
+    reference: &mut Reference,
+    orders: &[u32],
+    vertices: &[crate::reference::Vector],
+) -> Vec<BigFloat> {
+    let cuts = Cuts::of(orders);
+    let mut exact = vec![int(0); cuts.pairs + cuts.slice_walls.len()];
+    for sheet in &cuts.sheets {
+        for feature in sheet {
+            if let FeatureKind::Length(index) = feature.kind
+                && index < cuts.pairs
+            {
+                exact[index] =
+                    reference.distance(&vertices[feature.first], &vertices[feature.last]);
+            }
+        }
+    }
+    for (slice, &(first, second)) in cuts.slice_walls.iter().enumerate() {
+        let [a, b] = [first, second].map(|side| {
+            let [start, end] = slice_walls(vertices, side);
+            crate::reference::hyperbolic_normal(start, end)
+        });
+        exact[cuts.pairs + slice] = reference.acosh(&form(&a, &b).abs());
+    }
+    exact
+}
+
+struct DefaultShape {
+    angles: Identity,
+    tangency: Identity,
+    walls: Identity,
+    defaults: Worst,
+    boundary: (BigFloat, String),
+}
+
+const BOUNDARY_POLYGONS: [&str; 2] = ["*422322", "*432232"];
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the high-precision arithmetic runs loops too long for the interpreter"
+)]
+fn default_shapes_are_the_inscribed_polygons_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut record = DefaultShape {
+        angles: Identity::new(
+            &mut reference,
+            "inscribed polygon, angle against pi / n",
+            TANGENCY_TOLERANCE,
+        ),
+        tangency: Identity::new(
+            &mut reference,
+            "inscribed polygon, distance of a side from the centre against the inradius",
+            TANGENCY_TOLERANCE,
+        ),
+        walls: Identity::new(
+            &mut reference,
+            "inscribed polygon, slice by the common perpendicular against the form of the normals",
+            IDENTITY_TOLERANCE,
+        ),
+        defaults: Worst::new("default against its unrounded reference value", 1),
+        boundary: (int(1), String::new()),
+    };
+    let started = Instant::now();
+    for text in NAMED_POLYGONS {
+        default_shape_of(&mut reference, &signature(text), &mut record);
+    }
+    println!("named polygons in {:.1} s", started.elapsed().as_secs_f64());
+    for polygon in small_polygons().iter().step_by(SMALL_POLYGON_STRIDE) {
+        default_shape_of(&mut reference, polygon, &mut record);
+    }
+    for text in BOUNDARY_POLYGONS {
+        let polygon = signature(text);
+        assert_eq!(polygon.to_string(), text);
+        default_shape_of(&mut reference, &polygon, &mut record);
+    }
+    record.angles.print(&mut reference);
+    record.tangency.print(&mut reference);
+    record.walls.print(&mut reference);
+    record
+        .defaults
+        .assert_at_most(&mut reference, DEFAULT_ROUNDING + UNROUNDED_DEFAULT_BOUND);
+    println!(
+        "smallest distance of an unrounded default from a boundary of the rounding: {:.3e} at {}",
+        reference.approximate(&record.boundary.0),
+        record.boundary.1
+    );
+    println!("default shapes in {:.1} s", started.elapsed().as_secs_f64());
+}
+
+const COLOUR_LIMIT: u32 = 4;
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "the colouring search runs loops too long for the interpreter"
+)]
+fn side_and_conway_presentations_give_equal_colouring_counts() {
+    let Ok(limit) = IndexLimit::new(COLOUR_LIMIT) else {
+        panic!("{COLOUR_LIMIT} colours are out of range");
+    };
+    for text in ["*3333", "*5432", "*3222", "*22222"] {
+        let polygon = signature(text);
+        let side = match crate::common::built(text).side_presentation() {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{text} has no side presentation: {error}"),
+        };
+        let conway = match conway_presentation(&polygon) {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{text} has no Conway presentation: {error}"),
+        };
+        let counts = [&side, &conway].map(|presentation| {
+            match count_colourings(presentation, limit, SearchBudget::DEFAULT) {
+                Ok(counts) => counts,
+                Err(error) => panic!("{text}: the search fails: {error}"),
+            }
+        });
+        let found: Vec<[Option<u64>; 2]> = (1..=COLOUR_LIMIT)
+            .map(|colours| counts.clone().map(|count| count.colourings(colours)))
+            .collect();
+        println!("{text}: colourings with 1 to {COLOUR_LIMIT} colours, side and Conway: {found:?}");
+        for (colours, [by_sides, by_conway]) in (1..=COLOUR_LIMIT).zip(found) {
+            assert!(by_sides.is_some(), "{text}: {colours} colours not counted");
+            assert_eq!(by_sides, by_conway, "{text}: {colours} colours");
+        }
+    }
 }
