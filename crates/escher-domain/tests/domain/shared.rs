@@ -2,6 +2,10 @@ use escher_domain::{FundamentalDomain, ShapeParameters};
 use escher_group::{Presentation, Relator};
 use escher_signature::Signature;
 
+pub(crate) const GRID_ASPECTS: [f64; 6] = [0.125, 0.3, 1.0, 1.618, 4.0, 8.0];
+
+pub(crate) const GRID_SKEWS: [f64; 5] = [-0.5, -0.3, 0.0, 0.25, 0.5];
+
 pub(crate) fn signature(text: &str) -> Signature {
     match text.parse() {
         Ok(signature) => signature,

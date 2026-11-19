@@ -33,6 +33,19 @@ pub(crate) fn rectangle(aspect: f64) -> Result<Polygon, Option<escher_geometry::
     ])
 }
 
+pub(crate) fn outward_wall(
+    start: DVec3,
+    end: DVec3,
+    centre: DVec3,
+) -> Result<DVec3, Option<escher_geometry::Error>> {
+    let covector = wall_through(start, end).map_err(Some)?;
+    Ok(if side(covector, centre) > 0.0 {
+        -covector
+    } else {
+        covector
+    })
+}
+
 fn place(placed: &[DVec3]) -> Result<Polygon, Option<escher_geometry::Error>> {
     let sum = placed.iter().fold(DVec3::ZERO, |sum, &vertex| sum + vertex);
     let mean = sum / sum.z;
@@ -50,10 +63,7 @@ fn place(placed: &[DVec3]) -> Result<Polygon, Option<escher_geometry::Error>> {
     let mut sides = Vec::with_capacity(count);
     for index in 0..count {
         let previous = vertices[(index + count - 1) % count];
-        let mut covector = wall_through(previous, vertices[index]).map_err(Some)?;
-        if side(covector, centre) > 0.0 {
-            covector = -covector;
-        }
+        let covector = outward_wall(previous, vertices[index], centre)?;
         let inside = side(covector, centre) < 0.0;
         if !inside {
             return Err(None);

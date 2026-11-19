@@ -40,21 +40,30 @@
 //! a triangle, the rectangle, a lune, or a hyperbolic polygon, such as `732`,
 //! `632`, `2222`, `532`, `n22`, `nn`, and `3333`. The double of a polygon
 //! doubles the polygon with every length at its default, so it has no shape
-//! parameter, and the crate returns it only when it passes its checks.
+//! parameter, and the crate returns it only when it passes its checks. The
+//! domain of `2222` has a second shape parameter, `skew`. At a `skew` other
+//! than 0, the double of the rectangle is sheared along its first axis, which
+//! keeps the numbering of its sides, and its pairings are half-turns about
+//! the sheared vertices 0 and 3 and translations. The crate returns the
+//! domain of `2222` only when it passes its checks, at every `skew`.
 //!
 //! The third kind is a wallpaper signature: one of the nine Euclidean
 //! signatures that are neither a reflection signature nor a rotation
 //! signature of the kinds above, which are `o`, `**`, `xx`, `*x`, `22*`,
-//! `22x`, `2*22`, `4*2`, and `3*3`. The crate builds five of them. The
-//! signature `o` has a parallelogram whose opposite sides are paired by
-//! translations, with the shape parameters `aspect` and `skew`. The
-//! signatures `**`, `xx`, `*x`, and `22x` have the rectangle of `*2222`, with
-//! the shape parameter `aspect`. Its bottom and top sides are paired by a
-//! translation for `**` and by glide reflections along vertical axes for the
-//! other three. Its left and right sides are mirrors for `**` and `*x`, are
-//! paired by a translation for `xx`, and are paired by glide reflections along
-//! the horizontal axis for `22x`. The crate returns such a domain only when it
-//! passes its checks.
+//! `22x`, `2*22`, `4*2`, and `3*3`. The crate builds seven of them, all but
+//! `4*2` and `3*3`. The signature `o` has a parallelogram whose opposite
+//! sides are paired by translations, with the shape parameters `aspect` and
+//! `skew`. The signatures `**`, `xx`, `*x`, `22x`, `22*`, and `2*22` have the
+//! rectangle of `*2222`, with the shape parameter `aspect`. Its bottom and top
+//! sides are paired by a translation for `**` and by glide reflections along
+//! vertical axes for `xx`, `*x`, and `22x`. Its left and right sides are
+//! mirrors for `**` and `*x`, are paired by a translation for `xx`, and are
+//! paired by glide reflections along the horizontal axis for `22x`. For `22*`,
+//! the bottom and top sides are each split at their midpoint into two sides
+//! that the half-turn about that midpoint pairs, and the left and right sides
+//! are mirrors, which gives six sides. For `2*22`, only the bottom side is
+//! split in this way, and the other three sides are mirrors, which gives five
+//! sides. The crate returns such a domain only when it passes its checks.
 //!
 //! Every other signature gives an [`Error`]. The causes are an unsupported
 //! signature, more than eight corner or cone orders, an order above 1000, and
@@ -103,9 +112,6 @@ mod wallpaper;
 
 #[cfg(test)]
 extern crate self as escher_domain;
-
-#[cfg(test)]
-mod fixtures;
 
 #[cfg(test)]
 #[path = "../tests/domain/shared.rs"]

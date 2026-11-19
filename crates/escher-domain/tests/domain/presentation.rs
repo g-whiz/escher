@@ -520,13 +520,47 @@ fn side_presentations_of_the_wallpaper_domains_have_the_documented_text() {
             "xx" => &["s0 s2", "s1 s3", "s1 s0 s1 s2"],
             "*x" => &["s0 s2", "s1^2", "s3^2", "s1 s0 s3 s2", "s2 s3 s0 s1"],
             "22x" => &["s0 s2", "s1 s3", "(s1 s2)^2", "(s2 s3)^2"],
+            "22*" => &[
+                "s0 s1",
+                "s2^2",
+                "s3 s4",
+                "s5^2",
+                "s1^2",
+                "s2 s1 s5 s0",
+                "s3 s5 s4 s2",
+                "s4^2",
+            ],
+            "2*22" => &[
+                "s0 s1",
+                "s2^2",
+                "s3^2",
+                "s4^2",
+                "s1^2",
+                "s2 s1 s4 s0",
+                "(s3 s2)^2",
+                "(s4 s3)^2",
+            ],
+            "2222" => &[
+                "s0 s1",
+                "s2 s5",
+                "s3 s4",
+                "s1^2",
+                "(s2 s0)^2",
+                "(s3 s5)^2",
+                "s4^2",
+            ],
             text => panic!("{text} has no documented side presentation"),
         };
-        let presentation = match setting.domain().side_presentation() {
+        let domain = setting.domain();
+        let presentation = match domain.side_presentation() {
             Ok(presentation) => presentation,
             Err(error) => panic!("{label} has no side presentation: {error}"),
         };
-        assert_eq!(presentation.generator_names(), side_names(4), "{label}");
+        assert_eq!(
+            presentation.generator_names(),
+            side_names(domain.sides().len()),
+            "{label}"
+        );
         assert_eq!(relator_texts(&presentation), expected, "{label}");
     }
 }
@@ -544,6 +578,9 @@ fn side_and_conway_presentations_of_the_wallpaper_domains_give_equal_colouring_c
         ("xx", [1, 3, 4, 7, 6]),
         ("*x", [1, 3, 4, 11, 6]),
         ("22x", [1, 3, 6, 11, 10]),
+        ("22*", [1, 7, 6, 23, 10]),
+        ("2*22", [1, 7, 6, 31, 10]),
+        ("2222", [1, 7, 12, 31, 30]),
     ] {
         let side = match built(text).side_presentation() {
             Ok(presentation) => presentation,

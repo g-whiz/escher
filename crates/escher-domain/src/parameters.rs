@@ -56,13 +56,19 @@ impl Parameter {
 /// it to [`FundamentalDomain::build_with`](crate::FundamentalDomain::build_with)
 /// through [`ShapeParameters`]. The rectangle of `*2222` has the one parameter
 /// `aspect`, the length of its side 0 divided by the length of its side 1.
-/// The domain of `2222` is two such rectangles side by side, and its parameter
-/// `aspect` is that of each rectangle. The rectangles of `**`, `xx`, `*x`,
-/// and `22x` have the same parameter `aspect`. The parallelogram of `o` has `aspect` and then `skew`,
-/// from -0.5 to 0.5 with the default 0. Its first lattice vector is
-/// `(w, 0)` and its second `(skew * w, 1 / w)`, with `w` the square root of
-/// `aspect`, so `skew` is the first coordinate of the second vector divided by
-/// the length of the first.
+/// The domains of `**`, `xx`, `*x`, `22x`, `22*`, and `2*22` lie on the same
+/// rectangle and have the same parameter `aspect`. The parallelogram of `o`
+/// has `aspect` and then `skew`, from -0.5 to 0.5 with the default 0. Its
+/// first lattice vector is `(w, 0)` and its second `(skew * w, 1 / w)`, with
+/// `w` the square root of `aspect`, so `skew` is the first coordinate of the
+/// second vector divided by the length of the first.
+///
+/// The domain of `2222` is two such rectangles side by side, and its
+/// parameter `aspect` is that of each rectangle. It also has `skew`, with the
+/// same range and default, which shears the two rectangles by
+/// `(x, y) -> (x + skew * aspect * y, y)`. Its lattice vectors are then
+/// `(2w, 0)` and `(2 * skew * w, 2 / w)`. A `skew` of exactly 0 leaves the two
+/// rectangles as they are.
 ///
 /// A hyperbolic polygon `*p1...pn` with four to eight corners, each of order
 /// at most 1000, has `n - 3` parameters, each a hyperbolic length from 0.5 to
@@ -93,11 +99,12 @@ impl Parameter {
 /// assert_eq!(specs[0].name(), "aspect");
 /// assert_eq!((specs[0].minimum(), specs[0].maximum()), (0.125, 8.0));
 /// assert_eq!(specs[0].default_value(), 1.0);
-/// assert_eq!(parameters(&"2222".parse::<Signature>()?), specs);
+/// assert_eq!(parameters(&"2222".parse::<Signature>()?)[..1], specs);
 /// assert!(parameters(&"*632".parse::<Signature>()?).is_empty());
 ///
 /// let torus = parameters(&"o".parse::<Signature>()?);
 /// assert_eq!(torus.len(), 2);
+/// assert_eq!(parameters(&"2222".parse::<Signature>()?), torus);
 /// assert_eq!(torus[1].name(), "skew");
 /// assert_eq!((torus[1].minimum(), torus[1].maximum()), (-0.5, 0.5));
 /// assert_eq!(torus[1].default_value(), 0.0);
@@ -129,7 +136,6 @@ pub fn parameters(signature: &Signature) -> Vec<ParameterSpec> {
 fn listed(supported: Supported, cuts: Option<&Cuts>) -> Vec<(Parameter, Option<Feature>)> {
     match supported {
         Supported::Reflection(Shape::Rectangle)
-        | Supported::Rotation(Shape::Rectangle)
         | Supported::Wallpaper(
             Wallpaper::Annulus
             | Wallpaper::KleinBottle
@@ -138,7 +144,7 @@ fn listed(supported: Supported, cuts: Option<&Cuts>) -> Vec<(Parameter, Option<F
             | Wallpaper::TwoTwoCrossCap
             | Wallpaper::TwoMirrorTwoTwo,
         ) => vec![(Parameter::Aspect, None)],
-        Supported::Wallpaper(Wallpaper::Torus) => {
+        Supported::Wallpaper(Wallpaper::Torus) | Supported::Rotation(Shape::Rectangle) => {
             vec![(Parameter::Aspect, None), (Parameter::Skew, None)]
         }
         Supported::Reflection(Shape::HyperbolicPolygon { .. }) => cuts
@@ -297,12 +303,24 @@ impl ShapeParameters {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Shear {
+    pub(crate) aspect: f64,
+    pub(crate) skew: f64,
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) struct Values {
+    pub(crate) generating: Vec<f64>,
+    pub(crate) shear: Option<Shear>,
+}
+
 pub(crate) fn validate(
     signature: &Signature,
     supported: Supported,
     cuts: Option<&Cuts>,
     settings: &ShapeParameters,
-) -> Result<Vec<f64>> {
+) -> Result<Values> {
     let accepted = listed(supported, cuts);
     let named = |name: &str| {
         accepted
@@ -325,14 +343,22 @@ pub(crate) fn validate(
         Supported::Reflection(_) | Supported::Wallpaper(_) => supported,
     };
     let defaults = Defaults::new(supported.shape());
-    Ok(listed(generating, cuts)
-        .into_iter()
-        .map(|(parameter, feature)| {
-            settings
-                .values
-                .get(&parameter.name())
-                .copied()
-                .unwrap_or_else(|| defaults.of(parameter, feature))
-        })
-        .collect())
+    let value = |parameter: Parameter, feature: Option<Feature>| {
+        settings
+            .values
+            .get(&parameter.name())
+            .copied()
+            .unwrap_or_else(|| defaults.of(parameter, feature))
+    };
+    let shear = matches!(supported, Supported::Rotation(Shape::Rectangle)).then(|| Shear {
+        aspect: value(Parameter::Aspect, None),
+        skew: value(Parameter::Skew, None),
+    });
+    Ok(Values {
+        generating: listed(generating, cuts)
+            .into_iter()
+            .map(|(parameter, feature)| value(parameter, feature))
+            .collect(),
+        shear,
+    })
 }

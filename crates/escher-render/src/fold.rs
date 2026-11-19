@@ -129,9 +129,10 @@ impl Fold {
 /// fixed set of shapes only. For any other shape, the function only returns and
 /// reports whether the fold converged. For a Euclidean reflection domain and
 /// its double, it is accurate up to a distance of 65 from the centre of the
-/// domain. For the domains of `o`, `**`, `xx`, `*x`, and `22x`, whose sides
-/// are mirrors or are paired by translations or glide reflections, no range of
-/// accuracy has been measured, and the function only returns and reports
+/// domain. For the domains of `o`, `**`, `xx`, `*x`, `22x`, `22*`, and
+/// `2*22`, whose sides are mirrors or are paired by translations, glide
+/// reflections, or half-turns, and for the domain of `2222` with a `skew`
+/// other than 0, no range of accuracy has been measured, and the function only returns and reports
 /// whether the fold converged. For a spherical
 /// domain, it is accurate for every vector whose largest absolute coordinate is
 /// at least `1e-300` and whose fold converges.
@@ -144,9 +145,11 @@ impl Fold {
 /// A domain whose side pairings are rotations and translations, such as the
 /// domain of `732`, folds by the same steps. Each pairing of a double is a
 /// product of two reflections, so its error bounds are its own, and the
-/// ranges of accuracy above hold for it with one exception. A translation or
-/// a glide reflection of the domain of `o`, `**`, `xx`, `*x`, or `22x` has
-/// exact entries, and the domains of `**` and `*x` also have mirror sides.
+/// ranges of accuracy above hold for it with one exception. A translation, a
+/// glide reflection, or a half-turn of the domain of `o`, `**`, `xx`, `*x`,
+/// `22x`, `22*`, or `2*22`, and a half-turn of the domain of `2222` with a
+/// `skew` other than 0, has exact entries, and the domains of `**`, `*x`,
+/// `22*`, and `2*22` also have mirror sides.
 /// For a hyperbolic domain
 /// whose corner orders are all near 1000, such as the domain of
 /// `(1000)(1000)(1000)` or `(1000)(1000)(999)`, a point within a hyperbolic

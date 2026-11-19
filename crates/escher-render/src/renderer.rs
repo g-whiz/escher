@@ -26,7 +26,9 @@ use crate::view::{Lift, View};
 /// A domain whose side pairings are rotations and translations, such as the
 /// domain of `732`, has the view of its reflection domain, which is `*732`,
 /// and draws borders only on its own sides, which lie on borders of the
-/// reflection tiling. Because no pairing of such a domain reverses
+/// reflection tiling. The domain of `2222` with a `skew` other than 0 is a
+/// shear of the domain of `2222`, so its sides do not lie on the borders of
+/// the tiling of `*2222`. Because no pairing of such a domain reverses
 /// orientation, [`Fill::Parity`] gives every tile its first colour. The
 /// documentation of [`fold`](crate::fold) states the accuracy of its fold.
 ///

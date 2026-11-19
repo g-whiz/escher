@@ -1175,7 +1175,7 @@ The numbers of subgroups of the side presentation equal those of the Conway pres
 
 The row of `2222` equals its row in Section 11.4.
 
-The test "Equal counts" measured these figures on the crates for `o`, `**`, `xx`, `*x`, and `22x`, at `aspect` 1, with `IndexLimit` 16 and `SearchBudget::DEFAULT`. Every search completed 16 colours, the side and the Conway presentation gave equal counts, and the counts to 12 equal the rows of the prototype above. Times are in a debug build and come from two runs. The table gives the first run for `o` and `**` and the second run for `xx`, `*x`, and `22x`. The second run gave `o` 0.052 s and 0.067 s and `**` 0.037 s and 0.036 s:
+The test "Equal counts" measured these figures on the crates for `o`, `**`, `xx`, `*x`, `22*`, `22x`, `2*22`, and `2222`, at `aspect` 1, with `IndexLimit` 16 and `SearchBudget::DEFAULT`. Every search completed 16 colours, the side and the Conway presentation gave equal counts, and the counts to 12 equal the rows of the prototype above. Times are in a debug build. Of three runs, the table gives the first for `o` and `**`, the second for `xx`, `*x`, and `22x`, and the third for `22*`, `2*22`, and `2222`. The second run gave `o` 0.052 s and 0.067 s and `**` 0.037 s and 0.036 s:
 
 | Signature | Subgroups of index 1 to 16 | Debug time to 16, side and Conway |
 | --- | --- | --- |
@@ -1184,6 +1184,9 @@ The test "Equal counts" measured these figures on the crates for `o`, `**`, `xx`
 | `xx` | 1 3 4 7 6 12 8 15 13 18 12 28 14 24 24 31 | 0.016 s and 0.016 s |
 | `*x` | 1 3 4 11 6 12 8 27 13 18 12 44 14 24 24 59 | 0.021 s and 0.021 s |
 | `22x` | 1 3 6 11 10 20 14 39 27 42 22 92 26 72 60 143 | 0.021 s and 0.020 s |
+| `22*` | 1 7 6 23 10 44 14 67 27 82 22 156 26 128 60 203 | 0.050 s and 0.034 s |
+| `2*22` | 1 7 6 31 10 44 14 111 27 82 22 212 26 128 60 343 | 0.061 s and 0.060 s |
+| `2222` | 1 7 12 31 30 76 56 127 117 186 132 348 182 344 360 511 | 0.116 s and 0.079 s |
 
 The prototype also measured these figures:
 

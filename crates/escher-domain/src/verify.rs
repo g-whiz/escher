@@ -291,8 +291,9 @@ impl Verification {
     /// [`FundamentalDomain::corner_angles`] measures and `pi / n`, or
     /// `2 pi / n` at such a vertex.
     ///
-    /// The double of `2222` and the wallpaper domains, those of `o`, `**`,
-    /// `xx`, `*x`, and `22x`, are checked by their vertex cycles instead, as the check of the relators walks them:
+    /// The domain of `2222` and the wallpaper domains, those of `o`, `**`,
+    /// `xx`, `*x`, `22x`, `22*`, and `2*22`, are checked by their vertex
+    /// cycles instead, as the check of the relators walks them:
     /// the residual is the largest absolute difference between `2 pi / n` and
     /// the sum of the angles that the walk of a cycle of order `n` visits,
     /// which counts a vertex that the walk visits from both of its sides
@@ -935,11 +936,11 @@ mod tests {
         Closure, Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side, triangle_angles,
     };
     use crate::double::double;
-    use crate::fixtures::{half_turn, two_two_mirror};
     use crate::polygon::Polygon;
     use crate::reference::{Reference, Worst, add, div, error, int, mul, num, sqrt, sub};
     use crate::shared::{built, built_with_aspect, signature};
     use crate::triangle::{Shape, Supported, construct, supported};
+    use crate::wallpaper::half_turn;
 
     const BASES: [[u32; 3]; 3] = [[7, 3, 2], [4, 4, 4], [1000, 3, 2]];
 
@@ -1706,8 +1707,11 @@ mod tests {
 
     #[test]
     fn verify_fails_on_split_halves_merged_into_a_side_that_is_its_own_partner() {
-        for (text, flat) in [("722", 2), ("2222", 3)] {
-            let mut corrupted = built(text);
+        for (mut corrupted, flat) in [
+            (built("722"), 2),
+            (built("2222"), 3),
+            (built_with_aspect("2222", 1.0, Some(0.25)), 3),
+        ] {
             let merged = corrupted.sides[flat + 1];
             corrupted.sides.remove(flat + 1);
             corrupted.sides[flat] = Side {
@@ -1728,16 +1732,17 @@ mod tests {
 
     #[test]
     fn verify_fails_on_a_half_turn_in_place_of_a_translation() {
-        let mut corrupted = built("2222");
-        let midpoint = (corrupted.vertices[1] + corrupted.vertices[2]) / 2.0;
-        let half_turn = glam::DMat3::from_cols(
-            -DVec3::X,
-            -DVec3::Y,
-            DVec3::new(2.0 * midpoint.x, 2.0 * midpoint.y, 1.0),
-        );
-        corrupted.sides[2].pairing = half_turn;
-        corrupted.sides[5].pairing = half_turn;
-        assert_failed(&corrupted, &["pairings", "relators"], "half-turn of side 2");
+        for skew in [None, Some(0.25)] {
+            let mut corrupted = built_with_aspect("2222", 1.0, skew);
+            let midpoint = (corrupted.vertices[1] + corrupted.vertices[2]) / 2.0;
+            corrupted.sides[2].pairing = half_turn(midpoint);
+            corrupted.sides[5].pairing = half_turn(midpoint);
+            assert_failed(
+                &corrupted,
+                &["pairings", "relators"],
+                &format!("half-turn of side 2 at skew {skew:?}"),
+            );
+        }
     }
 
     #[test]
@@ -1808,14 +1813,16 @@ mod tests {
     #[test]
     fn verify_fails_on_a_pairing_labelled_with_the_wrong_kind() {
         let mut rectangle = built("2222");
+        let mut sheared = built_with_aspect("2222", 1.0, Some(0.25));
         for index in [2, 5] {
             rectangle.sides[index].kind = PairingKind::Rotation;
+            sheared.sides[index].kind = PairingKind::Rotation;
         }
         let mut kite = built("442");
         for index in [0, 1] {
             kite.sides[index].kind = PairingKind::Translation;
         }
-        for corrupted in [rectangle, kite] {
+        for corrupted in [rectangle, sheared, kite] {
             assert_infinite_failures(&corrupted, &["pairings"], "wrong kind");
         }
     }
@@ -2369,20 +2376,6 @@ mod tests {
         (2, 1, "(2+)(2-)(3-)(3+)", &[3, 2, 3, 0]),
     ];
 
-    #[test]
-    fn walk_finds_the_states_of_the_hand_built_domain_of_22_mirror() {
-        assert_cycles(
-            &two_two_mirror(1.0),
-            &[
-                (0, 2, "(0+)", &[1]),
-                (1, 1, "(1+)(1-)(5-)(5+)", &[2, 1, 5, 0]),
-                (2, 1, "(2+)(4+)(4-)(2-)", &[3, 5, 4, 2]),
-                (3, 2, "(3+)", &[4]),
-            ],
-            "22*",
-        );
-    }
-
     fn assert_each_state_is_covered_once(domain: &FundamentalDomain, label: &str) {
         let count = domain.sides.len();
         let cycles = match vertex_cycles(domain) {
@@ -2440,28 +2433,52 @@ mod tests {
         assert!(characteristic.abs() <= 1e-15, "{label}: {characteristic}");
     }
 
-    #[test]
-    fn walk_covers_each_state_once_with_its_flip_on_the_hand_built_domain_of_22_mirror() {
-        for aspect in WALLPAPER_ASPECTS {
-            assert_each_state_is_covered_once(&two_two_mirror(aspect), &format!("22* at {aspect}"));
-        }
-    }
+    const TWO_TWO_MIRROR_CYCLES: &[ExpectedCycle] = &[
+        (0, 2, "(0+)", &[1]),
+        (1, 1, "(1+)(1-)(5-)(5+)", &[2, 1, 5, 0]),
+        (2, 1, "(2+)(4+)(4-)(2-)", &[3, 5, 4, 2]),
+        (3, 2, "(3+)", &[4]),
+    ];
+
+    const TWO_MIRROR_TWO_TWO_CYCLES: &[ExpectedCycle] = &[
+        (0, 2, "(0+)", &[1]),
+        (1, 1, "(1+)(1-)(4-)(4+)", &[2, 1, 4, 0]),
+        (2, 2, "(2+)(2-)", &[3, 2]),
+        (3, 2, "(3+)(3-)", &[4, 3]),
+    ];
+
+    const TWO_TWO_TWO_TWO_CYCLES: &[ExpectedCycle] = &[
+        (0, 2, "(0+)", &[1]),
+        (1, 2, "(1+)(5+)", &[2, 0]),
+        (2, 2, "(2+)(4+)", &[3, 5]),
+        (3, 2, "(3+)", &[4]),
+    ];
 
     const TORUS_CYCLES: &[ExpectedCycle] = &[(0, 1, "(0+)(3+)(2+)(1+)", &[1, 0, 3, 2])];
 
     #[test]
     fn walk_finds_the_cycles_of_the_built_wallpaper_domains() {
-        let cases: [(&str, Option<f64>, &[ExpectedCycle]); 6] = [
+        let cases: [(&str, Option<f64>, &[ExpectedCycle]); 11] = [
             ("o", Some(0.0), TORUS_CYCLES),
             ("o", Some(0.25), TORUS_CYCLES),
             ("**", None, ANNULUS_CYCLES),
             ("xx", None, KLEIN_BOTTLE_CYCLES),
             ("*x", None, MOBIUS_STRIP_CYCLES),
             ("22x", None, TWO_TWO_CROSS_CAP_CYCLES),
+            ("22*", None, TWO_TWO_MIRROR_CYCLES),
+            ("2*22", None, TWO_MIRROR_TWO_TWO_CYCLES),
+            ("2222", Some(0.0), TWO_TWO_TWO_TWO_CYCLES),
+            ("2222", Some(0.25), TWO_TWO_TWO_TWO_CYCLES),
+            ("2222", Some(-0.5), TWO_TWO_TWO_TWO_CYCLES),
         ];
         for (text, skew, expected) in cases {
             let domain = built_with_aspect(text, 1.0, skew);
-            assert_eq!(domain.closure, Closure::Wallpaper, "{text}");
+            let closure = if text == "2222" {
+                Closure::DoubleByCycles
+            } else {
+                Closure::Wallpaper
+            };
+            assert_eq!(domain.closure, closure, "{text}");
             let cycles = assert_cycles(&domain, expected, &format!("{text} at {skew:?}"));
             let parsed = signature(text);
             let mut cones: Vec<u32> = Vec::new();
@@ -2506,6 +2523,11 @@ mod tests {
                 ("xx", None),
                 ("*x", None),
                 ("22x", None),
+                ("22*", None),
+                ("2*22", None),
+                ("2222", Some(-0.5)),
+                ("2222", Some(0.25)),
+                ("2222", Some(0.5)),
             ] {
                 assert_each_state_is_covered_once(
                     &built_with_aspect(text, aspect, skew),
@@ -2555,13 +2577,15 @@ mod tests {
     }
 
     #[test]
-    fn verify_passes_on_the_hand_built_domain_of_22_mirror() {
-        for aspect in WALLPAPER_ASPECTS {
-            let verification = two_two_mirror(aspect).verify();
-            assert!(
-                failed(&verification).is_empty(),
-                "22* at {aspect}: {verification:?}"
-            );
+    fn verify_passes_on_the_domains_with_mirrors_beside_half_turns() {
+        for text in ["22*", "2*22"] {
+            for aspect in WALLPAPER_ASPECTS {
+                let verification = built_with_aspect(text, aspect, None).verify();
+                assert!(
+                    failed(&verification).is_empty(),
+                    "{text} at {aspect}: {verification:?}"
+                );
+            }
         }
     }
 
@@ -2652,7 +2676,7 @@ mod tests {
 
     #[test]
     fn verify_fails_on_half_turn_halves_merged_into_a_side_that_is_its_own_partner() {
-        let mut corrupted = two_two_mirror(1.0);
+        let mut corrupted = built_with_aspect("22*", 1.0, None);
         corrupted.vertices.remove(0);
         corrupted.corners.remove(0);
         let merged = Side {
@@ -2669,7 +2693,7 @@ mod tests {
 
     #[test]
     fn verify_fails_on_a_half_turn_about_the_wrong_vertex() {
-        let mut corrupted = two_two_mirror(1.0);
+        let mut corrupted = built_with_aspect("22*", 1.0, None);
         corrupted.sides[0].pairing = half_turn(corrupted.vertices[3]);
         assert_failed(
             &corrupted,
@@ -2725,8 +2749,7 @@ mod tests {
         for text in ["*2222", "*732", "732", "442", "532", "22", "3333", "*3333"] {
             assert_eq!(built(text).closure, Closure::PerVertex, "{text}");
         }
-        assert_eq!(two_two_mirror(1.0).closure, Closure::Wallpaper);
-        for text in ["**", "xx", "*x", "22x"] {
+        for text in ["**", "xx", "*x", "22x", "22*", "2*22"] {
             assert_eq!(
                 built_with_aspect(text, 1.0, None).closure,
                 Closure::Wallpaper,

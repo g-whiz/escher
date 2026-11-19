@@ -328,6 +328,21 @@ fn info_prints_the_domain_summary_of_two_half_turns_and_a_cross_cap() {
 }
 
 #[test]
+fn info_prints_the_domain_summary_of_two_half_turns_and_a_mirror() {
+    insta::assert_snapshot!(snapshot(&["info", "22*"]));
+}
+
+#[test]
+fn info_prints_the_domain_summary_of_a_half_turn_and_two_mirror_corners() {
+    insta::assert_snapshot!(snapshot(&["info", "2*22"]));
+}
+
+#[test]
+fn info_check_prints_each_check_of_two_half_turns_and_a_mirror() {
+    insta::assert_snapshot!(snapshot(&["info", "--check", "22*"]));
+}
+
+#[test]
 fn info_presentation_prints_the_side_relators_of_the_mobius_strip() {
     insta::assert_snapshot!(snapshot(&["info", "--presentation", "*x"]));
 }

@@ -300,86 +300,153 @@ impl Reference {
     }
 }
 
-type DefinedPairing = Option<([i32; 2], [BigFloat; 2])>;
+type Affine = ([i32; 2], [BigFloat; 2]);
+
+type DefinedPairing = Option<Affine>;
+
+type Layout = (Vec<[BigFloat; 2]>, Vec<DefinedPairing>);
+
+fn half(value: &BigFloat) -> BigFloat {
+    div(value, &int(2))
+}
+
+fn translation(shift: [BigFloat; 2]) -> Affine {
+    ([1, 1], shift)
+}
+
+fn half_turn(centre: &[BigFloat; 2]) -> Affine {
+    (
+        [-1, -1],
+        [mul(&int(2), &centre[0]), mul(&int(2), &centre[1])],
+    )
+}
+
+fn torus(width: &BigFloat, height: &BigFloat, skew: f64) -> Layout {
+    let lean = mul(&num(skew), width);
+    let first = [width.clone(), int(0)];
+    let second = [lean, height.clone()];
+    let combine = |sign_first: bool, sign_second: bool| {
+        [0, 1].map(|axis| {
+            let one = if sign_first {
+                first[axis].clone()
+            } else {
+                first[axis].neg()
+            };
+            let other = if sign_second {
+                second[axis].clone()
+            } else {
+                second[axis].neg()
+            };
+            half(&add(&one, &other))
+        })
+    };
+    (
+        vec![
+            combine(true, false),
+            combine(true, true),
+            combine(false, true),
+            combine(false, false),
+        ],
+        vec![
+            Some(translation(second.clone())),
+            Some(translation([first[0].neg(), first[1].neg()])),
+            Some(translation([second[0].neg(), second[1].neg()])),
+            Some(translation(first.clone())),
+        ],
+    )
+}
+
+fn sheared_double(width: &BigFloat, height: &BigFloat, skew: f64) -> Layout {
+    let (x, y) = (half(width), half(height));
+    let shift = half(&mul(&num(skew), width));
+    let thrice = mul(&int(3), &x);
+    let placed = vec![
+        [sub(&x, &shift), y.neg()],
+        [sub(&thrice, &shift), y.neg()],
+        [add(&thrice, &shift), y.clone()],
+        [add(&x, &shift), y.clone()],
+        [sub(&shift, &x), y.clone()],
+        [sub(&x.neg(), &shift), y.neg()],
+    ];
+    let twice = mul(&int(2), width);
+    let pairings = vec![
+        Some(half_turn(&placed[0])),
+        Some(half_turn(&placed[0])),
+        Some(translation([twice.neg(), int(0)])),
+        Some(half_turn(&placed[3])),
+        Some(half_turn(&placed[3])),
+        Some(translation([twice, int(0)])),
+    ];
+    (placed, pairings)
+}
+
+fn split_rectangle(width: &BigFloat, height: &BigFloat, both: bool) -> Layout {
+    let (x, y) = (half(width), half(height));
+    let (below, above) = ([int(0), y.neg()], [int(0), y.clone()]);
+    let mut placed = vec![below.clone(), [x.clone(), y.neg()], [x.clone(), y.clone()]];
+    let mut pairings = vec![Some(half_turn(&below)), Some(half_turn(&below)), None];
+    if both {
+        placed.push(above.clone());
+        pairings.extend([Some(half_turn(&above)), Some(half_turn(&above))]);
+    } else {
+        pairings.push(None);
+    }
+    placed.extend([[x.neg(), y.clone()], [x.neg(), y.neg()]]);
+    pairings.push(None);
+    (placed, pairings)
+}
+
+fn rectangle_layout(text: &str, width: &BigFloat, height: &BigFloat) -> Layout {
+    let vertical_glide = |shift: BigFloat| Some(([-1, 1], [int(0), shift]));
+    let horizontal_glide = |shift: BigFloat| Some(([1, -1], [shift, int(0)]));
+    let (x, y) = (half(width), half(height));
+    let placed = vec![
+        [x.clone(), y.neg()],
+        [x.clone(), y.clone()],
+        [x.neg(), y.clone()],
+        [x.neg(), y.neg()],
+    ];
+    let pairings = match text {
+        "**" => vec![
+            Some(translation([int(0), height.clone()])),
+            None,
+            Some(translation([int(0), height.neg()])),
+            None,
+        ],
+        "xx" => vec![
+            vertical_glide(height.clone()),
+            Some(translation([width.neg(), int(0)])),
+            vertical_glide(height.neg()),
+            Some(translation([width.clone(), int(0)])),
+        ],
+        "*x" => vec![
+            vertical_glide(height.clone()),
+            None,
+            vertical_glide(height.neg()),
+            None,
+        ],
+        "22x" => vec![
+            vertical_glide(height.clone()),
+            horizontal_glide(width.neg()),
+            vertical_glide(height.neg()),
+            horizontal_glide(width.clone()),
+        ],
+        _ => panic!("the reference has no wallpaper domain of {text}"),
+    };
+    (placed, pairings)
+}
 
 pub(crate) fn wallpaper(text: &str, aspect: f64, skew: f64) -> Polygon {
     let width = sqrt(&num(aspect));
     let height = div(&int(1), &width);
-    let half = |value: &BigFloat| div(value, &int(2));
-    let translation = |shift: [BigFloat; 2]| Some(([1, 1], shift));
-    let vertical_glide = |shift: BigFloat| Some(([-1, 1], [int(0), shift]));
-    let horizontal_glide = |shift: BigFloat| Some(([1, -1], [shift, int(0)]));
-    let (placed, pairings): (Vec<[BigFloat; 2]>, Vec<DefinedPairing>) = if text == "o" {
-        let lean = mul(&num(skew), &width);
-        let first = [width.clone(), int(0)];
-        let second = [lean, height.clone()];
-        let combine = |sign_first: bool, sign_second: bool| {
-            [0, 1].map(|axis| {
-                let one = if sign_first {
-                    first[axis].clone()
-                } else {
-                    first[axis].neg()
-                };
-                let other = if sign_second {
-                    second[axis].clone()
-                } else {
-                    second[axis].neg()
-                };
-                half(&add(&one, &other))
-            })
-        };
-        (
-            vec![
-                combine(true, false),
-                combine(true, true),
-                combine(false, true),
-                combine(false, false),
-            ],
-            vec![
-                translation(second.clone()),
-                translation([first[0].neg(), first[1].neg()]),
-                translation([second[0].neg(), second[1].neg()]),
-                translation(first.clone()),
-            ],
-        )
-    } else {
-        let (x, y) = (half(&width), half(&height));
-        let placed = vec![
-            [x.clone(), y.neg()],
-            [x.clone(), y.clone()],
-            [x.neg(), y.clone()],
-            [x.neg(), y.neg()],
-        ];
-        let pairings = match text {
-            "**" => vec![
-                translation([int(0), height.clone()]),
-                None,
-                translation([int(0), height.neg()]),
-                None,
-            ],
-            "xx" => vec![
-                vertical_glide(height.clone()),
-                translation([width.neg(), int(0)]),
-                vertical_glide(height.neg()),
-                translation([width.clone(), int(0)]),
-            ],
-            "*x" => vec![
-                vertical_glide(height.clone()),
-                None,
-                vertical_glide(height.neg()),
-                None,
-            ],
-            "22x" => vec![
-                vertical_glide(height.clone()),
-                horizontal_glide(width.neg()),
-                vertical_glide(height.neg()),
-                horizontal_glide(width.clone()),
-            ],
-            _ => panic!("the reference has no wallpaper domain of {text}"),
-        };
-        (placed, pairings)
+    let (placed, pairings) = match text {
+        "o" => torus(&width, &height, skew),
+        "2222" => sheared_double(&width, &height, skew),
+        "22*" => split_rectangle(&width, &height, true),
+        "2*22" => split_rectangle(&width, &height, false),
+        _ => rectangle_layout(text, &width, &height),
     };
-    let mut built = polygon(&placed, Vec::new());
+    let mut built = placed_polygon(&placed, Vec::new(), [int(0), int(0)]);
     for (pairing, defined) in built.pairings.iter_mut().zip(pairings) {
         if let Some(([first, second], [x, y])) = defined {
             *pairing = [
@@ -398,7 +465,10 @@ fn polygon(placed: &[[BigFloat; 2]], angles: Vec<BigFloat>) -> Polygon {
     for vertex in placed {
         sum = [add(&sum[0], &vertex[0]), add(&sum[1], &vertex[1])];
     }
-    let mean = [div(&sum[0], &count), div(&sum[1], &count)];
+    placed_polygon(placed, angles, [div(&sum[0], &count), div(&sum[1], &count)])
+}
+
+fn placed_polygon(placed: &[[BigFloat; 2]], angles: Vec<BigFloat>, mean: [BigFloat; 2]) -> Polygon {
     let vertices: Vec<Vector> = placed
         .iter()
         .map(|vertex| [sub(&vertex[0], &mean[0]), sub(&vertex[1], &mean[1]), int(1)])

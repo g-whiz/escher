@@ -57,7 +57,9 @@ use crate::{walk, wallpaper};
 /// when its wall meets the wall of side 1 at a corner of the reflection domain,
 /// and by a translation otherwise. Two sides of the double of `2222` are
 /// paired by translations, and so are all but four sides of the double of a
-/// hyperbolic polygon, such as sides 2 and 5 of the double of `3333`.
+/// hyperbolic polygon, such as sides 2 and 5 of the double of `3333`. The
+/// domain of `2222` with a `skew` other than 0 is the shear of that double,
+/// not a double, with the same sides and pairs.
 ///
 /// # Examples
 ///
@@ -227,7 +229,8 @@ impl FundamentalDomain {
     /// Builds the fundamental domain of a signature, with the shape
     /// parameters that the settings give.
     ///
-    /// The signature must be `o`, `**`, `xx`, `*x`, or `22x`, or have no
+    /// The signature must be `o`, `**`, `xx`, `*x`, `22x`, `22*`, or `2*22`,
+    /// or have no
     /// handle or crosscap and
     /// either one mirror boundary with finite corner orders and no cone point,
     /// or finite cone orders and no boundary. With a boundary, it must be one
@@ -250,8 +253,14 @@ impl FundamentalDomain {
     /// across the wall of side 1. The double of a triangle is a kite with four
     /// sides, that of the rectangle has six, that of a lune has two, and that
     /// of a polygon with `n` corners has `2n - 2`. The double of `2222` has the
-    /// shape parameter `aspect` of the rectangle that it doubles. The double of
-    /// a polygon has no shape parameter: it doubles the polygon at the default
+    /// shape parameter `aspect` of the rectangle that it doubles, and then
+    /// `skew`. A `skew` of exactly 0, or of -0, gives the double itself. Any
+    /// other value shears the double by `(x, y) -> (x + skew * aspect * y, y)`,
+    /// with the same numbering of its sides. Its sides 0 and 1 are then paired
+    /// by the half-turn about vertex 0, its sides 3 and 4 by the half-turn
+    /// about vertex 3, and its sides 2 and 5 by the translations by `(-2w, 0)`
+    /// and `(2w, 0)`, with `w` the square root of `aspect`. The double of a
+    /// polygon has no shape parameter: it doubles the polygon at the default
     /// value of each of its parameters.
     ///
     /// The domain of `o` is a parallelogram with the area 1 whose opposite
@@ -269,8 +278,17 @@ impl FundamentalDomain {
     /// those of `22x` are paired by the glide reflections
     /// `(x, y) -> (x - w, -y)` and `(x, y) -> (x + w, -y)`. Each glide
     /// reflection is the product of a translation and a reflection in a line
-    /// through the origin, so its entries are exact. Every one of these
-    /// domains has its centre at the origin.
+    /// through the origin, so its entries are exact. The domain of `22*` is
+    /// the same rectangle with its bottom and top sides split at their
+    /// midpoints `(0, -h / 2)` and `(0, h / 2)`, which are its vertices 0 and
+    /// 3. Its sides 0 and 1 are paired by the half-turn about vertex 0, its
+    /// sides 3 and 4 by the half-turn about vertex 3, and its sides 2 and 5
+    /// are mirrors. The domain of `2*22` splits only the bottom side in this
+    /// way: its sides 0 and 1 are paired by the half-turn about vertex 0, and
+    /// its sides 2, 3, and 4 are mirrors. Each half-turn is the product of the
+    /// reflections in the horizontal and the vertical line through its centre,
+    /// so its entries are exact. Every one of these domains has its centre at
+    /// the origin.
     ///
     /// The reflection triangle of a Euclidean signature has side 0 of length 1,
     /// and the reflection rectangle has area 1. A spherical domain lies on the
@@ -282,8 +300,9 @@ impl FundamentalDomain {
     /// signature, and each value must lie in the range of that parameter. A
     /// parameter without a setting takes its default value.
     ///
-    /// A hyperbolic polygon, its double, or the domain of `o`, `**`, `xx`,
-    /// `*x`, or `22x` is returned only when it passes every check of
+    /// A hyperbolic polygon, its double, the domain of `o`, `**`, `xx`, `*x`,
+    /// `22x`, `22*`, or `2*22`, or the domain of `2222` at any `skew` is
+    /// returned only when it passes every check of
     /// [`verify`](FundamentalDomain::verify), because rounding
     /// keeps some domains from meeting the tolerances of the checks. A polygon
     /// with lengths near the ends of their ranges can have errors that are too
@@ -337,21 +356,28 @@ impl FundamentalDomain {
     /// 5. An error of kind
     ///    [`ErrorKind::Numerical`](crate::ErrorKind::Numerical) when rounding
     ///    makes the construction degenerate, or when a hyperbolic polygon, its
-    ///    double, or the domain of `o`, `**`, `xx`, `*x`, or `22x` fails a
-    ///    check of
+    ///    double, the domain of `o`, `**`, `xx`, `*x`, `22x`, `22*`, or
+    ///    `2*22`, or the domain of `2222` fails a check of
     ///    [`verify`](FundamentalDomain::verify).
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
         let supported = admitted(signature)?;
         let cuts = supported.shape().and_then(Shape::cuts);
         let values = validate(signature, supported, cuts.as_ref(), parameters)?;
+        let generating = &values.generating;
         let domain = match supported {
-            Supported::Reflection(shape) => Self::reflection(shape, cuts.as_ref(), &values)?,
-            Supported::Rotation(shape) => double(
-                &Self::reflection(shape.with_half_area(), cuts.as_ref(), &values)?,
-                plane(shape),
-                double_closure(shape),
-            )?,
-            Supported::Wallpaper(class) => wallpaper::construct(class, &values)?,
+            Supported::Reflection(shape) => Self::reflection(shape, cuts.as_ref(), generating)?,
+            Supported::Rotation(shape) => {
+                let doubled = double(
+                    &Self::reflection(shape.with_half_area(), cuts.as_ref(), generating)?,
+                    plane(shape),
+                    double_closure(shape),
+                )?;
+                match values.shear {
+                    Some(shear) if shear.skew != 0.0 => wallpaper::shear(&doubled, shear)?,
+                    Some(_) | None => doubled,
+                }
+            }
+            Supported::Wallpaper(class) => wallpaper::construct(class, generating)?,
         };
         Self::guarded(supported, domain)
     }
@@ -360,7 +386,9 @@ impl FundamentalDomain {
         let refusal = match supported {
             Supported::Reflection(Shape::HyperbolicPolygon { .. }) => Error::refused(),
             Supported::Rotation(Shape::HyperbolicPolygon { .. }) => Error::refused_double(),
-            Supported::Wallpaper(_) => Error::refused_wallpaper(),
+            Supported::Wallpaper(_) | Supported::Rotation(Shape::Rectangle) => {
+                Error::refused_wallpaper()
+            }
             Supported::Reflection(_) | Supported::Rotation(_) => return Ok(domain),
         };
         if domain.verify().passed() {
@@ -454,9 +482,16 @@ impl FundamentalDomain {
     /// For a hyperbolic domain it is the sum of the vertices scaled onto the
     /// hyperboloid, and the domain is placed so that it is the point
     /// [`ORIGIN`](escher_geometry::hyperbolic::ORIGIN) up to rounding, the
-    /// centre of the Poincare disk. For a Euclidean domain it is the mean of
-    /// the vertices, and the domain is placed so that it is the point
-    /// [`ORIGIN`](escher_geometry::euclidean::ORIGIN) up to rounding. For a
+    /// centre of the Poincare disk. For a Euclidean triangle and the rectangle
+    /// of `*2222` it is the mean of the vertices, and the domain is placed so
+    /// that it is the point [`ORIGIN`](escher_geometry::euclidean::ORIGIN) up
+    /// to rounding. The domains of `o`, `**`, `xx`, `*x`, `22*`, `22x`, and
+    /// `2*22`, and the domain of `2222` at every `skew`, have the centre
+    /// [`ORIGIN`](escher_geometry::euclidean::ORIGIN) exactly, which is the
+    /// centre of the rectangle of `*2222` that they are built on. It is the
+    /// mean of the vertices for `o`, `**`, `xx`, `*x`, `22*`, and `22x`, but
+    /// not for `2*22`, whose bottom side alone is split, and not for `2222`,
+    /// whose second rectangle lies to the right of the first. For a
     /// spherical triangle it is the sum of the vertices scaled onto the
     /// sphere, and the domain is placed so that it is the point
     /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) up to rounding. The two
@@ -994,7 +1029,8 @@ mod tests {
     use escher_signature::Signature;
 
     use super::{FundamentalDomain, Orientation, PairingKind};
-    use crate::triangle::{LARGEST_ORDER, MOST_ORDERS, Supported, admitted};
+    use crate::shared::built_with_aspect;
+    use crate::triangle::{LARGEST_ORDER, MOST_ORDERS, Shape, Supported, admitted};
     use crate::wallpaper;
     use crate::{ErrorKind, ShapeParameters};
 
@@ -1097,18 +1133,82 @@ mod tests {
         }
     }
 
+    fn construct(text: &str, values: &[f64]) -> (Supported, FundamentalDomain) {
+        let supported = admitted(&signature(text));
+        let Ok(Supported::Wallpaper(class)) = supported else {
+            panic!("{text} is not a built wallpaper signature");
+        };
+        match wallpaper::construct(class, values) {
+            Ok(domain) => (Supported::Wallpaper(class), domain),
+            Err(error) => panic!("{text}: {error}"),
+        }
+    }
+
+    fn assert_refused(label: &str, class: Supported, corrupted: FundamentalDomain) {
+        let error = FundamentalDomain::guarded(class, corrupted).err();
+        assert_eq!(
+            error.as_ref().map(crate::Error::kind),
+            Some(ErrorKind::Numerical),
+            "{label}"
+        );
+        assert_eq!(
+            error.map(|error| error.to_string()).as_deref(),
+            Some("cannot build fundamental domain: the wallpaper domain fails its verification"),
+            "{label}"
+        );
+    }
+
+    #[test]
+    fn guard_refuses_a_half_turn_domain_that_fails_its_checks() {
+        let (two_two_mirror_class, mut two_two_mirror) = construct("22*", &[1.0]);
+        two_two_mirror.sides[0].pairing = wallpaper::half_turn(two_two_mirror.vertices[3]);
+        let (two_mirror_class, mut two_mirror) = construct("2*22", &[1.0]);
+        two_mirror.corners[2].order = 1;
+        let rectangle = Supported::Rotation(Shape::Rectangle);
+        let mut unsheared = built_with_aspect("2222", 1.0, None);
+        unsheared.sides[2].kind = PairingKind::Rotation;
+        unsheared.sides[5].kind = PairingKind::Rotation;
+        let mut sheared = built_with_aspect("2222", 1.0, Some(0.25));
+        sheared.sides[0].pairing = wallpaper::half_turn(sheared.vertices[3]);
+        for (label, class, corrupted) in [
+            (
+                "22* with a half-turn about the wrong vertex",
+                two_two_mirror_class,
+                two_two_mirror,
+            ),
+            (
+                "2*22 with a corner of order 1",
+                two_mirror_class,
+                two_mirror,
+            ),
+            (
+                "2222 with its translations labelled as rotations",
+                rectangle,
+                unsheared,
+            ),
+            (
+                "sheared 2222 with a half-turn about the wrong vertex",
+                rectangle,
+                sheared,
+            ),
+        ] {
+            assert_refused(label, class, corrupted);
+        }
+        for (text, values) in [("22*", &[1.0][..]), ("2*22", &[1.0][..])] {
+            let (class, domain) = construct(text, values);
+            assert!(FundamentalDomain::guarded(class, domain).is_ok(), "{text}");
+        }
+        for skew in [None, Some(0.25)] {
+            let domain = built_with_aspect("2222", 1.0, skew);
+            assert!(
+                FundamentalDomain::guarded(rectangle, domain).is_ok(),
+                "2222 at skew {skew:?}"
+            );
+        }
+    }
+
     #[test]
     fn guard_refuses_a_wallpaper_domain_that_fails_its_checks() {
-        let construct = |text: &str, values: &[f64]| {
-            let supported = admitted(&signature(text));
-            let Ok(Supported::Wallpaper(class)) = supported else {
-                panic!("{text} is not a built wallpaper signature");
-            };
-            match wallpaper::construct(class, values) {
-                Ok(domain) => (Supported::Wallpaper(class), domain),
-                Err(error) => panic!("{text}: {error}"),
-            }
-        };
         let (torus_class, mut torus) = construct("o", &[1.0, 0.0]);
         for (index, partner) in [3, 2, 1, 0].into_iter().enumerate() {
             torus.sides[index].partner = partner;
@@ -1143,19 +1243,7 @@ mod tests {
                 cross_cap,
             ),
         ] {
-            let error = FundamentalDomain::guarded(class, corrupted).err();
-            assert_eq!(
-                error.as_ref().map(crate::Error::kind),
-                Some(ErrorKind::Numerical),
-                "{label}"
-            );
-            assert_eq!(
-                error.map(|error| error.to_string()).as_deref(),
-                Some(
-                    "cannot build fundamental domain: the wallpaper domain fails its verification"
-                ),
-                "{label}"
-            );
+            assert_refused(label, class, corrupted);
         }
         for (text, values) in [
             ("o", &[1.0, 0.0][..]),

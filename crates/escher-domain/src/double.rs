@@ -123,7 +123,7 @@ fn doubled_side(generating: &FundamentalDomain, plane: Plane, wall: DMat3, index
     }
 }
 
-fn product(left: DMat3, right: DMat3) -> DMat3 {
+pub(crate) fn product(left: DMat3, right: DMat3) -> DMat3 {
     let entry = |row: usize, column: usize| {
         accurate_dot(left.row(row).to_array(), right.col(column).to_array())
     };

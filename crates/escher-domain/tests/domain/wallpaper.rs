@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use core::f64::consts::{PI, TAU};
 
 use escher_domain::{FundamentalDomain, Orientation, PairingKind, parameters};
@@ -9,29 +7,48 @@ use proptest::prelude::{Just, Strategy, prop_assert, prop_oneof, proptest};
 
 use crate::common::{LargestResiduals, largest_coordinate_error, proptest_config, signature};
 use crate::reference::{Reference, Worst, div, error, int, matrix, mul, num, sub};
-use crate::shared::{build_with_aspect, built_with_aspect};
+use crate::shared::{
+    GRID_ASPECTS, GRID_SKEWS, build_with_aspect, built_with_aspect, relator_texts,
+};
 
-const GRID_ASPECTS: [f64; 6] = [0.125, 0.3, 1.0, 1.618, 4.0, 8.0];
+const RECTANGULAR: [&str; 6] = ["**", "xx", "*x", "22x", "22*", "2*22"];
 
-const GRID_SKEWS: [f64; 5] = [-0.5, -0.3, 0.0, 0.25, 0.5];
-
-const RECTANGULAR: [&str; 4] = ["**", "xx", "*x", "22x"];
+const LATTICES: [&str; 2] = ["o", "2222"];
 
 const MARGIN: f64 = 8.0;
 
-const VERTEX_BOUND: f64 = 4e-15;
+struct Bounds {
+    name: &'static str,
+    vertex: f64,
+    covector: f64,
+    pairing: f64,
+    length: f64,
+    angle_sum: f64,
+    area: f64,
+    shear: f64,
+}
 
-const COVECTOR_BOUND: f64 = 2e-15;
+const BOUNDS: Bounds = Bounds {
+    name: "other than 2222",
+    vertex: 4e-15,
+    covector: 2e-15,
+    pairing: 4e-15,
+    length: 4e-15,
+    angle_sum: 1e-14,
+    area: 1e-15,
+    shear: 2e-15,
+};
 
-const PAIRING_BOUND: f64 = 4e-15;
-
-const LENGTH_BOUND: f64 = 4e-15;
-
-const ANGLE_SUM_BOUND: f64 = 1e-14;
-
-const AREA_BOUND: f64 = 1e-15;
-
-const SHEAR_BOUND: f64 = 2e-15;
+const BOUNDS_OF_2222: Bounds = Bounds {
+    name: "2222",
+    vertex: 1e-14,
+    covector: 1e-14,
+    pairing: 1e-14,
+    length: 1e-14,
+    angle_sum: 1e-14,
+    area: 1e-15,
+    shear: 4e-15,
+};
 
 const MERGE_TOLERANCE: f64 = 1e-9;
 
@@ -51,12 +68,16 @@ pub(crate) struct Setting {
 }
 
 impl Setting {
-    const fn torus(aspect: f64, skew: f64) -> Self {
+    const fn lattice(text: &'static str, aspect: f64, skew: f64) -> Self {
         Self {
-            text: "o",
+            text,
             aspect,
             skew: Some(skew),
         }
+    }
+
+    const fn torus(aspect: f64, skew: f64) -> Self {
+        Self::lattice("o", aspect, skew)
     }
 
     const fn rectangular(text: &'static str, aspect: f64) -> Self {
@@ -64,6 +85,14 @@ impl Setting {
             text,
             aspect,
             skew: None,
+        }
+    }
+
+    fn bounds(self) -> &'static Bounds {
+        if self.text == "2222" {
+            &BOUNDS_OF_2222
+        } else {
+            &BOUNDS
         }
     }
 
@@ -82,6 +111,18 @@ impl Setting {
         built_with_aspect(self.text, self.aspect, self.skew)
     }
 
+    fn area(self) -> f64 {
+        if self.text == "2222" { 2.0 } else { 1.0 }
+    }
+
+    fn flat_vertices(self) -> &'static [usize] {
+        match self.text {
+            "22*" | "2222" => &[0, 3],
+            "2*22" => &[0],
+            _ => &[],
+        }
+    }
+
     fn cycles(self) -> &'static [(u32, &'static [usize])] {
         match self.text {
             "o" => &[(1, &[0, 3, 2, 1])],
@@ -89,6 +130,9 @@ impl Setting {
             "xx" => &[(1, &[0, 3, 1, 2])],
             "*x" => &[(1, &[0, 0, 2, 2]), (1, &[1, 3, 3, 1])],
             "22x" => &[(2, &[0, 2]), (2, &[1, 3])],
+            "22*" => &[(2, &[0]), (1, &[1, 1, 5, 5]), (1, &[2, 4, 4, 2]), (2, &[3])],
+            "2*22" => &[(2, &[0]), (1, &[1, 1, 4, 4]), (2, &[2, 2]), (2, &[3, 3])],
+            "2222" => &[(2, &[0]), (2, &[1, 5]), (2, &[2, 4]), (2, &[3])],
             text => panic!("{text} has no listed cycles"),
         }
     }
@@ -97,7 +141,9 @@ impl Setting {
 fn grid() -> Vec<Setting> {
     let mut settings = Vec::new();
     for aspect in GRID_ASPECTS {
-        settings.extend(GRID_SKEWS.map(|skew| Setting::torus(aspect, skew)));
+        for text in LATTICES {
+            settings.extend(GRID_SKEWS.map(|skew| Setting::lattice(text, aspect, skew)));
+        }
         settings.extend(RECTANGULAR.map(|text| Setting::rectangular(text, aspect)));
     }
     settings
@@ -106,93 +152,143 @@ fn grid() -> Vec<Setting> {
 pub(crate) fn named_settings() -> Vec<Setting> {
     let mut settings = Vec::new();
     for aspect in [1.0, 0.125, 8.0] {
-        settings.push(Setting::torus(aspect, 0.0));
+        settings.extend(LATTICES.map(|text| Setting::lattice(text, aspect, 0.0)));
         settings.extend(RECTANGULAR.map(|text| Setting::rectangular(text, aspect)));
     }
-    settings.extend([-0.5, 0.25, 0.5].map(|skew| Setting::torus(1.0, skew)));
+    for text in LATTICES {
+        settings.extend([-0.5, 0.25, 0.5].map(|skew| Setting::lattice(text, 1.0, skew)));
+    }
     settings
 }
 
-fn expected_vertices(setting: Setting) -> [DVec3; 4] {
+fn expected_vertices(setting: Setting) -> Vec<DVec3> {
     let width = setting.aspect.sqrt();
     let height = 1.0 / width;
     let lean = setting.skew.unwrap_or(0.0) * width;
+    let (x, y) = (0.5 * width, 0.5 * height);
     let point = |x: f64, y: f64| DVec3::new(x, y, 1.0);
     match setting.text {
-        "o" => [
-            point(0.5 * (width - lean), -0.5 * height),
-            point(f64::midpoint(width, lean), 0.5 * height),
-            point(0.5 * (lean - width), 0.5 * height),
-            point(-f64::midpoint(width, lean), -0.5 * height),
+        "o" => vec![
+            point(0.5 * (width - lean), -y),
+            point(f64::midpoint(width, lean), y),
+            point(0.5 * (lean - width), y),
+            point(-f64::midpoint(width, lean), -y),
         ],
-        _ => [
-            point(0.5 * width, -0.5 * height),
-            point(0.5 * width, 0.5 * height),
-            point(-0.5 * width, 0.5 * height),
-            point(-0.5 * width, -0.5 * height),
+        "22*" => vec![
+            point(0.0, -y),
+            point(x, -y),
+            point(x, y),
+            point(0.0, y),
+            point(-x, y),
+            point(-x, -y),
         ],
+        "2*22" => vec![
+            point(0.0, -y),
+            point(x, -y),
+            point(x, y),
+            point(-x, y),
+            point(-x, -y),
+        ],
+        "2222" => {
+            let shift = 0.5 * lean;
+            vec![
+                point(x - shift, -y),
+                point(3.0 * x - shift, -y),
+                point(3.0 * x + shift, y),
+                point(x + shift, y),
+                point(-x + shift, y),
+                point(-x - shift, -y),
+            ]
+        }
+        _ => vec![point(x, -y), point(x, y), point(-x, y), point(-x, -y)],
     }
 }
 
 type TableRow = (
     Setting,
-    [usize; 4],
-    [PairingKind; 4],
+    &'static [usize],
+    &'static [PairingKind],
     &'static [&'static str],
 );
 
-fn table_rows() -> [TableRow; 6] {
+const ROTATION: PairingKind = PairingKind::Rotation;
+
+const MIRROR: PairingKind = PairingKind::Mirror;
+
+const TRANSLATION: PairingKind = PairingKind::Translation;
+
+const GLIDE: PairingKind = PairingKind::GlideReflection;
+
+const TWO_TWO_TWO_TWO_KINDS: &[PairingKind] = &[
+    ROTATION,
+    ROTATION,
+    TRANSLATION,
+    ROTATION,
+    ROTATION,
+    TRANSLATION,
+];
+
+fn table_rows() -> [TableRow; 10] {
     [
         (
             Setting::rectangular("**", 1.0),
-            [2, 1, 0, 3],
-            [
-                PairingKind::Translation,
-                PairingKind::Mirror,
-                PairingKind::Translation,
-                PairingKind::Mirror,
-            ],
-            &["aspect"][..],
+            &[2, 1, 0, 3],
+            &[TRANSLATION, MIRROR, TRANSLATION, MIRROR],
+            &["aspect"],
         ),
         (
             Setting::rectangular("xx", 1.0),
-            [2, 3, 0, 1],
-            [
-                PairingKind::GlideReflection,
-                PairingKind::Translation,
-                PairingKind::GlideReflection,
-                PairingKind::Translation,
-            ],
-            &["aspect"][..],
+            &[2, 3, 0, 1],
+            &[GLIDE, TRANSLATION, GLIDE, TRANSLATION],
+            &["aspect"],
         ),
         (
             Setting::rectangular("*x", 1.0),
-            [2, 1, 0, 3],
-            [
-                PairingKind::GlideReflection,
-                PairingKind::Mirror,
-                PairingKind::GlideReflection,
-                PairingKind::Mirror,
-            ],
-            &["aspect"][..],
+            &[2, 1, 0, 3],
+            &[GLIDE, MIRROR, GLIDE, MIRROR],
+            &["aspect"],
         ),
         (
             Setting::rectangular("22x", 1.0),
-            [2, 3, 0, 1],
-            [PairingKind::GlideReflection; 4],
-            &["aspect"][..],
+            &[2, 3, 0, 1],
+            &[GLIDE; 4],
+            &["aspect"],
+        ),
+        (
+            Setting::rectangular("22*", 1.0),
+            &[1, 0, 2, 4, 3, 5],
+            &[ROTATION, ROTATION, MIRROR, ROTATION, ROTATION, MIRROR],
+            &["aspect"],
+        ),
+        (
+            Setting::rectangular("2*22", 1.0),
+            &[1, 0, 2, 3, 4],
+            &[ROTATION, ROTATION, MIRROR, MIRROR, MIRROR],
+            &["aspect"],
         ),
         (
             Setting::torus(1.0, 0.0),
-            [2, 3, 0, 1],
-            [PairingKind::Translation; 4],
-            &["aspect", "skew"][..],
+            &[2, 3, 0, 1],
+            &[TRANSLATION; 4],
+            &["aspect", "skew"],
         ),
         (
             Setting::torus(1.0, 0.25),
-            [2, 3, 0, 1],
-            [PairingKind::Translation; 4],
-            &["aspect", "skew"][..],
+            &[2, 3, 0, 1],
+            &[TRANSLATION; 4],
+            &["aspect", "skew"],
+        ),
+        (
+            Setting::lattice("2222", 1.0, 0.0),
+            &[1, 0, 5, 4, 3, 2],
+            TWO_TWO_TWO_TWO_KINDS,
+            &["aspect", "skew"],
+        ),
+        (
+            Setting::lattice("2222", 1.0, 0.25),
+            &[1, 0, 5, 4, 3, 2],
+            TWO_TWO_TWO_TWO_KINDS,
+            &["aspect", "skew"],
         ),
     ]
 }
@@ -203,10 +299,14 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
         let label = setting.label();
         let domain = setting.domain();
         assert!(domain.verify().passed(), "{label}");
-        assert_eq!(domain.vertices().len(), 4, "{label}");
-        for (vertex, expected) in domain.vertices().iter().zip(expected_vertices(setting)) {
+        let expected_vertices = expected_vertices(setting);
+        assert_eq!(domain.vertices().len(), expected_vertices.len(), "{label}");
+        for (vertex, expected) in domain.vertices().iter().zip(expected_vertices) {
             let difference = (*vertex - expected).abs().max_element();
-            assert!(difference <= 2.0 * VERTEX_BOUND, "{label}: {difference:e}");
+            assert!(
+                difference <= 2.0 * setting.bounds().vertex,
+                "{label}: {difference:e}"
+            );
         }
         let sides = domain.sides();
         assert_eq!(
@@ -227,19 +327,28 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
             assert_eq!(side.orientation(), expected, "{label}");
         }
         let angles = domain.corner_angles();
-        for angle in &angles {
-            assert!((angle - PI).abs() > 1e-3, "{label}: flat vertex");
+        for (vertex, &angle) in angles.iter().enumerate() {
+            if setting.flat_vertices().contains(&vertex) {
+                assert_eq!(angle, PI, "{label}: flat vertex {vertex}");
+            } else {
+                assert!(
+                    (angle - PI).abs() > 1e-3,
+                    "{label}: vertex {vertex} is flat"
+                );
+            }
         }
         for &(order, cycle) in setting.cycles() {
             let sum: f64 = cycle.iter().map(|&vertex| angles[vertex]).sum();
             let expected = TAU / f64::from(order);
             assert!(
-                (sum - expected).abs() <= ANGLE_SUM_BOUND,
+                (sum - expected).abs() <= setting.bounds().angle_sum,
                 "{label}: cycle {cycle:?} sums to {sum}"
             );
         }
         let count = domain.vertices().len();
-        for index in 0..count {
+        for index in
+            (0..count).filter(|index| !setting.flat_vertices().contains(&((index + 1) % count)))
+        {
             let [first, second, third] =
                 [0, 1, 2].map(|step| domain.vertices()[(index + step) % count].truncate());
             let turn = (second - first).perp_dot(third - first);
@@ -248,7 +357,7 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
         assert_eq!(domain.centre(), euclidean::ORIGIN, "{label}");
         assert_eq!(
             domain.reverses_orientation(),
-            setting.text != "o",
+            !LATTICES.contains(&setting.text),
             "{label}"
         );
         let found: Vec<String> = parameters(&signature(setting.text))
@@ -273,7 +382,7 @@ fn wallpaper_signatures_typed_in_another_order_build_the_domain_of_their_canonic
 
 #[test]
 fn wallpaper_checks_pass_with_a_margin_over_the_grid() {
-    for text in ["o", "**", "xx", "*x", "22x"] {
+    for text in LATTICES.into_iter().chain(RECTANGULAR) {
         let mut largest = LargestResiduals::new();
         let settings: Vec<Setting> = grid()
             .into_iter()
@@ -311,9 +420,9 @@ fn setting_strategy() -> impl Strategy<Value = Setting> {
         3 => -0.5..=0.5_f64,
         1 => prop_oneof![Just(-0.5), Just(0.5)],
     ];
-    (aspect, skew, 0..=RECTANGULAR.len()).prop_map(|(aspect, skew, choice)| {
+    (aspect, skew, 0..RECTANGULAR.len() + LATTICES.len()).prop_map(|(aspect, skew, choice)| {
         RECTANGULAR.get(choice).map_or_else(
-            || Setting::torus(aspect, skew),
+            || Setting::lattice(LATTICES[choice - RECTANGULAR.len()], aspect, skew),
             |&text| Setting::rectangular(text, aspect),
         )
     })
@@ -337,19 +446,29 @@ fn wallpaper_domains_match_their_closed_forms() {
     let mut reference = Reference::new();
     let one = int(1);
     let tau = mul(&reference.pi(), &int(2));
-    let mut vertex = Worst::new("vertex", 1);
-    let mut covector = Worst::new("covector", 1);
-    let mut pairing = Worst::new("pairing", 1);
-    let mut length = Worst::new("side length", 1);
-    let mut angle_sum = Worst::new("angle sum of a cycle", 1);
-    let mut area = Worst::new("area", 1);
-    let settings = grid();
-    for setting in &settings {
+    let mut sets = [&BOUNDS, &BOUNDS_OF_2222].map(|bounds| {
+        (
+            bounds,
+            [
+                "vertex",
+                "covector",
+                "pairing",
+                "side length",
+                "angle sum of a cycle",
+                "area",
+            ]
+            .map(|quantity| Worst::new(format!("{}, {quantity}", bounds.name), 1)),
+        )
+    });
+    let mut flat_count = 0_usize;
+    for setting in &grid() {
         let label = setting.label();
         let domain = setting.domain();
         let exact =
             crate::reference::wallpaper(setting.text, setting.aspect, setting.skew.unwrap_or(0.0));
         assert_eq!(domain.centre(), euclidean::ORIGIN, "{label}");
+        let [vertex, covector, pairing, length, angle_sum, area] =
+            &mut sets[usize::from(setting.text == "2222")].1;
         let lengths = domain.side_lengths();
         for (index, side) in domain.sides().iter().enumerate() {
             vertex.record(
@@ -375,60 +494,73 @@ fn wallpaper_domains_match_their_closed_forms() {
             });
         }
         let angles = domain.corner_angles();
+        for &vertex in setting.flat_vertices() {
+            assert_eq!(angles[vertex], PI, "{label}: flat vertex {vertex}");
+            flat_count += 1;
+        }
         for (position, &(order, cycle)) in setting.cycles().iter().enumerate() {
             let sum = cycle.iter().fold(0.0, |sum, &vertex| sum + angles[vertex]);
             angle_sum.record(&error(sum, &div(&tau, &int(order))), &one, || {
                 format!("{label}, cycle {position}")
             });
         }
-        area.record(&error(domain.area(), &one), &one, || label.clone());
+        area.record(&error(domain.area(), &num(setting.area())), &one, || {
+            label.clone()
+        });
     }
-    for (worst, bound) in [
-        (&vertex, VERTEX_BOUND),
-        (&covector, COVECTOR_BOUND),
-        (&pairing, PAIRING_BOUND),
-        (&length, LENGTH_BOUND),
-        (&angle_sum, ANGLE_SUM_BOUND),
-        (&area, AREA_BOUND),
-    ] {
-        worst.assert_at_most(&mut reference, bound);
+    for (bounds, worsts) in &sets {
+        let limits = [
+            bounds.vertex,
+            bounds.covector,
+            bounds.pairing,
+            bounds.length,
+            bounds.angle_sum,
+            bounds.area,
+        ];
+        for (worst, bound) in worsts.iter().zip(limits) {
+            worst.assert_at_most(&mut reference, bound);
+        }
     }
-    println!("flat vertex: none in these domains");
+    assert!(flat_count > 0);
+    println!("flat vertices: {flat_count}, each measured exactly as the f64 nearest pi");
     println!("centre: exactly the origin for every domain");
 }
 
 #[test]
-fn skewed_tori_are_shears_of_the_rectangle() {
+fn skewed_domains_are_shears_of_their_unskewed_domains() {
     let mut reference = Reference::new();
     let one = int(1);
-    let mut vertex = Worst::new("sheared vertex", 1);
-    let mut area = Worst::new("sheared area", 1);
-    for aspect in GRID_ASPECTS {
-        let unskewed = Setting::torus(aspect, 0.0).domain();
-        for skew in GRID_SKEWS.into_iter().filter(|&skew| skew != 0.0) {
-            let setting = Setting::torus(aspect, skew);
-            let label = setting.label();
-            let skewed = setting.domain();
-            let factor = mul(&num(skew), &num(aspect));
-            for (index, (&moved, &start)) in skewed
-                .vertices()
-                .iter()
-                .zip(unskewed.vertices())
-                .enumerate()
-            {
-                let [x, y, z] = [start.x, start.y, start.z].map(num);
-                let exact = [crate::reference::add(&x, &mul(&factor, &y)), y, z];
-                vertex.record(&largest_coordinate_error(moved, &exact), &one, || {
-                    format!("{label}, vertex {index}")
+    for text in LATTICES {
+        let bounds = Setting::lattice(text, 1.0, 0.0).bounds();
+        let mut vertex = Worst::new(format!("{text}, sheared vertex"), 1);
+        let mut area = Worst::new(format!("{text}, sheared area"), 1);
+        for aspect in GRID_ASPECTS {
+            let unskewed = Setting::lattice(text, aspect, 0.0).domain();
+            for skew in GRID_SKEWS.into_iter().filter(|&skew| skew != 0.0) {
+                let setting = Setting::lattice(text, aspect, skew);
+                let label = setting.label();
+                let skewed = setting.domain();
+                let factor = mul(&num(skew), &num(aspect));
+                for (index, (&moved, &start)) in skewed
+                    .vertices()
+                    .iter()
+                    .zip(unskewed.vertices())
+                    .enumerate()
+                {
+                    let [x, y, z] = [start.x, start.y, start.z].map(num);
+                    let exact = [crate::reference::add(&x, &mul(&factor, &y)), y, z];
+                    vertex.record(&largest_coordinate_error(moved, &exact), &one, || {
+                        format!("{label}, vertex {index}")
+                    });
+                }
+                area.record(&error(skewed.area(), &num(unskewed.area())), &one, || {
+                    label.clone()
                 });
             }
-            area.record(&error(skewed.area(), &num(unskewed.area())), &one, || {
-                label.clone()
-            });
         }
+        vertex.assert_at_most(&mut reference, bounds.shear);
+        area.assert_at_most(&mut reference, bounds.area);
     }
-    vertex.assert_at_most(&mut reference, SHEAR_BOUND);
-    area.assert_at_most(&mut reference, AREA_BOUND);
 }
 
 struct Element {
@@ -515,11 +647,82 @@ struct Classes {
     covolume: f64,
     reflection: bool,
     glide_off_mirrors: bool,
-    cone_orders: BTreeSet<u32>,
-    corner_orders: BTreeSet<u32>,
+    cone_orders: Vec<u32>,
+    corner_orders: Vec<u32>,
 }
 
-fn classify(elements: &[Element]) -> Classes {
+struct Centre {
+    point: DVec2,
+    order: u32,
+    on_mirror: bool,
+}
+
+fn centre_classes(
+    elements: &[Element],
+    centre: DVec2,
+    on_mirror: &dyn Fn(DVec2, Option<DMat2>) -> bool,
+) -> (Vec<u32>, Vec<u32>) {
+    let mut centres: Vec<Centre> = Vec::new();
+    for element in elements {
+        let linear = element.linear();
+        if linear.determinant() < 0.0 || close_linear(linear, DMat2::IDENTITY) {
+            continue;
+        }
+        let angle = linear.x_axis.y.atan2(linear.x_axis.x).abs();
+        let Some(order) =
+            (2..=6_u32).find(|&order| (f64::from(order) * angle - TAU).abs() <= MERGE_TOLERANCE)
+        else {
+            panic!("a rotation through {angle} has no order from 2 to 6");
+        };
+        let point = (DMat2::IDENTITY - linear).inverse() * element.shift();
+        if point.distance(centre) > 0.5 * CERTIFICATE_RADIUS {
+            continue;
+        }
+        match centres
+            .iter_mut()
+            .find(|known| known.point.distance(point) <= MERGE_TOLERANCE)
+        {
+            Some(known) => known.order = known.order.max(order),
+            None => centres.push(Centre {
+                point,
+                order,
+                on_mirror: on_mirror(point, None),
+            }),
+        }
+    }
+    let mut class_of: Vec<usize> = (0..centres.len()).collect();
+    for (index, first) in centres.iter().enumerate() {
+        for (other, second) in centres.iter().enumerate().skip(index + 1) {
+            let related = elements.iter().any(|element| {
+                element.apply(first.point).distance(second.point) <= MERGE_TOLERANCE
+            });
+            if related {
+                let (from, to) = (class_of[other], class_of[index]);
+                for class in &mut class_of {
+                    if *class == from {
+                        *class = to;
+                    }
+                }
+            }
+        }
+    }
+    let (mut cone_orders, mut corner_orders) = (Vec::new(), Vec::new());
+    for (index, found) in centres.iter().enumerate() {
+        if class_of[index] != index {
+            continue;
+        }
+        if found.on_mirror {
+            corner_orders.push(found.order);
+        } else {
+            cone_orders.push(found.order);
+        }
+    }
+    cone_orders.sort_unstable();
+    corner_orders.sort_unstable();
+    (cone_orders, corner_orders)
+}
+
+fn classify(elements: &[Element], centre: DVec2) -> Classes {
     let mut linear: Vec<DMat2> = Vec::new();
     for element in elements {
         if !linear
@@ -565,25 +768,7 @@ fn classify(elements: &[Element]) -> Classes {
             let along = 0.5 * (element.linear() * shift + shift);
             !on_mirror(0.5 * (shift - along), Some(element.linear()))
         });
-    let (mut cone_orders, mut corner_orders) = (BTreeSet::new(), BTreeSet::new());
-    for element in elements {
-        let linear = element.linear();
-        if linear.determinant() < 0.0 || close_linear(linear, DMat2::IDENTITY) {
-            continue;
-        }
-        let angle = linear.x_axis.y.atan2(linear.x_axis.x).abs();
-        let Some(order) =
-            (2..=6_u32).find(|&order| (f64::from(order) * angle - TAU).abs() <= MERGE_TOLERANCE)
-        else {
-            panic!("a rotation through {angle} has no order from 2 to 6");
-        };
-        let centre = (DMat2::IDENTITY - linear).inverse() * element.shift();
-        if on_mirror(centre, None) {
-            corner_orders.insert(order);
-        } else {
-            cone_orders.insert(order);
-        }
-    }
+    let (cone_orders, corner_orders) = centre_classes(elements, centre, &on_mirror);
     Classes {
         point_group: u32::try_from(linear.len()).unwrap_or(u32::MAX),
         covolume,
@@ -615,12 +800,12 @@ fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signa
                 .count();
             assert_eq!(images, 1, "{label}: sample {index} at {point:?}");
         }
-        let classes = classify(&elements);
+        let classes = classify(&elements, domain.centre().truncate());
         let parsed = signature(setting.text);
         let expected_order: u32 = match setting.text {
             "o" => 1,
-            "**" | "xx" | "*x" => 2,
-            "22x" => 4,
+            "**" | "xx" | "*x" | "2222" => 2,
+            "22x" | "22*" | "2*22" => 4,
             text => panic!("{text} has no listed point group"),
         };
         assert_eq!(classes.point_group, expected_order, "{label}");
@@ -630,12 +815,12 @@ fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signa
             "{label}: covolume {} against {expected_covolume}",
             classes.covolume
         );
-        let cones: BTreeSet<u32> = parsed
+        let mut cones: Vec<u32> = parsed
             .cone_orders()
             .iter()
             .filter_map(|order| order.finite())
             .collect();
-        let corners: BTreeSet<u32> = parsed
+        let mut corners: Vec<u32> = parsed
             .boundaries()
             .iter()
             .flat_map(|boundary| {
@@ -645,6 +830,8 @@ fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signa
                     .filter_map(|order| order.finite())
             })
             .collect();
+        cones.sort_unstable();
+        corners.sort_unstable();
         assert_eq!(classes.cone_orders, cones, "{label}");
         assert_eq!(classes.corner_orders, corners, "{label}");
         assert_eq!(
@@ -654,7 +841,7 @@ fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signa
         );
         assert_eq!(
             classes.glide_off_mirrors,
-            matches!(setting.text, "xx" | "*x" | "22x"),
+            matches!(setting.text, "xx" | "*x" | "22x" | "22*" | "2*22"),
             "{label}"
         );
         println!(
@@ -667,5 +854,65 @@ fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signa
             classes.corner_orders,
             (classes.covolume - expected_covolume).abs()
         );
+    }
+}
+
+fn bits(values: &[f64]) -> Vec<u64> {
+    values.iter().map(|value| value.to_bits()).collect()
+}
+
+fn domain_bits(domain: &FundamentalDomain) -> Vec<u64> {
+    let mut found = Vec::new();
+    for vertex in domain.vertices() {
+        found.extend(bits(&vertex.to_array()));
+    }
+    for side in domain.sides() {
+        found.extend(bits(&side.normal().to_array()));
+        found.extend(bits(&side.covector().to_array()));
+        found.extend(bits(&side.pairing().to_cols_array()));
+    }
+    found.extend(bits(&domain.centre().to_array()));
+    let verification = domain.verify();
+    for check in [
+        verification.isometries(),
+        verification.pairings(),
+        verification.walls(),
+        verification.relators(),
+        verification.angles(),
+        verification.area(),
+    ] {
+        found.extend(bits(&[check.residual(), check.tolerance()]));
+    }
+    found
+}
+
+fn presentation_text(domain: &FundamentalDomain, label: &str) -> Vec<String> {
+    match domain.side_presentation() {
+        Ok(presentation) => relator_texts(&presentation),
+        Err(error) => panic!("{label} has no side presentation: {error}"),
+    }
+}
+
+#[test]
+fn skew_of_zero_leaves_the_domain_of_2222_bit_for_bit() {
+    for aspect in [0.125, 1.0, 1.618, 8.0] {
+        let unset = built_with_aspect("2222", aspect, None);
+        for skew in [0.0, -0.0] {
+            let label = format!("2222 at aspect {aspect}, skew {skew:?}");
+            let set = built_with_aspect("2222", aspect, Some(skew));
+            assert_eq!(domain_bits(&set), domain_bits(&unset), "{label}");
+            for (side, kept) in set.sides().iter().zip(unset.sides()) {
+                assert_eq!(
+                    (side.partner(), side.kind(), side.orientation()),
+                    (kept.partner(), kept.kind(), kept.orientation()),
+                    "{label}"
+                );
+            }
+            assert_eq!(
+                presentation_text(&set, &label),
+                presentation_text(&unset, &label),
+                "{label}"
+            );
+        }
     }
 }

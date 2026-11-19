@@ -2,11 +2,10 @@ use escher_domain::{ErrorKind, FundamentalDomain};
 
 use crate::common::signature;
 
-const UNSUPPORTED: [&str; 19] = [
+const UNSUPPORTED: [&str; 18] = [
     "3*2",
     "3*3",
     "4*3",
-    "2*22",
     "*(inf)32",
     "(inf)32",
     "*(inf)(inf)",
@@ -116,6 +115,8 @@ fn build_accepts_the_order_at_the_limit() {
         "22x",
         "x22",
         "2x2",
+        "22*",
+        "2*22",
     ] {
         let built = FundamentalDomain::build(&signature(text));
         assert!(built.is_ok(), "{text}: {built:?}");

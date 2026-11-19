@@ -44,7 +44,7 @@ fn parameters_list_aspect_for_the_rectangle_only() {
         })
         .collect();
     assert_eq!(listed, [("aspect", 0.125, 8.0, 1.0)]);
-    assert_eq!(parameters(&signature("2222")), specs);
+    assert_eq!(parameters(&signature("2222"))[..1], specs);
     for text in ["*632", "*442", "*333", "*732", "*532", "732", "532"] {
         assert!(parameters(&signature(text)).is_empty(), "{text}");
     }
@@ -269,14 +269,17 @@ fn parameters_of_the_built_wallpaper_domains_have_their_names_ranges_and_default
     let entry = |name: &str, minimum: f64, maximum: f64, default: f64| {
         (name.to_owned(), minimum, maximum, default)
     };
-    assert_eq!(
-        listed("o"),
-        [
-            entry("aspect", 0.125, 8.0, 1.0),
-            entry("skew", -0.5, 0.5, 0.0)
-        ]
-    );
-    for text in ["**", "xx", "*x", "22x"] {
+    for text in ["o", "2222"] {
+        assert_eq!(
+            listed(text),
+            [
+                entry("aspect", 0.125, 8.0, 1.0),
+                entry("skew", -0.5, 0.5, 0.0)
+            ],
+            "{text}"
+        );
+    }
+    for text in ["**", "xx", "*x", "22x", "22*", "2*22"] {
         assert_eq!(listed(text), [entry("aspect", 0.125, 8.0, 1.0)], "{text}");
     }
 }
@@ -291,21 +294,25 @@ fn build_with_rejects_a_skew_outside_its_range_and_accepts_both_ends() {
         f64::INFINITY,
         f64::NEG_INFINITY,
     ] {
-        assert_eq!(
-            error_of("o", &settings("skew", value)),
-            Some((ErrorKind::ParameterOutOfRange, SKEW_RANGE_TEXT.to_owned())),
-            "{value}"
-        );
+        for text in ["o", "2222"] {
+            assert_eq!(
+                error_of(text, &settings("skew", value)),
+                Some((ErrorKind::ParameterOutOfRange, SKEW_RANGE_TEXT.to_owned())),
+                "{text} at {value}"
+            );
+        }
     }
     for value in [-0.5, 0.5] {
-        let built = FundamentalDomain::build_with(&signature("o"), &settings("skew", value));
-        assert!(built.is_ok(), "{value}: {built:?}");
+        for text in ["o", "2222"] {
+            let built = FundamentalDomain::build_with(&signature(text), &settings("skew", value));
+            assert!(built.is_ok(), "{text} at {value}: {built:?}");
+        }
     }
 }
 
 #[test]
 fn build_with_rejects_skew_on_a_signature_without_it() {
-    for text in ["**", "xx", "*x", "22x", "*2222"] {
+    for text in ["**", "xx", "*x", "22x", "22*", "2*22", "*2222"] {
         let canonical = signature(text).to_string();
         assert_eq!(
             error_of(text, &settings("skew", 0.1)),

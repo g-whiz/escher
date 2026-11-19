@@ -9,6 +9,7 @@ Geometry: Euclidean
 Euler characteristic: 0
 Compact: yes
 Parameter: aspect, range 0.125 to 8, default 1
+Parameter: skew, range -0.5 to 0.5, default 0
 Domain: 6 sides in 3 pairs
 Side pairs: 0 and 1 by rotation, 2 and 5 by translation, 3 and 4 by rotation
 Parity colouring: none, every side pairing preserves orientation

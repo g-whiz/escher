@@ -79,7 +79,6 @@ mod tests {
 
     use crate::domain::{Closure, Corner, FundamentalDomain, Orientation, PairingKind, Side};
     use crate::error::ErrorKind;
-    use crate::fixtures::two_two_mirror;
     use crate::shared::{built, built_with_aspect, relator_texts};
     use crate::verify::{framed_power_residual, power_residual};
 
@@ -386,33 +385,6 @@ mod tests {
         );
     }
 
-    fn presentation_texts(domain: &FundamentalDomain, case: &str) -> Vec<String> {
-        match domain.side_presentation() {
-            Ok(presentation) => relator_texts(&presentation),
-            Err(error) => panic!("{case} has no side presentation: {error}"),
-        }
-    }
-
-    #[test]
-    fn hand_built_domain_of_22_mirror_gives_its_pairing_and_cycle_relators() {
-        for aspect in [1.0, 0.125, 8.0] {
-            assert_eq!(
-                presentation_texts(&two_two_mirror(aspect), "22*"),
-                [
-                    "s0 s1",
-                    "s2^2",
-                    "s3 s4",
-                    "s5^2",
-                    "s1^2",
-                    "s2 s1 s5 s0",
-                    "s3 s5 s4 s2",
-                    "s4^2",
-                ],
-                "22* at aspect {aspect}"
-            );
-        }
-    }
-
     fn letters(relator: &escher_group::Relator) -> Vec<usize> {
         relator
             .base()
@@ -441,13 +413,9 @@ mod tests {
 
     #[test]
     fn relators_of_domains_with_glides_and_mirrors_evaluate_to_the_identity() {
-        for name in ["**", "xx", "*x", "22x", "22*"] {
+        for name in ["**", "xx", "*x", "22x", "22*", "2*22"] {
             for aspect in [1.0, 0.125, 8.0] {
-                let domain = if name == "22*" {
-                    two_two_mirror(aspect)
-                } else {
-                    built_with_aspect(name, aspect, None)
-                };
+                let domain = built_with_aspect(name, aspect, None);
                 let presentation = match domain.side_presentation() {
                     Ok(presentation) => presentation,
                     Err(error) => panic!("{name} has no side presentation: {error}"),
@@ -471,7 +439,7 @@ mod tests {
 
     #[test]
     fn long_cycle_word_of_a_chain_holds_in_walk_order_with_the_inverse_pairings() {
-        let domain = two_two_mirror(1.0);
+        let domain = built_with_aspect("22*", 1.0, None);
         let presentation = match domain.side_presentation() {
             Ok(presentation) => presentation,
             Err(error) => panic!("22* has no side presentation: {error}"),

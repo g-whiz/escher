@@ -446,20 +446,50 @@ fn render_writes_the_klein_bottle_by_parity_by_default() {
     assert_ne!(default, one);
 }
 
-fn polygon(test: &str, extra: &[&str]) -> Vec<u8> {
-    let mut args = vec!["*3333", "--size", "64x64", "--samples", "2"];
+#[test]
+fn render_writes_a_png_file_of_two_half_turns_and_a_mirror() {
+    small_png("two_two_mirror_file", &["22*"]);
+}
+
+#[test]
+fn render_writes_a_png_file_of_a_half_turn_and_two_mirror_corners() {
+    small_png("two_mirror_two_two_file", &["2*22"]);
+}
+
+#[test]
+fn render_applies_the_skew_of_2222_and_leaves_its_default_at_a_skew_of_zero() {
+    let default = square_image("2222", "sheared_default", &[]);
+    let skewed = square_image("2222", "sheared_skew", &["--set", "skew=0.25"]);
+    let zero = square_image("2222", "sheared_zero", &["--set", "skew=0"]);
+    assert_png_bytes(&skewed, 64, 64);
+    assert_ne!(skewed, default);
+    assert_eq!(zero, default);
+    for threads in ["1", "4"] {
+        let threaded = square_image(
+            "2222",
+            &format!("sheared_threads_{threads}"),
+            &["--set", "skew=0.25", "--threads", threads],
+        );
+        assert_eq!(threaded, skewed, "{threads} threads");
+    }
+}
+
+fn square_image(signature: &str, test: &str, extra: &[&str]) -> Vec<u8> {
+    let mut args = vec![signature, "--size", "64x64", "--samples", "2"];
     args.extend_from_slice(extra);
     rendered(test, &args)
 }
 
 #[test]
 fn render_applies_a_polygon_setting_and_writes_the_same_bytes_for_one_thread_and_four() {
-    let default = polygon("polygon_default", &[]);
-    let one = polygon(
+    let default = square_image("*3333", "polygon_default", &[]);
+    let one = square_image(
+        "*3333",
         "slice_one_thread",
         &["--set", "slice1.length=2.5", "--threads", "1"],
     );
-    let four = polygon(
+    let four = square_image(
+        "*3333",
         "slice_four_threads",
         &["--set", "slice1.length=2.5", "--threads", "4"],
     );

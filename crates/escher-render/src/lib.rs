@@ -15,15 +15,19 @@
 //! the reflection domain joined across one side, and its side pairings are
 //! rotations and translations. It has the place and the view of its reflection
 //! domain and draws borders only on its own sides, and [`Fill::Parity`] gives
-//! every tile its first colour.
+//! every tile its first colour. The domain of `2222` with a `skew` other than
+//! 0 is those two rectangles sheared along the first axis, so its sides no
+//! longer lie on the borders of the tiling of `*2222`.
 //! It can also be the domain of the Euclidean signature `o`, a parallelogram
 //! whose opposite sides are paired by translations, of `**`, a rectangle
 //! with two mirror sides and two sides paired by a translation, of `xx`, a
 //! rectangle whose sides are paired by glide reflections and by translations,
 //! of `*x`, a rectangle with two mirror sides and two sides paired by a glide
-//! reflection, or of `22x`, a rectangle whose sides are paired by glide
-//! reflections. Each is drawn in the view of the Euclidean plane, with borders
-//! on all of its sides. A glide reflection reverses orientation, so
+//! reflection, of `22x`, a rectangle whose sides are paired by glide
+//! reflections, or of `22*` and `2*22`, a rectangle with mirror sides whose
+//! bottom side, and for `22*` also its top side, is split at its midpoint into
+//! two sides paired by the half-turn about that midpoint. Each is drawn in the
+//! view of the Euclidean plane, with borders on all of its sides. A glide reflection reverses orientation, so
 //! [`Fill::Parity`] gives its two colours across a side paired by one. For
 //! `o`, which has no reversing side, [`Fill::Parity`] gives every tile its
 //! first colour.
