@@ -8,15 +8,16 @@ use glam::{DMat3, DVec3};
 
 use crate::common::{
     BANDS, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS, EUCLIDEAN_REPLAY_BOUNDS,
-    FOLD_ANGLES, FOLD_TRIPLES, POLYGON_DECISION_COUNTS, POLYGON_REPLAY_BOUNDS, REPLAY_BOUNDS,
-    RotationCase, SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS, SPHERICAL_IMAGE_BOUNDS,
-    SPHERICAL_REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane, describe_polygon,
-    describe_sphere, domain, euclidean_domain, euclidean_fold_set, euclidean_name,
-    euclidean_rotation_cases, fold_set, hyperbolic_rotation_cases, one_fill, options,
-    pixel_position, polygon_fold_set, reference_walls, render_in_bands, rim_set, rotation_domain,
-    rotation_text, spherical_domain, spherical_fold_set, spherical_rotation_cases, text,
+    FOLD_ANGLES, FOLD_TRIPLES, POLYGON_DECISION_COUNTS, POLYGON_REPLAY_BOUNDS, PlaneSample,
+    REPLAY_BOUNDS, RotationCase, SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS,
+    SPHERICAL_IMAGE_BOUNDS, SPHERICAL_REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe,
+    describe_plane, describe_polygon, describe_sphere, domain, euclidean_domain,
+    euclidean_fold_set, euclidean_name, euclidean_rotation_cases, fold_set,
+    hyperbolic_rotation_cases, one_fill, options, pixel_position, polygon_fold_set,
+    reference_walls, render_in_bands, rim_set, rotation_domain, rotation_text, spherical_domain,
+    spherical_fold_set, spherical_rotation_cases, text, wallpaper_bounds,
 };
-use crate::golden_images::{POLYGON_DOMAINS, domain_with_aspect, renderer};
+use crate::golden_images::{POLYGON_DOMAINS, WALLPAPER_DOMAINS, domain_with_aspect, renderer};
 use crate::reference::{self, Reference, Worst, count_bound, num, vector};
 
 const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 6];
@@ -203,7 +204,11 @@ fn largest_vertex_ratio(
             let result = fold(&domain, vertex, DEFAULT_CAP, |_| {});
             assert!(result.converged(), "{name} vertex {index}");
             assert_eq!(result.steps(), 0, "{name} vertex {index}");
-            assert_eq!(result.point(), vertex);
+            assert_eq!(
+                result.point().to_array().map(f64::to_bits),
+                vertex.to_array().map(f64::to_bits),
+                "{name} vertex {index}"
+            );
         }
     }
     largest
@@ -1285,4 +1290,103 @@ fn every_vertex_of_a_polygon_folds_in_zero_steps() {
         );
         assert!(ratio <= TOLERANCE, "{ratio:e} at {at}");
     }
+}
+
+#[test]
+fn wallpaper_fold_replay_and_decisions_stay_within_their_bounds_and_converge_within_the_default_cap()
+ {
+    let mut reference = Reference::new();
+    for (index, shape) in WALLPAPER_DOMAINS.iter().enumerate() {
+        let name = shape.name();
+        let domain = shape.domain();
+        let bounds = wallpaper_bounds(shape);
+        let walls = reference_walls(&domain);
+        let describe_wallpaper = |sample: &PlaneSample| {
+            format!(
+                "{name} at distance {} at angle {} of {FOLD_ANGLES}",
+                EUCLIDEAN_DISTANCES[sample.distance], sample.angle
+            )
+        };
+        let mut worst: Vec<Worst> = EUCLIDEAN_DISTANCES
+            .iter()
+            .map(|distance| {
+                Worst::new(
+                    format!("folded point of {name} from the replay, distance {distance}"),
+                    512,
+                )
+            })
+            .collect();
+        let mut differing = [0_usize; 4];
+        let mut steps = [(0_u64, 0_u32); 4];
+        for sample in euclidean_fold_set(index) {
+            let (result, sides) = sides_of(&domain, sample.point, DEFAULT_CAP);
+            assert!(
+                result.converged(),
+                "{} does not converge",
+                describe_wallpaper(&sample)
+            );
+            assert_eq!(result.point().z, 1.0, "{}", describe_wallpaper(&sample));
+            let (total, largest) = &mut steps[sample.distance];
+            *total += u64::from(result.steps());
+            *largest = (*largest).max(result.steps());
+            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let distance = reference::plane_distance(&vector(result.point().to_array()), &replayed);
+            worst[sample.distance].record(&distance, &reference::int(1), || {
+                describe_wallpaper(&sample)
+            });
+            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
+            if !exact.converged || exact.sides != sides {
+                let first = sides
+                    .iter()
+                    .zip(&exact.sides)
+                    .take_while(|(left, right)| left == right)
+                    .count();
+                println!(
+                    "{}: the side sequence differs from the exact fold, which converged {}, first at step {first}",
+                    describe_wallpaper(&sample),
+                    exact.converged
+                );
+                differing[sample.distance] += 1;
+            }
+        }
+        for (slot, distance) in EUCLIDEAN_DISTANCES.iter().enumerate() {
+            let (total, largest) = steps[slot];
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the total is far below 2 to the power 52"
+            )]
+            let mean = total as f64 / f64::from(FOLD_ANGLES);
+            let allowed = count_bound(bounds.decisions[slot]);
+            println!(
+                "{name} at distance {distance}: mean steps {mean:.1}, largest {largest}, {} of {FOLD_ANGLES} folds differ, bound {allowed}",
+                differing[slot]
+            );
+            worst[slot].assert_at_most(&mut reference, bounds.replay[slot]);
+            assert!(
+                differing[slot] <= allowed,
+                "{name} at distance {distance}: {} folds differ, more than {allowed}",
+                differing[slot]
+            );
+        }
+        let farthest = steps[EUCLIDEAN_DISTANCES.len() - 1].1;
+        let bound = bounds.steps;
+        println!("{name}: largest step count {farthest} at distance 65, bound {bound}");
+        assert!(
+            farthest <= bound,
+            "{name}: {farthest} steps at distance 65, more than {bound}"
+        );
+    }
+}
+
+#[test]
+fn every_vertex_of_a_wallpaper_domain_folds_in_zero_steps() {
+    let shapes = WALLPAPER_DOMAINS
+        .iter()
+        .map(|shape| (shape.name(), shape.domain()));
+    let (ratio, at) = largest_vertex_ratio(shapes);
+    println!(
+        "largest side value at a vertex of a wallpaper domain over the tolerance scale: {ratio:.3e} at {at}, tolerance {TOLERANCE:e}, margin {:.2}",
+        TOLERANCE / ratio
+    );
+    assert!(8.0 * ratio <= TOLERANCE, "{ratio:e} at {at}");
 }

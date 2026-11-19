@@ -7,7 +7,7 @@ use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, PLAN_TRIPLES, domain, euclidean_domain, euclidean_name,
     options, text,
 };
-use crate::golden_images::{domain_with_aspect, domain_with_settings, renderer};
+use crate::golden_images::{WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings, renderer};
 use crate::reference::count_bound;
 
 const SIZE: u32 = 192;
@@ -174,25 +174,40 @@ fn plane_position(size: u32, column: u32, row: u32) -> DVec2 {
     )
 }
 
+fn assert_plane_borders_where_the_tile_changes(
+    name: &str,
+    domain: &escher_domain::FundamentalDomain,
+) {
+    let size = usize::try_from(EUCLIDEAN_SIZE).unwrap_or(usize::MAX);
+    let border = border_mask(domain, EUCLIDEAN_SIZE);
+    let mut tiles: Vec<Option<DVec3>> = Vec::with_capacity(size * size);
+    for row in 0..EUCLIDEAN_SIZE {
+        for column in 0..EUCLIDEAN_SIZE {
+            let position = plane_position(EUCLIDEAN_SIZE, column, row);
+            let point = DVec3::new(position.x, position.y, 1.0);
+            tiles.push(tile_of(domain, point, |pairing| pairing.inverse()));
+        }
+    }
+    let (changes, borders) = compare_with_tiles(name, &border, &tiles, size, |here, there| {
+        euclidean::distance(here, there) >= SAME_TILE
+    });
+    println!("{name}: {changes} pixels where the tile changes and {borders} border pixels");
+}
+
+#[test]
+fn wallpaper_border_pixels_lie_where_the_tile_of_a_sample_changes() {
+    for shape in &WALLPAPER_DOMAINS {
+        assert_plane_borders_where_the_tile_changes(&shape.name(), &shape.domain());
+    }
+}
+
 #[test]
 fn euclidean_border_pixels_lie_where_the_tile_of_a_sample_changes() {
-    let size = usize::try_from(EUCLIDEAN_SIZE).unwrap_or(usize::MAX);
     for index in 0..EUCLIDEAN_DOMAINS.len() {
-        let domain = euclidean_domain(index);
-        let border = border_mask(&domain, EUCLIDEAN_SIZE);
-        let mut tiles: Vec<Option<DVec3>> = Vec::with_capacity(size * size);
-        for row in 0..EUCLIDEAN_SIZE {
-            for column in 0..EUCLIDEAN_SIZE {
-                let position = plane_position(EUCLIDEAN_SIZE, column, row);
-                let point = DVec3::new(position.x, position.y, 1.0);
-                tiles.push(tile_of(&domain, point, |pairing| pairing.inverse()));
-            }
-        }
-        let name = euclidean_name(index);
-        let (changes, borders) = compare_with_tiles(&name, &border, &tiles, size, |here, there| {
-            euclidean::distance(here, there) >= SAME_TILE
-        });
-        println!("{name}: {changes} pixels where the tile changes and {borders} border pixels");
+        assert_plane_borders_where_the_tile_changes(
+            &euclidean_name(index),
+            &euclidean_domain(index),
+        );
     }
 }
 
@@ -390,5 +405,29 @@ fn every_border_pixel_of_a_rotation_domain_is_a_border_pixel_of_its_reflection_d
         assert!(outside_subset <= bound, "{name}: {outside_subset} pixels");
         assert!(rotation_borders > 0, "{name}");
         assert!(rotation_borders <= reflection_borders, "{name}");
+    }
+}
+
+const KITE_SUBSETS: [(&str, &str, usize); 2] = [("4*2", "*442", 0), ("3*3", "*632", 0)];
+
+#[test]
+fn every_border_pixel_of_a_kite_is_a_border_pixel_of_its_triangle() {
+    for (kite, triangle, measured) in KITE_SUBSETS {
+        let kite_mask = fill_mask(&domain_with_aspect(kite, None), EUCLIDEAN_SIZE);
+        let triangle_mask = fill_mask(&domain_with_aspect(triangle, None), EUCLIDEAN_SIZE);
+        let kite_borders = kite_mask.iter().filter(|&&border| border).count();
+        let triangle_borders = triangle_mask.iter().filter(|&&border| border).count();
+        let outside_subset = kite_mask
+            .iter()
+            .zip(&triangle_mask)
+            .filter(|&(&kite, &triangle)| kite && !triangle)
+            .count();
+        let bound = count_bound(measured);
+        println!(
+            "{kite}: {kite_borders} border pixels, {triangle_borders} of {triangle}, {outside_subset} not border pixels of {triangle}, bound {bound}"
+        );
+        assert!(outside_subset <= bound, "{kite}: {outside_subset} pixels");
+        assert!(kite_borders > 0, "{kite}");
+        assert!(kite_borders < triangle_borders, "{kite}");
     }
 }

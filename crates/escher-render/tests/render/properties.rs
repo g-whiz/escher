@@ -1,7 +1,7 @@
 use core::f64::consts::TAU;
 use std::sync::LazyLock;
 
-use escher_domain::FundamentalDomain;
+use escher_domain::{FundamentalDomain, Orientation, PairingKind};
 use escher_geometry::hyperbolic::{from_disk, side, to_disk};
 use escher_geometry::spherical;
 use escher_group::{Colouring, IndexLimit, Letter, SearchBudget, colourings};
@@ -14,9 +14,9 @@ use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
     Measure, REPLAY_BOUNDS, ROTATION_EUCLIDEAN_REPLAY_BOUNDS, ROTATION_REPLAY_BOUNDS,
     SPHERICAL_DOMAINS, TOLERANCE, domain, euclidean_band, euclidean_domain, proptest_config,
-    rotation_domain, spherical_domain, text,
+    rotation_domain, spherical_domain, text, wallpaper_bounds,
 };
-use crate::golden_images::{POLYGON_DOMAINS, domain_with_aspect};
+use crate::golden_images::{POLYGON_DOMAINS, WALLPAPER_DOMAINS, domain_with_aspect};
 use crate::reference::{self, Reference, num, vector};
 
 const WALL_CLEARANCE: f64 = 1e-6;
@@ -50,6 +50,21 @@ fn sphere_point(height: f64, angle: f64, exponent: i32) -> DVec3 {
 fn power_of_two(exponent: i32) -> f64 {
     let step = if exponent < 0 { 0.5 } else { 2.0 };
     (0..exponent.unsigned_abs()).fold(1.0, |factor, _| factor * step)
+}
+
+fn fold_counting_reversing_sides(
+    domain: &FundamentalDomain,
+    point: DVec3,
+    cap: u32,
+) -> (escher_render::Fold, u32) {
+    let sides = domain.sides();
+    let mut reversing = 0;
+    let result = fold(domain, point, cap, |index| {
+        if sides[index].orientation() == Orientation::Reversing {
+            reversing += 1;
+        }
+    });
+    (result, reversing)
 }
 
 const ROTATION_DOMAINS: usize =
@@ -536,12 +551,10 @@ proptest! {
         angle in 0.0..TAU,
     ) {
         let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
-        let result = fold(&domain, point_in_range(exponent, angle), DEFAULT_CAP, |_| {});
+        let (result, reversing) = fold_counting_reversing_sides(&domain, point_in_range(exponent, angle), DEFAULT_CAP);
         prop_assert!(result.converged());
         prop_assert!(result.reversals() <= result.steps());
-        if !domain.reverses_orientation() {
-            prop_assert_eq!(result.reversals(), 0);
-        }
+        prop_assert_eq!(result.reversals(), reversing);
         let point = result.point();
         for wall in domain.sides() {
             let covector = wall.covector();
@@ -595,12 +608,123 @@ proptest! {
     ) {
         let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
         let point = DVec3::from_array(bits.map(f64::from_bits));
-        let result = fold(&domain, point, cap, |_| {});
+        let (result, reversing) = fold_counting_reversing_sides(&domain, point, cap);
         prop_assert!(result.steps() <= cap);
         prop_assert!(result.reversals() <= result.steps());
-        if !domain.reverses_orientation() {
-            prop_assert_eq!(result.reversals(), 0);
+        prop_assert_eq!(result.reversals(), reversing);
+        prop_assert!(!result.converged() || (result.point().is_finite() && result.point().z > 0.0));
+        let positive = point.z > 0.0;
+        if !positive {
+            prop_assert!(!result.converged());
+            prop_assert_eq!(result.steps(), 0);
         }
+    }
+}
+
+proptest! {
+    #![proptest_config(proptest_config())]
+
+    #[test]
+    fn wallpaper_fold_converges_inside_every_side_with_a_last_coordinate_of_one(
+        index in any::<Index>(),
+        distance in 0.0..=EUCLIDEAN_RANGE,
+        angle in 0.0..TAU,
+    ) {
+        let domain = WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())].domain();
+        let (result, reversing) = fold_counting_reversing_sides(&domain, plane_point(distance, angle), DEFAULT_CAP);
+        prop_assert!(result.converged());
+        prop_assert!(result.reversals() <= result.steps());
+        prop_assert_eq!(result.reversals(), reversing);
+        let point = result.point();
+        prop_assert_eq!(point.z.to_bits(), 1.0_f64.to_bits());
+        for wall in domain.sides() {
+            let covector = wall.covector();
+            let threshold = TOLERANCE * covector.abs().element_sum() * point.z;
+            prop_assert!(side(covector, point) <= threshold);
+        }
+    }
+
+    #[test]
+    fn wallpaper_fold_of_a_folded_point_takes_zero_steps_and_returns_the_same_bits(
+        index in any::<Index>(),
+        distance in 0.0..=EUCLIDEAN_RANGE,
+        angle in 0.0..TAU,
+    ) {
+        let domain = WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())].domain();
+        let first = fold(&domain, plane_point(distance, angle), DEFAULT_CAP, |_| {});
+        prop_assert!(first.converged());
+        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
+        prop_assert!(second.converged());
+        prop_assert_eq!(second.steps(), 0);
+        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+    }
+
+    #[test]
+    fn wallpaper_fold_of_a_paired_point_changes_its_parity_exactly_when_the_side_reverses_orientation(
+        index in any::<Index>(),
+        distance in 0.0..=EUCLIDEAN_RANGE,
+        angle in 0.0..TAU,
+        paired in any::<Index>(),
+    ) {
+        let shape = &WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())];
+        let domain = shape.domain();
+        let point = plane_point(distance, angle);
+        let first = fold(&domain, point, DEFAULT_CAP, |_| {});
+        prop_assert!(first.converged());
+        let side = domain.sides()[paired.index(domain.sides().len())];
+        let image = side.pairing() * point;
+        let outer = euclidean_band(distance.max(image.truncate().length()));
+        prop_assume!(outer.is_some());
+        let bound = outer.map_or(0.0, |outer| wallpaper_bounds(shape).replay[outer]);
+        let clearance = WALL_CLEARANCE.max(2.0 * bound);
+        let folded = vector(first.point().to_array());
+        for wall in domain.sides() {
+            let distance = reference::plane_wall_distance(&vector(wall.covector().to_array()), &folded);
+            prop_assume!(distance >= num(clearance));
+        }
+        let second = fold(&domain, image, DEFAULT_CAP, |_| {});
+        prop_assert!(second.converged());
+        let reverses = matches!(side.kind(), PairingKind::Mirror | PairingKind::GlideReflection);
+        prop_assert_eq!((first.reversals() + second.reversals()) % 2, u32::from(reverses));
+        let distance = reference::plane_distance(&folded, &vector(second.point().to_array()));
+        let mut reference = Reference::new();
+        prop_assert!(distance <= num(bound), "distance {}", reference.approximate(&distance));
+    }
+
+    #[test]
+    fn wallpaper_fold_takes_the_same_decisions_for_the_point_scaled_by_a_power_of_two(
+        index in any::<Index>(),
+        distance in 0.0..=EUCLIDEAN_RANGE,
+        angle in 0.0..TAU,
+    ) {
+        let domain = WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())].domain();
+        let point = plane_point(distance, angle);
+        let mut sides = Vec::new();
+        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
+        for power in -40..=40 {
+            let factor = power_of_two(power);
+            let mut scaled_sides = Vec::new();
+            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
+            prop_assert_eq!(&scaled_sides, &sides);
+            prop_assert_eq!(scaled.steps(), unscaled.steps());
+            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
+            prop_assert_eq!(scaled.converged(), unscaled.converged());
+            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
+        }
+    }
+
+    #[test]
+    fn wallpaper_fold_of_any_bit_pattern_returns_within_the_cap_and_converges_only_at_a_finite_point_with_a_positive_last_coordinate(
+        index in any::<Index>(),
+        bits in any::<[u64; 3]>(),
+        cap in 0..=2000_u32,
+    ) {
+        let domain = WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())].domain();
+        let point = DVec3::from_array(bits.map(f64::from_bits));
+        let (result, reversing) = fold_counting_reversing_sides(&domain, point, cap);
+        prop_assert!(result.steps() <= cap);
+        prop_assert!(result.reversals() <= result.steps());
+        prop_assert_eq!(result.reversals(), reversing);
         prop_assert!(!result.converged() || (result.point().is_finite() && result.point().z > 0.0));
         let positive = point.z > 0.0;
         if !positive {
@@ -681,7 +805,7 @@ struct ColouredDomain {
     colourings: Vec<Colouring>,
 }
 
-const COLOURED_DOMAINS: [(&str, Measure, u32); 10] = [
+const COLOURED_DOMAINS: [(&str, Measure, u32); 13] = [
     ("*732", Measure::Hyperbolic, 9),
     ("*642", Measure::Hyperbolic, 6),
     ("*2222", Measure::Euclidean, 6),
@@ -692,6 +816,9 @@ const COLOURED_DOMAINS: [(&str, Measure, u32); 10] = [
     ("*3333", Measure::Hyperbolic, 4),
     ("*22222", Measure::Hyperbolic, 4),
     ("3333", Measure::Hyperbolic, 4),
+    ("22x", Measure::Euclidean, 6),
+    ("*x", Measure::Euclidean, 6),
+    ("3*3", Measure::Euclidean, 6),
 ];
 
 static COLOURED: LazyLock<Vec<ColouredDomain>> = LazyLock::new(|| {

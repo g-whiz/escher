@@ -368,7 +368,7 @@ impl Renderer {
 
 #[cfg(test)]
 mod tests {
-    use escher_domain::FundamentalDomain;
+    use escher_domain::{FundamentalDomain, PairingKind};
     use escher_geometry::hyperbolic::{covector, reflection};
     use escher_geometry::{euclidean, spherical};
     use escher_signature::{Geometry, Signature};
@@ -382,8 +382,8 @@ mod tests {
     use crate::fold::{PointSize, Wall, fold, fold_carrying};
     use crate::golden_images::{
         ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_COSET_FILL, GOLDEN_GRID, GOLDEN_IMAGES,
-        POLYGON_DOMAINS, colouring, colourings_of, compare, coset_fill, domain_with_aspect,
-        find_colouring, linear_table, renderer,
+        POLYGON_DOMAINS, WALLPAPER_DOMAINS, colouring, colourings_of, compare, coset_fill,
+        domain_with_aspect, find_colouring, linear_table, renderer,
     };
     use crate::options::{RenderOptions, Shading};
     use crate::reference::{Reference, Worst, count_bound, error, plane_border_distance, vector};
@@ -507,12 +507,11 @@ mod tests {
             let options = image.options(&domain);
             let (pixels, _) = renderer(&domain, options.clone()).render();
             let geometry = domain.geometry();
-            let rotation = !domain.reverses_orientation();
             let walls = domain
                 .sides()
                 .iter()
                 .map(|side| match geometry {
-                    _ if rotation => {
+                    _ if side.kind() != PairingKind::Mirror => {
                         let pairing = side.pairing();
                         let moved = glam::DMat3::from_cols(
                             next_up(pairing.x_axis),
@@ -723,83 +722,188 @@ mod tests {
         }
     }
 
-    #[test]
-    fn gradient_form_of_the_border_agrees_with_the_euclidean_distance_form() {
-        const ANGLES: u32 = 512;
-        const NEAR: f64 = 4.0;
-        const HALF_WIDTHS: [f64; 2] = [0.5, 1.5];
-        const DISTANCES: [f64; 4] = [1.0, 4.0, 16.0, 65.0];
-        const MEASURED: [[usize; 2]; 4] = [[0, 0], [0, 0], [0, 0], [0, 0]];
-        const MINIMUM: usize = 1000;
-        let mut reference = Reference::new();
+    const PLANE_ANGLES: u32 = 512;
+
+    const PLANE_NEAR: f64 = 4.0;
+
+    const PLANE_HALF_WIDTHS: [f64; 2] = [0.5, 1.5];
+
+    const PLANE_DISTANCES: [f64; 4] = [1.0, 4.0, 16.0, 65.0];
+
+    const PLANE_MINIMUM: usize = 1000;
+
+    #[derive(Default)]
+    struct PlaneBorders {
+        near: usize,
+        differing: [usize; 2],
+        largest: f64,
+        worst: String,
+    }
+
+    impl PlaneBorders {
+        fn add(&mut self, other: Self) {
+            self.near += other.near;
+            for (total, count) in self.differing.iter_mut().zip(other.differing) {
+                *total += count;
+            }
+            if other.largest > self.largest {
+                self.largest = other.largest;
+                self.worst = other.worst;
+            }
+        }
+    }
+
+    fn plane_view() -> View {
         let options = match RenderOptions::builder(Fill::One(Colour::WHITE)).build() {
             Ok(options) => options,
             Err(error) => panic!("{error}"),
         };
-        let view = View::canonical(&options, Geometry::Euclidean);
+        View::canonical(&options, Geometry::Euclidean)
+    }
+
+    fn plane_border_forms(
+        reference: &mut Reference,
+        view: &View,
+        text: &str,
+        domain: &FundamentalDomain,
+        radius: f64,
+    ) -> PlaneBorders {
         let pixel = view.pixel();
-        for (radius, measured) in DISTANCES.into_iter().zip(MEASURED) {
-            let bounds = measured.map(count_bound);
-            let mut near = 0;
-            let mut differing = [0; 2];
-            let mut largest = 0.0_f64;
-            let mut worst = String::new();
-            for (text, aspect) in EUCLIDEAN_DOMAINS {
-                let domain = domain_with_aspect(text, aspect);
-                let walls: Vec<Wall> = domain.sides().iter().map(|&side| Wall::new(side)).collect();
-                let covectors: Vec<_> = walls
-                    .iter()
-                    .map(|wall| vector(wall.covector().to_array()))
-                    .collect();
-                for index in 0..ANGLES {
-                    let angle = core::f64::consts::TAU * f64::from(index) / f64::from(ANGLES);
-                    let position = DVec2::new(radius * angle.cos(), radius * angle.sin());
-                    let Some(lift) = view.point(position) else {
-                        panic!("{text}: the plane view has no point at {position:?}");
-                    };
-                    let (result, tangents) = fold_carrying(
-                        &walls,
-                        PointSize::LastCoordinate,
-                        lift.point,
-                        lift.tangents,
-                        1500,
-                        |_| {},
-                    );
-                    assert!(result.converged(), "{text}: {position:?} does not converge");
-                    let exact = plane_border_distance(&covectors, result.point().to_array(), pixel);
-                    let exact = reference.approximate(&exact);
-                    if exact >= NEAR {
-                        continue;
-                    }
-                    near += 1;
-                    let gradient = gradient_form(&walls, result.point(), tangents);
-                    let relative = (gradient - exact).abs() / exact;
-                    if relative > largest {
-                        largest = relative;
-                        worst = format!(
-                            "{text} aspect {aspect:?} at angle {index}, gradient form {gradient:.6}, distance form {exact:.6}"
-                        );
-                    }
-                    for (count, half_width) in differing.iter_mut().zip(HALF_WIDTHS) {
-                        if on_border(&walls, result.point(), tangents, half_width)
-                            != (exact < half_width)
-                        {
-                            *count += 1;
-                        }
-                    }
+        let mut borders = PlaneBorders::default();
+        let walls: Vec<Wall> = domain.sides().iter().map(|&side| Wall::new(side)).collect();
+        let covectors: Vec<_> = walls
+            .iter()
+            .map(|wall| vector(wall.covector().to_array()))
+            .collect();
+        for index in 0..PLANE_ANGLES {
+            let angle = core::f64::consts::TAU * f64::from(index) / f64::from(PLANE_ANGLES);
+            let position = DVec2::new(radius * angle.cos(), radius * angle.sin());
+            let Some(lift) = view.point(position) else {
+                panic!("{text}: the plane view has no point at {position:?}");
+            };
+            let (result, tangents) = fold_carrying(
+                &walls,
+                PointSize::LastCoordinate,
+                lift.point,
+                lift.tangents,
+                1500,
+                |_| {},
+            );
+            assert!(result.converged(), "{text}: {position:?} does not converge");
+            let exact = plane_border_distance(&covectors, result.point().to_array(), pixel);
+            let exact = reference.approximate(&exact);
+            if exact >= PLANE_NEAR {
+                continue;
+            }
+            borders.near += 1;
+            let gradient = gradient_form(&walls, result.point(), tangents);
+            let difference = (gradient - exact).abs();
+            if difference > borders.largest {
+                borders.largest = difference;
+                borders.worst = format!(
+                    "{text} at angle {index}, gradient form {gradient:.17e}, distance form {exact:.17e}"
+                );
+            }
+            for (count, half_width) in borders.differing.iter_mut().zip(PLANE_HALF_WIDTHS) {
+                if on_border(&walls, result.point(), tangents, half_width) != (exact < half_width) {
+                    *count += 1;
                 }
             }
+        }
+        borders
+    }
+
+    #[test]
+    fn gradient_form_of_the_border_agrees_with_the_euclidean_distance_form() {
+        const MEASURED: [[usize; 2]; 4] = [[0, 0], [0, 0], [0, 0], [0, 0]];
+        let mut reference = Reference::new();
+        let view = plane_view();
+        for (radius, measured) in PLANE_DISTANCES.into_iter().zip(MEASURED) {
+            let bounds = measured.map(count_bound);
+            let mut borders = PlaneBorders::default();
+            for (text, aspect) in EUCLIDEAN_DOMAINS {
+                let domain = domain_with_aspect(text, aspect);
+                let name = format!("{text} aspect {aspect:?}");
+                borders.add(plane_border_forms(
+                    &mut reference,
+                    &view,
+                    &name,
+                    &domain,
+                    radius,
+                ));
+            }
+            let PlaneBorders {
+                near,
+                differing,
+                largest,
+                worst,
+            } = borders;
             println!(
-                "distance {radius}: {near} samples within {NEAR} pixels of a wall, {} and {} classified differently at half widths {} and {}, bounds {} and {}, largest relative difference {largest:.3e} at {worst}",
-                differing[0], differing[1], HALF_WIDTHS[0], HALF_WIDTHS[1], bounds[0], bounds[1]
+                "distance {radius}: {near} samples within {PLANE_NEAR} pixels of a wall, {} and {} classified differently at half widths {} and {}, bounds {} and {}, largest absolute difference {largest:.3e} pixels at {worst}",
+                differing[0],
+                differing[1],
+                PLANE_HALF_WIDTHS[0],
+                PLANE_HALF_WIDTHS[1],
+                bounds[0],
+                bounds[1]
             );
             assert!(
-                near >= MINIMUM,
+                near >= PLANE_MINIMUM,
                 "distance {radius}: only {near} samples near a wall"
             );
             assert!(
                 differing[0] <= bounds[0] && differing[1] <= bounds[1],
                 "distance {radius}: {differing:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn gradient_form_of_the_border_agrees_with_the_euclidean_distance_form_on_the_wallpaper_domains()
+     {
+        const MEASURED: [usize; 2] = [0, 0];
+        let bounds = MEASURED.map(count_bound);
+        let mut reference = Reference::new();
+        let view = plane_view();
+        let domains: Vec<(String, FundamentalDomain)> = WALLPAPER_DOMAINS
+            .iter()
+            .map(|shape| (shape.name(), shape.domain()))
+            .collect();
+        for radius in PLANE_DISTANCES {
+            let mut total = PlaneBorders::default();
+            for (name, domain) in &domains {
+                let borders = plane_border_forms(&mut reference, &view, name, domain, radius);
+                println!(
+                    "distance {radius}, {name}: {} samples within {PLANE_NEAR} pixels of a wall, {} and {} classified differently at half widths {} and {}, bounds {} and {}, largest absolute difference {:.3e} pixels at {}",
+                    borders.near,
+                    borders.differing[0],
+                    borders.differing[1],
+                    PLANE_HALF_WIDTHS[0],
+                    PLANE_HALF_WIDTHS[1],
+                    bounds[0],
+                    bounds[1],
+                    borders.largest,
+                    borders.worst
+                );
+                assert!(
+                    borders.near > 0,
+                    "distance {radius}, {name}: no sample near a wall"
+                );
+                assert!(
+                    borders.differing[0] <= bounds[0] && borders.differing[1] <= bounds[1],
+                    "distance {radius}, {name}: {:?}, bounds {bounds:?}",
+                    borders.differing
+                );
+                total.add(borders);
+            }
+            println!(
+                "distance {radius}: {} samples of the wallpaper domains within {PLANE_NEAR} pixels of a wall, {} and {} classified differently, largest absolute difference {:.3e} pixels at {}",
+                total.near, total.differing[0], total.differing[1], total.largest, total.worst
+            );
+            assert!(
+                total.near >= PLANE_MINIMUM,
+                "distance {radius}: only {} samples near a wall",
+                total.near
             );
         }
     }

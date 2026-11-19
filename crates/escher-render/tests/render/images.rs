@@ -4,12 +4,14 @@ use escher_render::{
     Colour, CosetFill, ErrorKind, Fill, RenderOptions, RenderStats, Renderer, encode_png,
 };
 
-use crate::common::{DEFAULT_CAP, decode_png, domain, one_fill, options, render_in_bands};
+use crate::common::{
+    DEFAULT_CAP, decode_png, domain, one_fill, options, render_image_in_bands, render_in_bands,
+};
 use crate::golden_images::{
     ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
-    GoldenImage, POLYGON_DOMAINS, TRANSLATION_TOLERANCE, colouring as golden_colouring,
-    colourings_of, compare, coset_fill, domain_with_aspect, linear_table, renderer, shifted_pairs,
-    translation,
+    GoldenImage, POLYGON_DOMAINS, Shape, TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS,
+    colouring as golden_colouring, colourings_of, compare, coset_fill, domain_with_aspect,
+    domain_with_settings, linear_table, renderer, shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -580,4 +582,370 @@ fn coset_golden_colouring_of_the_pentagon_fixes_the_numbering_of_its_sides() {
         })
         .collect();
     assert_eq!(colours, [0, 0, 1, 0, 2]);
+}
+
+fn assert_wallpaper_images_converge(domains: core::ops::Range<usize>) {
+    for shape in &WALLPAPER_DOMAINS[domains] {
+        let name = shape.name();
+        let options = options(RenderOptions::builder(one_fill()));
+        let stats = render_in_bands(&name, &shape.domain(), options);
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the counts are far below 2 to the power 52"
+        )]
+        let mean = stats.folds() as f64 / stats.samples() as f64;
+        println!(
+            "{name} at 512 by 512 with 4 by 4 samples: mean steps {mean:.2}, largest {}, {} unconverged, {} outside",
+            stats.largest_fold(),
+            stats.unconverged(),
+            stats.outside()
+        );
+        assert_eq!(stats.unconverged(), 0, "{name}");
+        assert_eq!(stats.outside(), 0, "{name}");
+    }
+}
+
+#[test]
+fn wallpaper_images_of_the_torus_and_the_first_rectangular_groups_converge_at_every_sample() {
+    assert_wallpaper_images_converge(0..13);
+}
+
+#[test]
+fn wallpaper_images_of_the_other_groups_converge_at_every_sample() {
+    assert_wallpaper_images_converge(13..WALLPAPER_DOMAINS.len());
+}
+
+struct WallpaperPeriod {
+    signature: &'static str,
+    settings: &'static [(&'static str, f64)],
+    words: &'static [(&'static [usize], [i64; 2])],
+    expected: Expected,
+}
+
+const fn period(
+    signature: &'static str,
+    settings: &'static [(&'static str, f64)],
+    words: &'static [(&'static [usize], [i64; 2])],
+    expected: Expected,
+) -> WallpaperPeriod {
+    WallpaperPeriod {
+        signature,
+        settings,
+        words,
+        expected,
+    }
+}
+
+const EXACT_WALLPAPER_PERIODS: [WallpaperPeriod; 12] = [
+    period(
+        "**",
+        &[("aspect", 1.0)],
+        &[(&[1, 3], [128, 0]), (&[0], [0, 64])],
+        Expected::Equal,
+    ),
+    period(
+        "**",
+        &[("aspect", 4.0)],
+        &[(&[1, 3], [256, 0]), (&[0], [0, 32])],
+        Expected::Equal,
+    ),
+    period(
+        "xx",
+        &[("aspect", 1.0)],
+        &[(&[3], [64, 0]), (&[0, 0], [0, 128])],
+        Expected::Equal,
+    ),
+    period(
+        "xx",
+        &[("aspect", 4.0)],
+        &[(&[3], [128, 0]), (&[0, 0], [0, 64])],
+        Expected::Equal,
+    ),
+    period(
+        "*x",
+        &[("aspect", 1.0)],
+        &[(&[1, 3], [128, 0]), (&[0, 3], [64, 64])],
+        Expected::Equal,
+    ),
+    period(
+        "*x",
+        &[("aspect", 4.0)],
+        &[(&[1, 3], [256, 0]), (&[0, 3], [128, 32])],
+        Expected::Equal,
+    ),
+    period(
+        "22x",
+        &[("aspect", 1.0)],
+        &[(&[3, 3], [128, 0]), (&[0, 0], [0, 128])],
+        Expected::Equal,
+    ),
+    period(
+        "22x",
+        &[("aspect", 4.0)],
+        &[(&[3, 3], [256, 0]), (&[0, 0], [0, 64])],
+        Expected::Equal,
+    ),
+    period(
+        "22*",
+        &[("aspect", 1.0)],
+        &[(&[2, 5], [128, 0]), (&[3, 0], [0, 128])],
+        Expected::Equal,
+    ),
+    period(
+        "22*",
+        &[("aspect", 4.0)],
+        &[(&[2, 5], [256, 0]), (&[3, 0], [0, 64])],
+        Expected::Equal,
+    ),
+    period(
+        "2*22",
+        &[("aspect", 1.0)],
+        &[(&[2, 4], [128, 0]), (&[2, 3, 0], [64, 128])],
+        Expected::Equal,
+    ),
+    period(
+        "2*22",
+        &[("aspect", 4.0)],
+        &[(&[2, 4], [256, 0]), (&[2, 3, 0], [128, 64])],
+        Expected::Equal,
+    ),
+];
+
+const ROUNDED_WALLPAPER_PERIODS: [WallpaperPeriod; 7] = [
+    period(
+        "o",
+        &[("aspect", 1.0), ("skew", 0.25)],
+        &[(&[3], [64, 0]), (&[0], [16, 64])],
+        Expected::WithinAllowance,
+    ),
+    period(
+        "o",
+        &[("aspect", 4.0), ("skew", 0.25)],
+        &[(&[3], [128, 0]), (&[0], [32, 32])],
+        Expected::WithinAllowance,
+    ),
+    period(
+        "2222",
+        &[("aspect", 1.0), ("skew", 0.25)],
+        &[(&[5], [128, 0]), (&[3, 0], [32, 128])],
+        Expected::WithinAllowance,
+    ),
+    period(
+        "2222",
+        &[("aspect", 4.0), ("skew", 0.25)],
+        &[(&[5], [256, 0]), (&[3, 0], [64, 64])],
+        Expected::WithinAllowance,
+    ),
+    period(
+        "2222",
+        &[("aspect", 4.0), ("skew", -0.5)],
+        &[(&[5], [256, 0]), (&[3, 0], [-128, 64])],
+        Expected::WithinAllowance,
+    ),
+    period(
+        "4*2",
+        &[],
+        &[(&[1, 3, 1, 3], [128, 128]), (&[0, 3, 0, 3], [128, -128])],
+        Expected::WithinAllowance,
+    ),
+    period(
+        "3*3",
+        &[],
+        &[(&[1, 0, 3], [128, 0])],
+        Expected::WithinAllowance,
+    ),
+];
+
+const GLIDE_GROUPS: [&str; 3] = ["xx", "*x", "22x"];
+
+fn assert_glide_symmetry(name: &str, domain: &escher_domain::FundamentalDomain, first: &[u8]) {
+    let [even, odd] = GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+    let size = i64::from(PERIOD_SIZE);
+    let pixel = 8.0 / f64::from(PERIOD_SIZE);
+    let options = options(
+        RenderOptions::builder(Fill::Parity([odd, even]))
+            .size(PERIOD_SIZE, PERIOD_SIZE)
+            .samples(GOLDEN_GRID),
+    );
+    let (second, _) = render_image_in_bands(name, domain, options);
+    let height = domain.side_lengths()[1];
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the height of the rectangle is a small whole number of pixels"
+    )]
+    let shift = (height / pixel).round() as i64;
+    let index =
+        |column: i64, row: i64| usize::try_from(3 * (row * size + column)).unwrap_or(usize::MAX);
+    let mut compared = 0;
+    let mut differing = 0;
+    for row in shift..size {
+        for column in 0..size {
+            let here = index(column, row);
+            let there = index(size - 1 - column, row - shift);
+            compared += 1;
+            if first[here..here + 3] != second[there..there + 3] {
+                differing += 1;
+            }
+        }
+    }
+    println!(
+        "{name}: mirrored and shifted by {shift} rows, {differing} of {compared} pixels differ from the render with the colours exchanged"
+    );
+    assert_eq!(
+        differing, 0,
+        "{name}: the image mirrored by the glide reflection differs from the render with the parity colours exchanged"
+    );
+}
+
+fn assert_wallpaper_periods(periods: &[WallpaperPeriod]) {
+    let [even, odd] = GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+    let pixel = 8.0 / f64::from(PERIOD_SIZE);
+    let linear = linear_table();
+    for period in periods {
+        let name = format!("{} with {:?}", period.signature, period.settings);
+        let domain = domain_with_settings(period.signature, period.settings);
+        let options = options(
+            RenderOptions::builder(Fill::Parity([even, odd]))
+                .size(PERIOD_SIZE, PERIOD_SIZE)
+                .samples(GOLDEN_GRID),
+        );
+        let (pixels, _) = render_image_in_bands(&name, &domain, options);
+        for &(word, shift) in period.words {
+            let found = translation(&domain, word);
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the shift is a small whole number of pixels"
+            )]
+            let expected = shift.map(|pixels| pixels as f64 * pixel);
+            let offset = [found.offset.x - expected[0], found.offset.y - expected[1]];
+            println!(
+                "{name}, word {word:?}: offset {:?}, difference from the shift {shift:?} {offset:?}, linear defect {:e}, last row defect {:e}",
+                found.offset, found.linear_defect, found.last_row_defect
+            );
+            assert!(
+                found.linear_defect <= TRANSLATION_TOLERANCE,
+                "{name}, word {word:?}"
+            );
+            assert!(
+                found.last_row_defect <= TRANSLATION_TOLERANCE,
+                "{name}, word {word:?}"
+            );
+            assert!(
+                offset
+                    .iter()
+                    .all(|difference| difference.abs() <= TRANSLATION_TOLERANCE),
+                "{name}, word {word:?}: {offset:?}"
+            );
+            let (columns, rows) = (shift[0], -shift[1]);
+            let (here, there) = shifted_pairs(&pixels, PERIOD_SIZE, PERIOD_SIZE, columns, rows);
+            let comparison = compare(&here, &there, GOLDEN_GRID, &linear);
+            println!(
+                "{name}, word {word:?}: shifted by {columns} columns and {rows} rows, {comparison:?}, expected {:?}",
+                period.expected
+            );
+            match period.expected {
+                Expected::Equal => assert!(here == there, "{name}, word {word:?}: {comparison:?}"),
+                Expected::WithinAllowance => {
+                    assert!(
+                        comparison.within_allowance(),
+                        "{name}, word {word:?}: {comparison:?}"
+                    );
+                }
+            }
+        }
+        if GLIDE_GROUPS.contains(&period.signature) {
+            assert_glide_symmetry(&name, &domain, &pixels);
+        }
+    }
+}
+
+#[test]
+fn wallpaper_images_of_dyadic_rectangles_equal_themselves_shifted_by_a_translation_and_mirrored_by_a_glide_reflection()
+ {
+    assert_wallpaper_periods(&EXACT_WALLPAPER_PERIODS);
+}
+
+#[test]
+fn wallpaper_images_with_rounded_walls_equal_themselves_shifted_by_a_translation_within_the_golden_allowance()
+ {
+    assert_wallpaper_periods(&ROUNDED_WALLPAPER_PERIODS);
+}
+
+#[test]
+fn wallpaper_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_parity_fill()
+{
+    let first = Colour::from_srgb8(245, 222, 179);
+    let second = Colour::from_srgb8(70, 130, 180);
+    let render = |domain: &escher_domain::FundamentalDomain, fill| {
+        let options = options(RenderOptions::builder(fill).size(64, 64).samples(2));
+        renderer(domain, options).render()
+    };
+    let cases = WALLPAPER_DOMAINS.iter().filter(|shape| match shape.shape {
+        Shape::Named(settings) => settings.contains(&("aspect", 1.0)),
+        Shape::Default | Shape::Every(_) => true,
+    });
+    for shape in cases {
+        let name = shape.name();
+        let domain = shape.domain();
+        let trivial = golden_colouring(&domain, "1a");
+        let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{name}: {error}"),
+        };
+        assert!(
+            render(&domain, Fill::Cosets(cosets)) == render(&domain, Fill::One(first)),
+            "{name} with 1a"
+        );
+        if !domain.reverses_orientation() {
+            println!("{name}: 1a equals the one fill, and no side reverses orientation");
+            continue;
+        }
+        let parity = parity_colouring(&domain);
+        let id = parity.id();
+        let cosets = match CosetFill::new(&domain, parity, vec![first, second]) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{name}: {error}"),
+        };
+        assert!(
+            render(&domain, Fill::Cosets(cosets)) == render(&domain, Fill::Parity([first, second])),
+            "{name} with {id}"
+        );
+        println!("{name}: 1a equals the one fill, and the parity colouring {id} the parity fill");
+    }
+}
+
+#[test]
+fn coset_golden_colourings_of_the_nine_wallpaper_groups_give_pairwise_distinct_images() {
+    let images: Vec<(&str, Vec<u8>)> = COSET_GOLDEN_IMAGES
+        .iter()
+        .filter(|image| image.file.starts_with("cos-wp-"))
+        .map(|image| {
+            let domain = image.domain();
+            let id = image
+                .colouring
+                .unwrap_or_else(|| panic!("{} has no colouring", image.file));
+            let fill = coset_fill(&domain, golden_colouring(&domain, id));
+            let options = options(
+                RenderOptions::builder(Fill::Cosets(fill))
+                    .size(64, 64)
+                    .samples(2)
+                    .border_width(1.0),
+            );
+            (image.file, renderer(&domain, options).render().0)
+        })
+        .collect();
+    assert_eq!(images.len(), 9);
+    for (index, (file, pixels)) in images.iter().enumerate() {
+        for (other, other_pixels) in &images[..index] {
+            let differing = pixels
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .zip(other_pixels.as_chunks::<3>().0)
+                .filter(|(left, right)| left != right)
+                .count();
+            println!("{file} and {other}: {differing} of 4096 pixels differ");
+            assert!(pixels != other_pixels, "{file} and {other}");
+        }
+    }
 }

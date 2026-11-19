@@ -8,7 +8,7 @@ use escher_signature::Signature;
 use glam::{DMat3, DVec2, DVec3};
 use proptest::test_runner::Config;
 
-use crate::golden_images::{POLYGON_DOMAINS, domain_with_aspect};
+use crate::golden_images::{POLYGON_DOMAINS, PolygonShape, Shape, domain_with_aspect};
 use crate::reference::{self, Reference, Vector, Wall, matrix, vector};
 
 pub(crate) const PLAN_TRIPLES: [[u32; 3]; 6] = [
@@ -214,6 +214,152 @@ pub(crate) fn describe_plane(sample: &PlaneSample) -> String {
         EUCLIDEAN_DISTANCES[sample.distance],
         sample.angle
     )
+}
+
+pub(crate) struct WallpaperBounds {
+    group: &'static str,
+    aspect: Option<f64>,
+    skew: Option<f64>,
+    pub(crate) replay: [f64; 4],
+    pub(crate) decisions: [usize; 4],
+    pub(crate) steps: u32,
+}
+
+const fn bounds(
+    group: &'static str,
+    aspect: Option<f64>,
+    skew: Option<f64>,
+    replay: [f64; 4],
+    decisions: [usize; 4],
+    steps: u32,
+) -> WallpaperBounds {
+    WallpaperBounds {
+        group,
+        aspect,
+        skew,
+        replay,
+        decisions,
+        steps,
+    }
+}
+
+const RECTANGULAR_GROUPS: [&str; 6] = ["**", "xx", "*x", "22*", "22x", "2*22"];
+
+const RECTANGULAR: &str = "the rectangular groups";
+
+const WALLPAPER_BOUNDS: [WallpaperBounds; 12] = [
+    bounds(
+        "o",
+        Some(1.0),
+        Some(0.0),
+        [1e-14, 1e-13, 1e-12, 2e-11],
+        [0; 4],
+        300,
+    ),
+    bounds(
+        "o",
+        Some(1.0),
+        Some(0.25),
+        [1e-15, 4e-15, 2e-14, 1e-13],
+        [0; 4],
+        300,
+    ),
+    bounds(
+        "o",
+        Some(8.0),
+        Some(-0.5),
+        [1e-14, 1e-13, 1e-12, 2e-11],
+        [0; 4],
+        300,
+    ),
+    bounds(
+        "o",
+        Some(0.125),
+        Some(0.5),
+        [1e-15, 1e-14, 2e-13, 2e-12],
+        [0, 1, 0, 0],
+        300,
+    ),
+    bounds(
+        RECTANGULAR,
+        Some(1.0),
+        None,
+        [1e-14, 1e-13, 1e-12, 2e-11],
+        [0; 4],
+        200,
+    ),
+    bounds(
+        RECTANGULAR,
+        Some(0.125),
+        None,
+        [1e-15, 1e-14, 2e-13, 2e-12],
+        [0; 4],
+        200,
+    ),
+    bounds(
+        RECTANGULAR,
+        Some(8.0),
+        None,
+        [1e-14, 1e-14, 1e-13, 2e-12],
+        [0; 4],
+        200,
+    ),
+    bounds("4*2", None, None, [2e-15, 1e-14, 1e-13, 1e-12], [0; 4], 100),
+    bounds(
+        "3*3",
+        None,
+        None,
+        [2e-15, 2e-14, 1e-13, 2e-12],
+        [1, 0, 0, 0],
+        150,
+    ),
+    bounds(
+        "2222",
+        Some(1.0),
+        Some(0.25),
+        [2e-15, 4e-15, 2e-14, 1e-13],
+        [0; 4],
+        250,
+    ),
+    bounds(
+        "2222",
+        Some(8.0),
+        Some(-0.5),
+        [4e-15, 4e-14, 2e-13, 4e-12],
+        [0; 4],
+        250,
+    ),
+    bounds(
+        "2222",
+        Some(0.125),
+        Some(0.5),
+        [1e-15, 1e-14, 1e-13, 1e-12],
+        [0; 4],
+        250,
+    ),
+];
+
+pub(crate) fn wallpaper_bounds(shape: &PolygonShape) -> &'static WallpaperBounds {
+    let setting = |name: &str| match shape.shape {
+        Shape::Named(settings) => settings
+            .iter()
+            .find(|&&(setting, _)| setting == name)
+            .map(|&(_, value)| value.to_bits()),
+        Shape::Default | Shape::Every(_) => None,
+    };
+    let group = if RECTANGULAR_GROUPS.contains(&shape.signature) {
+        RECTANGULAR
+    } else {
+        shape.signature
+    };
+    WALLPAPER_BOUNDS
+        .iter()
+        .find(|row| {
+            row.group == group
+                && row.aspect.map(f64::to_bits) == setting("aspect")
+                && row.skew.map(f64::to_bits) == setting("skew")
+        })
+        .unwrap_or_else(|| panic!("{} has no wallpaper bounds", shape.name()))
 }
 
 pub(crate) struct SphereSample {
@@ -701,6 +847,14 @@ pub(crate) fn render_in_bands(
     domain: &FundamentalDomain,
     options: RenderOptions,
 ) -> RenderStats {
+    render_image_in_bands(name, domain, options).1
+}
+
+pub(crate) fn render_image_in_bands(
+    name: &str,
+    domain: &FundamentalDomain,
+    options: RenderOptions,
+) -> (Vec<u8>, RenderStats) {
     let (width, height) = (options.width(), options.height());
     let renderer = Renderer::new(domain, options)
         .unwrap_or_else(|error| panic!("{name}: the renderer is rejected: {error}"));
@@ -708,7 +862,7 @@ pub(crate) fn render_in_bands(
     let row_bytes = 3 * usize::try_from(width).unwrap_or(usize::MAX);
     let band_bytes = row_bytes * usize::try_from(band_rows).unwrap_or(usize::MAX);
     let mut pixels = vec![0; row_bytes * usize::try_from(height).unwrap_or(usize::MAX)];
-    std::thread::scope(|scope| {
+    let stats = std::thread::scope(|scope| {
         let renderer = &renderer;
         let bands: Vec<_> = pixels
             .chunks_mut(band_bytes)
@@ -723,5 +877,6 @@ pub(crate) fn render_in_bands(
                     Err(error) => panic!("{name}: {error}"),
                 }
             })
-    })
+    });
+    (pixels, stats)
 }

@@ -131,9 +131,11 @@ impl Fold {
 /// its double, it is accurate up to a distance of 65 from the centre of the
 /// domain. For the domains of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
 /// `4*2`, and `3*3`, whose sides are mirrors or are paired by translations,
-/// glide reflections, half-turns, or rotations, and for the domain of `2222` with a `skew`
-/// other than 0, no range of accuracy has been measured, and the function only returns and reports
-/// whether the fold converged. For a spherical
+/// glide reflections, half-turns, or rotations, and for the domain of `2222`
+/// with a `skew` other than 0, the accuracy up to the same distance depends on
+/// `aspect` and `skew`, and it is measured on a fixed set of settings only. For
+/// any other setting, the function only returns and reports whether the fold
+/// converged. For a spherical
 /// domain, it is accurate for every vector whose largest absolute coordinate is
 /// at least `1e-300` and whose fold converges.
 /// A point very close to a vertex of very high order, such as a point within

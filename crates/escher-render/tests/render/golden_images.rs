@@ -58,9 +58,18 @@ const fn golden(
 }
 
 const fn coset(signature: &'static str, id: &'static str, file: &'static str) -> GoldenImage {
+    coset_with(signature, &[], id, file)
+}
+
+const fn coset_with(
+    signature: &'static str,
+    settings: &'static [(&'static str, f64)],
+    id: &'static str,
+    file: &'static str,
+) -> GoldenImage {
     GoldenImage {
         signature,
-        settings: &[],
+        settings,
         rotation: [0.0; 3],
         shading: Shading::Phong,
         colouring: Some(id),
@@ -68,7 +77,7 @@ const fn coset(signature: &'static str, id: &'static str, file: &'static str) ->
     }
 }
 
-pub(crate) const GOLDEN_IMAGES: [GoldenImage; 25] = [
+pub(crate) const GOLDEN_IMAGES: [GoldenImage; 32] = [
     golden("*732", &[], "7-3-2.png"),
     golden("*542", &[], "5-4-2.png"),
     golden("*433", &[], "4-3-3.png"),
@@ -115,9 +124,16 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 25] = [
     golden("*22222", &[], "2-2-2-2-2.png"),
     golden("*5432", &[], "5-4-3-2.png"),
     golden("3333", &[], "rot-3-3-3-3.png"),
+    golden("o", &[("skew", 0.25)], "wp-o-skew-0.25.png"),
+    golden("**", &[("aspect", 2.0)], "wp-s-s-aspect-2.png"),
+    golden("xx", &[], "wp-x-x.png"),
+    golden("2*22", &[], "wp-2-s-2-2.png"),
+    golden("4*2", &[], "wp-4-s-2.png"),
+    golden("3*3", &[], "wp-3-s-3.png"),
+    golden("2222", &[("skew", 0.25)], "rot-2-2-2-2-skew-0.25.png"),
 ];
 
-pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 7] = [
+pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 16] = [
     coset("*642", "3a", "cos-6-4-2-3a.png"),
     coset("*732", "8a", "cos-7-3-2-8a.png"),
     coset("432", "3a", "cos-rot-4-3-2-3a.png"),
@@ -125,6 +141,15 @@ pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 7] = [
     coset("*2222", "4a", "cos-2-2-2-2-4a.png"),
     coset("*532", "5a", "cos-5-3-2-5a.png"),
     coset("*22222", "3k", "cos-2-2-2-2-2-3k.png"),
+    coset_with("o", &[("skew", 0.25)], "5e", "cos-wp-o-5e.png"),
+    coset("**", "4q", "cos-wp-s-s-4q.png"),
+    coset("xx", "6k", "cos-wp-x-x-6k.png"),
+    coset("*x", "4g", "cos-wp-s-x-4g.png"),
+    coset("22*", "4e", "cos-wp-2-2-s-4e.png"),
+    coset("22x", "6j", "cos-wp-2-2-x-6j.png"),
+    coset("2*22", "3b", "cos-wp-2-s-2-2-3b.png"),
+    coset("4*2", "4c", "cos-wp-4-s-2-4c.png"),
+    coset("3*3", "3b", "cos-wp-3-s-3-3b.png"),
 ];
 
 pub(crate) const GOLDEN_FILL: [[u8; 3]; 2] = [[245, 222, 179], [70, 130, 180]];
@@ -309,6 +334,46 @@ pub(crate) const POLYGON_DOMAINS: [PolygonShape; 20] = [
     polygon("5432", Shape::Default),
     polygon("3222", Shape::Default),
     polygon("22222222", Shape::Default),
+];
+
+const fn wallpaper(
+    signature: &'static str,
+    settings: &'static [(&'static str, f64)],
+) -> PolygonShape {
+    PolygonShape {
+        signature,
+        shape: Shape::Named(settings),
+    }
+}
+
+pub(crate) const WALLPAPER_DOMAINS: [PolygonShape; 27] = [
+    wallpaper("o", &[("aspect", 1.0), ("skew", 0.0)]),
+    wallpaper("o", &[("aspect", 1.0), ("skew", 0.25)]),
+    wallpaper("o", &[("aspect", 8.0), ("skew", -0.5)]),
+    wallpaper("o", &[("aspect", 0.125), ("skew", 0.5)]),
+    wallpaper("**", &[("aspect", 1.0)]),
+    wallpaper("**", &[("aspect", 0.125)]),
+    wallpaper("**", &[("aspect", 8.0)]),
+    wallpaper("xx", &[("aspect", 1.0)]),
+    wallpaper("xx", &[("aspect", 0.125)]),
+    wallpaper("xx", &[("aspect", 8.0)]),
+    wallpaper("*x", &[("aspect", 1.0)]),
+    wallpaper("*x", &[("aspect", 0.125)]),
+    wallpaper("*x", &[("aspect", 8.0)]),
+    wallpaper("22*", &[("aspect", 1.0)]),
+    wallpaper("22*", &[("aspect", 0.125)]),
+    wallpaper("22*", &[("aspect", 8.0)]),
+    wallpaper("22x", &[("aspect", 1.0)]),
+    wallpaper("22x", &[("aspect", 0.125)]),
+    wallpaper("22x", &[("aspect", 8.0)]),
+    wallpaper("2*22", &[("aspect", 1.0)]),
+    wallpaper("2*22", &[("aspect", 0.125)]),
+    wallpaper("2*22", &[("aspect", 8.0)]),
+    polygon("4*2", Shape::Default),
+    polygon("3*3", Shape::Default),
+    wallpaper("2222", &[("aspect", 1.0), ("skew", 0.25)]),
+    wallpaper("2222", &[("aspect", 8.0), ("skew", -0.5)]),
+    wallpaper("2222", &[("aspect", 0.125), ("skew", 0.5)]),
 ];
 
 impl PolygonShape {
