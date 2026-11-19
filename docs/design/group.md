@@ -1197,8 +1197,34 @@ The prototype also measured these figures:
 | Agreement at higher indexes | With the default budget at the index limit 64, the side and the Conway presentation gave equal counts at every index that both completed: to 64 for `**`, `xx`, `*x`, `22x`, `4*2`, and `3*3`, to 48 for `22*` and `2*22`, to 39 for `2222`, and to 32 for `o`. The default budget stopped the search of `o`, `22*`, `2*22`, and `2222` before 64. Each call took 0.02 to 1.0 s in a release build |
 | `o` and `xx` | The counts of `o` and `xx` are equal at every index computed, to 64 for `xx` and to 39 for the side presentation and 32 for the Conway presentation of `o`. Each count equals the sum of the divisors of its index. So no count tells `o` from `xx`. The test "Wallpaper certificate" of DOM-57 of `docs/design/domain.md` is required for that reason: its point group tells `o` from `xx`, its glide reflections whose axes are no mirror lines tell `**` from `*x`, and its rotations whose centres lie on mirror lines tell `22*` from `2*22` |
 | A dropped cycle relator | With the second cycle relator of `*x` left out of its side presentation, the counts of index 1 to 6 were 1, 3, 7, 23, 71, and 255, so the equal counts detect it |
-| A dropped mirror relator | With `s1^2` or `s3^2` left out of the side presentation of `*x`, the counts of index 1 to 6 stayed 1, 3, 4, 11, 6, and 12, so the equal counts do not detect it. The test "Relators evaluate" of `docs/design/domain.md` is the check that does |
+| A dropped mirror relator | With `s1^2` or `s3^2` left out of the side presentation of `*x`, the counts of index 1 to 6 stayed 1, 3, 4, 11, 6, and 12, so the equal counts do not detect it. The test "Wallpaper presentations" of `docs/design/domain.md`, which asserts the exact relator texts, does |
 | Index of the test | The prototype recommended index 16 for the test of the equal counts in `just test`, which took under 5 ms in a release build and well under 1 s in a debug build for each presentation. The test "Equal counts" of DOM-57 of `docs/design/domain.md` runs to index 16 with `SearchBudget::DEFAULT` at `aspect` 1 |
+
+### 11.6. Figures of the Spherical Prototype
+
+`escher-domain` gives the domains of `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1` their side presentations by Section 5.4 of `docs/design/domain.md`, and the domain of `1`, which has no side, a presentation with no generator and no relator (DOM-62 of `docs/design/domain.md`). They need no code and no rule in this crate. `enumerate`, the search, the Conway presentations, and the ids serve these side presentations unchanged. A presentation with no generator already enumerates to the index 1, and the search accepts it.
+
+A prototype outside the repository tested this design. A copy of the workspace gained the constructions of DOM-58 and DOM-59 of `docs/design/domain.md` as private code of `escher-domain`, and called `enumerate`, `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. It covered the 37 canonical signatures of the seven types with $n$ up to 12 and the three limits `(1000)*`, `(1000)x`, and `2*(500)`, 40 signatures in all. Every figure of this section is a figure of that prototype, in a release build on one thread. The tests "Spherical side orders" and "Spherical counts" of `docs/design/domain.md` measure the same quantities on the crates, the counts up to 16 colours or the group order when that is smaller.
+
+Enumeration over the trivial subgroup gave the index $2/\chi$ for the side presentation of each of the 40 signatures. For $n$ up to 12, each run took at most 0.02 ms. At the limits, the side and the Conway presentations took these times:
+
+| Signature | Side presentation | Conway presentation |
+| --- | --- | --- |
+| `(1000)*` | 10.8 ms | 8.1 ms |
+| `(1000)x` | 16.0 ms | 8.1 ms |
+| `2*(500)` | 18.3 ms | 18.2 ms |
+
+The colouring counts of the side presentation equalled those of the Conway presentation for all 40 signatures, at every index up to the smaller of 64 and the group order. Each search took at most 1 ms. For example, `3*2` gave the counts 1, 1, 1, 4, 0, 7, 0, 4, 0, 0, 0, and 7 at the indexes 1 to 12, and 1 at the index 24.
+
+The prototype also left relators out of the side presentations, one at a time:
+
+| Relator left out | Enumeration | Colouring counts | Detected by these two |
+| --- | --- | --- | --- |
+| A mirror relator: `s0^2` or `s1^2` of `3*2` and `2*3`, `s2^2` or `s3^2` of `3*` and `2*`, or any one of the four relators of `*` | Still $2/\chi$ | Still equal to the Conway counts | No |
+| A cycle relator of `3*2`, `3*`, `2*3`, `5x`, or `2*` | Reached the coset limit | Differed | Yes |
+| The cycle relator `s1 s1` of `x` | Reached the coset limit | Equal, 1 and 1 up to index 2 | By the enumeration only |
+
+On the signatures tried, the mirror relators follow from the other relators, so neither the enumeration nor the colouring counts detect the loss of one. The test "Spherical presentations" of `docs/design/domain.md`, which asserts the exact relator texts, does. "Spherical side orders" asserts that each cycle relator left out stops the enumeration, and "Spherical counts" that it changes the counts, except for `x`. On the same prototype, five domains built for the wrong group with the right order, such as the lune of `nx` paired by a rotation, which gives the group of `(2n)(2n)`, passed `verify()`, and the enumeration of each side presentation gave the order of the signature that the domain was labelled with. The order by enumeration therefore does not tell such a domain from the right one. The census or the exactly-once test of the certificate of DOM-64 of `docs/design/domain.md` does, and the test "Census defects" asserts the census.
 
 ## 12. Dependencies
 
