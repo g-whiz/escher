@@ -10,7 +10,8 @@ use escher_signature::Geometry;
 use glam::{DMat3, DVec3};
 
 use crate::common::{
-    EXAMPLE_TRIPLES, built, clear_rotation_polygons, cone_text, order_text, signature, starred,
+    EXAMPLE_TRIPLES, Kite, LIMIT_ORDER, SMALL_ORDER, TWO_MIRROR_LIMIT_ORDER, built,
+    clear_rotation_polygons, cone_text, order_text, signature, small_kites, starred, test_set,
     text, triangles,
 };
 use crate::reference::{
@@ -25,10 +26,6 @@ const PAIRING_TOLERANCE: f64 = 1e-9;
 const RELATOR_TOLERANCE: f64 = 2e-6;
 
 const ACCURATE_RELATOR_VERTICES: usize = 5;
-
-const LARGEST_SMALL_ORDER: u32 = 12;
-
-const LIMIT_ORDER: u32 = 1000;
 
 fn presentation(text: &str) -> (FundamentalDomain, Presentation) {
     let domain = built(text);
@@ -61,12 +58,22 @@ fn with_reflections(rotations: &[String]) -> Vec<String> {
 }
 
 fn spherical_signatures() -> Vec<String> {
-    with_reflections(&spherical_rotations(2..=LARGEST_SMALL_ORDER))
+    with_reflections(&spherical_rotations(2..=SMALL_ORDER))
 }
 
 fn limit_signatures() -> Vec<String> {
     with_reflections(&[cone_text([LIMIT_ORDER, 2, 2]), lune(LIMIT_ORDER)])
 }
+
+fn small_spherical_kites() -> Vec<String> {
+    small_kites().into_iter().map(Kite::text).collect()
+}
+
+fn spherical_kites() -> Vec<String> {
+    test_set().into_iter().map(Kite::text).collect()
+}
+
+const CYCLE_RELATOR_KITES: [&str; 4] = ["3*2", "3*", "2*3", "2*"];
 
 #[test]
 fn side_presentations_have_the_documented_text() {
@@ -409,6 +416,7 @@ fn side_relators_evaluate_to_the_identity() {
     texts.extend(limit_signatures());
     texts.extend(NAMED_POLYGONS.map(str::to_owned));
     texts.extend(clear_rotation_polygons());
+    texts.extend(spherical_kites());
     let mut reference = Reference::new();
     let empty = || {
         KINDS.map(|_| Largest {
@@ -631,5 +639,170 @@ fn side_and_conway_presentations_of_the_wallpaper_domains_give_equal_colouring_c
             .map(|[by_sides, _]| *by_sides)
             .collect();
         assert_eq!(first, first_counts.map(Some), "{text}");
+    }
+}
+
+#[test]
+fn side_presentations_of_the_spherical_kites_have_the_documented_text() {
+    let mut cases: Vec<(String, Vec<String>)> = vec![(
+        "3*2".to_owned(),
+        ["s0^2", "s1^2", "s2 s3", "(s1 s0)^2", "s2 s0 s3 s1", "s3^3"]
+            .map(str::to_owned)
+            .to_vec(),
+    )];
+    for order in (2..=SMALL_ORDER).chain([LIMIT_ORDER]) {
+        cases.push((
+            Kite::ConeMirror(order).text(),
+            vec![
+                "s0 s1".to_owned(),
+                "s2^2".to_owned(),
+                "s3^2".to_owned(),
+                format!("s1^{order}"),
+                "s2 s1 s3 s0".to_owned(),
+                "s3 s2".to_owned(),
+            ],
+        ));
+    }
+    for order in (2..=SMALL_ORDER).chain([TWO_MIRROR_LIMIT_ORDER]) {
+        cases.push((
+            Kite::TwoMirror(order).text(),
+            vec![
+                "s0^2".to_owned(),
+                "s1^2".to_owned(),
+                "s2 s3".to_owned(),
+                format!("(s1 s0)^{order}"),
+                "s2 s0 s3 s1".to_owned(),
+                "s3^2".to_owned(),
+            ],
+        ));
+    }
+    for (text, relators) in cases {
+        let (domain, presentation) = presentation(&text);
+        assert_eq!(
+            presentation.generator_names(),
+            side_names(domain.sides().len()),
+            "{text}"
+        );
+        assert_eq!(relator_texts(&presentation), relators, "{text}");
+    }
+}
+
+fn without_relator(presentation: &Presentation, dropped: usize) -> Presentation {
+    let relators: Vec<Relator> = presentation
+        .relators()
+        .iter()
+        .enumerate()
+        .filter(|&(position, _)| position != dropped)
+        .map(|(_, relator)| relator.clone())
+        .collect();
+    match Presentation::new(presentation.generator_names().to_vec(), relators) {
+        Ok(presentation) => presentation,
+        Err(error) => panic!("relator {dropped} cannot be dropped: {error}"),
+    }
+}
+
+fn cycle_relators(domain: &FundamentalDomain) -> std::ops::Range<usize> {
+    let heads = domain
+        .sides()
+        .iter()
+        .enumerate()
+        .filter(|&(index, side)| side.kind() == PairingKind::Mirror || side.partner() > index)
+        .count();
+    heads..heads + 3
+}
+
+#[test]
+fn side_presentations_of_the_spherical_kites_give_the_group_order() {
+    let mut slowest = (Duration::ZERO, String::new());
+    let started = Instant::now();
+    for text in spherical_kites() {
+        let elapsed = assert_side_order(&text);
+        if elapsed > slowest.0 {
+            slowest = (elapsed, text);
+        }
+    }
+    println!(
+        "slowest side order of a spherical kite: {} in {:.3} ms, all in {:.3} s",
+        slowest.1,
+        slowest.0.as_secs_f64() * 1e3,
+        started.elapsed().as_secs_f64()
+    );
+    for text in CYCLE_RELATOR_KITES {
+        let (domain, presentation) = presentation(text);
+        let order = signature(text).group_order().map(core::num::NonZero::get);
+        for dropped in cycle_relators(&domain) {
+            let reduced = without_relator(&presentation, dropped);
+            let index = enumerate(&reduced, &[], CosetLimit::DEFAULT)
+                .ok()
+                .and_then(|table| u64::try_from(table.index()).ok());
+            println!(
+                "{text} without {}: index {index:?}",
+                relator_text(&presentation, &presentation.relators()[dropped])
+            );
+            assert_ne!(index, order, "{text} without relator {dropped}");
+        }
+    }
+}
+
+const SPHERICAL_COLOUR_LIMIT: u32 = 16;
+
+const DROPPED_RELATOR_COLOUR_LIMIT: u32 = 6;
+
+fn colouring_counts(
+    text: &str,
+    name: &str,
+    presentation: &Presentation,
+    largest: u32,
+) -> Vec<Option<u64>> {
+    let colours = signature(text)
+        .group_order()
+        .and_then(|order| u32::try_from(order.get()).ok())
+        .map_or(largest, |order| order.min(largest));
+    let Ok(limit) = IndexLimit::new(colours) else {
+        panic!("{colours} colours are out of range");
+    };
+    let started = Instant::now();
+    let counts = match count_colourings(presentation, limit, SearchBudget::DEFAULT) {
+        Ok(counts) => counts,
+        Err(error) => panic!("{text}: the search of the {name} presentation fails: {error}"),
+    };
+    let found: Vec<Option<u64>> = (1..=colours)
+        .map(|count| counts.colourings(count))
+        .collect();
+    println!(
+        "{text}: {name} presentation, colourings with 1 to {colours} colours {found:?}, in {:.3} s",
+        started.elapsed().as_secs_f64()
+    );
+    found
+}
+
+#[test]
+fn side_and_conway_presentations_of_the_spherical_groups_give_equal_colouring_counts() {
+    for text in small_spherical_kites() {
+        let side = presentation(&text).1;
+        let conway = match conway_presentation(&signature(&text)) {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("{text} has no Conway presentation: {error}"),
+        };
+        let by_sides = colouring_counts(&text, "side", &side, SPHERICAL_COLOUR_LIMIT);
+        let by_conway = colouring_counts(&text, "Conway", &conway, SPHERICAL_COLOUR_LIMIT);
+        assert!(by_sides.iter().all(Option::is_some), "{text}");
+        assert_eq!(by_sides, by_conway, "{text}");
+        if CYCLE_RELATOR_KITES.contains(&text.as_str()) {
+            let domain = built(&text);
+            for dropped in cycle_relators(&domain) {
+                let reduced = without_relator(&side, dropped);
+                let name = format!(
+                    "side without {}",
+                    relator_text(&side, &side.relators()[dropped])
+                );
+                let limit = DROPPED_RELATOR_COLOUR_LIMIT;
+                assert_ne!(
+                    colouring_counts(&text, &name, &reduced, limit),
+                    colouring_counts(&text, "Conway", &conway, limit),
+                    "{text}: {name}"
+                );
+            }
+        }
     }
 }

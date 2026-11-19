@@ -191,6 +191,19 @@ fn render_diagnostic_gives_the_cause_of_a_skew_on_the_annulus() {
 }
 
 #[test]
+fn render_diagnostic_gives_the_cause_of_a_two_mirror_order_over_its_limit() {
+    insta::assert_snapshot!(render_snapshot("two_mirror_limit", &["2*(501)"]));
+}
+
+#[test]
+fn render_diagnostic_gives_the_cause_of_a_setting_on_a_spherical_kite() {
+    insta::assert_snapshot!(render_snapshot(
+        "spherical_kite_setting",
+        &["3*2", "--set", "aspect=2"]
+    ));
+}
+
+#[test]
 fn render_diagnostic_says_parity_does_not_exist_for_the_torus() {
     insta::assert_snapshot!(render_snapshot(
         "torus_parity",
@@ -481,6 +494,31 @@ fn render_draws_each_kite_by_parity_and_with_one_colour_as_its_rotation_signatur
 }
 
 #[test]
+fn render_writes_a_png_file_of_a_spherical_kite_with_mirrors() {
+    small_png("three_mirror_two_file", &["3*2"]);
+}
+
+#[test]
+fn render_draws_each_spherical_kite_with_one_colour_as_its_double() {
+    for (kite, double, name) in [
+        ("3*2", "432", "three_mirror_two"),
+        ("2*", "222", "two_cone_mirror"),
+        ("3*", "322", "three_cone_mirror"),
+        ("5*", "522", "five_cone_mirror"),
+        ("2*2", "422", "two_mirror_two"),
+        ("2*3", "622", "two_mirror_three"),
+        ("2*5", "(10)22", "two_mirror_five"),
+    ] {
+        let one = small_png(&format!("{name}_one_file"), &[kite, "--colouring", "one"]);
+        let doubled = small_png(&format!("{name}_double_file"), &[double]);
+        assert_eq!(one, doubled, "{kite}");
+    }
+    let default = small_png("three_mirror_two_default_file", &["3*2"]);
+    let doubled = small_png("octahedral_double_file", &["432"]);
+    assert_ne!(default, doubled);
+}
+
+#[test]
 fn render_draws_the_same_default_picture_for_groups_that_share_their_tiles() {
     for (index, group) in [&["*x", "22x", "*2222"][..], &["**", "22*"][..]]
         .into_iter()
@@ -744,12 +782,17 @@ fn assert_no_file_changes(test: &str, args: &[&str]) {
 
 #[test]
 fn render_without_a_domain_changes_no_file() {
-    assert_no_file_changes("no_domain_file", &["3*2"]);
+    assert_no_file_changes("no_domain_file", &["4*3"]);
 }
 
 #[test]
 fn render_with_parity_for_a_domain_without_a_reversing_side_changes_no_file() {
     assert_no_file_changes("parity_rotation_file", &["732", "--colouring", "parity"]);
+}
+
+#[test]
+fn render_of_a_two_mirror_order_over_its_limit_changes_no_file() {
+    assert_no_file_changes("two_mirror_limit_file", &["2*(501)"]);
 }
 
 #[test]
@@ -1054,11 +1097,27 @@ fn first_error_line(args: &[&str]) -> (Status, String) {
 #[test]
 fn render_without_a_domain_returns_failure() {
     assert_eq!(
-        first_error_line(&["3*2"]),
+        first_error_line(&["4*3"]),
         (
             Status::Failure,
-            "error: cannot render 3*2: rendering this signature is not supported".to_owned()
+            "error: cannot render 4*3: rendering this signature is not supported".to_owned()
         )
+    );
+}
+
+#[test]
+fn render_of_a_two_mirror_order_over_its_limit_returns_failure() {
+    assert_eq!(
+        first_error_line(&["2*(501)"]),
+        (Status::Failure, "error: cannot render 2*(501)".to_owned())
+    );
+}
+
+#[test]
+fn render_of_a_spherical_kite_with_a_setting_returns_failure() {
+    assert_eq!(
+        first_error_line(&["3*2", "--set", "aspect=2"]),
+        (Status::Failure, "error: cannot render 3*2".to_owned())
     );
 }
 

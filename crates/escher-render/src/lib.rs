@@ -33,6 +33,11 @@
 //! [`Fill::Parity`] gives its two colours across a side paired by one. For
 //! `o`, which has no reversing side, [`Fill::Parity`] gives every tile its
 //! first colour.
+//! It can also be the domain of the spherical signature `3*2`, `2*n`, or `n*`,
+//! the kite of `432`, `(2n)22`, or `n22` with two mirror sides and two sides
+//! paired by the rotation about the vertex between them. It is drawn on the
+//! ball in the view of that kite, with borders on all of its sides, and
+//! [`Fill::Parity`] gives its two colours across each mirror side.
 //!
 //! The view follows the geometry of the domain. For a hyperbolic domain, the
 //! Poincare disk is centred in the image, with the centre of the domain at the

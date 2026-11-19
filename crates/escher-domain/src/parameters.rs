@@ -84,7 +84,9 @@ impl Parameter {
 /// have the angles of the signature, rounded to three decimals.
 ///
 /// Every other signature has none. This includes `4*2` and `3*3`, whose
-/// domains are the kites of `442` and `632`, the rotation signature of a
+/// domains are the kites of `442` and `632`, the spherical signatures `3*2`,
+/// `2*n`, and `n*`, whose domains are the kites of `432`, `(2n)22`, and
+/// `n22`, the rotation signature of a
 /// polygon, such as `3333`, whose domain doubles the polygon with every length
 /// at its default, and a signature for which the crate builds no domain, such
 /// as a polygon with a corner of order above 1000.
@@ -166,6 +168,7 @@ fn listed(supported: Supported, cuts: Option<&Cuts>) -> Vec<(Parameter, Option<F
             | Shape::SphericalTriangle { .. }
             | Shape::Lune { .. },
         )
+        | Supported::Sphere(..)
         | Supported::Wallpaper(Wallpaper::FourMirrorTwo | Wallpaper::ThreeMirrorThree) => {
             Vec::new()
         }
@@ -341,7 +344,7 @@ pub(crate) fn validate(
     }
     let generating = match supported {
         Supported::Rotation(shape) => Supported::Reflection(shape),
-        Supported::Reflection(_) | Supported::Wallpaper(_) => supported,
+        Supported::Reflection(_) | Supported::Wallpaper(_) | Supported::Sphere(..) => supported,
     };
     let defaults = Defaults::new(supported.shape());
     let value = |parameter: Parameter, feature: Option<Feature>| {

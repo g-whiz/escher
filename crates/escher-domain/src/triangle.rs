@@ -13,6 +13,8 @@ use crate::sheets::Cuts;
 
 pub(crate) const LARGEST_ORDER: u32 = 1000;
 
+pub(crate) const LARGEST_TWO_MIRROR_ORDER: u32 = LARGEST_ORDER / 2;
+
 pub(crate) const MOST_ORDERS: usize = 8;
 
 const TWO_TO_THE_32: f64 = 4_294_967_296.0;
@@ -108,18 +110,30 @@ pub(crate) enum Wallpaper {
     ThreeMirrorThree,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SphericalGroup {
+    ConeMirror(u32),
+    ConeCrossCap(u32),
+    TwoMirrorN(u32),
+    ThreeMirrorTwo,
+    Mirror,
+    CrossCap,
+    Trivial,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Supported {
     Reflection(Shape),
     Rotation(Shape),
     Wallpaper(Wallpaper),
+    Sphere(SphericalGroup, f64),
 }
 
 impl Supported {
     pub(crate) fn shape(self) -> Option<Shape> {
         match self {
             Self::Reflection(shape) | Self::Rotation(shape) => Some(shape),
-            Self::Wallpaper(_) => None,
+            Self::Wallpaper(_) | Self::Sphere(..) => None,
         }
     }
 }
@@ -127,6 +141,12 @@ impl Supported {
 pub(crate) fn supported(signature: &Signature) -> Result<Supported, Error> {
     reflection_or_rotation(signature)
         .or_else(|error| wallpaper(signature).map(Supported::Wallpaper).ok_or(error))
+        .or_else(|error| {
+            spherical_group(signature)
+                .zip(area(signature))
+                .map(|(group, area)| Supported::Sphere(group, area))
+                .ok_or(error)
+        })
 }
 
 fn reflection_or_rotation(signature: &Signature) -> Result<Supported, Error> {
@@ -178,10 +198,9 @@ fn reflection_or_rotation(signature: &Signature) -> Result<Supported, Error> {
     Ok(class(shape))
 }
 
-fn wallpaper(signature: &Signature) -> Option<Wallpaper> {
-    if signature.geometry() != Geometry::Euclidean {
-        return None;
-    }
+type Structure = (u32, u32, Vec<u32>, Vec<Vec<u32>>);
+
+fn structure(signature: &Signature) -> Option<Structure> {
     let cones: Vec<u32> = signature
         .cone_orders()
         .iter()
@@ -196,24 +215,59 @@ fn wallpaper(signature: &Signature) -> Option<Wallpaper> {
             .collect();
         boundaries.push(corners?);
     }
-    let structure = (
+    Some((
         signature.handles(),
         signature.crosscaps(),
-        cones.as_slice(),
-        boundaries.as_slice(),
-    );
-    Some(match structure {
-        (1, 0, [], []) => Wallpaper::Torus,
-        (0, 0, [], [first, second]) if first.is_empty() && second.is_empty() => Wallpaper::Annulus,
-        (0, 2, [], []) => Wallpaper::KleinBottle,
-        (0, 1, [], [boundary]) if boundary.is_empty() => Wallpaper::MobiusStrip,
-        (0, 0, [2, 2], [boundary]) if boundary.is_empty() => Wallpaper::TwoTwoMirror,
-        (0, 1, [2, 2], []) => Wallpaper::TwoTwoCrossCap,
-        (0, 0, [2], [boundary]) if boundary.as_slice() == [2, 2] => Wallpaper::TwoMirrorTwoTwo,
-        (0, 0, [4], [boundary]) if boundary.as_slice() == [2] => Wallpaper::FourMirrorTwo,
-        (0, 0, [3], [boundary]) if boundary.as_slice() == [3] => Wallpaper::ThreeMirrorThree,
-        _ => return None,
-    })
+        cones,
+        boundaries,
+    ))
+}
+
+fn wallpaper(signature: &Signature) -> Option<Wallpaper> {
+    if signature.geometry() != Geometry::Euclidean {
+        return None;
+    }
+    let (handles, crosscaps, cones, boundaries) = structure(signature)?;
+    Some(
+        match (handles, crosscaps, cones.as_slice(), boundaries.as_slice()) {
+            (1, 0, [], []) => Wallpaper::Torus,
+            (0, 0, [], [first, second]) if first.is_empty() && second.is_empty() => {
+                Wallpaper::Annulus
+            }
+            (0, 2, [], []) => Wallpaper::KleinBottle,
+            (0, 1, [], [boundary]) if boundary.is_empty() => Wallpaper::MobiusStrip,
+            (0, 0, [2, 2], [boundary]) if boundary.is_empty() => Wallpaper::TwoTwoMirror,
+            (0, 1, [2, 2], []) => Wallpaper::TwoTwoCrossCap,
+            (0, 0, [2], [boundary]) if boundary.as_slice() == [2, 2] => Wallpaper::TwoMirrorTwoTwo,
+            (0, 0, [4], [boundary]) if boundary.as_slice() == [2] => Wallpaper::FourMirrorTwo,
+            (0, 0, [3], [boundary]) if boundary.as_slice() == [3] => Wallpaper::ThreeMirrorThree,
+            _ => return None,
+        },
+    )
+}
+
+fn spherical_group(signature: &Signature) -> Option<SphericalGroup> {
+    if signature.geometry() != Geometry::Spherical {
+        return None;
+    }
+    let (handles, crosscaps, cones, boundaries) = structure(signature)?;
+    Some(
+        match (handles, crosscaps, cones.as_slice(), boundaries.as_slice()) {
+            (0, 0, &[order], [boundary]) if boundary.is_empty() => {
+                SphericalGroup::ConeMirror(order)
+            }
+            (0, 1, &[order], []) => SphericalGroup::ConeCrossCap(order),
+            (0, 0, [2], [boundary]) => match boundary.as_slice() {
+                &[order] => SphericalGroup::TwoMirrorN(order),
+                _ => return None,
+            },
+            (0, 0, [3], [boundary]) if boundary.as_slice() == [2] => SphericalGroup::ThreeMirrorTwo,
+            (0, 0, [], [boundary]) if boundary.is_empty() => SphericalGroup::Mirror,
+            (0, 1, [], []) => SphericalGroup::CrossCap,
+            (0, 0, [], []) => SphericalGroup::Trivial,
+            _ => return None,
+        },
+    )
 }
 
 pub(crate) fn admitted(signature: &Signature) -> Result<Supported, Error> {
@@ -222,7 +276,21 @@ pub(crate) fn admitted(signature: &Signature) -> Result<Supported, Error> {
         Supported::Reflection(shape) | Supported::Rotation(shape) => {
             let largest = shape.orders().into_iter().fold(0, u32::max);
             if largest > LARGEST_ORDER {
-                return Err(Error::limit_exceeded(largest));
+                return Err(Error::limit_exceeded(largest, LARGEST_ORDER));
+            }
+        }
+        Supported::Sphere(group, _) => {
+            let limited = match group {
+                SphericalGroup::ConeMirror(order) => Some((order, LARGEST_ORDER)),
+                SphericalGroup::TwoMirrorN(order) => Some((order, LARGEST_TWO_MIRROR_ORDER)),
+                SphericalGroup::ThreeMirrorTwo => None,
+                SphericalGroup::ConeCrossCap(_)
+                | SphericalGroup::Mirror
+                | SphericalGroup::CrossCap
+                | SphericalGroup::Trivial => return Err(Error::unsupported(signature)),
+            };
+            if let Some((order, limit)) = limited.filter(|&(order, limit)| order > limit) {
+                return Err(Error::limit_exceeded(order, limit));
             }
         }
         Supported::Wallpaper(_) => {}
@@ -355,7 +423,8 @@ mod tests {
     use crate::ErrorKind;
 
     use super::{
-        Shape, Supported, Wallpaper, admitted, construct, signed_to_f64, supported, unsigned_to_f64,
+        Shape, SphericalGroup, Supported, Wallpaper, admitted, construct, signed_to_f64, supported,
+        unsigned_to_f64,
     };
 
     fn signature(text: &str) -> Signature {
@@ -458,6 +527,42 @@ mod tests {
     }
 
     #[test]
+    fn supported_reads_each_spherical_group_signature_by_its_structure() {
+        for (text, group, area) in [
+            ("3*", SphericalGroup::ConeMirror(3), PI * 2.0 / 3.0),
+            ("3x", SphericalGroup::ConeCrossCap(3), PI * 2.0 / 3.0),
+            ("2*3", SphericalGroup::TwoMirrorN(3), PI / 3.0),
+            ("3*2", SphericalGroup::ThreeMirrorTwo, PI / 6.0),
+            ("*", SphericalGroup::Mirror, PI * 2.0),
+            ("x", SphericalGroup::CrossCap, PI * 2.0),
+            ("1", SphericalGroup::Trivial, PI * 4.0),
+        ] {
+            assert_eq!(
+                supported(&signature(text)).ok(),
+                Some(Supported::Sphere(group, area)),
+                "{text}"
+            );
+        }
+        for text in ["4*2", "3*3", "4*3", "5*2", "3*4", "2x2", "*x"] {
+            assert!(
+                !matches!(supported(&signature(text)), Ok(Supported::Sphere(..))),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn admitted_admits_the_spherical_kites_within_their_limits() {
+        let kind = |text: &str| admitted(&signature(text)).map_err(|error| error.kind());
+        for text in ["3*2", "2*", "3*", "(1000)*", "2*3", "2*(500)"] {
+            assert!(kind(text).is_ok(), "{text}");
+        }
+        for text in ["(1001)*", "2*(501)"] {
+            assert_eq!(kind(text).err(), Some(ErrorKind::LimitExceeded), "{text}");
+        }
+    }
+
+    #[test]
     fn admitted_admits_every_wallpaper_signature() {
         for text in [
             "o", "**", "xx", "*x", "x*", "22x", "x22", "2x2", "22*", "2*22", "4*2", "3*3",
@@ -469,7 +574,6 @@ mod tests {
     #[test]
     fn supported_rejects_a_signature_without_a_construction() {
         for text in [
-            "3*2",
             "*(inf)32",
             "*(inf)222",
             "(inf)222",
@@ -477,10 +581,6 @@ mod tests {
             "4*3",
             "oo",
             "xxx",
-            "*",
-            "x",
-            "2*",
-            "1",
             "*22*",
             "o*",
             "ox",

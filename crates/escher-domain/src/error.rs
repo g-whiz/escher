@@ -4,7 +4,7 @@ use escher_signature::Signature;
 
 use crate::parameters::Parameter;
 use crate::presentation::MAX_SIDES;
-use crate::triangle::{LARGEST_ORDER, MOST_ORDERS};
+use crate::triangle::MOST_ORDERS;
 
 /// A specialized [`Result`](core::result::Result) whose error is [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
@@ -25,12 +25,12 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// use escher_domain::{ErrorKind, FundamentalDomain};
 /// use escher_signature::Signature;
 ///
-/// let signature: Signature = "3*2".parse()?;
+/// let signature: Signature = "4*3".parse()?;
 /// let error = FundamentalDomain::build(&signature).err();
 /// assert_eq!(error.as_ref().map(|error| error.kind()), Some(ErrorKind::UnsupportedSignature));
 /// assert_eq!(
 ///     error.map(|error| error.to_string()).as_deref(),
-///     Some("cannot build fundamental domain: the signature 3*2 is not supported"),
+///     Some("cannot build fundamental domain: the signature 4*3 is not supported"),
 /// );
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -51,10 +51,10 @@ impl Error {
         }
     }
 
-    pub(crate) fn limit_exceeded(order: u32) -> Self {
+    pub(crate) fn limit_exceeded(order: u32, limit: u32) -> Self {
         Self {
             operation: OPERATION,
-            detail: Detail::LimitExceeded(order),
+            detail: Detail::LimitExceeded(order, limit),
         }
     }
 
@@ -83,6 +83,13 @@ impl Error {
         Self {
             operation: OPERATION,
             detail: Detail::RefusedWallpaper,
+        }
+    }
+
+    pub(crate) fn refused_spherical() -> Self {
+        Self {
+            operation: OPERATION,
+            detail: Detail::RefusedSpherical,
         }
     }
 
@@ -126,11 +133,12 @@ impl Error {
     pub fn kind(&self) -> ErrorKind {
         match self.detail {
             Detail::UnsupportedSignature(_) => ErrorKind::UnsupportedSignature,
-            Detail::LimitExceeded(_) | Detail::TooManyOrders(_) => ErrorKind::LimitExceeded,
+            Detail::LimitExceeded(..) | Detail::TooManyOrders(_) => ErrorKind::LimitExceeded,
             Detail::Numerical(_)
             | Detail::Refused
             | Detail::RefusedDouble
-            | Detail::RefusedWallpaper => ErrorKind::Numerical,
+            | Detail::RefusedWallpaper
+            | Detail::RefusedSpherical => ErrorKind::Numerical,
             Detail::UnknownParameter(_) => ErrorKind::UnknownParameter,
             Detail::ParameterOutOfRange(_) => ErrorKind::ParameterOutOfRange,
             Detail::InvalidPairing(_) | Detail::RejectedPresentation(_) => {
@@ -152,12 +160,13 @@ impl core::error::Error for Error {
             Detail::Numerical(Some(source)) => Some(source),
             Detail::RejectedPresentation(source) => Some(source),
             Detail::UnsupportedSignature(_)
-            | Detail::LimitExceeded(_)
+            | Detail::LimitExceeded(..)
             | Detail::TooManyOrders(_)
             | Detail::Numerical(None)
             | Detail::Refused
             | Detail::RefusedDouble
             | Detail::RefusedWallpaper
+            | Detail::RefusedSpherical
             | Detail::UnknownParameter(_)
             | Detail::ParameterOutOfRange(_)
             | Detail::InvalidPairing(_) => None,
@@ -185,42 +194,57 @@ impl core::error::Error for Error {
 pub enum ErrorKind {
     /// The crate does not build a fundamental domain for the signature.
     ///
-    /// Only a reflection domain, its double, and the domains of `o`, `**`,
-    /// `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, and `3*3` have one. A reflection domain
-    /// is a triangle, a hyperbolic polygon, the rectangle, or the lune, and
-    /// its sides are mirrors. The signature of a triangle has the form `*pqr`
-    /// with three finite corner orders. It is hyperbolic when their
-    /// reciprocals sum to less than 1, or it is one of the Euclidean
-    /// signatures `*632`, `*442`, and `*333`, or one of the spherical
-    /// signatures `*332`, `*432`, `*532`, and `*n22`. The signature of a
-    /// hyperbolic polygon has four or more finite corner orders and is
-    /// hyperbolic, such as `*3333`. The signature of the rectangle is `*2222`,
-    /// and that of the lune is `*nn`. A corner of order `n` is a corner where
-    /// two mirrors meet at the angle `pi / n`. The double of a reflection
-    /// domain is the domain together with its mirror image across one of its
-    /// walls. Its signature has the same orders as cone points, the centres of
-    /// rotation, and no mirror boundary, such as `732`, `2222`, `nn`, or
-    /// `3333`. The signature `o` has a parallelogram whose sides are paired by
-    /// translations, `**` has a rectangle with two mirror sides and two sides
-    /// paired by a translation, `xx` has a rectangle whose sides are paired by
-    /// glide reflections and translations, `*x` has a rectangle with two
-    /// mirror sides and two sides paired by glide reflections, and `22x` has a
-    /// rectangle whose sides are paired by glide reflections. `22*` and `2*22`
-    /// have a rectangle with mirror sides whose bottom side, and for `22*` also
-    /// its top side, is split at its midpoint into two sides paired by a
-    /// half-turn. `4*2` and `3*3` have the kite of `442` or `632` with two
-    /// mirror sides and two sides paired by a rotation. Every Euclidean
-    /// signature without an infinite order has a domain.
+    /// A signature is supported when it is one of these, and every other
+    /// signature gives this kind. A supported signature over one of the limits
+    /// of [`ErrorKind::LimitExceeded`] gives that kind instead:
+    ///
+    /// - A reflection signature, whose domain is a triangle, a hyperbolic
+    ///   polygon, the rectangle, or the lune, with mirror sides. The signature
+    ///   of a triangle has the form `*pqr` with three finite corner orders. It
+    ///   is hyperbolic when their reciprocals sum to less than 1, or it is one
+    ///   of the Euclidean signatures `*632`, `*442`, and `*333`, or one of the
+    ///   spherical signatures `*332`, `*432`, `*532`, and `*n22`. The signature
+    ///   of a hyperbolic polygon has four or more finite corner orders and is
+    ///   hyperbolic, such as `*3333`. The signature of the rectangle is
+    ///   `*2222`, and that of the lune is `*nn`. A corner of order `n` is a
+    ///   corner where two mirrors meet at the angle `pi / n`.
+    /// - A rotation signature, with the orders of a reflection signature as
+    ///   cone points, the centres of rotation, and no mirror boundary, such as
+    ///   `732`, `2222`, `nn`, or `3333`. Its domain is the double of the
+    ///   reflection domain, the domain together with its mirror image across
+    ///   one of its walls.
+    /// - A Euclidean signature without an infinite order. Beside the reflection
+    ///   and rotation signatures above, `o` has a parallelogram whose sides are
+    ///   paired by translations, `**` has a rectangle with two mirror sides and
+    ///   two sides paired by a translation, `xx` has a rectangle whose sides
+    ///   are paired by glide reflections and translations, `*x` has a
+    ///   rectangle with two mirror sides and two sides paired by glide
+    ///   reflections, and `22x` has a rectangle whose sides are paired by glide
+    ///   reflections. `22*` and `2*22` have a rectangle with mirror sides whose
+    ///   bottom side, and for `22*` also its top side, is split at its midpoint
+    ///   into two sides paired by a half-turn. `4*2` and `3*3` have the kite of
+    ///   `442` or `632` with two mirror sides and two sides paired by a
+    ///   rotation.
+    /// - The spherical signatures `3*2`, `2*n`, and `n*`, which have the kite of
+    ///   `432`, `(2n)22`, or `n22` with two mirror sides and two sides paired by
+    ///   a rotation.
+    ///
+    /// So the spherical signatures `nx`, `x`, `*`, and `1`, a hyperbolic
+    /// signature that mixes cone points with a mirror boundary, such as `4*3`,
+    /// and every signature with an infinite order give this kind.
     UnsupportedSignature,
-    /// The signature has more than eight corner or cone orders, or a corner or
-    /// cone order above 1000, beyond which the accuracy of the domain is not
-    /// established.
+    /// The signature has more than eight corner or cone orders, a corner or
+    /// cone order above 1000, or is `2*n` with `n` above 500, beyond which the
+    /// accuracy of the domain is not established.
+    ///
+    /// The text names the order and the limit that it exceeds, such as
+    /// `order 501 is larger than 500` for `2*(501)`.
     LimitExceeded,
     /// Rounding made the construction degenerate, such as a sum of vertices
     /// that is not a point of the hyperbolic plane or of the sphere, a wall
     /// that cannot be found or is not finite, or a hyperbolic polygon, its
     /// double, or a domain of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
-    /// `4*2`, `3*3`, or `2222` that failed a check of
+    /// `4*2`, `3*3`, `2222`, `3*2`, `2*n`, or `n*` that failed a check of
     /// [`FundamentalDomain::verify`](crate::FundamentalDomain::verify).
     ///
     /// A hyperbolic polygon gives it when its shape parameters are too
@@ -234,7 +258,10 @@ pub enum ErrorKind {
     /// pairings. No other rotation signature is known to give it. The domain
     /// of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, `3*3`, or `2222`
     /// gives it when it fails a check, which no setting in the ranges of its parameters is
-    /// known to cause, and its text then names the verification.
+    /// known to cause, and its text then names the verification. The domain
+    /// of `3*2`, `2*n`, or `n*` gives it when it fails a check, which no order
+    /// in its range is known to cause, and its text then names the
+    /// verification of a spherical domain.
     Numerical,
     /// A setting names no shape parameter of the signature.
     ///
@@ -263,8 +290,8 @@ pub enum ErrorKind {
 enum Detail {
     #[error("the signature {0} is not supported")]
     UnsupportedSignature(String),
-    #[error("order {0} is larger than {LARGEST_ORDER}")]
-    LimitExceeded(u32),
+    #[error("order {0} is larger than {1}")]
+    LimitExceeded(u32, u32),
     #[error("the signature has {0} orders, more than {MOST_ORDERS}")]
     TooManyOrders(usize),
     #[error("the construction is numerically degenerate")]
@@ -275,6 +302,8 @@ enum Detail {
     RefusedDouble,
     #[error("the wallpaper domain fails its verification")]
     RefusedWallpaper,
+    #[error("the spherical domain fails its verification")]
+    RefusedSpherical,
     #[error("the signature {0} has no shape parameter with one of the given names")]
     UnknownParameter(String),
     #[error(
@@ -330,10 +359,10 @@ mod tests {
         }
     }
 
-    fn errors() -> [Error; 13] {
+    fn errors() -> [Error; 15] {
         [
-            Error::unsupported(&signature("3*2")),
-            Error::limit_exceeded(1001),
+            Error::unsupported(&signature("4*3")),
+            Error::limit_exceeded(1001, 1000),
             Error::numerical(Some(geometry_error())),
             Error::numerical(None),
             Error::unknown_parameter(&signature("*236")),
@@ -345,6 +374,8 @@ mod tests {
             Error::refused_double(),
             Error::refused_wallpaper(),
             Error::parameter_out_of_range(Parameter::Skew),
+            Error::limit_exceeded(501, 500),
+            Error::refused_spherical(),
         ]
     }
 
@@ -379,7 +410,7 @@ mod tests {
         assert_eq!(
             texts,
             [
-                "cannot build fundamental domain: the signature 3*2 is not supported",
+                "cannot build fundamental domain: the signature 4*3 is not supported",
                 "cannot build fundamental domain: order 1001 is larger than 1000",
                 "cannot build fundamental domain: the construction is numerically degenerate",
                 "cannot build fundamental domain: the construction is numerically degenerate",
@@ -392,6 +423,8 @@ mod tests {
                 "cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough",
                 "cannot build fundamental domain: the wallpaper domain fails its verification",
                 "cannot build fundamental domain: the parameter skew is outside its range of -0.5 to 0.5",
+                "cannot build fundamental domain: order 501 is larger than 500",
+                "cannot build fundamental domain: the spherical domain fails its verification",
             ],
         );
         let texts = pairing_errors().map(|error| error.to_string());
@@ -425,6 +458,8 @@ mod tests {
                 ErrorKind::Numerical,
                 ErrorKind::Numerical,
                 ErrorKind::ParameterOutOfRange,
+                ErrorKind::LimitExceeded,
+                ErrorKind::Numerical,
             ],
         );
         assert_eq!(

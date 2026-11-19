@@ -10,6 +10,15 @@ Euler characteristic: 1/2
 Compact: yes
 Group order: 4
 Area: pi
-Domain: none, cannot build fundamental domain: the signature 2* is not supported
+Domain: 4 sides, 2 mirror sides and 1 pair
+Mirror sides: 2 and 3
+Side pairs: 0 and 1 by rotation
+Corner angles in degrees: 180.000000, 90.000000, 180.000000, 90.000000
+Side lengths: 1.570796, 1.570796, 1.570796, 1.570796
+Domain area: 3.141593
+Colourings: 5, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 3
+Colourings with 4 colours: 1
 --- stderr
 --- end

@@ -10,6 +10,19 @@ Euler characteristic: 1/24
 Compact: yes
 Group order: 48
 Area: pi/12
-Domain: none, cannot build fundamental domain: the signature 2*(12) is not supported
+Domain: 4 sides, 2 mirror sides and 1 pair
+Mirror sides: 0 and 1
+Side pairs: 2 and 3 by rotation
+Corner angles in degrees: 15.000000, 90.000000, 180.000000, 90.000000
+Side lengths: 1.570796, 1.570796, 0.130900, 0.130900
+Domain area: 0.261799
+Colourings: 41, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 3
+Colourings with 3 colours: 3
+Colourings with 4 colours: 5
+Colourings with 6 colours: 7
+Colourings with 8 colours: 9
+Colourings with 12 colours: 13
 --- stderr
 --- end

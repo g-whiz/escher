@@ -1202,9 +1202,9 @@ The prototype also measured these figures:
 
 ### 11.6. Figures of the Spherical Prototype
 
-`escher-domain` gives the domains of `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1` their side presentations by Section 5.4 of `docs/design/domain.md`, and the domain of `1`, which has no side, a presentation with no generator and no relator (DOM-62 of `docs/design/domain.md`). They need no code and no rule in this crate. `enumerate`, the search, the Conway presentations, and the ids serve these side presentations unchanged. A presentation with no generator already enumerates to the index 1, and the search accepts it.
+This section holds the figures of the spherical group domains on a prototype and the figures that the tests of the crates measure for the kites `3*2`, `2*n`, and `n*`. `escher-domain` gives the domains of `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1` their side presentations by Section 5.4 of `docs/design/domain.md`, and the domain of `1`, which has no side, a presentation with no generator and no relator (DOM-62 of `docs/design/domain.md`). They need no code and no rule in this crate. `enumerate`, the search, the Conway presentations, and the ids serve these side presentations unchanged. A presentation with no generator enumerates to the index 1, and the search accepts it.
 
-A prototype outside the repository tested this design. A copy of the workspace gained the constructions of DOM-58 and DOM-59 of `docs/design/domain.md` as private code of `escher-domain`, and called `enumerate`, `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. It covered the 37 canonical signatures of the seven types with $n$ up to 12 and the three limits `(1000)*`, `(1000)x`, and `2*(500)`, 40 signatures in all. Every figure of this section is a figure of that prototype, in a release build on one thread. The tests "Spherical side orders" and "Spherical counts" of `docs/design/domain.md` measure the same quantities on the crates, the counts up to 16 colours or the group order when that is smaller.
+A prototype outside the repository tested this design. A copy of the workspace gained the constructions of DOM-58 and DOM-59 of `docs/design/domain.md` as private code of `escher-domain`, and called `enumerate`, `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. It covered the 37 canonical signatures of the seven types with $n$ up to 12 and the three limits `(1000)*`, `(1000)x`, and `2*(500)`, 40 signatures in all. Every figure of this section comes from that prototype, in a release build on one thread, except the figures of the crates for the kites, which the section marks. The tests "Spherical side orders" and "Spherical counts" of `docs/design/domain.md` measure the same quantities on the crates, the counts up to 16 colours or the group order when that is smaller.
 
 Enumeration over the trivial subgroup gave the index $2/\chi$ for the side presentation of each of the 40 signatures. For $n$ up to 12, each run took at most 0.02 ms. At the limits, the side and the Conway presentations took these times:
 
@@ -1216,11 +1216,47 @@ Enumeration over the trivial subgroup gave the index $2/\chi$ for the side prese
 
 The colouring counts of the side presentation equalled those of the Conway presentation for all 40 signatures, at every index up to the smaller of 64 and the group order. Each search took at most 1 ms. For example, `3*2` gave the counts 1, 1, 1, 4, 0, 7, 0, 4, 0, 0, 0, and 7 at the indexes 1 to 12, and 1 at the index 24.
 
+The tests "Spherical side orders" and "Spherical counts" measured these figures on the crates for the kites `3*2`, `n*`, and `2*n`, in a debug build, beside the release figures of the prototype above:
+
+| Figure | Crates, debug build | Prototype, release build |
+| --- | --- | --- |
+| Enumeration of the side presentation | Every kite gives `group_order()`. The slowest is `2*(500)`, at 140 to 148 ms, and the whole set takes 0.24 to 0.25 s | `2*(500)` at 18.3 ms, and at most 0.02 ms for $n$ up to 12 |
+| Colouring search to 16 colours or the group order, side and Conway presentations | Equal counts for every kite with $n$ up to 12. Each search takes at most 0.008 s | Equal counts up to 64 colours or the group order. Each search took at most 1 ms |
+| Search without a cycle relator | Run to 6 colours, or to 4 for `2*`, because the search to 16 colours took up to 23 s, for `3*2` without `s2 s0 s3 s1`. The counts differ from those of the Conway presentation, such as 1, 3, 10, 57, 60, and 504 for `3*2` without that relator against 1, 1, 1, 4, 0, and 7 | The counts differed |
+
+The counts of the side presentations of the kites, for 1 to 16 colours or to the group order when that is smaller, are these:
+
+| Signature | Colourings with 1 to 16 colours, or to the group order |
+| --- | --- |
+| `3*2` | 1, 1, 1, 4, 0, 7, 0, 4, 0, 0, 0, 7, 0, 0, 0, 0 |
+| `2*` | 1, 3, 0, 1 |
+| `3*` | 1, 1, 1, 0, 0, 1 |
+| `4*` | 1, 3, 0, 3, 0, 0, 0, 1 |
+| `5*` | 1, 1, 0, 0, 1, 0, 0, 0, 0, 1 |
+| `6*` | 1, 3, 1, 1, 0, 3, 0, 0, 0, 0, 0, 1 |
+| `7*` | 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1 |
+| `8*` | 1, 3, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1 |
+| `9*` | 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 |
+| `(10)*` | 1, 3, 0, 1, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0 |
+| `(11)*` | 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0 |
+| `(12)*` | 1, 3, 1, 3, 0, 3, 0, 1, 0, 0, 0, 3, 0, 0, 0, 0 |
+| `2*2` | 1, 3, 0, 5, 0, 0, 0, 1 |
+| `2*3` | 1, 3, 3, 1, 0, 7, 0, 0, 0, 0, 0, 1 |
+| `2*4` | 1, 3, 0, 5, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 1 |
+| `2*5` | 1, 3, 0, 1, 5, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0 |
+| `2*6` | 1, 3, 3, 5, 0, 7, 0, 1, 0, 0, 0, 13, 0, 0, 0, 0 |
+| `2*7` | 1, 3, 0, 1, 0, 0, 7, 0, 0, 0, 0, 0, 0, 15, 0, 0 |
+| `2*8` | 1, 3, 0, 5, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 17 |
+| `2*9` | 1, 3, 3, 1, 0, 7, 0, 0, 9, 0, 0, 1, 0, 0, 0, 0 |
+| `2*(10)` | 1, 3, 0, 5, 5, 0, 0, 1, 0, 11, 0, 0, 0, 0, 0, 0 |
+| `2*(11)` | 1, 3, 0, 1, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0 |
+| `2*(12)` | 1, 3, 3, 5, 0, 7, 0, 9, 0, 0, 0, 13, 0, 0, 0, 1 |
+
 The prototype also left relators out of the side presentations, one at a time:
 
 | Relator left out | Enumeration | Colouring counts | Detected by these two |
 | --- | --- | --- | --- |
-| A mirror relator: `s0^2` or `s1^2` of `3*2` and `2*3`, `s2^2` or `s3^2` of `3*` and `2*`, or any one of the four relators of `*` | Still $2/\chi$ | Still equal to the Conway counts | No |
+| A mirror relator: `s0^2` or `s1^2` of `3*2` and `2*3`, `s2^2` or `s3^2` of `3*` and `2*`, or any one of the four relators of `*` | $2/\chi$ | Equal to the Conway counts | No |
 | A cycle relator of `3*2`, `3*`, `2*3`, `5x`, or `2*` | Reached the coset limit | Differed | Yes |
 | The cycle relator `s1 s1` of `x` | Reached the coset limit | Equal, 1 and 1 up to index 2 | By the enumeration only |
 

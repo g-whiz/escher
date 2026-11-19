@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"spherical_kite_setting\", &[\"3*2\", \"--set\", \"aspect=2\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 3*2
+  caused by: cannot build fundamental domain: the signature 3*2 has no shape parameter with one of the given names
+--- end

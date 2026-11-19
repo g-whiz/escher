@@ -10,9 +10,9 @@ use crate::parameters::{ShapeParameters, validate};
 use crate::polygon::{Polygon, rectangle, triangle};
 use crate::sheets::{Cuts, side_lengths};
 use crate::spherical::{lune, triangle as spherical_triangle};
-use crate::triangle::{Shape, Supported, admitted, construct};
+use crate::triangle::{Shape, SphericalGroup, Supported, admitted, construct};
 use crate::verify::Verification;
-use crate::{walk, wallpaper};
+use crate::{spherical as sphere, walk, wallpaper};
 
 /// The fundamental domain of a symmetry group of the hyperbolic plane, the
 /// Euclidean plane, or the sphere, a polygon whose copies under the group
@@ -97,21 +97,21 @@ pub struct FundamentalDomain {
 pub(crate) enum Closure {
     PerVertex,
     DoubleByCycles,
-    Wallpaper,
+    Cycles,
 }
 
 impl Closure {
     pub(crate) const fn counts_copies(self) -> bool {
         match self {
             Self::PerVertex | Self::DoubleByCycles => true,
-            Self::Wallpaper => false,
+            Self::Cycles => false,
         }
     }
 
     pub(crate) const fn sums_cycle_angles(self) -> bool {
         match self {
             Self::PerVertex => false,
-            Self::DoubleByCycles | Self::Wallpaper => true,
+            Self::DoubleByCycles | Self::Cycles => true,
         }
     }
 }
@@ -230,8 +230,8 @@ impl FundamentalDomain {
     /// parameters that the settings give.
     ///
     /// The signature must be `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
-    /// `4*2`, or `3*3`, or have no
-    /// handle or crosscap and
+    /// `4*2`, `3*3`, `3*2`, `2*n` with `n` from 2 to 500, or `n*` with `n` from
+    /// 2 to 1000, or have no handle or crosscap and
     /// either one mirror boundary with finite corner orders and no cone point,
     /// or finite cone orders and no boundary. With a boundary, it must be one
     /// of these:
@@ -296,6 +296,19 @@ impl FundamentalDomain {
     /// the rotations about vertex 2 through a quarter turn for `4*2` and a
     /// third of a turn for `3*3`.
     ///
+    /// The domains of `3*2`, `2*n`, and `n*` are the kites of `432`, `(2n)22`,
+    /// and `n22`, with the same vertices, walls, and centre, and no shape
+    /// parameter. The sides 0 and 1 of the kites of `3*2` and `2*n` are
+    /// mirrors, side 0 with the reflection of the triangle of `*432` or
+    /// `*(2n)22` and side 1 with the reflection in its own wall, and their
+    /// sides 2 and 3 keep the pairings of the kite, the rotation about vertex 2
+    /// through a third of a turn for `3*2` and the half-turn for `2*n`. The
+    /// sides 2 and 3 of the kite of `n*` are mirrors, which meet at vertex 2 at
+    /// the angle `pi` and lie on one great circle up to rounding, side 3 with
+    /// the reflection of the triangle of `*n22` and side 2 with the reflection
+    /// in its own wall, and its sides 0 and 1 keep the pairings of the kite, the
+    /// rotation through `2 pi / n` about vertex 0.
+    ///
     /// The reflection triangle of a Euclidean signature has side 0 of length 1,
     /// and the reflection rectangle has area 1. A spherical domain lies on the
     /// unit sphere and has no shape parameter. A hyperbolic polygon has its
@@ -307,9 +320,9 @@ impl FundamentalDomain {
     /// parameter without a setting takes its default value.
     ///
     /// A hyperbolic polygon, its double, the domain of `o`, `**`, `xx`, `*x`,
-    /// `22x`, `22*`, `2*22`, `4*2`, or `3*3`, or the domain of `2222` at any
-    /// `skew` is
-    /// returned only when it passes every check of
+    /// `22x`, `22*`, `2*22`, `4*2`, `3*3`, `3*2`, `2*n`, or `n*`, or the
+    /// domain of `2222` at any `skew` is returned only when it passes every
+    /// check of
     /// [`verify`](FundamentalDomain::verify), because rounding
     /// keeps some domains from meeting the tolerances of the checks. A polygon
     /// with lengths near the ends of their ranges can have errors that are too
@@ -352,7 +365,8 @@ impl FundamentalDomain {
     /// 2. An error of kind
     ///    [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) for a
     ///    signature with more than eight corner or cone orders, and then for a
-    ///    corner or cone order above 1000.
+    ///    corner or cone order above 1000, or for an order `n` of `2*n` above
+    ///    500.
     /// 3. An error of kind
     ///    [`ErrorKind::UnknownParameter`](crate::ErrorKind::UnknownParameter)
     ///    when a setting names no parameter of the signature.
@@ -364,8 +378,8 @@ impl FundamentalDomain {
     ///    [`ErrorKind::Numerical`](crate::ErrorKind::Numerical) when rounding
     ///    makes the construction degenerate, or when a hyperbolic polygon, its
     ///    double, the domain of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
-    ///    `4*2`, or `3*3`, or the domain of `2222` fails a check of
-    ///    [`verify`](FundamentalDomain::verify).
+    ///    `4*2`, `3*3`, `3*2`, `2*n`, or `n*`, or the domain of `2222` fails a
+    ///    check of [`verify`](FundamentalDomain::verify).
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
         let supported = admitted(signature)?;
         let cuts = supported.shape().and_then(Shape::cuts);
@@ -386,6 +400,14 @@ impl FundamentalDomain {
                     .transpose()?;
                 wallpaper::construct(class, generating, kite.as_ref())?
             }
+            Supported::Sphere(group, area) => {
+                let kite = sphere::kite_triangle(group)
+                    .map(|(orders, _)| {
+                        Self::doubled(Shape::SphericalTriangle { orders, area }, None, &[])
+                    })
+                    .transpose()?;
+                sphere::construct(group, kite.as_ref())?
+            }
         };
         Self::guarded(supported, domain)
     }
@@ -405,7 +427,10 @@ impl FundamentalDomain {
             Supported::Wallpaper(_) | Supported::Rotation(Shape::Rectangle) => {
                 Error::refused_wallpaper()
             }
-            Supported::Reflection(_) | Supported::Rotation(_) => return Ok(domain),
+            Supported::Sphere(SphericalGroup::Mirror, _)
+            | Supported::Reflection(_)
+            | Supported::Rotation(_) => return Ok(domain),
+            Supported::Sphere(..) => Error::refused_spherical(),
         };
         if domain.verify().passed() {
             Ok(domain)
@@ -509,7 +534,9 @@ impl FundamentalDomain {
     /// not for `2*22`, whose bottom side alone is split, and not for `2222`,
     /// whose second rectangle lies to the right of the first. The domains of
     /// `4*2` and `3*3` have the centre of the triangle of `*442` or `*632`
-    /// that their kite doubles, as the kites of `442` and `632` do. For a
+    /// that their kite doubles, as the kites of `442` and `632` do, and the
+    /// domains of `3*2`, `2*n`, and `n*` have the centre of the triangle of
+    /// `*432`, `*(2n)22`, or `*n22` that their kite doubles. For a
     /// spherical triangle it is the sum of the vertices scaled onto the
     /// sphere, and the domain is placed so that it is the point
     /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) up to rounding. The two
@@ -753,6 +780,22 @@ impl FundamentalDomain {
     /// [`FundamentalDomain::build_with`] returns gives this error.
     pub fn side_presentation(&self) -> Result<escher_group::Presentation> {
         crate::presentation::side_presentation(self)
+    }
+
+    pub(crate) fn sound(self) -> Result<Self> {
+        let sound = self.vertices.iter().all(|vertex| vertex.is_finite())
+            && self.centre.is_finite()
+            && self.sides.iter().all(|wall| {
+                wall.normal.is_finite()
+                    && wall.covector.is_finite()
+                    && wall.pairing.is_finite()
+                    && self.plane.side(wall.covector, self.centre) < 0.0
+            });
+        if sound {
+            Ok(self)
+        } else {
+            Err(Error::numerical(None))
+        }
     }
 
     pub(crate) fn triangles(&self) -> Vec<[f64; 3]> {
@@ -1048,9 +1091,11 @@ mod tests {
 
     use super::{FundamentalDomain, Orientation, PairingKind};
     use crate::shared::built_with_aspect;
-    use crate::triangle::{LARGEST_ORDER, MOST_ORDERS, Shape, Supported, admitted};
-    use crate::wallpaper;
+    use crate::triangle::{
+        LARGEST_ORDER, LARGEST_TWO_MIRROR_ORDER, MOST_ORDERS, Shape, Supported, admitted,
+    };
     use crate::{ErrorKind, ShapeParameters};
+    use crate::{spherical, wallpaper};
 
     fn signature(text: &str) -> Signature {
         match text.parse() {
@@ -1068,6 +1113,22 @@ mod tests {
             let kind = FundamentalDomain::build(&over_limit).map_err(|error| error.kind());
             assert_eq!(kind.err(), Some(ErrorKind::LimitExceeded), "{star}");
         }
+    }
+
+    #[test]
+    fn build_accepts_the_largest_two_mirror_order_and_rejects_the_next() {
+        let at_limit = signature(&format!("2*({LARGEST_TWO_MIRROR_ORDER})"));
+        assert!(FundamentalDomain::build(&at_limit).is_ok());
+        let over_limit = signature(&format!("2*({})", LARGEST_TWO_MIRROR_ORDER + 1));
+        let error = FundamentalDomain::build(&over_limit).err();
+        assert_eq!(
+            error.as_ref().map(crate::Error::kind),
+            Some(ErrorKind::LimitExceeded)
+        );
+        assert_eq!(
+            error.map(|error| error.to_string()).as_deref(),
+            Some("cannot build fundamental domain: order 501 is larger than 500")
+        );
     }
 
     #[test]
@@ -1137,7 +1198,7 @@ mod tests {
         let mut settings = ShapeParameters::new();
         settings.set("aspect", f64::NAN);
         for (text, expected) in [
-            ("3*2", ErrorKind::UnsupportedSignature),
+            ("4*3", ErrorKind::UnsupportedSignature),
             (
                 &*format!("*({})32", LARGEST_ORDER + 1),
                 ErrorKind::LimitExceeded,
@@ -1290,6 +1351,61 @@ mod tests {
         ] {
             let (class, domain) = construct(text, values);
             assert!(FundamentalDomain::guarded(class, domain).is_ok(), "{text}");
+        }
+    }
+
+    fn spherical_kite(text: &str) -> (Supported, FundamentalDomain) {
+        let supported = admitted(&signature(text));
+        let Ok(Supported::Sphere(group, area)) = supported else {
+            panic!("{text} is not a built spherical group signature");
+        };
+        let kite = spherical::kite_triangle(group).map(|(orders, _)| {
+            let shape = Shape::SphericalTriangle { orders, area };
+            match FundamentalDomain::doubled(shape, None, &[]) {
+                Ok(doubled) => doubled,
+                Err(error) => panic!("{text} has no kite: {error}"),
+            }
+        });
+        match spherical::construct(group, kite.as_ref()) {
+            Ok(domain) => (Supported::Sphere(group, area), domain),
+            Err(error) => panic!("{text}: {error}"),
+        }
+    }
+
+    #[test]
+    fn guard_refuses_a_spherical_domain_that_fails_its_checks() {
+        for text in ["3*2", "3*", "2*3"] {
+            let (class, domain) = spherical_kite(text);
+            assert!(FundamentalDomain::guarded(class, domain).is_ok(), "{text}");
+        }
+        let (mirror_kite_class, mut mirror_kite) = spherical_kite("3*2");
+        mirror_kite.corners[2].order = 2;
+        let (cone_mirror_class, mut cone_mirror) = spherical_kite("3*");
+        cone_mirror.corners[0].order = 4;
+        let (two_mirror_class, mut two_mirror) = spherical_kite("2*3");
+        two_mirror.sides[2].orientation = Orientation::Reversing;
+        for (label, class, corrupted) in [
+            ("3*2 with a cone of order 2", mirror_kite_class, mirror_kite),
+            ("3* with a cone of order 4", cone_mirror_class, cone_mirror),
+            (
+                "2*3 with a reversing half-turn",
+                two_mirror_class,
+                two_mirror,
+            ),
+        ] {
+            let error = FundamentalDomain::guarded(class, corrupted).err();
+            assert_eq!(
+                error.as_ref().map(crate::Error::kind),
+                Some(ErrorKind::Numerical),
+                "{label}"
+            );
+            assert_eq!(
+                error.map(|error| error.to_string()).as_deref(),
+                Some(
+                    "cannot build fundamental domain: the spherical domain fails its verification"
+                ),
+                "{label}"
+            );
         }
     }
 

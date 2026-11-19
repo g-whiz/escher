@@ -636,7 +636,7 @@ Colourings with 9 colours: 9
 
 The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. The domain is the double of the triangle of `*732` across its side 1, as Section 6.8 of `docs/design/domain.md` states (DOM-23 to DOM-26). Its corners at the corners of order 7 and 3 of the triangle have twice their angles, $360/7$ and 120 degrees, and its sides are two copies of sides 0 and 2 of the triangle, whose lengths the example of `*732` gives. The domain area is twice that of `*732`. The snapshot of Section 8.1 fixes every printed value. The signature needs no quotes, because it holds none of the special characters of Section 4.4. The prototype of the colouring search found subgroups of `732` up to 12 colours only with 1, 7, 8, and 9 colours, two conjugacy classes with 7 colours, and one class of 9 subgroups with 9 colours. `732` has no colouring with 2 colours, so no parity colouring, as its `Parity colouring` line states.
 
-The next three examples show spherical group domains, which DOM-58 of `docs/design/domain.md` specifies. The search of the crates prints the colouring counts, so each example writes them as placeholders in angle brackets, and `...` stands for further lines of the same form. The snapshots of the implementing change fix the counts. The first example also writes `<length>` for a side length that only the construction gives.
+The next three examples show spherical group domains, which DOM-58 of `docs/design/domain.md` specifies. The example of `3*2` is the text that the snapshot of Section 8.1 holds. The examples of `5x` and `*` write the colouring counts as placeholders in angle brackets, and `...` stands for further lines of the same form. The snapshots of Section 8.1 fix the counts.
 
 This example shows a spherical signature with a mirror boundary and a cone point, whose domain is a kite with mirror sides beside paired sides:
 
@@ -655,14 +655,19 @@ Domain: 4 sides, 2 mirror sides and 1 pair
 Mirror sides: 0 and 1
 Side pairs: 2 and 3 by rotation
 Corner angles in degrees: 90.000000, 90.000000, 120.000000, 90.000000
-Side lengths: <length>, <length>, <length>, <length>
+Side lengths: 0.785398, 0.785398, 0.615480, 0.615480
 Domain area: 0.523599
-Colourings: <count>, complete to 12 colours
-Colourings with 1 colour: <count>
-...
+Colourings: 25, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
+Colourings with 3 colours: 1
+Colourings with 4 colours: 4
+Colourings with 6 colours: 7
+Colourings with 8 colours: 4
+Colourings with 12 colours: 7
 ```
 
-The table of ON 8.2 gives the order 24, and the Euler characteristic $2/24 = 1/12$ and the area come from ON 7.3. The domain is the kite of the double of `432` with sides 0 and 1 turned into mirrors (`DEC-56`), so its vertices, angles, and side lengths are those of the domain of `432`, and its area is $\pi/6$. The corner of 120 degrees is the cone point of order 3, about which the rotation pairs sides 2 and 3. On the prototype of Section 11.6 of `docs/design/group.md`, the colouring counts of `3*2` at the indexes 1 to 12 were 1, 1, 1, 4, 0, 7, 0, 4, 0, 0, 0, and 7.
+The table of ON 8.2 gives the order 24, and the Euler characteristic $2/24 = 1/12$ and the area come from ON 7.3. The domain is the kite of the double of `432` with sides 0 and 1 turned into mirrors (`DEC-56`), so its vertices, angles, and side lengths are those of the domain of `432`, and its area is $\pi/6$. The corner of 120 degrees is the cone point of order 3, about which the rotation pairs sides 2 and 3. The side lengths are $\pi/4$ and $\arctan(1/\sqrt{2})$, those of `432`. The colouring counts equal those of the prototype of Section 11.6 of `docs/design/group.md` at the indexes 1 to 12.
 
 This example shows a spherical signature with a cross-cap and a cone point, whose sides are paired by rotary reflections:
 
@@ -850,14 +855,19 @@ Domain: 4 sides, 2 mirror sides and 1 pair
 Mirror sides: 0 and 1
 Side pairs: 2 and 3 by rotation
 Corner angles in degrees: 15.000000, 90.000000, 180.000000, 90.000000
-Side lengths: <length>, <length>, <length>, <length>
+Side lengths: 1.570796, 1.570796, 0.130900, 0.130900
 Domain area: 0.261799
-Colourings: <count>, complete to 12 colours
-Colourings with 1 colour: <count>
-...
+Colourings: 41, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 3
+Colourings with 3 colours: 3
+Colourings with 4 colours: 5
+Colourings with 6 colours: 7
+Colourings with 8 colours: 9
+Colourings with 12 colours: 13
 ```
 
-The order $4n = 48$ of `2*n` comes from ON 8.2. The Euler characteristic is $2/48 = 1/24$ by ON 7.3, which also gives the area. The domain is the kite of the double of `(24)22` with sides 0 and 1 turned into mirrors (`DEC-56`). Its corner of 180 degrees is the centre of the half-turn that pairs sides 2 and 3, and the angle of 15 degrees, $180/12$, is that of the corner of order 12 between the two mirrors. The placeholders follow the convention of the examples of `3*2`.
+The order $4n = 48$ of `2*n` comes from ON 8.2. The Euler characteristic is $2/48 = 1/24$ by ON 7.3, which also gives the area. The domain is the kite of the double of `(24)22` with sides 0 and 1 turned into mirrors (`DEC-56`). Its corner of 180 degrees is the centre of the half-turn that pairs sides 2 and 3, and the angle of 15 degrees, $180/12$, is that of the corner of order 12 between the two mirrors. The side lengths are $\pi/2$ and $\pi/24$, those of `(24)22`. This is the text of the snapshot of "Information snapshots" in Section 8.1.
 
 This example shows a Euclidean signature with a domain:
 
@@ -1057,7 +1067,7 @@ Colourings: <count>, complete to 12 colours
 Colourings with 1 colour: <count>
 ```
 
-The Euler characteristic 2 is the defect rule of ON 6.1 with no defect. The order is that of `nn` with $n = 1$ in ON 8.2, and the area comes from ON 7.3. The domain is the whole sphere, with no side, no vertex, and no corner (`DEC-58`), so the `Domain` line takes the fourth form of CLI-53, and neither the `Corner angles in degrees` line nor the `Side lengths` line appears. The `Parity colouring` line appears by CLI-33, because the domain has no reversing side. The domain area is $4\pi$. The trivial group has one subgroup, so the search can find only the colouring `1a`, and the placeholders follow the convention of the examples of `3*2`.
+The Euler characteristic 2 is the defect rule of ON 6.1 with no defect. The order is that of `nn` with $n = 1$ in ON 8.2, and the area comes from ON 7.3. The domain is the whole sphere, with no side, no vertex, and no corner (`DEC-58`), so the `Domain` line takes the fourth form of CLI-53, and neither the `Corner angles in degrees` line nor the `Side lengths` line appears. The `Parity colouring` line appears by CLI-33, because the domain has no reversing side. The domain area is $4\pi$. The trivial group has one subgroup, so the search can find only the colouring `1a`, and the placeholders follow the convention of the examples of `5x` and `*`.
 
 For a supported signature whose largest corner order is above the limit of `escher-domain`, such as `*(1001)32`, rows 1 to 9 apply as for `*732`, and the last line is `Domain: none, cannot build fundamental domain: order 1001 is larger than 1000`, as Section 10.2 of `docs/design/domain.md` fixes it. A reflection polygon with more than 8 corners, such as `*222222222`, and its rotation signature, such as `222222222`, print no `Parameter` line, because `parameters` gives none for them, and their last line is `Domain: none, cannot build fundamental domain: the signature has 9 orders, more than 8`, with the number of orders in place of `9` (DOM-38 and Section 10.2 of `docs/design/domain.md`). That limit applies before the limit on the corner order, so `*(1001)22222222` gets the same text. `2*n` has a limit of its own, $n$ up to 500 (DOM-63 of `docs/design/domain.md`, `DEC-59`), so `2*(501)` prints the group order 2004 and the last line `Domain: none, cannot build fundamental domain: order 501 is larger than 500`, while `(1001)*` and `(1001)x` print the text of the limit of 1000.
 
@@ -2128,10 +2138,10 @@ The column "Plan item" names the item of the field "Tests and acceptance" of Sec
 | Wallpaper diagnostic snapshots | Command line of Section 5.10 of the plan, failure paths | `insta`, `render` | The diagnostic and status of the three examples of the wallpaper domains of Section 6.8: `render o --set skew=0.6`, `render '**' --set skew=0.1`, and `render o --colouring parity` |
 | Wallpaper render | Command line of Section 5.10 of the plan | Plain tests, `render` | `render o --set skew=0.25 --size 48x32 --samples 2`, `render '4*2' --size 48x32 --samples 2`, and `render '3*3' --size 48x32 --samples 2`, each in a test of its own, give `Success` and a file whose header holds the requested size, read as the test "Written file" reads it. The tests of the kites are `render_writes_a_png_file_of_the_kite_with_a_quarter_turn` and `render_writes_a_png_file_of_the_kite_with_a_third_of_a_turn`. `render '22*' --size 48x32 --samples 2` and `render '2*22' --size 48x32 --samples 2` give the same, in `render_writes_a_png_file_of_two_half_turns_and_a_mirror` and `render_writes_a_png_file_of_a_half_turn_and_two_mirror_corners`. In `render_applies_the_skew_of_2222_and_leaves_its_default_at_a_skew_of_zero`, the files of `render 2222 --size 64x64 --samples 2` with `--set skew=0.25` and with no setting differ. The file with the setting is equal byte for byte with `--threads 1` and with `--threads 4`, and the file with `--set skew=0` equals byte for byte the file with no setting. For `render o --set skew=0.6` and for `render o --colouring parity`, an existing file keeps its bytes and a missing path stays missing. The file of `render '**' --size 48x32 --samples 2` and, in `render_writes_the_klein_bottle_by_parity_by_default`, the file of `render xx --size 48x32 --samples 2` each differ from the file of the same command with `--colouring one`, so the default colouring of `**` and of `xx` is by parity. In `render_draws_each_kite_by_parity_and_with_one_colour_as_its_rotation_signature`, the default file of `4*2` differs from the file of `442`, and the file of `4*2` with `--colouring one` equals the file of `442` byte for byte. The same holds for `3*3` against `632`. In `render_draws_the_same_default_picture_for_groups_that_share_their_tiles`, the default files of `*x`, `22x`, and `*2222` are equal byte for byte, and so are those of `**` and `22*`, at 48 by 32 pixels |
 | Wallpaper status tests | Failure paths | Plain tests, `render` | `Failure` and the first line of standard error for `render o --colouring parity` and for `render o --set skew=0.6`. Each fails before step 7, so it starts no thread pool and writes no file |
-| Spherical group snapshots | Command line of Section 5.11 of the plan, and the domain summaries of CLI-53 (CLI-54) | `insta`, `info` | The text and status for `info` with `'3*2'`, `'3*'`, `'2*3'`, `5x`, `x`, `'*'`, and `x3`, which prints `3x`, for `info --check` with `'3*2'` and `5x`, and for `info --presentation` with `'3*2'` and `5x`, each at the default colour limit. The snapshots of `info 1`, `info '2*'`, `info '2*(12)'`, `info --presentation x`, `info --presentation '*'`, and `info --presentation 1` of "Information snapshots" and "Presentation snapshots" hold the domain summaries and side presentations of their built domains. Each text of a built domain holds its domain summary in the form of CLI-51 or CLI-53, with the `Mirror sides` line for the third form and the word `rotary reflection` for `5x`, `x`, and `3x`, and its colouring lines |
-| Spherical group diagnostic snapshots | Command line of Section 5.11 of the plan, failure paths | `insta`, `render` | The diagnostic and status of the three examples of the spherical group domains of Section 6.8: `render '2*(501)'`, `render 1 --colouring parity`, and `render '3*2' --set aspect=2` |
-| Spherical group render | Command line of Section 5.11 of the plan | Plain tests, `render` | `render '3*2' --size 48x32 --samples 2`, `render 5x --size 48x32 --samples 2`, and `render 1 --size 48x32 --samples 2`, each in a test of its own, give `Success` and a file whose header holds the requested size, read as the test "Written file" reads it. The files of `render 5x --size 64x64 --samples 2` with `--threads 1` and with `--threads 4` are equal byte for byte. At 48 by 32 pixels with 2 samples, the default file of `3*2` differs from the file of `432`, and the file of `3*2` with `--colouring one` equals the file of `432` byte for byte. The default files of `5x` and `*55` are equal byte for byte, and so are those of `x` and `*`. For `render '2*(501)'` and for `render 1 --colouring parity`, an existing file keeps its bytes and a missing path stays missing |
-| Spherical group status tests | Failure paths | Plain tests, `render` | `Failure` and the first line of standard error for `render '2*(501)'`, for `render 1 --colouring parity`, and for `render '3*2' --set aspect=2`. Each fails before step 7, so it starts no thread pool and writes no file |
+| Spherical group snapshots | Command line of Section 5.11 of the plan, and the domain summaries of CLI-53 (CLI-54) | `insta`, `info` | The text and status for `info` with `'3*2'`, `'3*'`, `'2*3'`, `5x`, `x`, `'*'`, and `x3`, which prints `3x`, for `info --check` with `'3*2'` and `5x`, and for `info --presentation` with `'3*2'` and `5x`, each at the default colour limit. The snapshots of `info 1`, `info '2*'`, `info '2*(12)'`, `info --presentation x`, `info --presentation '*'`, and `info --presentation 1` of "Information snapshots" and "Presentation snapshots" hold the domain summaries and side presentations of their built domains. Each text of a built domain holds its domain summary in the form of CLI-51 or CLI-53, with the `Mirror sides` line for the third form and the word `rotary reflection` for `5x`, `x`, and `3x`, and its colouring lines. The tests of `3*2`, `3*`, and `2*3` are `info_prints_the_domain_summary_of_a_spherical_kite_with_a_cone_of_order_three_and_a_corner`, `info_prints_the_domain_summary_of_a_spherical_kite_with_a_cone_and_a_mirror_circle`, and `info_prints_the_domain_summary_of_a_spherical_kite_with_a_half_turn_and_a_corner`, and those of `info --check '3*2'` and `info --presentation '3*2'` are `info_check_prints_each_check_of_a_spherical_kite_with_mirrors` and `info_presentation_prints_the_presentations_of_a_spherical_kite_with_mirrors`. The snapshots `info_prints_an_area_of_exactly_pi_without_a_coefficient` of `2*` and `info_prints_an_order_of_ten_or_more_in_parentheses` of `2*(12)` hold the domain summaries and colouring lines of their kites |
+| Spherical group diagnostic snapshots | Command line of Section 5.11 of the plan, failure paths | `insta`, `render` | The diagnostic and status of the three examples of the spherical group domains of Section 6.8: `render '2*(501)'`, `render 1 --colouring parity`, and `render '3*2' --set aspect=2`. The tests of `2*(501)` and `3*2` are `render_diagnostic_gives_the_cause_of_a_two_mirror_order_over_its_limit` and `render_diagnostic_gives_the_cause_of_a_setting_on_a_spherical_kite` |
+| Spherical group render | Command line of Section 5.11 of the plan | Plain tests, `render` | `render '3*2' --size 48x32 --samples 2`, `render 5x --size 48x32 --samples 2`, and `render 1 --size 48x32 --samples 2`, each in a test of its own, give `Success` and a file whose header holds the requested size, read as the test "Written file" reads it. The files of `render 5x --size 64x64 --samples 2` with `--threads 1` and with `--threads 4` are equal byte for byte. The test of `3*2` is `render_writes_a_png_file_of_a_spherical_kite_with_mirrors`. In `render_draws_each_spherical_kite_with_one_colour_as_its_double`, at 48 by 32 pixels with 2 samples, the default file of `3*2` differs from the file of `432`, and with `--colouring one` the files of `3*2`, `2*`, `3*`, `5*`, `2*2`, `2*3`, and `2*5` equal those of `432`, `222`, `322`, `522`, `422`, `622`, and `(10)22` byte for byte. The default files of `5x` and `*55` are equal byte for byte, and so are those of `x` and `*`. For `render '2*(501)'` and for `render 1 --colouring parity`, an existing file keeps its bytes and a missing path stays missing. The test of `2*(501)` is `render_of_a_two_mirror_order_over_its_limit_changes_no_file` |
+| Spherical group status tests | Failure paths | Plain tests, `render` | `Failure` and the first line of standard error for `render '2*(501)'`, for `render 1 --colouring parity`, and for `render '3*2' --set aspect=2`. Each fails before step 7, so it starts no thread pool and writes no file. The tests of `2*(501)` and `3*2` are `render_of_a_two_mirror_order_over_its_limit_returns_failure` and `render_of_a_spherical_kite_with_a_setting_returns_failure` |
 | Kind name | Failure paths | Unit test in `info.rs` | The private function that names a pairing kind gives `rotary reflection` for `PairingKind::RotaryReflection`, besides the words of the other kinds |
 | Smoke test | One process-level smoke test of the binary | Plain test, `process` | The binary that Cargo names in `CARGO_BIN_EXE_escher`, run with `render '*732' --size 32x32 -o <path>`, exits with status 0, writes nothing to standard output or standard error, and writes a file that starts with the PNG signature |
 | Doctests | None | Doctests | The crate-level examples |
@@ -2242,13 +2252,42 @@ The snapshots of the spherical group domains need no lower colour limit. On a pr
 | `(1000)x` | 2, 27, and 4 | 7, 265, and 32 |
 | `2*(500)` | 2, 40, and 6 | 9, 284, and 63 |
 
-Every input of "Spherical group snapshots" has $n$ of at most 5. The implementing change measures the debug time of each snapshot and records it here.
+Every input of "Spherical group snapshots" has $n$ of at most 5. In one run of `just test`, the snapshots of the kites took these debug times, against 0.104 s for the snapshot `info '*2222'` of `info_prints_the_domain_summary_of_the_rectangle` in the same run:
 
-CLI-54. A snapshot test of `info` on a spherical group domain MUST use the default colour limit of 12 and MUST hold only inputs whose printed values meet the condition on rounding boundaries of CLI-20, because the colouring lines up to 12 colours are what `info` prints by default, the prototype measured that `info` on such a domain takes at most 18 ms in a debug build for $n$ up to 12, and a printed value near a rounding boundary makes the snapshot depend on the platform.
+| Snapshot | Debug time |
+| --- | --- |
+| `info '3*2'` | 0.033 s |
+| `info '3*'` | 0.026 s |
+| `info '2*3'` | 0.025 s |
+| `info --check '3*2'` | 0.026 s |
+| `info --presentation '3*2'` | 0.026 s |
+| `info '2*'` | 0.027 s |
+| `info '2*(12)'` | 0.028 s |
+| `info '2*(501)'` | 0.027 s |
+| `info --presentation '2*(501)'` | 0.270 s |
+| `render '2*(501)'` and `render '3*2' --set aspect=2` | 0.024 s and 0.037 s |
 
-For the inputs of "Spherical group snapshots", the corner angles are whole numbers of degrees, the lunes have sides of length $\pi$, as the snapshot of `*55` already holds, and the kites of `3*2`, `3*`, and `2*3` keep the vertices of the doubles of `432`, `322`, and `622`, so their side lengths are those of the domains of these rotation signatures. The implementing change confirms the printed side lengths against those domains and records the distance of each printed area and side length from a rounding boundary of the sixth digit, as this section does for the other inputs.
+No measurement gives the cause of the longer time of `info --presentation '2*(501)'`. One reading is that the enumeration of the Conway presentation to the order 2004 dominates it.
 
-Each spherical signature that the existing tests use as a signature without a domain has a domain, so these tests of this crate change: the snapshots of `info '3*2'`, `info --check '3*2'`, `info --presentation '3*2'`, `info --presentation '*'`, `info --presentation x`, `info --presentation 1`, `info 1`, `info '2*'`, and `info '2*(12)'`, the plain tests `info_returns_success_for_a_signature_without_a_domain`, `info_check_returns_failure_for_a_signature_without_a_domain`, `info_presentation_confirms_the_order_of_signatures_without_a_domain`, `render_without_a_domain_changes_no_file`, and `render_without_a_domain_returns_failure`, and the crate-level doctest in `src/lib.rs`, which uses `3*2` as its signature without a domain. Each test that needs a signature without a domain takes `4*3`, except the two snapshots that name a spherical signature without a domain, which take `2*(501)`, because it keeps the `Group order` line and the order line of `--presentation`. On a prototype outside the repository, these were the only tests of this crate that failed once the new domains were built. Section 8.1 of `docs/design/render.md` and Section 12.1 of `docs/design/domain.md` state the tests of the other crates that change.
+CLI-54. A snapshot test of `info` on a spherical group domain MUST use the default colour limit of 12 and MUST hold only inputs whose printed values meet the condition on rounding boundaries of CLI-20, because the colouring lines up to 12 colours are what `info` prints by default, the snapshots of `info` on the kites `3*2`, `3*`, `2*3`, `2*`, and `2*(12)` took 0.025 to 0.033 s in one debug run of `just test`, less than the 0.104 s of the snapshot of `*2222` in the same run, the prototype measured at most 18 ms in a debug build for the other spherical group domains with $n$ up to 12, and a printed value near a rounding boundary makes the snapshot depend on the platform.
+
+For the inputs of "Spherical group snapshots", the corner angles are whole numbers of degrees, the lunes have sides of length $\pi$, as the snapshot of `*55` already holds, and the kites of `3*2`, `3*`, and `2*3` keep the vertices of the doubles of `432`, `322`, and `622`, so their side lengths are those of the domains of these rotation signatures. The printed side lengths of `3*2`, `3*`, `2*3`, `2*`, and `2*(12)` equal those that `info` prints for `432`, `322`, `622`, `222`, and `(24)22`. This table gives the distance of each printed area and side length of these kites from a rounding boundary of the sixth digit, computed in double precision:
+
+| Value | Printed as | Distance |
+| --- | --- | --- |
+| $\pi/4$ | 0.785398 | $3.37 \times 10^{-7}$ |
+| $\arctan(1/\sqrt{2})$ | 0.615480 | $2.09 \times 10^{-7}$ |
+| $\pi/2$ | 1.570796 | $1.73 \times 10^{-7}$ |
+| $\pi/3$ | 1.047198 | $5.12 \times 10^{-8}$ |
+| $\pi/24$ | 0.130900 | $1.94 \times 10^{-7}$ |
+| $\pi/6$ | 0.523599 | $2.76 \times 10^{-7}$ |
+| $2\pi/3$ | 2.094395 | $3.98 \times 10^{-7}$ |
+| $\pi$ | 3.141593 | $1.54 \times 10^{-7}$ |
+| $\pi/12$ | 0.261799 | $1.12 \times 10^{-7}$ |
+
+The closest value is $\pi/3$, printed as 1.047198, at $5.1 \times 10^{-8}$. Every distance is far above the largest error of a side length of a kite against the reference arithmetic, $3.9 \times 10^{-14}$ (Section 9.9 of `docs/design/domain.md`), so the condition of CLI-20 holds for these inputs.
+
+Each spherical signature that the existing tests use as a signature without a domain has a domain, so these tests of this crate change: the snapshots of `info '3*2'`, `info --check '3*2'`, `info --presentation '3*2'`, `info --presentation '*'`, `info --presentation x`, `info --presentation 1`, `info 1`, `info '2*'`, and `info '2*(12)'`, the plain tests `info_returns_success_for_a_signature_without_a_domain`, `info_check_returns_failure_for_a_signature_without_a_domain`, `info_presentation_confirms_the_order_of_signatures_without_a_domain`, `render_without_a_domain_changes_no_file`, and `render_without_a_domain_returns_failure`, and the crate-level doctest in `src/lib.rs`, which uses `3*2` as its signature without a domain. Each test that needs a signature without a domain takes `4*3`, except the two snapshots that name a spherical signature without a domain, which take `2*(501)`, because it keeps the `Group order` line and the order line of `--presentation`. The tests of a broken pipe and of a failed write on `info` and `info --check`, and `info_check_writes_no_verification_diagnostic_when_standard_output_fails`, also take `4*3`. On a prototype outside the repository, these were the only tests of this crate that failed once the new domains were built. Section 8.1 of `docs/design/render.md` and Section 12.1 of `docs/design/domain.md` state the tests of the other crates that change.
 
 The statistics lines need a rule of their own. The time differs on every run. The fold counts can differ between platforms, because a sample on or next to a wall can take a different side when the last bits of a side value differ (`UNV-3`). In every line that starts with `Mean folds: `, `Maximum folds: `, `Unconverged samples: `, or `Time: `, the snapshot helper replaces the text after the first `: ` with `<value>`. The line `Samples` stays, because the number of samples is the product of the size and the grid.
 

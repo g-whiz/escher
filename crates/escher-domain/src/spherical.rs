@@ -5,8 +5,11 @@ use escher_geometry::spherical::{
 };
 use glam::DVec3;
 
-use crate::domain::{Orientation, PairingKind, Side};
+use crate::domain::{FundamentalDomain, Orientation, PairingKind, Side};
+use crate::error::{Error, Result as DomainResult};
+use crate::kite::{MirrorPair, on_kite};
 use crate::polygon::Polygon;
+use crate::triangle::SphericalGroup;
 
 pub(crate) fn triangle(orders: [u32; 3]) -> Result<Polygon, Option<escher_geometry::Error>> {
     let angles = orders.map(|order| PI / f64::from(order));
@@ -59,6 +62,32 @@ pub(crate) fn lune_of_angle(angle: f64) -> Result<Polygon, Option<escher_geometr
     finished(sides, vec![DVec3::Y, DVec3::NEG_Y], ORIGIN)
 }
 
+pub(crate) const fn kite_triangle(group: SphericalGroup) -> Option<([u32; 3], MirrorPair)> {
+    match group {
+        SphericalGroup::ThreeMirrorTwo => Some(([4, 3, 2], MirrorPair::Low)),
+        SphericalGroup::TwoMirrorN(order) => {
+            Some(([order.saturating_mul(2), 2, 2], MirrorPair::Low))
+        }
+        SphericalGroup::ConeMirror(order) => Some(([order, 2, 2], MirrorPair::High)),
+        SphericalGroup::ConeCrossCap(_)
+        | SphericalGroup::Mirror
+        | SphericalGroup::CrossCap
+        | SphericalGroup::Trivial => None,
+    }
+}
+
+pub(crate) fn construct(
+    group: SphericalGroup,
+    kite: Option<&FundamentalDomain>,
+) -> DomainResult<FundamentalDomain> {
+    let domain = match kite_triangle(group) {
+        Some((_, pair)) => kite.ok_or(None).and_then(|doubled| on_kite(doubled, pair)),
+        None => Err(None),
+    }
+    .map_err(Error::numerical)?;
+    domain.sound()
+}
+
 fn finished(
     sides: Vec<Side>,
     vertices: Vec<DVec3>,
@@ -81,7 +110,7 @@ fn finished(
 }
 
 impl Side {
-    fn spherical_mirror(normal: DVec3, index: usize) -> Self {
+    pub(crate) fn spherical_mirror(normal: DVec3, index: usize) -> Self {
         Self {
             normal,
             covector: normal,

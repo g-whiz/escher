@@ -1,9 +1,10 @@
-use escher_geometry::euclidean::{ORIGIN, reflection, side, translation};
+use escher_geometry::euclidean::{ORIGIN, reflection, translation};
 use glam::{DMat3, DVec2, DVec3};
 
 use crate::domain::{Closure, Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side};
 use crate::double::product;
 use crate::error::{Error, Result};
+use crate::kite::{MirrorPair, on_kite};
 use crate::parameters::Shear;
 use crate::polygon::{outward_wall, rectangle};
 use crate::triangle::Wallpaper;
@@ -141,18 +142,12 @@ pub(crate) fn construct(
     let domain = match construction(wallpaper) {
         Construction::Torus => torus(values),
         Construction::Rectangle(layout) => on_rectangle(values, layout),
-        Construction::Kite(_) => kite.ok_or(None).and_then(on_kite),
+        Construction::Kite(_) => kite
+            .ok_or(None)
+            .and_then(|doubled| on_kite(doubled, MirrorPair::Low)),
     }
     .map_err(Error::numerical)?;
-    sound(domain)
-}
-
-fn sound(domain: FundamentalDomain) -> Result<FundamentalDomain> {
-    if is_sound(&domain) {
-        Ok(domain)
-    } else {
-        Err(Error::numerical(None))
-    }
+    domain.sound()
 }
 
 fn torus(
@@ -286,31 +281,6 @@ fn on_rectangle(
     Ok(wallpaper_domain(sides, vertices, &orders))
 }
 
-fn on_kite(
-    doubled: &FundamentalDomain,
-) -> core::result::Result<FundamentalDomain, Option<escher_geometry::Error>> {
-    let (&[first, second, third, fourth], &[corner, _, cone, _]) =
-        (&doubled.sides[..], &doubled.corners[..])
-    else {
-        return Err(None);
-    };
-    Ok(FundamentalDomain {
-        plane: Plane::Euclidean,
-        corners: [corner.order / 2, 1, cone.order, 1]
-            .map(Corner::single)
-            .to_vec(),
-        sides: vec![
-            Side::euclidean_mirror(first.covector, 0),
-            Side::euclidean_mirror(second.covector, 1),
-            third,
-            fourth,
-        ],
-        vertices: doubled.vertices.clone(),
-        centre: doubled.centre,
-        closure: Closure::Wallpaper,
-    })
-}
-
 pub(crate) fn half_turn(centre: DVec3) -> DMat3 {
     product(
         reflection(DVec3::new(0.0, 1.0, -centre.y)),
@@ -321,7 +291,7 @@ pub(crate) fn half_turn(centre: DVec3) -> DMat3 {
 pub(crate) fn shear(double: &FundamentalDomain, shear: Shear) -> Result<FundamentalDomain> {
     sheared(double, shear)
         .map_err(Error::numerical)
-        .and_then(sound)
+        .and_then(FundamentalDomain::sound)
 }
 
 fn sheared(
@@ -394,19 +364,8 @@ fn wallpaper_domain(sides: Vec<Side>, vertices: Vec<DVec3>, orders: &[u32]) -> F
         sides,
         vertices,
         centre: ORIGIN,
-        closure: Closure::Wallpaper,
+        closure: Closure::Cycles,
     }
-}
-
-fn is_sound(domain: &FundamentalDomain) -> bool {
-    domain.vertices.iter().all(|vertex| vertex.is_finite())
-        && domain.centre.is_finite()
-        && domain.sides.iter().all(|wall| {
-            wall.normal.is_finite()
-                && wall.covector.is_finite()
-                && wall.pairing.is_finite()
-                && side(wall.covector, domain.centre) < 0.0
-        })
 }
 
 #[cfg(test)]

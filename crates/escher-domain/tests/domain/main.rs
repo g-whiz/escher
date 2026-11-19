@@ -23,6 +23,8 @@ mod shared;
 #[cfg(test)]
 mod spherical;
 #[cfg(test)]
+mod spherical_groups;
+#[cfg(test)]
 mod triangles;
 #[cfg(test)]
 mod unsupported;

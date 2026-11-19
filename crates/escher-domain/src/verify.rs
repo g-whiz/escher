@@ -291,13 +291,14 @@ impl Verification {
     /// [`FundamentalDomain::corner_angles`] measures and `pi / n`, or
     /// `2 pi / n` at such a vertex.
     ///
-    /// The domain of `2222` and the wallpaper domains, those of `o`, `**`,
-    /// `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, and `3*3`, are checked by
-    /// their vertex cycles instead, as the check of the relators walks them:
-    /// the residual is the largest absolute difference between `2 pi / n` and
-    /// the sum of the angles that the walk of a cycle of order `n` visits,
-    /// which counts a vertex that the walk visits from both of its sides
-    /// twice. The four corners of the parallelogram of `o` form one cycle of
+    /// Every domain whose check sums the angles over its vertex cycles is
+    /// checked by those cycles instead, as the check of the relators walks
+    /// them. These are the domain of `2222`, the wallpaper domains, those of
+    /// `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, and `3*3`, and the
+    /// spherical kites, those of `3*2`, `2*n`, and `n*`. The residual is the
+    /// largest absolute difference between `2 pi / n` and the sum of the
+    /// angles that the walk of a cycle of order `n` visits, which counts a
+    /// vertex that the walk visits from both of its sides twice. The four corners of the parallelogram of `o` form one cycle of
     /// order 1, so their angles must sum to `2 pi`.
     ///
     /// The residual is infinite in these cases:
@@ -936,6 +937,7 @@ mod tests {
         Closure, Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side, triangle_angles,
     };
     use crate::double::double;
+    use crate::kite::{MirrorPair, on_kite};
     use crate::polygon::Polygon;
     use crate::reference::{Reference, Worst, add, div, error, int, mul, num, sqrt, sub};
     use crate::shared::{built, built_with_aspect, signature};
@@ -2377,6 +2379,14 @@ mod tests {
     ];
 
     fn assert_each_state_is_covered_once(domain: &FundamentalDomain, label: &str) {
+        assert_states_cover_the_characteristic(domain, 0.0, label);
+    }
+
+    fn assert_states_cover_the_characteristic(
+        domain: &FundamentalDomain,
+        expected: f64,
+        label: &str,
+    ) {
         let count = domain.sides.len();
         let cycles = match vertex_cycles(domain) {
             Ok(cycles) => cycles,
@@ -2430,7 +2440,10 @@ mod tests {
             let share = if chain { 0.5 } else { 1.0 };
             characteristic += share / f64::from(cycle.order);
         }
-        assert!(characteristic.abs() <= 1e-15, "{label}: {characteristic}");
+        assert!(
+            (characteristic - expected).abs() <= 1e-15,
+            "{label}: {characteristic}"
+        );
     }
 
     const TWO_TWO_MIRROR_CYCLES: &[ExpectedCycle] = &[
@@ -2490,7 +2503,7 @@ mod tests {
             let closure = if text == "2222" {
                 Closure::DoubleByCycles
             } else {
-                Closure::Wallpaper
+                Closure::Cycles
             };
             assert_eq!(domain.closure, closure, "{text}");
             let cycles = assert_cycles(&domain, expected, &format!("{text} at {skew:?}"));
@@ -2781,7 +2794,7 @@ mod tests {
             let domain = built(text);
             assert!(domain.closure.counts_copies(), "{text}");
             let mut wallpaper = domain.clone();
-            wallpaper.closure = Closure::Wallpaper;
+            wallpaper.closure = Closure::Cycles;
             wallpaper.corners[0].copies = 1;
             assert!(vertex_cycles(&wallpaper).is_ok(), "{text}");
             let mut double = domain;
@@ -2799,10 +2812,100 @@ mod tests {
         for text in ["**", "xx", "*x", "22x", "22*", "2*22", "4*2", "3*3"] {
             assert_eq!(
                 built_with_aspect(text, 1.0, None).closure,
-                Closure::Wallpaper,
+                Closure::Cycles,
                 "{text}"
             );
         }
+        for text in ["3*2", "2*3", "3*", "2*"] {
+            assert_eq!(built(text).closure, Closure::Cycles, "{text}");
+        }
+    }
+
+    fn low_kite_cycles(corner: u32, cone: u32) -> Vec<ExpectedCycle> {
+        vec![
+            (0, corner, "(0+)(0-)", &[1, 0]),
+            (1, 1, "(1+)(3+)(3-)(1-)", &[2, 0, 3, 1]),
+            (2, cone, "(2+)", &[3]),
+        ]
+    }
+
+    fn cone_mirror_cycles(order: u32) -> Vec<ExpectedCycle> {
+        vec![
+            (0, order, "(0+)", &[1]),
+            (1, 1, "(1+)(1-)(3-)(3+)", &[2, 1, 3, 0]),
+            (2, 1, "(2+)(2-)", &[3, 2]),
+        ]
+    }
+
+    #[test]
+    fn walk_finds_the_cycles_of_the_spherical_group_domains() {
+        let cases = [
+            ("3*2", low_kite_cycles(2, 3), 1.0 / 12.0),
+            ("2*3", low_kite_cycles(3, 2), 1.0 / 6.0),
+            ("2*(500)", low_kite_cycles(500, 2), 1.0 / 1000.0),
+            ("3*", cone_mirror_cycles(3), 1.0 / 3.0),
+            ("2*", cone_mirror_cycles(2), 1.0 / 2.0),
+            ("(1000)*", cone_mirror_cycles(1000), 1.0 / 1000.0),
+        ];
+        for (text, expected, characteristic) in cases {
+            let domain = built(text);
+            assert_cycles(&domain, &expected, text);
+            assert_states_cover_the_characteristic(&domain, characteristic, text);
+        }
+    }
+
+    fn with_low_mirrors(double: &FundamentalDomain) -> FundamentalDomain {
+        let mut kite = double.clone();
+        for index in [0, 1] {
+            kite.sides[index] = Side::spherical_mirror(double.sides[index].normal, index);
+        }
+        kite
+    }
+
+    #[test]
+    fn low_kite_of_a_double_with_a_corner_of_odd_order_gives_an_error() {
+        for text in ["322", "332"] {
+            let kite = on_kite(&built(text), MirrorPair::Low);
+            assert!(matches!(kite, Err(None)), "{text}: {kite:?}");
+        }
+        let low = match on_kite(&built("432"), MirrorPair::Low) {
+            Ok(kite) => kite,
+            Err(error) => panic!("432 gives no kite: {error:?}"),
+        };
+        assert_eq!(low, built("3*2"));
+    }
+
+    #[test]
+    fn verify_fails_on_a_spherical_kite_with_the_mirrors_of_another_group() {
+        let mut wrong_pair = built("3*");
+        wrong_pair.sides = with_low_mirrors(&built("322")).sides;
+        assert_failed(
+            &wrong_pair,
+            &["relators", "angles"],
+            "3* with mirrors on sides 0 and 1",
+        );
+        let mut other_double = with_low_mirrors(&built("332"));
+        let label = built("3*2");
+        other_double.corners = label.corners;
+        other_double.plane = label.plane;
+        other_double.closure = Closure::Cycles;
+        assert_failed(
+            &other_double,
+            &["relators", "angles", "area"],
+            "the kite of 332 labelled 3*2",
+        );
+    }
+
+    #[test]
+    fn moved_flat_vertex_of_a_cone_mirror_kite_passes() {
+        let mut moved = built("3*");
+        let axis = spherical::translation(moved.vertices[0]);
+        let turn = axis * spherical::rotation(1e-7) * spherical::inverse(axis);
+        let flat = moved.vertices[2];
+        moved.vertices[2] = turn * flat;
+        assert_ne!(moved.vertices[2], flat);
+        let verification = moved.verify();
+        assert!(verification.passed(), "{verification:?}");
     }
 
     #[test]

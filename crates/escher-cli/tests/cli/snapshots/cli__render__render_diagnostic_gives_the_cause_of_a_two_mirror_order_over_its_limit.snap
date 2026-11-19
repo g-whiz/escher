@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"two_mirror_limit\", &[\"2*(501)\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 2*(501)
+  caused by: cannot build fundamental domain: order 501 is larger than 500
+--- end

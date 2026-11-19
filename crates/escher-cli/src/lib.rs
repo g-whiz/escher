@@ -70,13 +70,13 @@
 //!
 //! let mut stdout = Vec::new();
 //! let mut stderr = Vec::new();
-//! let status = run(["escher", "info", "3*2"], &mut stdout, &mut stderr);
+//! let status = run(["escher", "info", "4*3"], &mut stdout, &mut stderr);
 //! assert_eq!(status, Status::Success);
 //! assert_eq!(
 //!     String::from_utf8(stdout)?,
-//!     "Signature: 3*2\nGeometry: spherical\nEuler characteristic: 1/12\nCompact: yes\n\
-//!      Group order: 24\nArea: pi/6\n\
-//!      Domain: none, cannot build fundamental domain: the signature 3*2 is not supported\n",
+//!     "Signature: 4*3\nGeometry: hyperbolic\nEuler characteristic: -1/12\nCompact: yes\n\
+//!      Area: pi/6\nDeformation dimension: 0\n\
+//!      Domain: none, cannot build fundamental domain: the signature 4*3 is not supported\n",
 //! );
 //! assert!(stderr.is_empty());
 //! # Ok::<(), Box<dyn std::error::Error>>(())

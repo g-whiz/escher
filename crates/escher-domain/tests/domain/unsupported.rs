@@ -3,9 +3,7 @@ use escher_signature::Geometry;
 
 use crate::common::signature;
 
-const UNSUPPORTED: [&str; 20] = [
-    "3*2",
-    "2*",
+const UNSUPPORTED: [&str; 18] = [
     "x",
     "4*3",
     "3*22",
@@ -99,6 +97,24 @@ fn build_rejects_an_order_above_the_limit() {
 }
 
 #[test]
+fn build_rejects_an_order_of_a_spherical_kite_above_its_limit() {
+    for (text, expected) in [
+        ("(1001)*", "order 1001 is larger than 1000"),
+        ("2*(501)", "order 501 is larger than 500"),
+        ("2*(1001)", "order 1001 is larger than 500"),
+    ] {
+        assert_eq!(
+            error_of(text),
+            Some((
+                ErrorKind::LimitExceeded,
+                format!("cannot build fundamental domain: {expected}")
+            )),
+            "{text}"
+        );
+    }
+}
+
+#[test]
 fn build_rejects_more_than_eight_orders_before_the_order_limit() {
     for text in [
         "*222222222",
@@ -146,6 +162,12 @@ fn build_accepts_the_order_at_the_limit() {
         "2*22",
         "4*2",
         "3*3",
+        "3*2",
+        "2*",
+        "2*3",
+        "3*",
+        "(1000)*",
+        "2*(500)",
     ] {
         let built = FundamentalDomain::build(&signature(text));
         assert!(built.is_ok(), "{text}: {built:?}");

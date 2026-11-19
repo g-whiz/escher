@@ -45,6 +45,10 @@ pub(crate) const WORST_TRIPLES: [[u32; 3]; 24] = [
 
 pub(crate) const SMALL_ORDER: u32 = 12;
 
+pub(crate) const LIMIT_ORDER: u32 = 1000;
+
+pub(crate) const TWO_MIRROR_LIMIT_ORDER: u32 = LIMIT_ORDER / 2;
+
 pub(crate) fn triangles() -> impl Iterator<Item = [u32; 3]> {
     EXAMPLE_TRIPLES.into_iter().chain(WORST_TRIPLES)
 }
@@ -283,4 +287,80 @@ pub(crate) fn clear_rotation_polygons() -> Vec<String> {
         .into_iter()
         .filter(|text| !LIMIT_ROTATION_POLYGONS.contains(&text.as_str()))
         .collect()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Kite {
+    ThreeMirrorTwo,
+    ConeMirror(u32),
+    TwoMirror(u32),
+}
+
+impl Kite {
+    pub(crate) fn text(self) -> String {
+        match self {
+            Self::ThreeMirrorTwo => "3*2".to_owned(),
+            Self::ConeMirror(order) => format!("{}*", order_text(order)),
+            Self::TwoMirror(order) => format!("2*{}", order_text(order)),
+        }
+    }
+
+    pub(crate) const fn orders(self) -> [u32; 3] {
+        match self {
+            Self::ThreeMirrorTwo => [4, 3, 2],
+            Self::ConeMirror(order) => [order, 2, 2],
+            Self::TwoMirror(order) => [2 * order, 2, 2],
+        }
+    }
+
+    pub(crate) fn double(self) -> String {
+        cone_text(self.orders())
+    }
+
+    pub(crate) fn starred(self) -> String {
+        format!("*{}", self.double())
+    }
+
+    pub(crate) const fn mirrors(self) -> [usize; 2] {
+        match self {
+            Self::ConeMirror(_) => [2, 3],
+            Self::ThreeMirrorTwo | Self::TwoMirror(_) => [0, 1],
+        }
+    }
+
+    pub(crate) const fn cycles(self) -> [(u32, &'static [usize]); 3] {
+        match self {
+            Self::ThreeMirrorTwo => [(2, &[0, 0]), (1, &[1, 3, 3, 1]), (3, &[2])],
+            Self::TwoMirror(order) => [(order, &[0, 0]), (1, &[1, 3, 3, 1]), (2, &[2])],
+            Self::ConeMirror(order) => [(order, &[0]), (1, &[1, 1, 3, 3]), (1, &[2, 2])],
+        }
+    }
+
+    pub(crate) const fn flat_vertices(self) -> &'static [usize] {
+        match self {
+            Self::ThreeMirrorTwo => &[],
+            Self::ConeMirror(2) => &[0, 2],
+            Self::ConeMirror(_) | Self::TwoMirror(_) => &[2],
+        }
+    }
+}
+
+pub(crate) fn small_kites() -> Vec<Kite> {
+    let mut kites = vec![Kite::ThreeMirrorTwo];
+    kites.extend((2..=SMALL_ORDER).map(Kite::ConeMirror));
+    kites.extend((2..=SMALL_ORDER).map(Kite::TwoMirror));
+    kites
+}
+
+pub(crate) fn limit_kites() -> [Kite; 2] {
+    [
+        Kite::ConeMirror(LIMIT_ORDER),
+        Kite::TwoMirror(TWO_MIRROR_LIMIT_ORDER),
+    ]
+}
+
+pub(crate) fn test_set() -> Vec<Kite> {
+    let mut kites = small_kites();
+    kites.extend(limit_kites());
+    kites
 }

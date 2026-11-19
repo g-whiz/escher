@@ -1,0 +1,36 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"3*2\"])"
+---
+status: Success
+--- stdout
+Signature: 3*2
+Geometry: spherical
+Euler characteristic: 1/12
+Compact: yes
+Group order: 24
+Area: pi/6
+Domain: 4 sides, 2 mirror sides and 1 pair
+Mirror sides: 0 and 1
+Side pairs: 2 and 3 by rotation
+Corner angles in degrees: 90.000000, 90.000000, 120.000000, 90.000000
+Side lengths: 0.785398, 0.785398, 0.615480, 0.615480
+Domain area: 0.523599
+Colourings: 25, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
+Colourings with 3 colours: 1
+Colourings with 4 colours: 4
+Colourings with 6 colours: 7
+Colourings with 8 colours: 4
+Colourings with 12 colours: 7
+Presentation: 4 generators, 6 relators
+Generators: g1, r1, r2, l1
+Relators: g1^3, r1^2, (r1 r2)^2, r2^2, l1^-1 r1 l1 r2^-1, g1 l1
+Order by coset enumeration: 24, equal to 2/chi
+Side presentation: 4 generators, 6 relators
+Side generators: s0, s1, s2, s3
+Side relators: s0^2, s1^2, s2 s3, (s1 s0)^2, s2 s0 s3 s1, s3^3
+Side order by coset enumeration: 24, equal to 2/chi
+--- stderr
+--- end

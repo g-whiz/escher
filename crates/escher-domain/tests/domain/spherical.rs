@@ -6,7 +6,8 @@ use escher_signature::Geometry;
 use glam::{DMat3, DVec3};
 
 use crate::common::{
-    LargestResiduals, assert_same_domain, built, largest_coordinate_error, order_text, signature,
+    LargestResiduals, SMALL_ORDER, assert_same_domain, built, largest_coordinate_error, order_text,
+    signature,
 };
 use crate::reference::{Reference, SphericalPolygon, Worst, error, int};
 
@@ -19,9 +20,9 @@ const AREA_BOUND: f64 = 4e-13;
 
 const MEASURED_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
 
-const MERGE_TOLERANCE: f64 = 1e-9;
+pub(crate) const MERGE_TOLERANCE: f64 = 1e-9;
 
-const FOLD_BACK_TOLERANCE: f64 = 1e-9;
+pub(crate) const FOLD_BACK_TOLERANCE: f64 = 1e-9;
 
 const DEFAULT_FOLD_CAP: usize = 1500;
 
@@ -29,13 +30,11 @@ const FOLD_TOLERANCE: f64 = 4e-15;
 
 const IMAGE_FLOOR: f64 = 2e-2;
 
-const LIMIT_IMAGE_FLOOR: f64 = 2e-4;
+pub(crate) const LIMIT_IMAGE_FLOOR: f64 = 2e-4;
 
 const DOUBLE_IMAGE_FLOOR: f64 = 4e-2;
 
 const LIMIT_DOUBLE_IMAGE_FLOOR: f64 = 4e-4;
-
-const LARGEST_SMALL_ORDER: u32 = 12;
 
 const SPELLINGS: [(&str, &str); 9] = [
     ("*323", "*332"),
@@ -255,12 +254,12 @@ fn spherical_domains_are_within_their_bounds_of_the_reference() {
     residuals.print_and_assert_samples(shapes.len());
 }
 
-struct Group {
-    elements: Vec<(DMat3, usize)>,
+pub(crate) struct Group {
+    pub(crate) elements: Vec<(DMat3, usize)>,
 }
 
 impl Group {
-    fn enumerate(domain: &FundamentalDomain, largest: usize) -> Self {
+    pub(crate) fn enumerate(domain: &FundamentalDomain, largest: usize) -> Self {
         let generators: Vec<DMat3> = domain.sides().iter().map(|side| side.pairing()).collect();
         let mut elements = vec![(DMat3::IDENTITY, 0)];
         let mut next = 0;
@@ -288,7 +287,7 @@ impl Group {
     }
 }
 
-fn fold(domain: &FundamentalDomain, start: DVec3) -> Option<(DVec3, usize)> {
+pub(crate) fn fold(domain: &FundamentalDomain, start: DVec3) -> Option<(DVec3, usize)> {
     let mut point = start;
     for steps in 0..=DEFAULT_FOLD_CAP {
         let size = point.abs().max_element();
@@ -306,7 +305,7 @@ fn fold(domain: &FundamentalDomain, start: DVec3) -> Option<(DVec3, usize)> {
     None
 }
 
-fn sphere_sample(count: u32) -> Vec<DVec3> {
+pub(crate) fn sphere_sample(count: u32) -> Vec<DVec3> {
     let golden = PI * (3.0 - 5.0_f64.sqrt());
     (0..count)
         .map(|index| {
@@ -451,7 +450,7 @@ fn assert_floor(floor: &Floor, bound: f64, name: &str) {
 fn spherical_groups_have_their_order_and_fold_back_their_images() {
     let (mut reflections, mut doubles) = (Floor::new(), Floor::new());
     certify(
-        &certificate_shapes(2..=LARGEST_SMALL_ORDER),
+        &certificate_shapes(2..=SMALL_ORDER),
         &mut reflections,
         &mut doubles,
     );
