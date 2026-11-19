@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-18 |
+| Date | 2026-11-19 |
 | Applies to | `crates/escher-group` |
 
 ## Abstract
@@ -1168,6 +1168,40 @@ These figures support the statements of Sections 7.10 to 7.17 and of Section 15:
 | Subgroups of a class | 7.13 | Under the ids of GRP-37: the class `3a` of `*642` has 3 members, `3a`, `3b`, and `3c`, the only class of 3 colours. `8a` of `*642` has 4, `8a`, `8o`, `8z`, and `8az`. `8a` of `*732` has 8, `8a` to `8h`, the only class of 8 colours. `9a` of `732` has 9, `9a` to `9i`. `3a` of `432` has 3, `3a` to `3c`. `4a` of `432` has 4. `5a` of `532` has 5, `5a` to `5e`, and `6a` of `532` has 6. `5a` of `*532` has 5, `5a` to `5e`. `4a` of `*2222` has 2, `4a` and `4h`, and `4c` of `*2222` is a class of one. `2222` has 12 colourings of 3 colours in 4 classes of 3, `3a`, `3b`, `3c`, and `3d` |
 | Debug time of each test | 10.1 | One thread: "Closing pass idle" 2.25 s, "Frettloh Table 1" 1.42 s, "Search examples" 1.04 s, "Counts agree" 0.51 s, "Runs by index" 0.29 s, "Pruning" 0.25 to 1.1 s, because `proptest` draws new cases on each run, "Least in class" 0.22 s, "Stored limits" 0.18 s, "Budget and limit" 0.15 s, "Leaf statistics" 0.14 s, "Frettloh Table 2" 0.14 s, "Search invariance" 0.14 s, "Search agrees with enumeration" 0.06 s, "Bulatov counts" 0.05 s, "Search capacities" 0.04 s, "Cube" 0.02 s, "Word invariance" 0.02 s, which searches its fixed presentations once for all cases, and every other search test under 0.01 s. The whole crate takes 2.5 s on many threads |
 | Time of each test under Miri | 10.4 | With nightly Miri, one thread, and an idle host, 54 tests run and 36 are skipped, in 54.5 s. The search tests that run: "First in class" 3.16 s, "Search fixture rows" 2.76 s, "Trivial group" 2.66 s, "Search letter limit" 2.43 s, "Search limits" 1.89 s, the case of [HOLT2005] Example 5.10 to 4 1.21 s, the case of [SIMS1994] p. 209 to 3 1.06 s, the case of $S_3$ to 3 0.87 s, each id test of "Colouring id text" 0.58 to 0.64 s, "Colouring size" 0.57 s, "Pending size" 0.55 s, and "Budget helper" 0.52 s. Under the load of a run of `just check`, each took 4 to 10 s |
+
+### 11.5. Figures of the Wallpaper Prototype
+
+Milestone `M10` adds the domains of the nine remaining Euclidean groups and the skew of `2222` to `escher-domain`, and their side presentations by DOM-52 of `docs/design/domain.md`. It adds no code and no rule to this crate. The search, the Conway presentations, and the ids serve the new side presentations unchanged.
+
+A prototype outside the repository tested the design of `M10` before its code existed. A copy of the workspace gained the ten domains of DOM-50, the walk of DOM-55, and the side presentation of DOM-52 of `docs/design/domain.md`, and called `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. The figures of this section are those of that prototype. The test "Equal counts" of DOM-57 of `docs/design/domain.md` measures them on the crates up to index 16. Times are of one thread on a host with 16 cores, in a release build unless marked.
+
+The numbers of subgroups of the side presentation equal those of the Conway presentation at every index from 1 to 12, for all ten signatures. Each cell of the second column holds both. "Smallest budget" is the smallest `SearchBudget` that completes index 12, which bisection found, for the side presentation and then the Conway presentation:
+
+| Signature | Subgroups of index 1 to 12 | Release time to 12 | Smallest budget to 12 | Debug time to 12 and to 24 | Miri time to 6, side and Conway |
+| --- | --- | --- | --- | --- | --- |
+| `o` | 1 3 4 7 6 12 8 15 13 18 12 28 | 0.001 s | 539165 and 577191 | 0.019 s and 0.264 s for the side, 0.419 s for the Conway presentation | 9.3 s and 9.6 s |
+| `**` | 1 7 4 19 6 28 8 43 13 42 12 76 | 0.001 s | 481105 and 464143 | 0.016 s and 0.159 s | 12.5 s and 12.7 s |
+| `xx` | 1 3 4 7 6 12 8 15 13 18 12 28 | Under 0.001 s | 199282 and 197929 | 0.007 s and 0.080 s | 5.3 s and 5.0 s |
+| `*x` | 1 3 4 11 6 12 8 27 13 18 12 44 | Under 0.001 s | 252905 and 248148 | 0.008 s and 0.094 s | 6.7 s and 6.3 s |
+| `22x` | 1 3 6 11 10 20 14 39 27 42 22 92 | Under 0.001 s | 235197 and 230421 | 0.009 s and 0.095 s | 6.2 s and 5.8 s |
+| `22*` | 1 7 6 23 10 44 14 67 27 82 22 156 | 0.001 s | 633890 and 421281 | 0.026 s and 0.234 s | 17.5 s and 15.9 s |
+| `2*22` | 1 7 6 31 10 44 14 111 27 82 22 212 | 0.001 s | 685143 and 669131 | 0.025 s and 0.284 s | 24.1 s and 28.2 s |
+| `4*2` | 1 3 0 11 0 12 0 39 9 30 0 52 | Under 0.001 s | 138488 and 132166 | 0.007 s and 0.073 s | 13.6 s and 11.6 s |
+| `3*3` | 1 1 4 4 0 10 0 4 21 0 0 31 | Under 0.001 s | 72040 and 73940 | 0.004 s and 0.031 s | 10.0 s and 12.1 s |
+| `2222` | 1 7 12 31 30 76 56 127 117 186 132 348 | 0.002 s | 1245792 and 857812 | 0.057 s and 0.919 s | 36.8 s and 18.7 s |
+
+The row of `2222` equals its row in Section 11.4.
+
+The prototype also measured these figures:
+
+| Figure | Value |
+| --- | --- |
+| Agreement at higher indexes | With the default budget at the index limit 64, the side and the Conway presentation gave equal counts at every index that both completed: to 64 for `**`, `xx`, `*x`, `22x`, `4*2`, and `3*3`, to 48 for `22*` and `2*22`, to 39 for `2222`, and to 32 for `o`. The default budget stopped the search of `o`, `22*`, `2*22`, and `2222` before 64. Each call took 0.02 to 1.0 s in a release build |
+| `o` and `xx` | The counts of `o` and `xx` are equal at every index computed, to 64 for `xx` and to 39 for the side presentation and 32 for the Conway presentation of `o`. Each count equals the sum of the divisors of its index. So no count tells `o` from `xx`. The test "Wallpaper certificate" of DOM-57 of `docs/design/domain.md` is required for that reason: its point group tells `o` from `xx`, its glide reflections whose axes are no mirror lines tell `**` from `*x`, and its rotations whose centres lie on mirror lines tell `22*` from `2*22` |
+| A dropped cycle relator | With the second cycle relator of `*x` left out of its side presentation, the counts of index 1 to 6 were 1, 3, 7, 23, 71, and 255, so the equal counts detect it |
+| A dropped mirror relator | With `s1^2` or `s3^2` left out of the side presentation of `*x`, the counts of index 1 to 6 stayed 1, 3, 4, 11, 6, and 12, so the equal counts do not detect it. The test "Relators evaluate" of `docs/design/domain.md` is the check that does |
+| Under Miri | A search to index 6 took 5.0 to 36.8 s for each presentation, as the last column of the table above gives, so the test of the equal counts cannot run under Miri at a useful index, and Section 12.3 of `docs/design/domain.md` skips it there |
+| Index of the test | The prototype recommended index 16 for the test of the equal counts in `just test`, which took under 5 ms in a release build and well under 1 s in a debug build for each presentation. The test "Equal counts" of DOM-57 of `docs/design/domain.md` runs to index 16 with `SearchBudget::DEFAULT` at `aspect` 1, and is skipped under Miri |
 
 ## 12. Dependencies
 

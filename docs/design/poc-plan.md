@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-18 |
+| Date | 2026-11-19 |
 | Applies to | The order of work of the proof of concept, from the first crate to the completion audit |
 
 ## Abstract
@@ -53,7 +53,7 @@ This document uses the terms that Section 2.2 of `docs/writing-documentation.md`
 - design branch: A branch named `feature/<name>-design` that changes only documents. It writes or extends the design documents of a milestone, and the research documents where a research prerequisite applies.
 - code branch: A branch in its own worktree that changes code together with its tests and the document updates that Hard Rule 1 of `AGENTS.md` requires.
 - research prerequisite: A design branch, labelled `RP-1` to `RP-5`, that adds to a research document what a milestone needs before its code can start (Section 4).
-- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-32` (Section 7).
+- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-33` (Section 7).
 - stage: One of the three stages of the owner's staging (Section 3.2).
 - proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`. Section 10.1 of that document states the defaults that the owner has decided, which keep their labels.
 - reference arithmetic: The independent high-precision implementation of a few formulas inside a test suite, which Section 7 of `docs/design/architecture.md` defines.
@@ -119,7 +119,7 @@ The column "Depends on" names the milestones and research prerequisites whose re
 | M7 | Presentations and coset enumeration | `info --presentation` | `escher-group` (new), `escher-domain`, `escher-cli` | M6, RP-1 |
 | M8 | Colouring search with ids | Colouring counts in `info`, `--colourings`, `--max-colours`, `render --colouring <id>` | `escher-group`, `escher-render`, `escher-cli` | M7 |
 | M9 | Hyperbolic reflection polygons with shape parameters | `*p1...pn` with 4 to 8 corners and its parameters | `escher-domain`, `escher-render` (tests and golden images), `escher-cli` | M6, RP-3 (sheet and slice part) |
-| M10 | The 17 Euclidean groups | All 17 Euclidean signatures | `escher-domain` | M4, M8, RP-2 |
+| M10 | The 17 Euclidean groups | All 17 Euclidean signatures, and the parameter `skew` of `o` and `2222` | `escher-domain`, `escher-cli`, `escher-render` (tests and golden images) | M4, M6, M8, RP-2 |
 | M11 | The 14 spherical types | All 14 spherical types | `escher-domain` | M5, M7, RP-2 |
 | M12 | Half-plane, band, and Klein models | `--model` | `escher-geometry`, `escher-render`, `escher-cli` | M3 |
 | M13 | Intrinsic border width | `--border-unit intrinsic` | `escher-render`, `escher-geometry`, `escher-cli` | M3, with M4 and M5 for the other geometries and M12 for one test |
@@ -623,32 +623,70 @@ Branches 6 and 7 may run in parallel, and the last of them to merge updates Proj
 
 ### 5.10. M10: The 17 Euclidean Groups
 
-**Goal.** The remaining nine Euclidean groups, `o`, `**`, `xx`, `*x`, `22*`, `22x`, `2*22`, `4*2`, and `3*3`, and the skew of `2222`. Translations and glide reflections become pairings.
+**Goal.** The remaining nine Euclidean groups, `o`, `**`, `xx`, `*x`, `22*`, `22x`, `2*22`, `4*2`, and `3*3`, and the parameter `skew` of `o` and `2222`. Translations and glide reflections become pairings, and a domain can hold mirror sides beside paired sides.
 
 **Command line.** These commands illustrate the milestone:
 
 ```sh
+escher info xx
 escher render '3*3' -o p31m.png
 escher render o --set skew=0.25 -o p1.png
 ```
 
-`escher info` reports all 17 Euclidean signatures with their parameters.
+- `escher info` reports all 17 Euclidean signatures with their parameters and their domain summaries, in the three forms of the `Domain` line (CLI-51 of `cli.md`, `DEC-54`).
+- `escher render o --set skew=0.25` draws a sheared lattice in one colour, because no side pairing of `o` reverses orientation (CLI-34 of `cli.md`).
+- With the default fill, `**` and `22*` draw the same picture, and so do `*x`, `22x`, and `*2222`, because their tiles and borders coincide (`DEC-55`). Their colourings by id tell them apart.
 
-**Scope.** Explicit constructions in the affine plane, and parameters by signature. Prerequisite RP-2.
+**Scope.** The ten domains of DOM-50 of `domain.md`, the nine new ones and `2222` at every value of `skew`, with the pairings of DOM-51 (`DEC-51`). The pairing kind of a glide reflection, the walk of the vertex cycles over the states of DOM-55 in check 4, whose rule DOM-28 keeps as amended, and the cycle rule of check 5 of DOM-56 for the ten domains, and the side presentation of a domain with glide reflections or with mirror sides beside paired sides (DOM-52). The parameters `aspect` and `skew` (DOM-53, `DEC-14`, `DEC-52`). The guard of `build_with` on the wallpaper domains (DOM-54, `DEC-53`). The three forms of the domain summary of `escher info` (CLI-51). Prerequisite RP-2.
 
-**Design documents.** An extension of `domain.md`.
+The milestone changes the code of `escher-domain` and `escher-cli`. In `escher-render` it changes no library code, and adds the tests, the golden images, and the measured figures of Sections 5.14, 6.10, and 8 of `render.md`, and corrects three test helpers that read a domain with no reversing side as a rotation domain. `escher-group` and `escher-geometry` need no code.
 
-**Sources.** The signatures: Table II of [CH] and Theorem 13.3.6 of [TH]. The kites of `3*3` and `4*2`, and the relations of index 2: pp. 7 and 12 of [VONGAGERN2009]. The catalogue and its recorded defects: `fundamental-domains.md` 9.5 and 8.14, `symmhub.md` 7.1 and 15.3. Presentations: [CH]. The polygon theorems for the Euclidean plane, whose hypotheses `verify()` checks: `fundamental-domains.md` 4.7, 4.9, and 4.10. Neither [RATCLIFFE] nor Epstein and Petronio works an example that combines a cross-cap with a cone point or a mirror, as `22x` and `*x` do (`fundamental-domains.md` 4.7).
+Out of scope: the spherical types (M11), the hyperbolic signatures that mix cone points and mirrors, such as `4*3` (M15), the friezes (M18), any change to `deformation_dimension()`, which stays none for a Euclidean signature (`UNV-10`), `--set` on `escher info`, and a drawing of mirror sides that differs from that of paired sides (`DEC-55`).
 
-**Unverified statements relied on.** `UNV-10` (parameter counts, from the partial counts of [VONGAGERN2009] and [CBG], the unsourced table of `orbifold-notation.md` 12 item 7, and SymmHub's catalogue), `UNV-11`, `UNV-2` for translations and glides in the fold, `UNV-8` for glide pairings, and `UNV-9` for skew and twist.
+**Design documents.** The extensions of `domain.md` (DOM-50 to DOM-57), `render.md` (Sections 5.14 and 6.10, RND-43 to RND-45), `cli.md` (CLI-51 and CLI-52), `architecture.md` (Section 5.6, the amended `DEC-12`, `DEC-14`, and `DEC-17`, and `DEC-51` to `DEC-55`), and `group.md` (Section 11.5), after RP-2.
 
-**Tests and acceptance.** A table-driven test over the 17 signatures of `orbifold-notation.md` 8.1. `verify()`. Relators. Equal counts of subgroup classes up to a small index between the side presentation and the Conway presentation. Periodicity of the image. The borders of `3*3` lie inside the borders of `*632`, and those of `4*2` inside those of `*442`. Golden images.
+**Sources.**
+
+- The signatures and their presentations: Table II of [CH], Theorem 13.3.6 of [TH], and pp. 127 to 131 of [CBG].
+- `o` as a parallelogram with opposite sides paired by translations: p. 250 of [CH] and Exercise 9.5(1) of [RATCLIFFE].
+- `xx` as a square with one translation and one glide reflection: p. 399 of [RATCLIFFE].
+- The kites of `4*2` and `3*3` as shapes, and the relations of index 2: pp. 7 and 12 of [VONGAGERN2009]. No source states their pairings as formulas.
+- `2222` at a skew of 0: Example 13.1.4 of [TH]. No source states the sheared domain.
+- The orbifolds of `*x` and `2*22` from strips and squares of `*2222`: pp. 249 to 251 of [CH], with no polygon and no pairings as formulas.
+- `**`, `*x`, `22x`, `22*`, and `2*22` with their pairings: no source. SymmHub's catalogue builds the same groups up to a quarter turn (`fundamental-domains.md` 9.5, `symmhub.md` 7.1 and 15.3), and serves only as a comparison.
+- That each polygon is a fundamental domain: Theorem 4.14 of Epstein and Petronio, whose hypotheses `verify()` checks (`fundamental-domains.md` 4.7, 4.9, and 4.10). Neither [RATCLIFFE] nor Epstein and Petronio works an example that combines a cross-cap with a cone point or a mirror, as `22x` and `*x` do (`fundamental-domains.md` 4.7).
+
+**Unverified statements relied on.**
+
+- `UNV-11`, that each construction gives the group of its signature.
+- `UNV-33`, the sheared domains and the pairings of the wallpaper domains, which no source states.
+- `UNV-2`, that the fold terminates with translations, half-turns, and glide reflections as pairings. No termination argument exists for the kites.
+- `UNV-10`, the parameter counts. The design asserts no count, and `deformation_dimension()` stays none.
+- `UNV-32`, the cycle relators as words, which the new walk extends to cycles of four sides.
+
+The milestone does not rely on `UNV-8`, which concerns the cap generator of a hyperbolic signature: its glide reflections are explicit matrices that `verify()` checks. `DEC-52` settles `UNV-9` for the Euclidean plane as a project convention. The reliance is limited, because `build_with` returns only a domain that passes `verify()` (DOM-54).
+
+**Tests and acceptance.** A table-driven test over the 17 signatures of `orbifold-notation.md` 8.1, with the vertices, partners, kinds, orientations, cycle orders, and parameters of DOM-50. `verify()` with a margin of at least 8 over a grid of `aspect` and `skew` and on random settings. The vertices and pairings against the reference arithmetic. `2222` at a skew of 0 equal bit for bit to the domain of M6. Relators evaluated as matrices. The wallpaper certificate of DOM-57, which is required and not a companion: its point group tells `o` from `xx`, whose counts of subgroups are equal at every index computed (Section 11.5 of `group.md`), its glide reflections tell `**` from `*x`, and its rotations on mirror lines tell `22*` from `2*22`. Beside it, equal counts of subgroups up to 16 colours between the side presentation and the Conway presentation, a test skipped under Miri. The fold and the borders of `escher-render` on the wallpaper domains against the reference arithmetic, periodicity and glide symmetry of the image, and the borders of `3*3` inside those of `*632` and of `4*2` inside those of `*442`. One golden image of a colouring for each of the nine groups, pairwise distinct, because the default pictures of several groups are equal (`DEC-55`). The snapshots of `escher info` and the diagnostics of `--set skew`.
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** The catalogue has known wrong entries: `22*` and `2*22` reach spherical functions, `**` and `*2222` ignore their parameter, and the half-turns of `2222` do not map its vertical sides onto sides when its twist is not 0 (`symmhub.md` 7.1.7). Each construction is therefore designed and verified here and not ported blindly.
+**Risks.**
 
-**Split.** By family: translations and glides, then the groups with half-turns, then the kites.
+- The catalogue has known wrong entries: `22*` and `2*22` reach spherical functions, `**` and `*2222` ignore their parameter, and the half-turns of `2222` do not map its vertical sides onto sides when its twist is not 0 (`symmhub.md` 7.1.7). Each construction is therefore designed and verified here, and nothing is ported.
+- Check 4 and the side presentation of the earlier milestones assume that a domain is all mirrors or has none. Three unit tests of `escher-domain` assert that assumption and change in the first branch.
+- A domain built for the wrong group of the same class passes a golden image of its default picture, which is why each group has a golden image of a colouring and a test of distinct pictures.
+
+**Split.** The design branch `feature/euclidean-groups-design`, with the documents of the field "Design documents" and every figure of the crates stated as to be measured, then seven branches of code, in this order:
+
+1. `feature/pairing-walk`: the kind of a glide reflection, check 2, the walk of DOM-55, the cycle rule of DOM-56, and the presentation rule of DOM-52, tested on domains built through private access. Every existing relator text, golden file, and snapshot stays unchanged, and the three unit tests that assert the withdrawn rule change.
+2. `feature/translation-groups`: `o` and `**`, the predicate, `skew` of `o`, the guard, and their tests. In `escher-cli`, the three forms of the domain summary and the word `glide reflection`, with the snapshots that the change makes false.
+3. `feature/glide-groups`: `xx`, `*x`, and `22x`.
+4. `feature/half-turn-groups`: `22*`, `2*22`, and `skew` of `2222`.
+5. `feature/kite-groups`: `4*2` and `3*3`, and the measured accuracy of all ten domains in `domain.md`.
+6. `feature/euclidean-groups-cli`: the remaining snapshots, diagnostics, and status tests of `escher-cli`.
+7. `feature/euclidean-groups-render`: the fold sets, the tests, the golden images, and the measured tables of `escher-render`, and the three test helpers of the field "Scope".
+
+Branches 6 and 7 are disjoint and may run in parallel, and the last of them to merge updates Project Status in `AGENTS.md`.
 
 ### 5.11. M11: The 14 Spherical Types
 
@@ -663,7 +701,7 @@ escher render '5x' -o s10.png
 
 `escher info` reports every type.
 
-**Scope.** Constructions on the unit sphere with rotations, reflections, and rotary reflections. Domains that are hemispheres, and lunes other than the lune of `*nn` of M5. Prerequisite RP-2.
+**Scope.** Constructions on the unit sphere with rotations, reflections, and rotary reflections. Domains that are hemispheres, and lunes other than the lune of `*nn` of M5. Prerequisite RP-2. The milestone reuses the walk of the vertex cycles of DOM-55 and the side presentation of DOM-52 of `domain.md`, which M10 adds for glide reflections and for mirror sides beside paired sides.
 
 **Design documents.** An extension of `domain.md`.
 
@@ -905,16 +943,16 @@ The owner decided how the proof of concept treats a statement that no source est
 | Id | Statement relied on | Research location | Milestones that use it | What closes it |
 | --- | --- | --- | --- | --- |
 | UNV-1 | The first-violated-wall fold terminates for compact reflection polygons, in a number of steps equal to the word length. On the sphere, a prototype found points within $10^{-14}$ radians of a vertex of order 1000 whose fold did not stop even at a cap of 100000, and points that took more steps than the longest word of the group (Section 6.7 of `docs/design/render.md`), so the design relies on it only for the samples of the images that the tests render and the images of the centre | `rendering.md` 4.7 and 13.1 item 1, gap G5, `fundamental-domains.md` 13.3 item 6 | M3 on | Sections 1.6, 1.7, and 5.4 of [HUMPHREYS], or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
-| UNV-2 | The same fold terminates for general side pairings and domains that are not convex. For the rotation domains of M6, a prototype outside the repository found that a fold with pairings that are plain `f64` products of two reflections can drift off the hyperboloid and fail to converge, as one fold of `(1000)32` did in the radius band $1 - 10^{-6}$. With accurately rounded products as pairings, every fold of the rotation fold sets of `escher-render` converges, but near some vertices of a rotation domain whose corner orders are all near 1000 the fold can still fail to stop (Section 6.8 of `docs/design/render.md`). So the design relies on it only for the samples of the images that the tests render and the images of the centre, with accurately rounded products as pairings | `rendering.md` 4.7 and 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M15 to M17 | A source, a change to Voight's rule, or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
+| UNV-2 | The same fold terminates for general side pairings and domains that are not convex. For the rotation domains of M6, a prototype outside the repository found that a fold with pairings that are plain `f64` products of two reflections can drift off the hyperboloid and fail to converge, as one fold of `(1000)32` did in the radius band $1 - 10^{-6}$. With accurately rounded products as pairings, every fold of the rotation fold sets of `escher-render` converges, but near some vertices of a rotation domain whose corner orders are all near 1000 the fold can still fail to stop (Section 6.8 of `docs/design/render.md`). So the design relies on it only for the samples of the images that the tests render and the images of the centre, with accurately rounded products as pairings. For the wallpaper domains of M10, whose pairings include translations, half-turns, and glide reflections, a prototype outside the repository found that every fold of its sets converged up to distance 65 from the centre, with no termination argument for the kites of `4*2` and `3*3` (Section 6.10 of `docs/design/render.md`) | `rendering.md` 4.7 and 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M15 to M17 | A source, a change to Voight's rule, or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
 | UNV-3 | Behaviour on or near a wall | `rendering.md` 13.1 item 2 | M3 on | Tests. No source is known |
 | UNV-4 | Growth of the fold count, the reading of the exponents, and the limits of precision | `rendering.md` 13.1 items 5 and 6, `geometry-models.md` 15.1 item 10 | M3 defaults | The body of [FWW], and measurement |
 | UNV-5 | The open points of the polygon theorem at ideal points: the test where a mirror ends at a cusp, the reading that two sides that meet only at an ideal vertex have the dihedral angle 0 and give no relator, and the element that fixes an ideal vertex. The four cases with reflections, glide cycles, mirror corners beside paired sides, and ideal reflection polygons are sourced in `fundamental-domains.md` 4.7, and the Euclidean plane and the sphere in its Sections 4.9 and 4.10, all under the hypotheses of those sections | `fundamental-domains.md` 4.7, 4.9, 4.10, 12, and 13.3 items 7 and 8, gap G1 | M18 | A source or Lean for each open point of gap G1 |
 | UNV-6 | The cases that SymmHub's `edgeLength` sends to the inverse hyperbolic sine, the correspondence of its other cases with the formulas of `fundamental-domains.md` 9.3, and the pillow and hat formulas. The triangle, quadrilateral, pentagon, and hexagon formulas are sourced in `fundamental-domains.md` 9.3. [DEATON1993] states the principle of a generalized triangle with real and imaginary vertices and solves only the case with two imaginary vertices, with a sign that differs from case C of the code, and states no inverse hyperbolic sine case (`fundamental-domains.md` 8.15.1) | `fundamental-domains.md` 8.7, 8.8, 8.15.1, 9.3, and 13.3 items 1 and 13, gap G3, `symmhub.md` 6.4.2 | M9, M15, M16 | Formula Glossary 2.2 to 2.4 of [BUSER], or Lean |
 | UNV-7 | SymmHub's order of the cuts, which fixes what each length means, its pairing of corners of order 2 without wrapping around, the corner pair as a mirror side, and its pairing of cone points of order 2 before the cut to a mirror. The nine cuts, the order in which they apply, the twelve atoms, and the statement that a twist arises only for three cuts are sourced in [DEATON1993]. The thesis does not say where a cut falls in a symbol. It numbers its two tables of cuts differently, so which three cuts carry a twist is a reader's reading (`fundamental-domains.md` 8.15) | Gap G4, `fundamental-domains.md` 8.15, 9.4.1, and 13.3 items 4, 5, and 12 | M9, M15, M16 | A project convention for the order of the cuts, and a source or Lean for the meaning of each length |
-| UNV-8 | The cap generator is a glide reflection that, with the other side pairings, meets the hypotheses of the polygon theorems of `fundamental-domains.md` 4.9 and 4.10 | Gap G2, `fundamental-domains.md` 13.3 item 2 | M10, M16 | [CHOI2012], [BUSER] |
-| UNV-9 | The twist convention | Gap G11 | M10, M15, M16 | A project convention |
-| UNV-10 | Euclidean parameter counts: whether a count includes the scale, and the counts of the groups for which no source states one. The counts and the rule that are sourced are in `orbifold-notation.md` 10.2 and `fundamental-domains.md` 6.1 | Gap G7, `orbifold-notation.md` 12 item 7 | M4, M10 | [KLR], [SCOTT], or Lean |
-| UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7) | Gap G8, `fundamental-domains.md` 9.7, and for the Euclidean and spherical groups 9.5.2, 9.6.2, and 13.3 items 15 and 16 | M10, M11, M15 | A source that constructs them, or Lean |
+| UNV-8 | The cap generator is a glide reflection that, with the other side pairings, meets the hypotheses of the polygon theorems of `fundamental-domains.md` 4.9 and 4.10 | Gap G2, `fundamental-domains.md` 13.3 item 2 | M16. M10 does not rely on it, because its glide reflections are explicit matrices that `verify()` checks | [CHOI2012], [BUSER] |
+| UNV-9 | The twist convention. For the Euclidean plane, `DEC-52` of `docs/design/architecture.md` settles it as a project convention: `skew` is a fraction of the first lattice vector | Gap G11 | M15, M16. M10 settles the Euclidean part | A project convention |
+| UNV-10 | Euclidean parameter counts: whether a count includes the scale, and the counts of the groups for which no source states one. The counts and the rule that are sourced are in `orbifold-notation.md` 10.2 and `fundamental-domains.md` 6.1. The parameters `aspect` and `skew` of M10 are those of the constructions, and the design asserts no count | Gap G7, `orbifold-notation.md` 12 item 7 | M4, M10 | [KLR], [SCOTT], or Lean |
+| UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7). For the Euclidean groups of M10, the guard of DOM-54 of `docs/design/domain.md` checks each build, and the wallpaper certificate of DOM-57, with the equal counts up to 16 colours beside it, checks each group numerically. Neither closes it | Gap G8, `fundamental-domains.md` 9.7, and for the Euclidean and spherical groups 9.5.2, 9.6.2, and 13.3 items 15 and 16 | M10, M11, M15 | A source that constructs them, or Lean |
 | UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5, and the spherical law of cosines solved for a side, Theorem 2.5.4 of [RATCLIFFE], is in `geometry-models.md` 11.3 | `geometry-models.md` 10.5, 10.6, 15.1 items 12 and 14, and 15.2 | None. The construction of M9 does not use it (`DEC-46`) | Chapter 2 of [BUSER], or Lean |
 | UNV-13 | The inverse and metric of the band, and the choice of map between the disk and the half-plane. The maps between the disk, the hyperboloid, and the Klein model are sourced in `geometry-models.md` 4.2 | `geometry-models.md` 4.3 and 5.1, `rendering.md` 13.1 item 14 | M12 | [HUB], and round-trip tests |
 | UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M3 tests, M13 | A source, or Lean |
@@ -935,7 +973,8 @@ The owner decided how the proof of concept treats a statement that no source est
 | UNV-29 | The lune of `*nn`, the intersection of two hemispheres whose walls meet at the angle $\pi/n$, is a strict fundamental domain of the group of its two reflections. Theorem 6.4.3 of [DAVIS] covers convex polytopes, and a lune is not one in the sense of p. 75 of [DAVIS] | `fundamental-domains.md` 13.3 item 9 | M5 | A source that proves it, or Lean |
 | UNV-30 | The lune of the angle $2\pi/n$ with its one rotation pairing, including the hemisphere of `22`, is a fundamental domain of the cyclic group of order $n$. The lune of `*nn` is already `UNV-29` | `fundamental-domains.md` 13.3 item 10 | M6 | A source whose polygon theorem admits a lune, or Lean. The exhaustive certificates of `docs/design/domain.md` check each build numerically |
 | UNV-31 | The double of a convex reflection polygon across one wall is convex, and its vertex cycles are the vertex of each end of the doubled side alone and each other vertex with its image, with the corner orders of the reflection polygon | `fundamental-domains.md` 13.3 item 11 | M6 | A source, or Lean. Checks 3, 4, and 5 of `verify()` test each build |
-| UNV-32 | The relators of a double as words: one generator for each side, standing for the inverse of its pairing as Section 5.3 of `docs/design/architecture.md` states, the pair relator $s_i s_p$ for each pair, and for each vertex cycle the generators of the sides that the walk of the cycle applies, in walk order, to the power of the order of the cycle. The polygon theorems state that the pairing relators and the cycle relators present the group (`fundamental-domains.md` 4.1, 4.2, 4.8 item 7, and 4.9), and SymmHub derives its relators in this way in code (`symmhub.md` 14.2), but no source read writes the cycle relators as words in this convention. Every vertex cycle of the domains of M6 visits one or two sides, so a reversed word or the opposite convention passes every numeric test on them | `fundamental-domains.md` 4.8 item 7, `symmhub.md` 14.2 | M7, M8 | A source that states the cycle relators as words in this convention, or Lean. The tests "Relators evaluate" and "Long cycle word" of `docs/design/domain.md` check it numerically |
+| UNV-32 | The relators of a double as words: one generator for each side, standing for the inverse of its pairing as Section 5.3 of `docs/design/architecture.md` states, the pair relator $s_i s_p$ for each pair, and for each vertex cycle the generators of the sides that the walk of the cycle applies, in walk order, to the power of the order of the cycle. The polygon theorems state that the pairing relators and the cycle relators present the group (`fundamental-domains.md` 4.1, 4.2, 4.8 item 7, and 4.9), and SymmHub derives its relators in this way in code (`symmhub.md` 14.2), but no source read writes the cycle relators as words in this convention. Every vertex cycle of the domains of M6 visits one or two sides, so a reversed word or the opposite convention passes every numeric test on them. The walk of DOM-55 of `docs/design/domain.md` gives the wallpaper domains of M10 cycles of four sides, such as that of `o` | `fundamental-domains.md` 4.8 item 7, `symmhub.md` 14.2 | M7, M8, M10 | A source that states the cycle relators as words in this convention, or Lean. The tests "Relators evaluate" and "Long cycle word" of `docs/design/domain.md` check it numerically |
+| UNV-33 | The domains and pairings of the wallpaper domains of M10 that no source states: the pairings of `**`, `*x`, `22x`, `22*`, and `2*22`, the pairings of the kites of `4*2` and `3*3` as formulas, and the domains of `o` and `2222` sheared by `skew`, with the reading that the range of `skew` reaches every lattice (DOM-53 of `docs/design/domain.md`). The parallelogram of `o` and the square of `xx` without a skew, the shapes of the kites, and `2222` without a skew are sourced (Section 5.10) | `fundamental-domains.md` 9.5.2 and 13.3 items 17 and 18 | M10 | A source that states them, or Lean. Until then the guard of DOM-54 of `docs/design/domain.md`, which returns a domain only when it passes `verify()`, and the wallpaper certificate of DOM-57 bound the reliance |
 
 ## 8. Security Considerations
 

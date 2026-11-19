@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-18 |
+| Date | 2026-11-19 |
 | Applies to | The representation of points and isometries in Escher, the model maps, the geometric constructions, and the distance computations |
 
 ## Abstract
@@ -1031,7 +1031,9 @@ Section 7.4 gives the reflection in a line [DAVIS], equation 6.3 (P). [RAT], equ
 - A glide reflection is the "composition of a reflection across a line and a translation parallel to the line". Reflections and glide reflections are "the only two kinds of indirect" isometries [W-GLIDE].
 - In homogeneous coordinates, an isometry is the $3 \times 3$ matrix $\begin{pmatrix} A & b \\ 0 & 1 \end{pmatrix}$ [W-AFFINE].
 
-No primary source read states the reflection of (4.1.1) as a matrix on the plane $x_3 = 1$, the line through two points of that plane, the vertices of a Euclidean triangle with given angles, or the area of a polygon from its vertices. Section 15.1, items 24 to 26, records the last three as candidates.
+[DAVIS], Example 3.1.2, printed p. 26, states the product of two reflections for lines through the origin: "If $L$ and $L'$ are two lines through the origin in $\mathbb R^2$ and $\theta$ is the angle between them, then $r_{L'} \circ r_L$ is rotation through $2\theta$" (P). Substituting $\theta = \pi/2$ into this statement gives the product of the reflections in two perpendicular lines through the origin as the rotation through $\pi$, the half-turn about the origin. [DAVIS] does not print that case, so the substitution is a reader's step. [RAT], Theorem 4.1.2, p. 106, states that "every isometry of $E^n$ is a composition of at most n + 1 reflections in hyperplanes" (P), which does not say which reflections give a rotation. [RAT], p. 399, glues the unit square into the Klein bottle by the translation $\tau_1(z) = z + 1$ and "the glide-reflection $\rho_1$, defined by $\rho_1(z) = -\bar z + 1 + i$" (P), which uses the term without defining it.
+
+No primary source read states the reflection of (4.1.1) as a matrix on the plane $x_3 = 1$, the line through two points of that plane, the vertices of a Euclidean triangle with given angles, the area of a polygon from its vertices, the half-turn about a point other than the origin as a product of two reflections, or the glide reflection as a reflection composed with a translation along its axis. Section 15.1, items 24 to 26, 31, and 32, records the last five as candidates.
 
 ## 13. Unified Treatments of the Three Geometries
 
@@ -1168,6 +1170,8 @@ Each open item is a candidate statement that no cited source states. It needs a 
 28. The angle of two great circles of $S^2$ at a common point from their outward unit normals $u_0$ and $u_1$, as $\arccos(-u_0 \cdot u_1)$, such as the angle of a lune with its two sides oriented away from it. [RAT] states the corresponding relation only for a hyperbolic simplex, with inward normals (Section 7.4), and no source read states it on the sphere. A source or a Lean proof would close it.
 29. The distance $\rho_j$ from the centre of the polygon with an inscribed circle of the proof of Theorem 7.16.2 of [BEA] to its vertex $j$: $\cosh \rho_j = \cot\alpha_j \cot(\theta_j/2)$, with the direction of vertex $j$ at the angle $\alpha_{j-1} + \alpha_j$ from that of vertex $j - 1$ (Section 10.1). Each half of the quadrilateral $Q_j$ of Figure 7.16.1 of [BEA] is a triangle with a right angle at the point of tangency, the angle $\alpha_j$ at the centre, and the angle $\theta_j/2$ at the vertex, and Theorem 7.11.3 (ii) of [BEA], p. 147, $\cosh c = \cot\alpha \cot\beta$ (Section 10.3), gives the relation for its hypotenuse. A reader applied the theorem to this triangle. [BEA] prints only equation (7.16.3) for it, which is part (i) of the same theorem. The direction is a reader's construction from the angles $2\alpha_j$ of the quadrilaterals at the centre, laid side by side around it in the order of the angles. [BEA] gives no coordinates. Both rest only on that reading and on numeric evidence. A prototype for the design of `escher-domain` placed the vertices this way at 50 digits and found the angles $\theta_j$ and the tangency of every side to the circle to $10^{-50}$. That is numeric evidence, not a source or a proof. A source that prints the vertex distance and direction, or a Lean proof, would close it.
 30. The distance $\operatorname{arcosh} \lvert u \ast v \rvert$ between two disjoint geodesics of the hyperboloid with the time coordinate last, for unit spacelike normals $u$ and $v$ in the form $\ast$ of Section 2.2. It substitutes norms of 1 into equation (3.2.7) of [RAT] and moves the time coordinate last by the rule of Section 2.4 (Section 9.3). No source read prints it in this form, as with item 3. A source or a Lean proof would close it.
+31. The half-turn about a point $c$ of the Euclidean plane other than the origin as the product of the reflections in two perpendicular lines through $c$, such as the horizontal and the vertical line through $c$, which in homogeneous coordinates is the matrix with the rows $(-1, 0, 2c_1)$, $(0, -1, 2c_2)$, and $(0, 0, 1)$. [DAVIS], Example 3.1.2, states the product of two reflections for lines through the origin only (Section 12), and [W-EUCLISO] gives the rotation about $p$ in complex form (S). No source read states the case of another centre. The design of `escher-domain` uses it for the half-turns of the domains of `22*`, `2*22`, and `2222`. A source or a Lean proof would close it.
+32. The glide reflection of the Euclidean plane as the reflection in a line composed with a translation along that line, in either order, and the statement that reflections and glide reflections are the only isometries of the plane that reverse orientation. Both rest only on [W-GLIDE] (S) (Section 12). [RAT], p. 399, uses a glide reflection without defining it. The design of `escher-domain` uses both for the glide reflections of the domains of `xx`, `*x`, and `22x` and for its one kind of a reversing pairing that is not a mirror. A primary source or a Lean proof would close it.
 
 ### 15.2. Claims That Rest on Summaries or Secondary Sources
 
@@ -1181,6 +1185,7 @@ Every claim marked (A) rests on a summary of a paper, and every claim marked (S)
 The most important claims for Escher that still rest only on a summary or a secondary source are these:
 
 - The translation length of a glide reflection, $\lvert \operatorname{tr} g \rvert = 2 \sinh(t_g/2)$ for determinant $-1$, from [WAK] (Section 6.7). No primary source read treats glide reflections by their trace.
+- The Euclidean glide reflection as a reflection composed with a translation along its axis, and reflections and glide reflections as the only orientation-reversing isometries of the plane, from [W-GLIDE] (Section 12 and item 32 of Section 15.1).
 - The form $\max\lbrace \lvert \operatorname{tr} g \rvert, 2 \rbrace$ of the translation length, which [BEA] states only for a hyperbolic isometry (Section 6.7).
 - The other sides of the right-angled pentagon from two given sides, and the hexagon in the labels of [OC] (Section 10.5).
 - The half-plane circle from its Euclidean centre and radius (Section 9.1).
