@@ -1,11 +1,15 @@
 use escher_geometry::hyperbolic;
 use glam::{DMat3, DVec3};
 
-use crate::domain::{Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side};
+use crate::domain::{Closure, Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side};
 use crate::error::{Error, Result};
 use crate::verify::is_translation;
 
-pub(crate) fn double(generating: &FundamentalDomain, plane: Plane) -> Result<FundamentalDomain> {
+pub(crate) fn double(
+    generating: &FundamentalDomain,
+    plane: Plane,
+    closure: Closure,
+) -> Result<FundamentalDomain> {
     let count = generating.vertices.len();
     let degenerate =
         count < 2 || generating.sides.len() != count || generating.corners.len() != count;
@@ -36,6 +40,7 @@ pub(crate) fn double(generating: &FundamentalDomain, plane: Plane) -> Result<Fun
         sides,
         vertices,
         centre,
+        closure,
     })
 }
 

@@ -221,12 +221,12 @@ pub enum ErrorKind {
     ParameterOutOfRange,
     /// The sides of the domain give no side presentation.
     ///
-    /// The domain mixes mirror sides with sides that are paired with other
-    /// sides, it has a different number of corners than of sides, it has more
-    /// than 256 sides, the side pairings do not lead around a vertex back to
-    /// it, the corners of a vertex cycle differ in order or do not join two
-    /// corners of the reflection domain in total, or the relators that the
-    /// sides give are not a valid presentation. No domain that
+    /// The domain has a different number of corners than of sides, it has
+    /// more than 256 sides, the side pairings do not lead around a vertex back
+    /// to it, the corners of a vertex cycle differ in order, the corners of a
+    /// vertex cycle of a double do not join two corners of the reflection
+    /// domain in total, or the relators that the sides give are not a valid
+    /// presentation. No domain that
     /// [`FundamentalDomain::build`](crate::FundamentalDomain::build) or
     /// [`FundamentalDomain::build_with`](crate::FundamentalDomain::build_with)
     /// returns gives this error.
@@ -264,8 +264,6 @@ enum Detail {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum PairingDefect {
-    #[error("the domain has both mirror and paired sides")]
-    MixedSides,
     #[error("the domain has a different number of corners than of sides")]
     CornerCount,
     #[error("the domain has more than {MAX_SIDES} sides")]
@@ -320,9 +318,8 @@ mod tests {
         ]
     }
 
-    fn pairing_errors() -> [Error; 6] {
+    fn pairing_errors() -> [Error; 5] {
         [
-            Error::invalid_pairing(PairingDefect::MixedSides),
             Error::invalid_pairing(PairingDefect::CornerCount),
             Error::invalid_pairing(PairingDefect::TooManySides),
             Error::invalid_pairing(PairingDefect::OpenCycle),
@@ -369,7 +366,6 @@ mod tests {
         assert_eq!(
             texts,
             [
-                "cannot derive side presentation: the domain has both mirror and paired sides",
                 "cannot derive side presentation: the domain has a different number of corners than of sides",
                 "cannot derive side presentation: the domain has more than 256 sides",
                 "cannot derive side presentation: the side pairings do not close a vertex cycle",
@@ -399,7 +395,7 @@ mod tests {
         );
         assert_eq!(
             pairing_errors().map(|error| error.kind()),
-            [ErrorKind::InvalidPairing; 6]
+            [ErrorKind::InvalidPairing; 5]
         );
     }
 
@@ -415,10 +411,10 @@ mod tests {
 
     #[test]
     fn source_is_the_group_error_only_for_a_rejected_presentation() {
-        let [mixed, corners, sides, open, orders, rejected] = pairing_errors();
+        let [corners, sides, open, orders, rejected] = pairing_errors();
         let source = core::error::Error::source(&rejected).map(ToString::to_string);
         assert_eq!(source, Some(group_error().to_string()));
-        for error in [mixed, corners, sides, open, orders] {
+        for error in [corners, sides, open, orders] {
             assert!(core::error::Error::source(&error).is_none(), "{error}");
         }
     }

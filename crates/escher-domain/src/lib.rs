@@ -89,6 +89,9 @@ mod walk;
 extern crate self as escher_domain;
 
 #[cfg(test)]
+mod fixtures;
+
+#[cfg(test)]
 #[path = "../tests/domain/shared.rs"]
 mod shared;
 

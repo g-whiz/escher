@@ -1,6 +1,6 @@
 use escher_group::{Letter, Presentation, Relator, Word};
 
-use crate::domain::FundamentalDomain;
+use crate::domain::{FundamentalDomain, PairingKind};
 use crate::error::{Error, PairingDefect, Result};
 use crate::verify::{CycleDefect, SideKinds, corner_pairs, side_kinds, vertex_cycles};
 
@@ -8,21 +8,15 @@ pub(crate) const MAX_SIDES: usize = 256;
 
 pub(crate) fn side_presentation(domain: &FundamentalDomain) -> Result<Presentation> {
     let count = domain.sides.len();
-    let mirrors = match side_kinds(domain) {
-        SideKinds::Mirrors => true,
-        SideKinds::Paired => false,
-        SideKinds::Mixed => return Err(Error::invalid_pairing(PairingDefect::MixedSides)),
-    };
     if domain.corners.len() != count {
         return Err(Error::invalid_pairing(PairingDefect::CornerCount));
     }
     if count > MAX_SIDES {
         return Err(Error::invalid_pairing(PairingDefect::TooManySides));
     }
-    let relators = if mirrors {
-        mirror_relators(domain)?
-    } else {
-        paired_relators(domain)?
+    let relators = match side_kinds(domain) {
+        SideKinds::Mirrors => mirror_relators(domain)?,
+        SideKinds::Paired | SideKinds::Mixed => paired_relators(domain)?,
     };
     let names = (0..count).map(|side| format!("s{side}")).collect();
     Presentation::new(names, relators).map_err(Error::rejected_presentation)
@@ -50,8 +44,13 @@ fn paired_relators(domain: &FundamentalDomain) -> Result<Vec<Relator>> {
     })?;
     let mut relators = Vec::new();
     for (index, side) in domain.sides.iter().enumerate() {
-        if side.partner > index {
-            relators.push(relator(&[index, side.partner], 1)?);
+        match side.kind {
+            PairingKind::Mirror => relators.push(relator(&[index], 2)?),
+            PairingKind::Rotation | PairingKind::Translation | PairingKind::GlideReflection => {
+                if side.partner > index {
+                    relators.push(relator(&[index, side.partner], 1)?);
+                }
+            }
         }
     }
     for cycle in cycles {
@@ -78,8 +77,9 @@ mod tests {
     use escher_geometry::hyperbolic;
     use glam::{DMat3, DVec3};
 
-    use crate::domain::{Corner, FundamentalDomain, Orientation, PairingKind, Side};
+    use crate::domain::{Closure, Corner, FundamentalDomain, Orientation, PairingKind, Side};
     use crate::error::ErrorKind;
+    use crate::fixtures::{WALLPAPER_NAMES, wallpaper};
     use crate::shared::{built, relator_texts};
     use crate::verify::{framed_power_residual, power_residual};
 
@@ -145,6 +145,7 @@ mod tests {
             sides,
             vertices,
             centre: kite.centre,
+            closure: Closure::PerVertex,
         }
     }
 
@@ -241,7 +242,7 @@ mod tests {
         domain.sides[0].partner = 1;
         assert_invalid(
             &domain,
-            "the domain has both mirror and paired sides",
+            "the side pairings do not close a vertex cycle",
             "a rotation side in *732",
         );
     }
@@ -353,7 +354,7 @@ mod tests {
         domain.corners.pop();
         assert_invalid(
             &domain,
-            "the domain has both mirror and paired sides",
+            "the domain has a different number of corners than of sides",
             "mixed sides and a corner removed",
         );
         let mut domain = built("*732");
@@ -382,6 +383,143 @@ mod tests {
             &domain,
             "the side pairings do not close a vertex cycle",
             "an open walk and a corner of order 0",
+        );
+    }
+
+    fn presentation_texts(domain: &FundamentalDomain, case: &str) -> Vec<String> {
+        match domain.side_presentation() {
+            Ok(presentation) => relator_texts(&presentation),
+            Err(error) => panic!("{case} has no side presentation: {error}"),
+        }
+    }
+
+    #[test]
+    fn domains_with_glides_and_mirrors_give_their_pairing_and_cycle_relators() {
+        let cases: [(&str, &[&str]); 5] = [
+            (
+                "**",
+                &["s0 s2", "s1^2", "s3^2", "s1 s0 s1 s2", "s3 s2 s3 s0"],
+            ),
+            ("xx", &["s0 s2", "s1 s3", "s1 s0 s1 s2"]),
+            (
+                "*x",
+                &["s0 s2", "s1^2", "s3^2", "s1 s0 s3 s2", "s2 s3 s0 s1"],
+            ),
+            ("22x", &["s0 s2", "s1 s3", "(s1 s2)^2", "(s2 s3)^2"]),
+            (
+                "22*",
+                &[
+                    "s0 s1",
+                    "s2^2",
+                    "s3 s4",
+                    "s5^2",
+                    "s1^2",
+                    "s2 s1 s5 s0",
+                    "s3 s5 s4 s2",
+                    "s4^2",
+                ],
+            ),
+        ];
+        for (name, expected) in cases {
+            for aspect in [1.0, 0.125, 8.0] {
+                let domain = wallpaper(name, aspect);
+                assert_eq!(
+                    presentation_texts(&domain, name),
+                    expected,
+                    "{name} at aspect {aspect}"
+                );
+            }
+        }
+    }
+
+    fn letters(relator: &escher_group::Relator) -> Vec<usize> {
+        relator
+            .base()
+            .letters()
+            .iter()
+            .map(|letter| usize::from(letter.index()))
+            .collect()
+    }
+
+    fn euclidean_residual(
+        domain: &FundamentalDomain,
+        sides: &[usize],
+        exponent: u32,
+        convention: Convention,
+    ) -> f64 {
+        let product = sides.iter().fold(DMat3::IDENTITY, |product, &side| {
+            let pairing = domain.sides[side].pairing;
+            product
+                * match convention {
+                    Convention::Inverse => pairing.inverse(),
+                    Convention::Pairing => pairing,
+                }
+        });
+        power_residual(product, exponent)
+    }
+
+    #[test]
+    fn relators_of_domains_with_glides_and_mirrors_evaluate_to_the_identity() {
+        for name in WALLPAPER_NAMES {
+            for aspect in [1.0, 0.125, 8.0] {
+                let domain = wallpaper(name, aspect);
+                let presentation = match domain.side_presentation() {
+                    Ok(presentation) => presentation,
+                    Err(error) => panic!("{name} has no side presentation: {error}"),
+                };
+                for relator in presentation.relators() {
+                    let sides = letters(relator);
+                    let largest = euclidean_residual(
+                        &domain,
+                        &sides,
+                        relator.exponent(),
+                        Convention::Inverse,
+                    );
+                    assert!(
+                        largest <= 1e-9,
+                        "{name} at aspect {aspect}, {sides:?}: {largest:e}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn long_cycle_word_of_a_chain_holds_in_walk_order_with_the_inverse_pairings() {
+        let domain = wallpaper("22*", 1.0);
+        let presentation = match domain.side_presentation() {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("22* has no side presentation: {error}"),
+        };
+        let chain = &presentation.relators()[5];
+        let sides = letters(chain);
+        assert_eq!(sides, [2, 1, 5, 0]);
+        let exponent = chain.exponent();
+        let walk = euclidean_residual(&domain, &sides, exponent, Convention::Inverse);
+        let reversed_sides: Vec<usize> = sides.iter().rev().copied().collect();
+        let reversed = euclidean_residual(&domain, &reversed_sides, exponent, Convention::Inverse);
+        let opposite = euclidean_residual(&domain, &sides, exponent, Convention::Pairing);
+        println!(
+            "chain of 22*: walk {walk:e}, reversed {reversed:e}, opposite convention {opposite:e}, tolerance {RELATOR_TOLERANCE:e}"
+        );
+        assert!(walk <= RELATOR_TOLERANCE, "{walk:e}");
+    }
+
+    #[test]
+    fn domain_with_mirrors_beside_paired_sides_whose_walk_does_not_close_gives_invalid_pairing() {
+        let mut domain = wallpaper("*x", 1.0);
+        domain.sides[0].partner = 0;
+        assert_invalid(
+            &domain,
+            "the side pairings do not close a vertex cycle",
+            "*x with side 0 as its own partner",
+        );
+        let mut domain = wallpaper("22x", 1.0);
+        domain.corners[0].order = 1;
+        assert_invalid(
+            &domain,
+            "a vertex cycle joins corners of different orders",
+            "22x with vertex 0 alone of order 1",
         );
     }
 }

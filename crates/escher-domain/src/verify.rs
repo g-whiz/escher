@@ -169,14 +169,18 @@ impl Verification {
     /// centre outside the partner side, and the values below are finite. It is
     /// also infinite unless the kind of each side agrees with its partner and
     /// its orientation: a [mirror](crate::PairingKind::Mirror) is its own
-    /// partner and reverses orientation, and a side of another kind has
-    /// another side as its partner and preserves orientation. The determinant
+    /// partner and reverses orientation, a
+    /// [glide reflection](crate::PairingKind::GlideReflection) has another
+    /// side as its partner and reverses orientation, and a side of another
+    /// kind has another side as its partner and preserves orientation. The determinant
     /// of each pairing must also be positive for a pairing that preserves
     /// orientation and negative for one that reverses it, and a side has the
     /// kind [`Translation`](crate::PairingKind::Translation) exactly when its
-    /// pairing fixes no point: in a Euclidean domain, when the linear part of
-    /// the pairing is the identity within the tolerance, and in a hyperbolic
-    /// domain, when the trace of the pairing is above 3. A spherical domain
+    /// pairing is a translation: in a Euclidean domain, when the linear part
+    /// of the pairing is the identity within the tolerance, and in a
+    /// hyperbolic domain, when the determinant of the pairing is positive and
+    /// its trace is above 3, so that a glide reflection, which also fixes no
+    /// point, is never a translation. A spherical domain
     /// has no translation. Otherwise the residual is the largest of three
     /// values, and the third applies only to a side that is not a mirror. The
     /// first is the largest entry of the product of a pairing and its
@@ -186,8 +190,11 @@ impl Verification {
     /// and its image under the pairing. For a side of another kind, the points
     /// are the image of each endpoint and the endpoint of the partner side that
     /// it must map to. Side `j` has the endpoints vertex `j - 1` and vertex
-    /// `j`, so the pairing must map vertex `j - 1` onto the second endpoint of
-    /// the partner side, and vertex `j` onto its first endpoint. The difference
+    /// `j`, so a pairing that preserves orientation must map vertex `j - 1`
+    /// onto the second endpoint of the partner side, and vertex `j` onto its
+    /// first endpoint, and a glide reflection must map vertex `j - 1` onto the
+    /// first endpoint of the partner side, and vertex `j` onto its second
+    /// endpoint. The difference
     /// is divided by the last coordinate of the endpoint in a hyperbolic or
     /// Euclidean domain. The third is the largest coordinate of the sum of the
     /// covector of the side and the covector of the partner multiplied by the
@@ -236,14 +243,21 @@ impl Verification {
     /// relator is the product of the pairings of the two sides that meet
     /// there, raised to the power `n`, and it must be the identity.
     ///
-    /// For a domain without a mirror, the pairing of the side that has a
-    /// vertex as its first endpoint carries that vertex onto a vertex of the
-    /// domain, possibly itself. The vertices that this map takes into one
-    /// another form a vertex cycle. The product of the pairings along a cycle
-    /// must fix its first vertex, and raised to the order `n` of the cycle it
-    /// must be the identity. Every vertex of a cycle must have that order. A
-    /// vertex of a double holds one corner of the domain that it doubles, or
-    /// two when it lies on the doubled wall, and the vertices of a cycle must
+    /// For a domain with a side that is not a mirror, a walk visits each
+    /// vertex from one of its two sides. From a vertex, it crosses the side
+    /// that has the vertex as its first endpoint, or as its second endpoint
+    /// when the walk arrived at the vertex in the opposite direction, applies
+    /// the pairing of that side, and moves to the vertex onto which the
+    /// pairing carries the vertex. A pairing that reverses orientation, such
+    /// as a mirror or a glide reflection, reverses the direction of the walk.
+    /// The vertices that one walk visits until it returns to its start in its
+    /// first direction form a vertex cycle, and a walk that does not return
+    /// within twice as many steps as the domain has sides breaks its
+    /// conditions. The product of the pairings along a cycle must fix its
+    /// first vertex, and raised to the order `n` of the cycle it must be the
+    /// identity. Every vertex of a cycle must have that order. A vertex of a
+    /// double holds one corner of the domain that it doubles, or two when it
+    /// lies on the doubled wall, and the vertices of a cycle of a double must
     /// hold two corners in all.
     ///
     /// The residual is the largest entry of the relator minus the identity,
@@ -253,9 +267,8 @@ impl Verification {
     /// difference between its first vertex and the image of that vertex under
     /// the product, divided by its last coordinate in a hyperbolic or
     /// Euclidean domain. The residual is infinite when a vertex is not a
-    /// point, when an entry of a relator is not finite, when a cycle breaks
-    /// one of its conditions, and for a domain with both mirrors and sides of
-    /// another kind. The tolerance is 2e-6.
+    /// point, when an entry of a relator is not finite, and when a cycle
+    /// breaks one of its conditions. The tolerance is 2e-6.
     ///
     /// In a hyperbolic domain with five or more vertices, the products of
     /// the pairings, the image of the vertex, the corner frame, and the power
@@ -276,9 +289,17 @@ impl Verification {
     /// [`FundamentalDomain::corner_angles`] measures and `pi / n`, or
     /// `2 pi / n` at such a vertex.
     ///
+    /// The double of `2222` is checked by its vertex cycles instead, as the
+    /// check of the relators walks them: the residual is the largest absolute
+    /// difference between `2 pi / n` and the sum of the angles that the walk
+    /// of a cycle of order `n` visits, which counts a vertex that the walk
+    /// visits from both of its sides twice.
+    ///
     /// The residual is infinite in these cases:
     ///
     /// - A vertex is not a point, or an angle is not finite.
+    /// - The domain is checked by its vertex cycles, and a cycle breaks one of
+    ///   the conditions of the check of the relators.
     /// - In a hyperbolic domain, the angles of a triangle sum to `pi` or more,
     ///   which no triangle of the hyperbolic plane does.
     /// - In a hyperbolic domain with `m` vertices, five or more, the corner
@@ -425,10 +446,16 @@ fn pairings(domain: &FundamentalDomain) -> f64 {
                     );
                 }
             }
-            PairingKind::Rotation | PairingKind::Translation => {
+            PairingKind::Rotation | PairingKind::Translation | PairingKind::GlideReflection => {
                 let [start, end] = endpoints(domain, index);
                 let [partner_start, partner_end] = endpoints(domain, current.partner);
-                for (image, target) in [(start, partner_end), (end, partner_start)] {
+                let targets = match current.kind {
+                    PairingKind::GlideReflection => [(start, partner_start), (end, partner_end)],
+                    PairingKind::Mirror | PairingKind::Rotation | PairingKind::Translation => {
+                        [(start, partner_end), (end, partner_start)]
+                    }
+                };
+                for (image, target) in targets {
                     numeric.push(
                         largest_coordinate(current.pairing * image - target)
                             / endpoint_scale(domain, target),
@@ -462,7 +489,9 @@ pub(crate) fn is_translation(plane: Plane, pairing: DMat3) -> bool {
             linear <= PAIRING_TOLERANCE
         }
         Plane::Hyperbolic { .. } => {
-            pairing.x_axis.x + pairing.y_axis.y + pairing.z_axis.z > HYPERBOLIC_TRANSLATION_TRACE
+            pairing.determinant() > 0.0
+                && pairing.x_axis.x + pairing.y_axis.y + pairing.z_axis.z
+                    > HYPERBOLIC_TRANSLATION_TRACE
         }
         Plane::Spherical { .. } => false,
     }
@@ -474,6 +503,7 @@ fn kind_agrees(kind: PairingKind, own_partner: bool, orientation: Orientation) -
         PairingKind::Rotation | PairingKind::Translation => {
             !own_partner && orientation == Orientation::Preserving
         }
+        PairingKind::GlideReflection => !own_partner && orientation == Orientation::Reversing,
     }
 }
 
@@ -491,7 +521,9 @@ fn walls(domain: &FundamentalDomain) -> f64 {
         }
         let mirror = match current.kind {
             PairingKind::Mirror => true,
-            PairingKind::Rotation | PairingKind::Translation => false,
+            PairingKind::Rotation | PairingKind::Translation | PairingKind::GlideReflection => {
+                false
+            }
         };
         match domain.plane {
             Plane::Hyperbolic { .. } => {
@@ -549,8 +581,7 @@ fn relators(domain: &FundamentalDomain) -> f64 {
     }
     match side_kinds(domain) {
         SideKinds::Mirrors => corner_relators(domain),
-        SideKinds::Paired => cycle_relators(domain),
-        SideKinds::Mixed => f64::INFINITY,
+        SideKinds::Paired | SideKinds::Mixed => cycle_relators(domain),
     }
 }
 
@@ -567,7 +598,9 @@ pub(crate) fn side_kinds(domain: &FundamentalDomain) -> SideKinds {
         .iter()
         .filter(|side| match side.kind {
             PairingKind::Mirror => true,
-            PairingKind::Rotation | PairingKind::Translation => false,
+            PairingKind::Rotation | PairingKind::Translation | PairingKind::GlideReflection => {
+                false
+            }
         })
         .count();
     if mirrors == domain.sides.len() {
@@ -701,14 +734,27 @@ fn is_accurate(domain: &FundamentalDomain) -> bool {
 pub(crate) struct Cycle {
     pub(crate) start: usize,
     pub(crate) order: u32,
+    pub(crate) states: Vec<State>,
     pub(crate) sides: Vec<usize>,
     pub(crate) transformation: DMat3,
 }
 
 struct Walk {
-    vertices: Vec<usize>,
+    states: Vec<State>,
     sides: Vec<usize>,
     transformation: DMat3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Direction {
+    Forward,
+    Backward,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct State {
+    pub(crate) vertex: usize,
+    pub(crate) direction: Direction,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -727,21 +773,26 @@ pub(crate) fn vertex_cycles(domain: &FundamentalDomain) -> Result<Vec<Cycle>, Cy
         }
         let walk = vertex_cycle(domain, start).ok_or(CycleDefect::Open)?;
         let order = domain.corners.get(start).ok_or(CycleDefect::Orders)?.order;
+        let mut counted = vec![false; count];
         let mut copies = 0_u32;
-        for &vertex in &walk.vertices {
+        for &State { vertex, .. } in &walk.states {
             visited[vertex] = true;
             let corner = domain.corners.get(vertex).ok_or(CycleDefect::Orders)?;
             if corner.order != order {
                 return Err(CycleDefect::Orders);
             }
-            copies = copies.saturating_add(corner.copies);
+            if !counted[vertex] {
+                counted[vertex] = true;
+                copies = copies.saturating_add(corner.copies);
+            }
         }
-        if copies != 2 {
+        if domain.closure.counts_copies() && copies != 2 {
             return Err(CycleDefect::Orders);
         }
         cycles.push(Cycle {
             start,
             order,
+            states: walk.states,
             sides: walk.sides,
             transformation: walk.transformation,
         });
@@ -750,24 +801,52 @@ pub(crate) fn vertex_cycles(domain: &FundamentalDomain) -> Result<Vec<Cycle>, Cy
 }
 
 fn vertex_cycle(domain: &FundamentalDomain, start: usize) -> Option<Walk> {
+    walk_from(
+        domain,
+        State {
+            vertex: start,
+            direction: Direction::Forward,
+        },
+    )
+}
+
+fn walk_from(domain: &FundamentalDomain, start: State) -> Option<Walk> {
     let count = domain.sides.len();
-    let mut vertices = Vec::new();
+    if start.vertex >= count {
+        return None;
+    }
+    let mut states = Vec::new();
     let mut sides = Vec::new();
     let mut transformation = DMat3::IDENTITY;
-    let mut vertex = start;
-    for _ in 0..count {
-        vertices.push(vertex);
-        let index = (vertex + 1) % count;
+    let mut state = start;
+    for _ in 0..2 * count {
+        states.push(state);
+        let index = match state.direction {
+            Direction::Forward => (state.vertex + 1) % count,
+            Direction::Backward => state.vertex,
+        };
         let side = domain.sides[index];
         sides.push(index);
         transformation = side.pairing * transformation;
-        vertex = side.partner;
-        if vertex >= count {
+        let partner = side.partner;
+        if partner >= count {
             return None;
         }
-        if vertex == start {
+        state = match (side.orientation, state.direction) {
+            (Orientation::Preserving, Direction::Forward)
+            | (Orientation::Reversing, Direction::Backward) => State {
+                vertex: partner,
+                direction: Direction::Forward,
+            },
+            (Orientation::Preserving, Direction::Backward)
+            | (Orientation::Reversing, Direction::Forward) => State {
+                vertex: (partner + count - 1) % count,
+                direction: Direction::Backward,
+            },
+        };
+        if state == start {
             return Some(Walk {
-                vertices,
+                states,
                 sides,
                 transformation,
             });
@@ -795,15 +874,27 @@ fn angles(domain: &FundamentalDomain) -> f64 {
     if !(sum_fits && polygon_fits) {
         return f64::INFINITY;
     }
-    largest(
-        polygon
-            .unwrap_or_else(|| domain.angles())
+    let angles = polygon.unwrap_or_else(|| domain.angles());
+    if domain.closure.sums_cycle_angles() {
+        return cycle_angles(domain, &angles);
+    }
+    largest(angles.iter().zip(&domain.corners).map(|(angle, corner)| {
+        (angle - f64::from(corner.copies) * PI / f64::from(corner.order)).abs()
+    }))
+}
+
+fn cycle_angles(domain: &FundamentalDomain, angles: &[f64]) -> f64 {
+    let Ok(cycles) = vertex_cycles(domain) else {
+        return f64::INFINITY;
+    };
+    largest(cycles.iter().map(|cycle| {
+        let sum: f64 = cycle
+            .states
             .iter()
-            .zip(&domain.corners)
-            .map(|(angle, corner)| {
-                (angle - f64::from(corner.copies) * PI / f64::from(corner.order)).abs()
-            }),
-    )
+            .map(|state| angles.get(state.vertex).copied().unwrap_or(f64::NAN))
+            .sum();
+        (sum - 2.0 * PI / f64::from(cycle.order)).abs()
+    }))
 }
 
 fn area(domain: &FundamentalDomain) -> f64 {
@@ -832,11 +923,15 @@ mod tests {
     use escher_signature::Signature;
     use glam::{DVec2, DVec3};
 
-    use super::{ANGLE_TOLERANCE, AREA_TOLERANCE, Check, Verification, vertex_cycle};
+    use super::{
+        ANGLE_TOLERANCE, AREA_TOLERANCE, Check, Direction, State, Verification, angles,
+        is_translation, vertex_cycle, vertex_cycles, walk_from,
+    };
     use crate::domain::{
-        Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side, triangle_angles,
+        Closure, Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side, triangle_angles,
     };
     use crate::double::double;
+    use crate::fixtures::{WALLPAPER_NAMES, glide, half_turn, wallpaper};
     use crate::polygon::Polygon;
     use crate::reference::{Reference, Worst, add, div, error, int, mul, num, sqrt, sub};
     use crate::shared::{built, signature};
@@ -889,6 +984,7 @@ mod tests {
             sides: triangle.sides.to_vec(),
             vertices: triangle.vertices.to_vec(),
             centre: triangle.centre,
+            closure: Closure::PerVertex,
         }
     }
 
@@ -1303,6 +1399,7 @@ mod tests {
             sides: polygon.sides,
             vertices: polygon.vertices,
             centre: polygon.centre,
+            closure: Closure::PerVertex,
         }
     }
 
@@ -1463,8 +1560,9 @@ mod tests {
             sides: polygon.sides,
             vertices: polygon.vertices,
             centre: polygon.centre,
+            closure: Closure::PerVertex,
         };
-        match double(&generating, plane) {
+        match double(&generating, plane, Closure::PerVertex) {
             Ok(double) => double,
             Err(error) => panic!("{orders:?} has no double: {error}"),
         }
@@ -1519,7 +1617,8 @@ mod tests {
                 let Some(cycle) = vertex_cycle(&double, start) else {
                     panic!("{text}: the walk from vertex {start} does not return");
                 };
-                let mut vertices = cycle.vertices;
+                let mut vertices: Vec<usize> =
+                    cycle.states.iter().map(|state| state.vertex).collect();
                 for &vertex in &vertices {
                     visited[vertex] = true;
                 }
@@ -1544,10 +1643,9 @@ mod tests {
             corrupted.sides[0].kind = PairingKind::Mirror;
             assert_failed(
                 &corrupted,
-                &["pairings", "walls", "relators"],
+                &["pairings", "walls"],
                 "side 0 labelled as a mirror",
             );
-            assert_eq!(corrupted.verify().relators().residual(), f64::INFINITY);
         }
     }
 
@@ -1812,6 +1910,7 @@ mod tests {
             sides,
             vertices,
             centre,
+            closure: Closure::PerVertex,
         }
     }
 
@@ -1882,7 +1981,11 @@ mod tests {
         let Plane::Hyperbolic { area } = polygon.plane else {
             panic!("the polygon is not hyperbolic");
         };
-        match double(polygon, Plane::Hyperbolic { area: 2.0 * area }) {
+        match double(
+            polygon,
+            Plane::Hyperbolic { area: 2.0 * area },
+            Closure::PerVertex,
+        ) {
             Ok(domain) => domain,
             Err(error) => panic!("the polygon has no double: {error}"),
         }
@@ -2205,5 +2308,392 @@ mod tests {
     #[test]
     fn verify_reports_infinite_residuals_for_a_nan_vertex_of_a_built_polygon() {
         assert_nan_vertex_fails(built_polygons());
+    }
+
+    const WALLPAPER_ASPECTS: [f64; 3] = [1.0, 0.125, 8.0];
+
+    type ExpectedCycle = (usize, u32, &'static str, &'static [usize]);
+
+    fn flipped(state: State) -> State {
+        State {
+            vertex: state.vertex,
+            direction: match state.direction {
+                Direction::Forward => Direction::Backward,
+                Direction::Backward => Direction::Forward,
+            },
+        }
+    }
+
+    fn text_of(states: &[State]) -> String {
+        states
+            .iter()
+            .map(|state| {
+                let direction = match state.direction {
+                    Direction::Forward => '+',
+                    Direction::Backward => '-',
+                };
+                format!("({}{direction})", state.vertex)
+            })
+            .collect::<Vec<_>>()
+            .concat()
+    }
+
+    #[test]
+    fn walk_finds_the_states_of_hand_built_domains_with_glides_and_mirrors() {
+        let cases: [(&str, &[ExpectedCycle]); 5] = [
+            (
+                "**",
+                &[
+                    (0, 1, "(0+)(0-)(1-)(1+)", &[1, 0, 1, 2]),
+                    (2, 1, "(2+)(2-)(3-)(3+)", &[3, 2, 3, 0]),
+                ],
+            ),
+            ("xx", &[(0, 1, "(0+)(3+)(1-)(2-)", &[1, 0, 1, 2])]),
+            (
+                "*x",
+                &[
+                    (0, 1, "(0+)(0-)(2+)(2-)", &[1, 0, 3, 2]),
+                    (1, 1, "(1+)(3-)(3+)(1-)", &[2, 3, 0, 1]),
+                ],
+            ),
+            (
+                "22x",
+                &[(0, 2, "(0+)(2-)", &[1, 2]), (1, 2, "(1+)(3-)", &[2, 3])],
+            ),
+            (
+                "22*",
+                &[
+                    (0, 2, "(0+)", &[1]),
+                    (1, 1, "(1+)(1-)(5-)(5+)", &[2, 1, 5, 0]),
+                    (2, 1, "(2+)(4+)(4-)(2-)", &[3, 5, 4, 2]),
+                    (3, 2, "(3+)", &[4]),
+                ],
+            ),
+        ];
+        for (name, expected) in cases {
+            let domain = wallpaper(name, 1.0);
+            let cycles = match vertex_cycles(&domain) {
+                Ok(cycles) => cycles,
+                Err(defect) => panic!("{name}: the walk fails with {defect:?}"),
+            };
+            let found: Vec<(usize, u32, String, Vec<usize>)> = cycles
+                .iter()
+                .map(|cycle| {
+                    (
+                        cycle.start,
+                        cycle.order,
+                        text_of(&cycle.states),
+                        cycle.sides.clone(),
+                    )
+                })
+                .collect();
+            let expected: Vec<(usize, u32, String, Vec<usize>)> = expected
+                .iter()
+                .map(|&(start, order, states, sides)| {
+                    (start, order, states.to_owned(), sides.to_vec())
+                })
+                .collect();
+            assert_eq!(found, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn walk_covers_each_state_once_with_its_flip_on_hand_built_domains() {
+        for name in WALLPAPER_NAMES {
+            for aspect in WALLPAPER_ASPECTS {
+                let domain = wallpaper(name, aspect);
+                let count = domain.sides.len();
+                let cycles = match vertex_cycles(&domain) {
+                    Ok(cycles) => cycles,
+                    Err(defect) => panic!("{name} at {aspect}: the walk fails with {defect:?}"),
+                };
+                let index = |state: State| {
+                    2 * state.vertex
+                        + match state.direction {
+                            Direction::Forward => 0,
+                            Direction::Backward => 1,
+                        }
+                };
+                let mut visits = vec![0_u32; 2 * count];
+                for cycle in &cycles {
+                    let case = format!("{name} at {aspect}, cycle from {}", cycle.start);
+                    let flipped_start = flipped(cycle.states[0]);
+                    let Some(reverse) = walk_from(&domain, flipped_start) else {
+                        panic!("{case}: the walk from the flipped start does not return");
+                    };
+                    let mut expected = vec![flipped_start];
+                    expected.extend(cycle.states[1..].iter().rev().map(|&state| flipped(state)));
+                    assert_eq!(reverse.states, expected, "{case}");
+                    for &state in &cycle.states {
+                        visits[index(state)] += 1;
+                    }
+                    let is_chain = cycle
+                        .states
+                        .iter()
+                        .all(|&state| cycle.states.contains(&flipped(state)));
+                    let overlaps = cycle
+                        .states
+                        .iter()
+                        .any(|&state| cycle.states.contains(&flipped(state)));
+                    assert_eq!(is_chain, overlaps, "{case}");
+                    if !is_chain {
+                        for &state in &reverse.states {
+                            visits[index(state)] += 1;
+                        }
+                    }
+                }
+                assert_eq!(visits, vec![1; 2 * count], "{name} at {aspect}");
+                let mut characteristic = 1.0;
+                for _ in &domain.sides {
+                    characteristic -= 0.5;
+                }
+                for cycle in &cycles {
+                    let chain = cycle
+                        .sides
+                        .iter()
+                        .any(|&side| domain.sides[side].kind == PairingKind::Mirror);
+                    let share = if chain { 0.5 } else { 1.0 };
+                    characteristic += share / f64::from(cycle.order);
+                }
+                assert!(
+                    characteristic.abs() <= 1e-15,
+                    "{name} at {aspect}: {characteristic}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn hyperbolic_glide_reflection_is_not_a_translation() {
+        for length in [0.5_f64, 1.317, 2.0, 5.0] {
+            let along = glam::DMat3::from_cols(
+                DVec3::new(length.cosh(), 0.0, length.sinh()),
+                DVec3::Y,
+                DVec3::new(length.sinh(), 0.0, length.cosh()),
+            );
+            let glide = along * glam::DMat3::from_diagonal(DVec3::new(1.0, -1.0, 1.0));
+            let defect = escher_geometry::hyperbolic::isometry_defect(glide);
+            let trace = glide.x_axis.x + glide.y_axis.y + glide.z_axis.z;
+            println!(
+                "glide reflection of length {length}: trace {trace}, isometry defect {defect:e}"
+            );
+            assert!(defect <= 1e-9, "{length}: {defect:e}");
+            let plane = Plane::Hyperbolic { area: 1.0 };
+            assert_eq!(
+                trace > 3.0,
+                length > 2.0_f64.acosh(),
+                "{length}: trace {trace}"
+            );
+            assert!(!is_translation(plane, glide), "{length}: trace {trace}");
+            assert!(is_translation(plane, along), "{length}");
+        }
+    }
+
+    #[test]
+    fn verify_passes_on_hand_built_domains_with_glides_and_mirrors() {
+        for name in WALLPAPER_NAMES {
+            for aspect in WALLPAPER_ASPECTS {
+                let verification = wallpaper(name, aspect).verify();
+                assert!(
+                    failed(&verification).is_empty(),
+                    "{name} at {aspect}: {verification:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_glides_labelled_as_translations() {
+        let mut corrupted = wallpaper("xx", 1.0);
+        for index in [0, 2] {
+            corrupted.sides[index].kind = PairingKind::Translation;
+        }
+        assert_infinite_failures(&corrupted, &["pairings"], "glides labelled Translation");
+    }
+
+    #[test]
+    fn verify_fails_on_a_glide_replaced_by_the_translation_with_its_vector() {
+        let mut corrupted = wallpaper("xx", 1.0);
+        let vector = corrupted.sides[0].pairing.z_axis;
+        corrupted.sides[0].pairing = euclidean::translation(vector);
+        assert_failed(
+            &corrupted,
+            &["pairings", "relators"],
+            "glide of side 0 replaced by a translation",
+        );
+    }
+
+    #[test]
+    fn verify_fails_on_glides_given_the_orientation_preserving() {
+        let mut corrupted = wallpaper("xx", 1.0);
+        for index in [0, 2] {
+            corrupted.sides[index].orientation = Orientation::Preserving;
+        }
+        assert_failed(
+            &corrupted,
+            &["pairings", "relators"],
+            "glides given the orientation Preserving",
+        );
+    }
+
+    #[test]
+    fn verify_fails_on_a_glide_that_exchanges_the_endpoints_of_its_side() {
+        let mut corrupted = wallpaper("xx", 1.0);
+        let midline = glide((0.0, 0.0), DVec3::Y);
+        let [start, end] = [corrupted.vertices[3], corrupted.vertices[0]];
+        assert_eq!(
+            [midline * start, midline * end],
+            [corrupted.vertices[2], corrupted.vertices[1]]
+        );
+        corrupted.sides[0].pairing = midline;
+        corrupted.sides[2].pairing = midline;
+        let verification = corrupted.verify();
+        assert!(!verification.passed(), "{verification:?}");
+        assert_eq!(verification.pairings().residual(), f64::INFINITY);
+    }
+
+    #[test]
+    fn verify_measures_a_glide_that_misses_its_partner_side() {
+        const SHIFT: f64 = 1e-3;
+        let mut corrupted = wallpaper("xx", 1.0);
+        let height = corrupted.vertices[1].y - corrupted.vertices[0].y;
+        corrupted.sides[0].pairing = glide((0.0, height + SHIFT), DVec3::X);
+        corrupted.sides[2].pairing = glide((0.0, -height - SHIFT), DVec3::X);
+        let pairings = corrupted.verify().pairings();
+        println!("glide shifted by {SHIFT:e} along its axis: {pairings:?}");
+        assert!(!pairings.passed(), "{pairings:?}");
+        assert!((pairings.residual() - SHIFT).abs() <= 1e-12, "{pairings:?}");
+    }
+
+    #[test]
+    fn verify_fails_on_a_mirror_labelled_as_a_glide() {
+        let mut corrupted = wallpaper("*x", 1.0);
+        corrupted.sides[1].kind = PairingKind::GlideReflection;
+        assert_infinite_failures(&corrupted, &["pairings"], "mirror labelled GlideReflection");
+    }
+
+    #[test]
+    fn verify_fails_on_a_mirror_given_the_orientation_preserving() {
+        let mut corrupted = wallpaper("*x", 1.0);
+        corrupted.sides[1].orientation = Orientation::Preserving;
+        assert_failed(
+            &corrupted,
+            &["pairings", "angles"],
+            "mirror given the orientation Preserving",
+        );
+    }
+
+    #[test]
+    fn verify_fails_on_half_turn_halves_merged_into_a_side_that_is_its_own_partner() {
+        let mut corrupted = wallpaper("22*", 1.0);
+        corrupted.vertices.remove(0);
+        corrupted.corners.remove(0);
+        let merged = Side {
+            partner: 0,
+            ..corrupted.sides[0]
+        };
+        corrupted.sides.remove(0);
+        corrupted.sides[0] = merged;
+        for side in corrupted.sides.iter_mut().skip(1) {
+            side.partner -= 1;
+        }
+        assert_failed(&corrupted, &["pairings"], "sides 0 and 1 merged");
+    }
+
+    #[test]
+    fn verify_fails_on_a_half_turn_about_the_wrong_vertex() {
+        let mut corrupted = wallpaper("22*", 1.0);
+        corrupted.sides[0].pairing = half_turn(corrupted.vertices[3]);
+        assert_failed(
+            &corrupted,
+            &["pairings", "relators"],
+            "half-turn of side 0 about vertex 3",
+        );
+    }
+
+    #[test]
+    fn verify_fails_on_a_cycle_of_glides_with_the_wrong_order() {
+        for (order, expected) in [(1, &["relators", "angles"][..]), (4, &["angles"][..])] {
+            let mut corrupted = wallpaper("22x", 1.0);
+            for vertex in [0, 2] {
+                corrupted.corners[vertex].order = order;
+            }
+            assert_failed(
+                &corrupted,
+                expected,
+                &format!("cycle of vertices 0 and 2 of order {order}"),
+            );
+        }
+    }
+
+    #[test]
+    fn walk_gives_infinite_relator_and_angle_residuals_for_a_cycle_of_unequal_orders() {
+        let mut corrupted = wallpaper("22x", 1.0);
+        corrupted.corners[0].order = 1;
+        assert_infinite_failures(
+            &corrupted,
+            &["relators", "angles"],
+            "vertex 0 alone of order 1",
+        );
+    }
+
+    #[test]
+    fn walk_counts_copies_for_doubles_only() {
+        for text in ["732", "442", "2222", "22", "3333"] {
+            let domain = built(text);
+            assert!(domain.closure.counts_copies(), "{text}");
+            let mut wallpaper = domain.clone();
+            wallpaper.closure = Closure::Wallpaper;
+            wallpaper.corners[0].copies = 1;
+            assert!(vertex_cycles(&wallpaper).is_ok(), "{text}");
+            let mut double = domain;
+            double.corners[0].copies = 1;
+            assert!(vertex_cycles(&double).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn only_the_double_of_2222_sums_the_angles_of_its_cycles() {
+        assert_eq!(built("2222").closure, Closure::DoubleByCycles);
+        for text in ["*2222", "*732", "732", "442", "532", "22", "3333", "*3333"] {
+            assert_eq!(built(text).closure, Closure::PerVertex, "{text}");
+        }
+        for name in WALLPAPER_NAMES {
+            assert_eq!(wallpaper(name, 1.0).closure, Closure::Wallpaper, "{name}");
+        }
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the interpreter rounds each inverse cosine differently, so the two sums can differ in the last bit"
+    )]
+    fn angles_of_2222_by_its_cycles_equal_those_by_its_vertices() {
+        let mut aspects = vec![0.125, 1.0, 1.618, 8.0];
+        aspects.extend((0..=64).map(|step| 0.125 * 64.0_f64.powf(f64::from(step) / 64.0)));
+        for aspect in aspects {
+            let mut settings = crate::ShapeParameters::new();
+            settings.set("aspect", aspect);
+            let domain = match FundamentalDomain::build_with(&signature("2222"), &settings) {
+                Ok(domain) => domain,
+                Err(error) => panic!("2222 at aspect {aspect} has no domain: {error}"),
+            };
+            assert_eq!(domain.closure, Closure::DoubleByCycles, "{aspect}");
+            let by_vertex = FundamentalDomain {
+                closure: Closure::PerVertex,
+                ..domain.clone()
+            };
+            let (cycles, vertices) = (angles(&domain), angles(&by_vertex));
+            assert_eq!(
+                cycles.to_bits(),
+                vertices.to_bits(),
+                "{aspect}: {cycles:e} and {vertices:e}"
+            );
+            assert_eq!(
+                domain.verify().angles().residual().to_bits(),
+                cycles.to_bits(),
+                "{aspect}"
+            );
+        }
     }
 }

@@ -88,6 +88,34 @@ pub struct FundamentalDomain {
     pub(crate) sides: Vec<Side>,
     pub(crate) vertices: Vec<DVec3>,
     pub(crate) centre: DVec3,
+    pub(crate) closure: Closure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Closure {
+    PerVertex,
+    DoubleByCycles,
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "only the unit tests build a wallpaper domain")
+    )]
+    Wallpaper,
+}
+
+impl Closure {
+    pub(crate) const fn counts_copies(self) -> bool {
+        match self {
+            Self::PerVertex | Self::DoubleByCycles => true,
+            Self::Wallpaper => false,
+        }
+    }
+
+    pub(crate) const fn sums_cycle_angles(self) -> bool {
+        match self {
+            Self::PerVertex => false,
+            Self::DoubleByCycles | Self::Wallpaper => true,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,6 +177,17 @@ fn plane(shape: Shape) -> Plane {
         Shape::SphericalTriangle { area, .. } | Shape::Lune { area, .. } => {
             Plane::Spherical { area }
         }
+    }
+}
+
+fn double_closure(shape: Shape) -> Closure {
+    match shape {
+        Shape::Rectangle => Closure::DoubleByCycles,
+        Shape::HyperbolicTriangle { .. }
+        | Shape::HyperbolicPolygon { .. }
+        | Shape::EuclideanTriangle { .. }
+        | Shape::SphericalTriangle { .. }
+        | Shape::Lune { .. } => Closure::PerVertex,
     }
 }
 
@@ -291,6 +330,7 @@ impl FundamentalDomain {
             Supported::Rotation(shape) => double(
                 &Self::reflection(shape.with_half_area(), cuts.as_ref(), &values)?,
                 plane(shape),
+                double_closure(shape),
             )?,
         };
         let guarded = matches!(supported.shape(), Shape::HyperbolicPolygon { .. });
@@ -330,6 +370,7 @@ impl FundamentalDomain {
             sides: polygon.sides,
             vertices: polygon.vertices,
             centre: polygon.centre,
+            closure: Closure::PerVertex,
         })
     }
 
@@ -510,11 +551,12 @@ impl FundamentalDomain {
     /// Returns whether the pairing isometry of some side reverses
     /// orientation.
     ///
-    /// It is true for a domain whose sides are mirrors, and false for the
-    /// domain of a signature without mirrors, such as `732`, whose pairings
-    /// are all rotations or translations. Only a domain for which it is true
-    /// can be coloured by whether a tile is an even or an odd number of
-    /// reflections away from the domain.
+    /// It is true for a domain with a mirror side or a side paired by a
+    /// [glide reflection](PairingKind::GlideReflection), because both reverse
+    /// orientation, and false for a domain whose pairings are all rotations or
+    /// translations, such as the double of `732`. Only a domain for which it
+    /// is true can be coloured by whether a tile is reached from the domain by
+    /// an even or an odd number of pairings that reverse orientation.
     ///
     /// # Examples
     ///
@@ -574,13 +616,16 @@ impl FundamentalDomain {
     /// of each generator in side order, such as `s0^2`, followed by
     /// `(sj sk)^n` for each corner `j` in corner order, where side `k` is the
     /// side that follows side `j`, wrapping around at the last side, and `n`
-    /// is the order of the corner. For a domain whose sides are paired with
-    /// other sides, the relators are `si sp` for each side `i` whose partner
-    /// `p` is larger, followed by one relator for each vertex cycle, a set of
+    /// is the order of the corner. For a domain with a side that is paired
+    /// with another side, the relators are, for each side `i` in side order,
+    /// `si^2` when the side is a mirror and `si sp` when its partner `p` is
+    /// larger, followed by one relator for each vertex cycle, a set of
     /// vertices that the side pairings join. The base of a cycle relator is
     /// the generators of the sides that a walk around the cycle crosses, in
     /// the order in which it crosses them, and its exponent is the order of
-    /// the cycle. The method changes nothing and never panics.
+    /// the cycle. A walk that passes a mirror crosses it once in each
+    /// direction, so the generator of a mirror can occur twice in one base.
+    /// The method changes nothing and never panics.
     ///
     /// # Examples
     ///
@@ -605,12 +650,13 @@ impl FundamentalDomain {
     ///
     /// Returns an [`Error`](crate::Error) of kind
     /// [`ErrorKind::InvalidPairing`](crate::ErrorKind::InvalidPairing) when the
-    /// domain has both mirror sides and paired sides, when it has a different
-    /// number of corners than of sides, when it has more than 256 sides, when
-    /// the side pairings do not lead around a vertex back to it, when the
-    /// corners of a vertex cycle differ in order or do not join two corners of
-    /// the reflection domain in total, or when the relators do not form a
-    /// valid presentation. The causes are checked in this order.
+    /// domain has a different number of corners than of sides, when it has
+    /// more than 256 sides, when the side pairings do not lead around a vertex
+    /// back to it within twice as many steps as the domain has sides, when the
+    /// corners of a vertex cycle differ in order, when the corners of a vertex
+    /// cycle of a double do not join two corners of the reflection domain in
+    /// total, or when the relators do not form a valid presentation. The
+    /// causes are checked in this order.
     /// No domain that [`FundamentalDomain::build`] or
     /// [`FundamentalDomain::build_with`] returns gives this error.
     pub fn side_presentation(&self) -> Result<escher_group::Presentation> {
@@ -665,7 +711,9 @@ impl FundamentalDomain {
                         let (normal, other) = (first.normal, second.normal);
                         let angle = match first.kind {
                             PairingKind::Mirror => (-normal.dot(other)).clamp(-1.0, 1.0).acos(),
-                            PairingKind::Rotation | PairingKind::Translation => {
+                            PairingKind::Rotation
+                            | PairingKind::Translation
+                            | PairingKind::GlideReflection => {
                                 normal.cross(other).length().atan2(-normal.dot(other))
                             }
                         };
@@ -807,9 +855,12 @@ impl Side {
     /// Returns the index of the side onto which the pairing isometry maps
     /// this side.
     ///
-    /// A mirror side is its own partner. A side of a double has another side
-    /// as its partner, and its pairing isometry maps it onto that side with
-    /// the endpoints exchanged.
+    /// A mirror side is its own partner. Every other side has another side as
+    /// its partner. A pairing isometry that preserves orientation, such as
+    /// that of a side of a double, maps the side onto its partner with the
+    /// endpoints exchanged, and a
+    /// [glide reflection](PairingKind::GlideReflection) maps it with the
+    /// endpoints in the same order.
     #[must_use]
     pub fn partner(self) -> usize {
         self.partner
@@ -824,8 +875,8 @@ impl Side {
     /// Returns whether the pairing isometry preserves or reverses
     /// orientation.
     ///
-    /// A reflection reverses orientation, and a rotation or a translation
-    /// preserves it.
+    /// A reflection and a glide reflection reverse orientation, and a
+    /// rotation or a translation preserves it.
     #[must_use]
     pub fn orientation(self) -> Orientation {
         self.orientation
@@ -862,6 +913,11 @@ pub enum PairingKind {
     /// the common perpendicular of the two walls that do not meet, whose
     /// reflections the translation composes.
     Translation,
+    /// The pairing isometry is a glide reflection, the reflection in a line
+    /// followed by a translation along that line, which maps the side onto its
+    /// partner, another side of the domain. It reverses orientation and fixes
+    /// no point.
+    GlideReflection,
 }
 
 /// Whether an isometry preserves or reverses orientation, the sense in which
