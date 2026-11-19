@@ -17,9 +17,14 @@
 //! domain and draws borders only on its own sides, and [`Fill::Parity`] gives
 //! every tile its first colour.
 //! It can also be the domain of the Euclidean signature `o`, a parallelogram
-//! whose opposite sides are paired by translations, or of `**`, a rectangle
-//! with two mirror sides and two sides paired by a translation. Each is drawn
-//! in the view of the Euclidean plane, with borders on all of its sides. For
+//! whose opposite sides are paired by translations, of `**`, a rectangle
+//! with two mirror sides and two sides paired by a translation, of `xx`, a
+//! rectangle whose sides are paired by glide reflections and by translations,
+//! of `*x`, a rectangle with two mirror sides and two sides paired by a glide
+//! reflection, or of `22x`, a rectangle whose sides are paired by glide
+//! reflections. Each is drawn in the view of the Euclidean plane, with borders
+//! on all of its sides. A glide reflection reverses orientation, so
+//! [`Fill::Parity`] gives its two colours across a side paired by one. For
 //! `o`, which has no reversing side, [`Fill::Parity`] gives every tile its
 //! first colour.
 //!

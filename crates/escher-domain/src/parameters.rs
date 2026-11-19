@@ -57,8 +57,8 @@ impl Parameter {
 /// through [`ShapeParameters`]. The rectangle of `*2222` has the one parameter
 /// `aspect`, the length of its side 0 divided by the length of its side 1.
 /// The domain of `2222` is two such rectangles side by side, and its parameter
-/// `aspect` is that of each rectangle. The rectangle of `**` has the same
-/// parameter `aspect`. The parallelogram of `o` has `aspect` and then `skew`,
+/// `aspect` is that of each rectangle. The rectangles of `**`, `xx`, `*x`,
+/// and `22x` have the same parameter `aspect`. The parallelogram of `o` has `aspect` and then `skew`,
 /// from -0.5 to 0.5 with the default 0. Its first lattice vector is
 /// `(w, 0)` and its second `(skew * w, 1 / w)`, with `w` the square root of
 /// `aspect`, so `skew` is the first coordinate of the second vector divided by

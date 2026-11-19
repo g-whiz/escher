@@ -291,8 +291,8 @@ impl Verification {
     /// [`FundamentalDomain::corner_angles`] measures and `pi / n`, or
     /// `2 pi / n` at such a vertex.
     ///
-    /// The double of `2222` and the wallpaper domains, those of `o` and `**`,
-    /// are checked by their vertex cycles instead, as the check of the relators walks them:
+    /// The double of `2222` and the wallpaper domains, those of `o`, `**`,
+    /// `xx`, `*x`, and `22x`, are checked by their vertex cycles instead, as the check of the relators walks them:
     /// the residual is the largest absolute difference between `2 pi / n` and
     /// the sum of the angles that the walk of a cycle of order `n` visits,
     /// which counts a vertex that the walk visits from both of its sides
@@ -928,17 +928,17 @@ mod tests {
     use glam::{DVec2, DVec3};
 
     use super::{
-        ANGLE_TOLERANCE, AREA_TOLERANCE, Check, Direction, State, Verification, angles,
+        ANGLE_TOLERANCE, AREA_TOLERANCE, Check, Cycle, Direction, State, Verification, angles,
         is_translation, vertex_cycle, vertex_cycles, walk_from,
     };
     use crate::domain::{
         Closure, Corner, FundamentalDomain, Orientation, PairingKind, Plane, Side, triangle_angles,
     };
     use crate::double::double;
-    use crate::fixtures::{WALLPAPER_NAMES, glide, half_turn, wallpaper};
+    use crate::fixtures::{half_turn, two_two_mirror};
     use crate::polygon::Polygon;
     use crate::reference::{Reference, Worst, add, div, error, int, mul, num, sqrt, sub};
-    use crate::shared::{built, signature};
+    use crate::shared::{built, built_with_aspect, signature};
     use crate::triangle::{Shape, Supported, construct, supported};
 
     const BASES: [[u32; 3]; 3] = [[7, 3, 2], [4, 4, 4], [1000, 3, 2]];
@@ -2326,63 +2326,61 @@ mod tests {
             .concat()
     }
 
+    fn assert_cycles(
+        domain: &FundamentalDomain,
+        expected: &[ExpectedCycle],
+        label: &str,
+    ) -> Vec<Cycle> {
+        let cycles = match vertex_cycles(domain) {
+            Ok(cycles) => cycles,
+            Err(defect) => panic!("{label}: the walk fails with {defect:?}"),
+        };
+        let found: Vec<(usize, u32, String, Vec<usize>)> = cycles
+            .iter()
+            .map(|cycle| {
+                (
+                    cycle.start,
+                    cycle.order,
+                    text_of(&cycle.states),
+                    cycle.sides.clone(),
+                )
+            })
+            .collect();
+        let expected: Vec<(usize, u32, String, Vec<usize>)> = expected
+            .iter()
+            .map(|&(start, order, states, sides)| (start, order, states.to_owned(), sides.to_vec()))
+            .collect();
+        assert_eq!(found, expected, "{label}");
+        cycles
+    }
+
+    const KLEIN_BOTTLE_CYCLES: &[ExpectedCycle] = &[(0, 1, "(0+)(3+)(1-)(2-)", &[1, 0, 1, 2])];
+
+    const MOBIUS_STRIP_CYCLES: &[ExpectedCycle] = &[
+        (0, 1, "(0+)(0-)(2+)(2-)", &[1, 0, 3, 2]),
+        (1, 1, "(1+)(3-)(3+)(1-)", &[2, 3, 0, 1]),
+    ];
+
+    const TWO_TWO_CROSS_CAP_CYCLES: &[ExpectedCycle] =
+        &[(0, 2, "(0+)(2-)", &[1, 2]), (1, 2, "(1+)(3-)", &[2, 3])];
+
+    const ANNULUS_CYCLES: &[ExpectedCycle] = &[
+        (0, 1, "(0+)(0-)(1-)(1+)", &[1, 0, 1, 2]),
+        (2, 1, "(2+)(2-)(3-)(3+)", &[3, 2, 3, 0]),
+    ];
+
     #[test]
-    fn walk_finds_the_states_of_hand_built_domains_with_glides_and_mirrors() {
-        let cases: [(&str, &[ExpectedCycle]); 5] = [
-            (
-                "**",
-                &[
-                    (0, 1, "(0+)(0-)(1-)(1+)", &[1, 0, 1, 2]),
-                    (2, 1, "(2+)(2-)(3-)(3+)", &[3, 2, 3, 0]),
-                ],
-            ),
-            ("xx", &[(0, 1, "(0+)(3+)(1-)(2-)", &[1, 0, 1, 2])]),
-            (
-                "*x",
-                &[
-                    (0, 1, "(0+)(0-)(2+)(2-)", &[1, 0, 3, 2]),
-                    (1, 1, "(1+)(3-)(3+)(1-)", &[2, 3, 0, 1]),
-                ],
-            ),
-            (
-                "22x",
-                &[(0, 2, "(0+)(2-)", &[1, 2]), (1, 2, "(1+)(3-)", &[2, 3])],
-            ),
-            (
-                "22*",
-                &[
-                    (0, 2, "(0+)", &[1]),
-                    (1, 1, "(1+)(1-)(5-)(5+)", &[2, 1, 5, 0]),
-                    (2, 1, "(2+)(4+)(4-)(2-)", &[3, 5, 4, 2]),
-                    (3, 2, "(3+)", &[4]),
-                ],
-            ),
-        ];
-        for (name, expected) in cases {
-            let domain = wallpaper(name, 1.0);
-            let cycles = match vertex_cycles(&domain) {
-                Ok(cycles) => cycles,
-                Err(defect) => panic!("{name}: the walk fails with {defect:?}"),
-            };
-            let found: Vec<(usize, u32, String, Vec<usize>)> = cycles
-                .iter()
-                .map(|cycle| {
-                    (
-                        cycle.start,
-                        cycle.order,
-                        text_of(&cycle.states),
-                        cycle.sides.clone(),
-                    )
-                })
-                .collect();
-            let expected: Vec<(usize, u32, String, Vec<usize>)> = expected
-                .iter()
-                .map(|&(start, order, states, sides)| {
-                    (start, order, states.to_owned(), sides.to_vec())
-                })
-                .collect();
-            assert_eq!(found, expected, "{name}");
-        }
+    fn walk_finds_the_states_of_the_hand_built_domain_of_22_mirror() {
+        assert_cycles(
+            &two_two_mirror(1.0),
+            &[
+                (0, 2, "(0+)", &[1]),
+                (1, 1, "(1+)(1-)(5-)(5+)", &[2, 1, 5, 0]),
+                (2, 1, "(2+)(4+)(4-)(2-)", &[3, 5, 4, 2]),
+                (3, 2, "(3+)", &[4]),
+            ],
+            "22*",
+        );
     }
 
     fn assert_each_state_is_covered_once(domain: &FundamentalDomain, label: &str) {
@@ -2443,72 +2441,28 @@ mod tests {
     }
 
     #[test]
-    fn walk_covers_each_state_once_with_its_flip_on_hand_built_domains() {
-        for name in WALLPAPER_NAMES {
-            for aspect in WALLPAPER_ASPECTS {
-                assert_each_state_is_covered_once(
-                    &wallpaper(name, aspect),
-                    &format!("{name} at {aspect}"),
-                );
-            }
+    fn walk_covers_each_state_once_with_its_flip_on_the_hand_built_domain_of_22_mirror() {
+        for aspect in WALLPAPER_ASPECTS {
+            assert_each_state_is_covered_once(&two_two_mirror(aspect), &format!("22* at {aspect}"));
         }
     }
 
-    fn built_wallpaper(text: &str, aspect: f64, skew: Option<f64>) -> FundamentalDomain {
-        let mut settings = crate::ShapeParameters::new();
-        settings.set("aspect", aspect);
-        if let Some(skew) = skew {
-            settings.set("skew", skew);
-        }
-        match FundamentalDomain::build_with(&signature(text), &settings) {
-            Ok(domain) => domain,
-            Err(error) => panic!("{text} at {aspect} and {skew:?} has no domain: {error}"),
-        }
-    }
+    const TORUS_CYCLES: &[ExpectedCycle] = &[(0, 1, "(0+)(3+)(2+)(1+)", &[1, 0, 3, 2])];
 
     #[test]
-    fn walk_finds_the_cycles_of_the_built_torus_and_annulus() {
-        let cases: [(&str, Option<f64>, &[ExpectedCycle]); 3] = [
-            ("o", Some(0.0), &[(0, 1, "(0+)(3+)(2+)(1+)", &[1, 0, 3, 2])]),
-            (
-                "o",
-                Some(0.25),
-                &[(0, 1, "(0+)(3+)(2+)(1+)", &[1, 0, 3, 2])],
-            ),
-            (
-                "**",
-                None,
-                &[
-                    (0, 1, "(0+)(0-)(1-)(1+)", &[1, 0, 1, 2]),
-                    (2, 1, "(2+)(2-)(3-)(3+)", &[3, 2, 3, 0]),
-                ],
-            ),
+    fn walk_finds_the_cycles_of_the_built_wallpaper_domains() {
+        let cases: [(&str, Option<f64>, &[ExpectedCycle]); 6] = [
+            ("o", Some(0.0), TORUS_CYCLES),
+            ("o", Some(0.25), TORUS_CYCLES),
+            ("**", None, ANNULUS_CYCLES),
+            ("xx", None, KLEIN_BOTTLE_CYCLES),
+            ("*x", None, MOBIUS_STRIP_CYCLES),
+            ("22x", None, TWO_TWO_CROSS_CAP_CYCLES),
         ];
         for (text, skew, expected) in cases {
-            let domain = built_wallpaper(text, 1.0, skew);
+            let domain = built_with_aspect(text, 1.0, skew);
             assert_eq!(domain.closure, Closure::Wallpaper, "{text}");
-            let cycles = match vertex_cycles(&domain) {
-                Ok(cycles) => cycles,
-                Err(defect) => panic!("{text}: the walk fails with {defect:?}"),
-            };
-            let found: Vec<(usize, u32, String, Vec<usize>)> = cycles
-                .iter()
-                .map(|cycle| {
-                    (
-                        cycle.start,
-                        cycle.order,
-                        text_of(&cycle.states),
-                        cycle.sides.clone(),
-                    )
-                })
-                .collect();
-            let expected: Vec<(usize, u32, String, Vec<usize>)> = expected
-                .iter()
-                .map(|&(start, order, states, sides)| {
-                    (start, order, states.to_owned(), sides.to_vec())
-                })
-                .collect();
-            assert_eq!(found, expected, "{text} at {skew:?}");
+            let cycles = assert_cycles(&domain, expected, &format!("{text} at {skew:?}"));
             let parsed = signature(text);
             let mut cones: Vec<u32> = Vec::new();
             let mut corners: Vec<u32> = Vec::new();
@@ -2549,9 +2503,12 @@ mod tests {
                 ("o", Some(0.25)),
                 ("o", Some(0.5)),
                 ("**", None),
+                ("xx", None),
+                ("*x", None),
+                ("22x", None),
             ] {
                 assert_each_state_is_covered_once(
-                    &built_wallpaper(text, aspect, skew),
+                    &built_with_aspect(text, aspect, skew),
                     &format!("{text} at {aspect} and {skew:?}"),
                 );
             }
@@ -2560,7 +2517,7 @@ mod tests {
 
     #[test]
     fn verify_fails_on_a_torus_with_its_partners_exchanged() {
-        let mut corrupted = built_wallpaper("o", 1.0, None);
+        let mut corrupted = built_with_aspect("o", 1.0, None);
         for (index, partner) in [3, 2, 1, 0].into_iter().enumerate() {
             corrupted.sides[index].partner = partner;
         }
@@ -2598,21 +2555,23 @@ mod tests {
     }
 
     #[test]
-    fn verify_passes_on_hand_built_domains_with_glides_and_mirrors() {
-        for name in WALLPAPER_NAMES {
-            for aspect in WALLPAPER_ASPECTS {
-                let verification = wallpaper(name, aspect).verify();
-                assert!(
-                    failed(&verification).is_empty(),
-                    "{name} at {aspect}: {verification:?}"
-                );
-            }
+    fn verify_passes_on_the_hand_built_domain_of_22_mirror() {
+        for aspect in WALLPAPER_ASPECTS {
+            let verification = two_two_mirror(aspect).verify();
+            assert!(
+                failed(&verification).is_empty(),
+                "22* at {aspect}: {verification:?}"
+            );
         }
+    }
+
+    fn glide(vector: (f64, f64), axis: DVec3) -> glam::DMat3 {
+        euclidean::translation(DVec3::new(vector.0, vector.1, 1.0)) * euclidean::reflection(axis)
     }
 
     #[test]
     fn verify_fails_on_glides_labelled_as_translations() {
-        let mut corrupted = wallpaper("xx", 1.0);
+        let mut corrupted = built_with_aspect("xx", 1.0, None);
         for index in [0, 2] {
             corrupted.sides[index].kind = PairingKind::Translation;
         }
@@ -2621,7 +2580,7 @@ mod tests {
 
     #[test]
     fn verify_fails_on_a_glide_replaced_by_the_translation_with_its_vector() {
-        let mut corrupted = wallpaper("xx", 1.0);
+        let mut corrupted = built_with_aspect("xx", 1.0, None);
         let vector = corrupted.sides[0].pairing.z_axis;
         corrupted.sides[0].pairing = euclidean::translation(vector);
         assert_failed(
@@ -2633,7 +2592,7 @@ mod tests {
 
     #[test]
     fn verify_fails_on_glides_given_the_orientation_preserving() {
-        let mut corrupted = wallpaper("xx", 1.0);
+        let mut corrupted = built_with_aspect("xx", 1.0, None);
         for index in [0, 2] {
             corrupted.sides[index].orientation = Orientation::Preserving;
         }
@@ -2646,7 +2605,7 @@ mod tests {
 
     #[test]
     fn verify_fails_on_a_glide_that_exchanges_the_endpoints_of_its_side() {
-        let mut corrupted = wallpaper("xx", 1.0);
+        let mut corrupted = built_with_aspect("xx", 1.0, None);
         let midline = glide((0.0, 0.0), DVec3::Y);
         let [start, end] = [corrupted.vertices[3], corrupted.vertices[0]];
         assert_eq!(
@@ -2663,7 +2622,7 @@ mod tests {
     #[test]
     fn verify_measures_a_glide_that_misses_its_partner_side() {
         const SHIFT: f64 = 1e-3;
-        let mut corrupted = wallpaper("xx", 1.0);
+        let mut corrupted = built_with_aspect("xx", 1.0, None);
         let height = corrupted.vertices[1].y - corrupted.vertices[0].y;
         corrupted.sides[0].pairing = glide((0.0, height + SHIFT), DVec3::X);
         corrupted.sides[2].pairing = glide((0.0, -height - SHIFT), DVec3::X);
@@ -2675,14 +2634,14 @@ mod tests {
 
     #[test]
     fn verify_fails_on_a_mirror_labelled_as_a_glide() {
-        let mut corrupted = wallpaper("*x", 1.0);
+        let mut corrupted = built_with_aspect("*x", 1.0, None);
         corrupted.sides[1].kind = PairingKind::GlideReflection;
         assert_infinite_failures(&corrupted, &["pairings"], "mirror labelled GlideReflection");
     }
 
     #[test]
     fn verify_fails_on_a_mirror_given_the_orientation_preserving() {
-        let mut corrupted = wallpaper("*x", 1.0);
+        let mut corrupted = built_with_aspect("*x", 1.0, None);
         corrupted.sides[1].orientation = Orientation::Preserving;
         assert_failed(
             &corrupted,
@@ -2693,7 +2652,7 @@ mod tests {
 
     #[test]
     fn verify_fails_on_half_turn_halves_merged_into_a_side_that_is_its_own_partner() {
-        let mut corrupted = wallpaper("22*", 1.0);
+        let mut corrupted = two_two_mirror(1.0);
         corrupted.vertices.remove(0);
         corrupted.corners.remove(0);
         let merged = Side {
@@ -2710,7 +2669,7 @@ mod tests {
 
     #[test]
     fn verify_fails_on_a_half_turn_about_the_wrong_vertex() {
-        let mut corrupted = wallpaper("22*", 1.0);
+        let mut corrupted = two_two_mirror(1.0);
         corrupted.sides[0].pairing = half_turn(corrupted.vertices[3]);
         assert_failed(
             &corrupted,
@@ -2722,7 +2681,7 @@ mod tests {
     #[test]
     fn verify_fails_on_a_cycle_of_glides_with_the_wrong_order() {
         for (order, expected) in [(1, &["relators", "angles"][..]), (4, &["angles"][..])] {
-            let mut corrupted = wallpaper("22x", 1.0);
+            let mut corrupted = built_with_aspect("22x", 1.0, None);
             for vertex in [0, 2] {
                 corrupted.corners[vertex].order = order;
             }
@@ -2736,7 +2695,7 @@ mod tests {
 
     #[test]
     fn walk_gives_infinite_relator_and_angle_residuals_for_a_cycle_of_unequal_orders() {
-        let mut corrupted = wallpaper("22x", 1.0);
+        let mut corrupted = built_with_aspect("22x", 1.0, None);
         corrupted.corners[0].order = 1;
         assert_infinite_failures(
             &corrupted,
@@ -2766,8 +2725,13 @@ mod tests {
         for text in ["*2222", "*732", "732", "442", "532", "22", "3333", "*3333"] {
             assert_eq!(built(text).closure, Closure::PerVertex, "{text}");
         }
-        for name in WALLPAPER_NAMES {
-            assert_eq!(wallpaper(name, 1.0).closure, Closure::Wallpaper, "{name}");
+        assert_eq!(two_two_mirror(1.0).closure, Closure::Wallpaper);
+        for text in ["**", "xx", "*x", "22x"] {
+            assert_eq!(
+                built_with_aspect(text, 1.0, None).closure,
+                Closure::Wallpaper,
+                "{text}"
+            );
         }
     }
 

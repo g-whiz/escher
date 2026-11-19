@@ -300,70 +300,91 @@ impl Reference {
     }
 }
 
+type DefinedPairing = Option<([i32; 2], [BigFloat; 2])>;
+
 pub(crate) fn wallpaper(text: &str, aspect: f64, skew: f64) -> Polygon {
     let width = sqrt(&num(aspect));
     let height = div(&int(1), &width);
     let half = |value: &BigFloat| div(value, &int(2));
-    let (placed, shifts): (Vec<[BigFloat; 2]>, Vec<Option<[BigFloat; 2]>>) = match text {
-        "o" => {
-            let lean = mul(&num(skew), &width);
-            let first = [width.clone(), int(0)];
-            let second = [lean, height.clone()];
-            let combine = |sign_first: bool, sign_second: bool| {
-                [0, 1].map(|axis| {
-                    let one = if sign_first {
-                        first[axis].clone()
-                    } else {
-                        first[axis].neg()
-                    };
-                    let other = if sign_second {
-                        second[axis].clone()
-                    } else {
-                        second[axis].neg()
-                    };
-                    half(&add(&one, &other))
-                })
-            };
-            (
-                vec![
-                    combine(true, false),
-                    combine(true, true),
-                    combine(false, true),
-                    combine(false, false),
-                ],
-                vec![
-                    Some(second.clone()),
-                    Some([first[0].neg(), first[1].neg()]),
-                    Some([second[0].neg(), second[1].neg()]),
-                    Some(first.clone()),
-                ],
-            )
-        }
-        "**" => {
-            let (x, y) = (half(&width), half(&height));
-            (
-                vec![
-                    [x.clone(), y.neg()],
-                    [x.clone(), y.clone()],
-                    [x.neg(), y.clone()],
-                    [x.neg(), y.neg()],
-                ],
-                vec![
-                    Some([int(0), height.clone()]),
-                    None,
-                    Some([int(0), height.neg()]),
-                    None,
-                ],
-            )
-        }
-        _ => panic!("the reference has no wallpaper domain of {text}"),
+    let translation = |shift: [BigFloat; 2]| Some(([1, 1], shift));
+    let vertical_glide = |shift: BigFloat| Some(([-1, 1], [int(0), shift]));
+    let horizontal_glide = |shift: BigFloat| Some(([1, -1], [shift, int(0)]));
+    let (placed, pairings): (Vec<[BigFloat; 2]>, Vec<DefinedPairing>) = if text == "o" {
+        let lean = mul(&num(skew), &width);
+        let first = [width.clone(), int(0)];
+        let second = [lean, height.clone()];
+        let combine = |sign_first: bool, sign_second: bool| {
+            [0, 1].map(|axis| {
+                let one = if sign_first {
+                    first[axis].clone()
+                } else {
+                    first[axis].neg()
+                };
+                let other = if sign_second {
+                    second[axis].clone()
+                } else {
+                    second[axis].neg()
+                };
+                half(&add(&one, &other))
+            })
+        };
+        (
+            vec![
+                combine(true, false),
+                combine(true, true),
+                combine(false, true),
+                combine(false, false),
+            ],
+            vec![
+                translation(second.clone()),
+                translation([first[0].neg(), first[1].neg()]),
+                translation([second[0].neg(), second[1].neg()]),
+                translation(first.clone()),
+            ],
+        )
+    } else {
+        let (x, y) = (half(&width), half(&height));
+        let placed = vec![
+            [x.clone(), y.neg()],
+            [x.clone(), y.clone()],
+            [x.neg(), y.clone()],
+            [x.neg(), y.neg()],
+        ];
+        let pairings = match text {
+            "**" => vec![
+                translation([int(0), height.clone()]),
+                None,
+                translation([int(0), height.neg()]),
+                None,
+            ],
+            "xx" => vec![
+                vertical_glide(height.clone()),
+                translation([width.neg(), int(0)]),
+                vertical_glide(height.neg()),
+                translation([width.clone(), int(0)]),
+            ],
+            "*x" => vec![
+                vertical_glide(height.clone()),
+                None,
+                vertical_glide(height.neg()),
+                None,
+            ],
+            "22x" => vec![
+                vertical_glide(height.clone()),
+                horizontal_glide(width.neg()),
+                vertical_glide(height.neg()),
+                horizontal_glide(width.clone()),
+            ],
+            _ => panic!("the reference has no wallpaper domain of {text}"),
+        };
+        (placed, pairings)
     };
     let mut built = polygon(&placed, Vec::new());
-    for (pairing, shift) in built.pairings.iter_mut().zip(shifts) {
-        if let Some([x, y]) = shift {
+    for (pairing, defined) in built.pairings.iter_mut().zip(pairings) {
+        if let Some(([first, second], [x, y])) = defined {
             *pairing = [
-                [int(1), int(0), x],
-                [int(0), int(1), y],
+                [num(f64::from(first)), int(0), x],
+                [int(0), num(f64::from(second)), y],
                 [int(0), int(0), int(1)],
             ];
         }

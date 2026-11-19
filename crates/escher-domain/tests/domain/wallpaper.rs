@@ -2,17 +2,20 @@ use std::collections::BTreeSet;
 
 use core::f64::consts::{PI, TAU};
 
-use escher_domain::{FundamentalDomain, Orientation, PairingKind, ShapeParameters, parameters};
+use escher_domain::{FundamentalDomain, Orientation, PairingKind, parameters};
 use escher_geometry::euclidean;
 use glam::{DMat2, DMat3, DVec2, DVec3};
 use proptest::prelude::{Just, Strategy, prop_assert, prop_oneof, proptest};
 
 use crate::common::{LargestResiduals, largest_coordinate_error, proptest_config, signature};
-use crate::reference::{Reference, Worst, error, int, matrix, mul, num, sub};
+use crate::reference::{Reference, Worst, div, error, int, matrix, mul, num, sub};
+use crate::shared::{build_with_aspect, built_with_aspect};
 
 const GRID_ASPECTS: [f64; 6] = [0.125, 0.3, 1.0, 1.618, 4.0, 8.0];
 
 const GRID_SKEWS: [f64; 5] = [-0.5, -0.3, 0.0, 0.25, 0.5];
+
+const RECTANGULAR: [&str; 4] = ["**", "xx", "*x", "22x"];
 
 const MARGIN: f64 = 8.0;
 
@@ -56,9 +59,9 @@ impl Setting {
         }
     }
 
-    const fn annulus(aspect: f64) -> Self {
+    const fn rectangular(text: &'static str, aspect: f64) -> Self {
         Self {
-            text: "**",
+            text,
             aspect,
             skew: None,
         }
@@ -71,26 +74,21 @@ impl Setting {
         }
     }
 
-    fn built(self) -> Result<FundamentalDomain, escher_domain::Error> {
-        let mut settings = ShapeParameters::new();
-        settings.set("aspect", self.aspect);
-        if let Some(skew) = self.skew {
-            settings.set("skew", skew);
-        }
-        FundamentalDomain::build_with(&signature(self.text), &settings)
+    fn built(self) -> escher_domain::Result<FundamentalDomain> {
+        build_with_aspect(self.text, self.aspect, self.skew)
     }
 
     pub(crate) fn domain(self) -> FundamentalDomain {
-        match self.built() {
-            Ok(domain) => domain,
-            Err(error) => panic!("{} has no domain: {error}", self.label()),
-        }
+        built_with_aspect(self.text, self.aspect, self.skew)
     }
 
-    fn cycles(self) -> &'static [&'static [usize]] {
+    fn cycles(self) -> &'static [(u32, &'static [usize])] {
         match self.text {
-            "o" => &[&[0, 3, 2, 1]],
-            "**" => &[&[0, 0, 1, 1], &[2, 2, 3, 3]],
+            "o" => &[(1, &[0, 3, 2, 1])],
+            "**" => &[(1, &[0, 0, 1, 1]), (1, &[2, 2, 3, 3])],
+            "xx" => &[(1, &[0, 3, 1, 2])],
+            "*x" => &[(1, &[0, 0, 2, 2]), (1, &[1, 3, 3, 1])],
+            "22x" => &[(2, &[0, 2]), (2, &[1, 3])],
             text => panic!("{text} has no listed cycles"),
         }
     }
@@ -100,7 +98,7 @@ fn grid() -> Vec<Setting> {
     let mut settings = Vec::new();
     for aspect in GRID_ASPECTS {
         settings.extend(GRID_SKEWS.map(|skew| Setting::torus(aspect, skew)));
-        settings.push(Setting::annulus(aspect));
+        settings.extend(RECTANGULAR.map(|text| Setting::rectangular(text, aspect)));
     }
     settings
 }
@@ -109,7 +107,7 @@ pub(crate) fn named_settings() -> Vec<Setting> {
     let mut settings = Vec::new();
     for aspect in [1.0, 0.125, 8.0] {
         settings.push(Setting::torus(aspect, 0.0));
-        settings.push(Setting::annulus(aspect));
+        settings.extend(RECTANGULAR.map(|text| Setting::rectangular(text, aspect)));
     }
     settings.extend([-0.5, 0.25, 0.5].map(|skew| Setting::torus(1.0, skew)));
     settings
@@ -136,11 +134,17 @@ fn expected_vertices(setting: Setting) -> [DVec3; 4] {
     }
 }
 
-#[test]
-fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
-    let cases = [
+type TableRow = (
+    Setting,
+    [usize; 4],
+    [PairingKind; 4],
+    &'static [&'static str],
+);
+
+fn table_rows() -> [TableRow; 6] {
+    [
         (
-            Setting::annulus(1.0),
+            Setting::rectangular("**", 1.0),
             [2, 1, 0, 3],
             [
                 PairingKind::Translation,
@@ -148,6 +152,34 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
                 PairingKind::Translation,
                 PairingKind::Mirror,
             ],
+            &["aspect"][..],
+        ),
+        (
+            Setting::rectangular("xx", 1.0),
+            [2, 3, 0, 1],
+            [
+                PairingKind::GlideReflection,
+                PairingKind::Translation,
+                PairingKind::GlideReflection,
+                PairingKind::Translation,
+            ],
+            &["aspect"][..],
+        ),
+        (
+            Setting::rectangular("*x", 1.0),
+            [2, 1, 0, 3],
+            [
+                PairingKind::GlideReflection,
+                PairingKind::Mirror,
+                PairingKind::GlideReflection,
+                PairingKind::Mirror,
+            ],
+            &["aspect"][..],
+        ),
+        (
+            Setting::rectangular("22x", 1.0),
+            [2, 3, 0, 1],
+            [PairingKind::GlideReflection; 4],
             &["aspect"][..],
         ),
         (
@@ -162,8 +194,12 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
             [PairingKind::Translation; 4],
             &["aspect", "skew"][..],
         ),
-    ];
-    for (setting, partners, kinds, names) in cases {
+    ]
+}
+
+#[test]
+fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
+    for (setting, partners, kinds, names) in table_rows() {
         let label = setting.label();
         let domain = setting.domain();
         assert!(domain.verify().passed(), "{label}");
@@ -190,8 +226,17 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
             };
             assert_eq!(side.orientation(), expected, "{label}");
         }
-        for angle in domain.corner_angles() {
+        let angles = domain.corner_angles();
+        for angle in &angles {
             assert!((angle - PI).abs() > 1e-3, "{label}: flat vertex");
+        }
+        for &(order, cycle) in setting.cycles() {
+            let sum: f64 = cycle.iter().map(|&vertex| angles[vertex]).sum();
+            let expected = TAU / f64::from(order);
+            assert!(
+                (sum - expected).abs() <= ANGLE_SUM_BOUND,
+                "{label}: cycle {cycle:?} sums to {sum}"
+            );
         }
         let count = domain.vertices().len();
         for index in 0..count {
@@ -215,8 +260,20 @@ fn wallpaper_domains_have_the_vertices_sides_and_parameters_of_their_table() {
 }
 
 #[test]
+fn wallpaper_signatures_typed_in_another_order_build_the_domain_of_their_canonical_form() {
+    for (typed, canonical) in [("x*", "*x"), ("x22", "22x"), ("2x2", "22x")] {
+        assert_eq!(signature(typed), signature(canonical), "{typed}");
+        assert_eq!(
+            Setting::rectangular(typed, 1.0).domain(),
+            Setting::rectangular(canonical, 1.0).domain(),
+            "{typed}"
+        );
+    }
+}
+
+#[test]
 fn wallpaper_checks_pass_with_a_margin_over_the_grid() {
-    for text in ["o", "**"] {
+    for text in ["o", "**", "xx", "*x", "22x"] {
         let mut largest = LargestResiduals::new();
         let settings: Vec<Setting> = grid()
             .into_iter()
@@ -254,12 +311,11 @@ fn setting_strategy() -> impl Strategy<Value = Setting> {
         3 => -0.5..=0.5_f64,
         1 => prop_oneof![Just(-0.5), Just(0.5)],
     ];
-    (aspect, skew, proptest::bool::ANY).prop_map(|(aspect, skew, torus)| {
-        if torus {
-            Setting::torus(aspect, skew)
-        } else {
-            Setting::annulus(aspect)
-        }
+    (aspect, skew, 0..=RECTANGULAR.len()).prop_map(|(aspect, skew, choice)| {
+        RECTANGULAR.get(choice).map_or_else(
+            || Setting::torus(aspect, skew),
+            |&text| Setting::rectangular(text, aspect),
+        )
     })
 }
 
@@ -319,9 +375,9 @@ fn wallpaper_domains_match_their_closed_forms() {
             });
         }
         let angles = domain.corner_angles();
-        for (position, cycle) in setting.cycles().iter().enumerate() {
+        for (position, &(order, cycle)) in setting.cycles().iter().enumerate() {
             let sum = cycle.iter().fold(0.0, |sum, &vertex| sum + angles[vertex]);
-            angle_sum.record(&error(sum, &tau), &one, || {
+            angle_sum.record(&error(sum, &div(&tau, &int(order))), &one, || {
                 format!("{label}, cycle {position}")
             });
         }
@@ -563,7 +619,9 @@ fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signa
         let parsed = signature(setting.text);
         let expected_order: u32 = match setting.text {
             "o" => 1,
-            _ => 2,
+            "**" | "xx" | "*x" => 2,
+            "22x" => 4,
+            text => panic!("{text} has no listed point group"),
         };
         assert_eq!(classes.point_group, expected_order, "{label}");
         let expected_covolume = f64::from(expected_order) * domain.area();
@@ -594,11 +652,19 @@ fn wallpaper_groups_have_the_point_groups_lattices_and_isometries_of_their_signa
             !parsed.boundaries().is_empty(),
             "{label}"
         );
-        assert!(!classes.glide_off_mirrors, "{label}");
+        assert_eq!(
+            classes.glide_off_mirrors,
+            matches!(setting.text, "xx" | "*x" | "22x"),
+            "{label}"
+        );
         println!(
-            "{label}: {} elements within {CERTIFICATE_RADIUS}, point group of order {}, covolume error {:e}",
+            "{label}: {} elements within {CERTIFICATE_RADIUS}, point group of order {}, reflection {}, glide reflection off the mirror lines {}, cone orders {:?}, corner orders {:?}, covolume error {:e}",
             elements.len(),
             classes.point_group,
+            classes.reflection,
+            classes.glide_off_mirrors,
+            classes.cone_orders,
+            classes.corner_orders,
             (classes.covolume - expected_covolume).abs()
         );
     }

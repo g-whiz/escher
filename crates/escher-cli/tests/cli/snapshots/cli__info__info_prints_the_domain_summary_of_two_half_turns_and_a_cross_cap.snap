@@ -1,0 +1,31 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"22x\"])"
+---
+status: Success
+--- stdout
+Signature: 22x
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Parameter: aspect, range 0.125 to 8, default 1
+Domain: 4 sides in 2 pairs
+Side pairs: 0 and 2 by glide reflection, 1 and 3 by glide reflection
+Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000
+Side lengths: 1.000000, 1.000000, 1.000000, 1.000000
+Domain area: 1.000000
+Colourings: 287, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 3
+Colourings with 3 colours: 6
+Colourings with 4 colours: 11
+Colourings with 5 colours: 10
+Colourings with 6 colours: 20
+Colourings with 7 colours: 14
+Colourings with 8 colours: 39
+Colourings with 9 colours: 27
+Colourings with 10 colours: 42
+Colourings with 11 colours: 22
+Colourings with 12 colours: 92
+--- stderr
+--- end

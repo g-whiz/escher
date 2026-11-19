@@ -265,7 +265,7 @@ const SKEW_RANGE_TEXT: &str =
     "cannot build fundamental domain: the parameter skew is outside its range of -0.5 to 0.5";
 
 #[test]
-fn parameters_of_the_torus_and_the_annulus_have_their_names_ranges_and_defaults() {
+fn parameters_of_the_built_wallpaper_domains_have_their_names_ranges_and_defaults() {
     let entry = |name: &str, minimum: f64, maximum: f64, default: f64| {
         (name.to_owned(), minimum, maximum, default)
     };
@@ -276,7 +276,9 @@ fn parameters_of_the_torus_and_the_annulus_have_their_names_ranges_and_defaults(
             entry("skew", -0.5, 0.5, 0.0)
         ]
     );
-    assert_eq!(listed("**"), [entry("aspect", 0.125, 8.0, 1.0)]);
+    for text in ["**", "xx", "*x", "22x"] {
+        assert_eq!(listed(text), [entry("aspect", 0.125, 8.0, 1.0)], "{text}");
+    }
 }
 
 #[test]
@@ -303,7 +305,7 @@ fn build_with_rejects_a_skew_outside_its_range_and_accepts_both_ends() {
 
 #[test]
 fn build_with_rejects_skew_on_a_signature_without_it() {
-    for text in ["**", "*2222"] {
+    for text in ["**", "xx", "*x", "22x", "*2222"] {
         let canonical = signature(text).to_string();
         assert_eq!(
             error_of(text, &settings("skew", 0.1)),

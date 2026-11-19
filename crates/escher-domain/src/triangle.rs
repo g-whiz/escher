@@ -462,11 +462,11 @@ mod tests {
     }
 
     #[test]
-    fn admitted_builds_the_torus_and_the_annulus_only() {
-        for text in ["o", "**"] {
+    fn admitted_builds_the_wallpaper_signatures_with_a_construction_only() {
+        for text in ["o", "**", "xx", "*x", "x*", "22x", "x22", "2x2"] {
             assert!(admitted(&signature(text)).is_ok(), "{text}");
         }
-        for text in ["xx", "*x", "22*", "22x", "2*22", "4*2", "3*3"] {
+        for text in ["22*", "2*22", "4*2", "3*3"] {
             assert_eq!(
                 admitted(&signature(text))
                     .map_err(|error| error.kind())

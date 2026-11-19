@@ -129,9 +129,10 @@ impl Fold {
 /// fixed set of shapes only. For any other shape, the function only returns and
 /// reports whether the fold converged. For a Euclidean reflection domain and
 /// its double, it is accurate up to a distance of 65 from the centre of the
-/// domain. For the domains of `o` and `**`, whose sides are paired by
-/// translations or are mirrors, no range of accuracy has been measured, and
-/// the function only returns and reports whether the fold converged. For a spherical
+/// domain. For the domains of `o`, `**`, `xx`, `*x`, and `22x`, whose sides
+/// are mirrors or are paired by translations or glide reflections, no range of
+/// accuracy has been measured, and the function only returns and reports
+/// whether the fold converged. For a spherical
 /// domain, it is accurate for every vector whose largest absolute coordinate is
 /// at least `1e-300` and whose fold converges.
 /// A point very close to a vertex of very high order, such as a point within
@@ -143,9 +144,10 @@ impl Fold {
 /// A domain whose side pairings are rotations and translations, such as the
 /// domain of `732`, folds by the same steps. Each pairing of a double is a
 /// product of two reflections, so its error bounds are its own, and the
-/// ranges of accuracy above hold for it with one exception. A translation of
-/// the domain of `o` or `**` has exact entries, and the domain of `**` also
-/// has mirror sides. For a hyperbolic domain
+/// ranges of accuracy above hold for it with one exception. A translation or
+/// a glide reflection of the domain of `o`, `**`, `xx`, `*x`, or `22x` has
+/// exact entries, and the domains of `**` and `*x` also have mirror sides.
+/// For a hyperbolic domain
 /// whose corner orders are all near 1000, such as the domain of
 /// `(1000)(1000)(1000)` or `(1000)(1000)(999)`, a point within a hyperbolic
 /// distance of `1e-6` of a vertex of order near 1000 other than vertex 0 may

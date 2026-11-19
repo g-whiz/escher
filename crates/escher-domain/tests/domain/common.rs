@@ -1,10 +1,10 @@
 use astro_float_num::BigFloat;
-use escher_domain::{Check, ErrorKind, FundamentalDomain, ShapeParameters, Verification};
+use escher_domain::{Check, ErrorKind, FundamentalDomain, Verification};
 use glam::DVec3;
 use proptest::test_runner::Config;
 
 use crate::reference::{Vector, vector};
-use crate::shared::NAMED_POLYGONS;
+use crate::shared::{NAMED_POLYGONS, built_with_aspect};
 pub(crate) use crate::shared::{built, signature};
 
 pub(crate) const EXAMPLE_TRIPLES: [[u32; 3]; 6] = [
@@ -229,12 +229,7 @@ pub(crate) fn rectangle(aspect: f64) -> FundamentalDomain {
 }
 
 pub(crate) fn with_aspect(text: &str, aspect: f64) -> FundamentalDomain {
-    let mut settings = ShapeParameters::new();
-    settings.set("aspect", aspect);
-    match FundamentalDomain::build_with(&signature(text), &settings) {
-        Ok(domain) => domain,
-        Err(error) => panic!("{text} at aspect {aspect} has no domain: {error}"),
-    }
+    built_with_aspect(text, aspect, None)
 }
 
 pub(crate) fn assert_same_domain(

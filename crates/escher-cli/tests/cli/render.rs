@@ -439,6 +439,13 @@ fn render_writes_the_annulus_by_parity_by_default() {
     assert_ne!(default, one);
 }
 
+#[test]
+fn render_writes_the_klein_bottle_by_parity_by_default() {
+    let default = small_png("klein_bottle_file", &["xx"]);
+    let one = small_png("klein_bottle_one_file", &["xx", "--colouring", "one"]);
+    assert_ne!(default, one);
+}
+
 fn polygon(test: &str, extra: &[&str]) -> Vec<u8> {
     let mut args = vec!["*3333", "--size", "64x64", "--samples", "2"];
     args.extend_from_slice(extra);

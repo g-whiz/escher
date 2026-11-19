@@ -185,8 +185,8 @@ impl core::error::Error for Error {
 pub enum ErrorKind {
     /// The crate does not build a fundamental domain for the signature.
     ///
-    /// Only a reflection domain, its double, and the domains of `o` and `**`
-    /// have one. A reflection domain
+    /// Only a reflection domain, its double, and the domains of `o`, `**`,
+    /// `xx`, `*x`, and `22x` have one. A reflection domain
     /// is a triangle, a hyperbolic polygon, the rectangle, or the lune, and
     /// its sides are mirrors. The signature of a triangle has the form `*pqr`
     /// with three finite corner orders. It is hyperbolic when their
@@ -201,8 +201,11 @@ pub enum ErrorKind {
     /// walls. Its signature has the same orders as cone points, the centres of
     /// rotation, and no mirror boundary, such as `732`, `2222`, `nn`, or
     /// `3333`. The signature `o` has a parallelogram whose sides are paired by
-    /// translations, and `**` has a rectangle with two mirror sides and two
-    /// sides paired by a translation.
+    /// translations, `**` has a rectangle with two mirror sides and two sides
+    /// paired by a translation, `xx` has a rectangle whose sides are paired by
+    /// glide reflections and translations, `*x` has a rectangle with two
+    /// mirror sides and two sides paired by glide reflections, and `22x` has a
+    /// rectangle whose sides are paired by glide reflections.
     UnsupportedSignature,
     /// The signature has more than eight corner or cone orders, or a corner or
     /// cone order above 1000, beyond which the accuracy of the domain is not
@@ -211,7 +214,8 @@ pub enum ErrorKind {
     /// Rounding made the construction degenerate, such as a sum of vertices
     /// that is not a point of the hyperbolic plane or of the sphere, a wall
     /// that cannot be found or is not finite, or a hyperbolic polygon, its
-    /// double, or the domain of `o` or `**` that failed a check of
+    /// double, or a domain of `o`, `**`, `xx`, `*x`, or `22x` that failed a
+    /// check of
     /// [`FundamentalDomain::verify`](crate::FundamentalDomain::verify).
     ///
     /// A hyperbolic polygon gives it when its shape parameters are too
@@ -223,7 +227,7 @@ pub enum ErrorKind {
     /// of the double, stored as `f64` matrices, are too inexact for the check
     /// of its vertex cycles. The text of the error then names the side
     /// pairings. No other rotation signature is known to give it. The domain
-    /// of `o` or `**` gives it when it fails a check, which no setting in the
+    /// of `o`, `**`, `xx`, `*x`, or `22x` gives it when it fails a check, which no setting in the
     /// ranges of its parameters is known to cause, and its text then names the
     /// verification.
     Numerical,

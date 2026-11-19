@@ -110,6 +110,12 @@ fn build_accepts_the_order_at_the_limit() {
         "3333",
         "o",
         "**",
+        "xx",
+        "*x",
+        "x*",
+        "22x",
+        "x22",
+        "2x2",
     ] {
         let built = FundamentalDomain::build(&signature(text));
         assert!(built.is_ok(), "{text}: {built:?}");

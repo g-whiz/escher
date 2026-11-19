@@ -1175,12 +1175,15 @@ The numbers of subgroups of the side presentation equal those of the Conway pres
 
 The row of `2222` equals its row in Section 11.4.
 
-The test "Equal counts" measured these figures on the crates for `o` and `**`, at `aspect` 1, with `IndexLimit` 16 and `SearchBudget::DEFAULT`. Both searches completed 16 colours and gave equal counts, and the counts to 12 equal the row of the prototype above. Times are in a debug build:
+The test "Equal counts" measured these figures on the crates for `o`, `**`, `xx`, `*x`, and `22x`, at `aspect` 1, with `IndexLimit` 16 and `SearchBudget::DEFAULT`. Every search completed 16 colours, the side and the Conway presentation gave equal counts, and the counts to 12 equal the rows of the prototype above. Times are in a debug build and come from two runs. The table gives the first run for `o` and `**` and the second run for `xx`, `*x`, and `22x`. The second run gave `o` 0.052 s and 0.067 s and `**` 0.037 s and 0.036 s:
 
 | Signature | Subgroups of index 1 to 16 | Debug time to 16, side and Conway |
 | --- | --- | --- |
 | `o` | 1 3 4 7 6 12 8 15 13 18 12 28 14 24 24 31 | 0.051 s and 0.067 s |
 | `**` | 1 7 4 19 6 28 8 43 13 42 12 76 14 56 24 91 | 0.039 s and 0.036 s |
+| `xx` | 1 3 4 7 6 12 8 15 13 18 12 28 14 24 24 31 | 0.016 s and 0.016 s |
+| `*x` | 1 3 4 11 6 12 8 27 13 18 12 44 14 24 24 59 | 0.021 s and 0.021 s |
+| `22x` | 1 3 6 11 10 20 14 39 27 42 22 92 26 72 60 143 | 0.021 s and 0.020 s |
 
 The prototype also measured these figures:
 

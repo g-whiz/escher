@@ -79,8 +79,8 @@ mod tests {
 
     use crate::domain::{Closure, Corner, FundamentalDomain, Orientation, PairingKind, Side};
     use crate::error::ErrorKind;
-    use crate::fixtures::{WALLPAPER_NAMES, wallpaper};
-    use crate::shared::{built, relator_texts};
+    use crate::fixtures::two_two_mirror;
+    use crate::shared::{built, built_with_aspect, relator_texts};
     use crate::verify::{framed_power_residual, power_residual};
 
     const RELATOR_TOLERANCE: f64 = 2e-6;
@@ -394,21 +394,11 @@ mod tests {
     }
 
     #[test]
-    fn domains_with_glides_and_mirrors_give_their_pairing_and_cycle_relators() {
-        let cases: [(&str, &[&str]); 5] = [
-            (
-                "**",
-                &["s0 s2", "s1^2", "s3^2", "s1 s0 s1 s2", "s3 s2 s3 s0"],
-            ),
-            ("xx", &["s0 s2", "s1 s3", "s1 s0 s1 s2"]),
-            (
-                "*x",
-                &["s0 s2", "s1^2", "s3^2", "s1 s0 s3 s2", "s2 s3 s0 s1"],
-            ),
-            ("22x", &["s0 s2", "s1 s3", "(s1 s2)^2", "(s2 s3)^2"]),
-            (
-                "22*",
-                &[
+    fn hand_built_domain_of_22_mirror_gives_its_pairing_and_cycle_relators() {
+        for aspect in [1.0, 0.125, 8.0] {
+            assert_eq!(
+                presentation_texts(&two_two_mirror(aspect), "22*"),
+                [
                     "s0 s1",
                     "s2^2",
                     "s3 s4",
@@ -418,17 +408,8 @@ mod tests {
                     "s3 s5 s4 s2",
                     "s4^2",
                 ],
-            ),
-        ];
-        for (name, expected) in cases {
-            for aspect in [1.0, 0.125, 8.0] {
-                let domain = wallpaper(name, aspect);
-                assert_eq!(
-                    presentation_texts(&domain, name),
-                    expected,
-                    "{name} at aspect {aspect}"
-                );
-            }
+                "22* at aspect {aspect}"
+            );
         }
     }
 
@@ -460,9 +441,13 @@ mod tests {
 
     #[test]
     fn relators_of_domains_with_glides_and_mirrors_evaluate_to_the_identity() {
-        for name in WALLPAPER_NAMES {
+        for name in ["**", "xx", "*x", "22x", "22*"] {
             for aspect in [1.0, 0.125, 8.0] {
-                let domain = wallpaper(name, aspect);
+                let domain = if name == "22*" {
+                    two_two_mirror(aspect)
+                } else {
+                    built_with_aspect(name, aspect, None)
+                };
                 let presentation = match domain.side_presentation() {
                     Ok(presentation) => presentation,
                     Err(error) => panic!("{name} has no side presentation: {error}"),
@@ -486,7 +471,7 @@ mod tests {
 
     #[test]
     fn long_cycle_word_of_a_chain_holds_in_walk_order_with_the_inverse_pairings() {
-        let domain = wallpaper("22*", 1.0);
+        let domain = two_two_mirror(1.0);
         let presentation = match domain.side_presentation() {
             Ok(presentation) => presentation,
             Err(error) => panic!("22* has no side presentation: {error}"),
@@ -507,14 +492,14 @@ mod tests {
 
     #[test]
     fn domain_with_mirrors_beside_paired_sides_whose_walk_does_not_close_gives_invalid_pairing() {
-        let mut domain = wallpaper("*x", 1.0);
+        let mut domain = built_with_aspect("*x", 1.0, None);
         domain.sides[0].partner = 0;
         assert_invalid(
             &domain,
             "the side pairings do not close a vertex cycle",
             "*x with side 0 as its own partner",
         );
-        let mut domain = wallpaper("22x", 1.0);
+        let mut domain = built_with_aspect("22x", 1.0, None);
         domain.corners[0].order = 1;
         assert_invalid(
             &domain,

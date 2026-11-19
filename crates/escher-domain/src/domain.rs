@@ -227,7 +227,8 @@ impl FundamentalDomain {
     /// Builds the fundamental domain of a signature, with the shape
     /// parameters that the settings give.
     ///
-    /// The signature must be `o` or `**`, or have no handle or crosscap and
+    /// The signature must be `o`, `**`, `xx`, `*x`, or `22x`, or have no
+    /// handle or crosscap and
     /// either one mirror boundary with finite corner orders and no cone point,
     /// or finite cone orders and no boundary. With a boundary, it must be one
     /// of these:
@@ -260,7 +261,16 @@ impl FundamentalDomain {
     /// vector `(w, 0)` and its inverse, with `w` the square root of `aspect`.
     /// The domain of `**` is the rectangle of `*2222`, whose sides 1 and 3 are
     /// mirrors and whose sides 0 and 2 are paired by the vertical translation
-    /// by its height and its inverse. Both have their centre at the origin.
+    /// by its height and its inverse. The domains of `xx`, `*x`, and `22x` are
+    /// the same rectangle, of width `w` and height `h = 1 / w`. Their sides 0
+    /// and 2 are paired by the glide reflections `(x, y) -> (-x, y + h)` and
+    /// `(x, y) -> (-x, y - h)`. The sides 1 and 3 of `xx` are paired by the
+    /// translations by `(-w, 0)` and `(w, 0)`, those of `*x` are mirrors, and
+    /// those of `22x` are paired by the glide reflections
+    /// `(x, y) -> (x - w, -y)` and `(x, y) -> (x + w, -y)`. Each glide
+    /// reflection is the product of a translation and a reflection in a line
+    /// through the origin, so its entries are exact. Every one of these
+    /// domains has its centre at the origin.
     ///
     /// The reflection triangle of a Euclidean signature has side 0 of length 1,
     /// and the reflection rectangle has area 1. A spherical domain lies on the
@@ -272,8 +282,8 @@ impl FundamentalDomain {
     /// signature, and each value must lie in the range of that parameter. A
     /// parameter without a setting takes its default value.
     ///
-    /// A hyperbolic polygon, its double, or the domain of `o` or `**` is
-    /// returned only when it passes every check of
+    /// A hyperbolic polygon, its double, or the domain of `o`, `**`, `xx`,
+    /// `*x`, or `22x` is returned only when it passes every check of
     /// [`verify`](FundamentalDomain::verify), because rounding
     /// keeps some domains from meeting the tolerances of the checks. A polygon
     /// with lengths near the ends of their ranges can have errors that are too
@@ -327,7 +337,8 @@ impl FundamentalDomain {
     /// 5. An error of kind
     ///    [`ErrorKind::Numerical`](crate::ErrorKind::Numerical) when rounding
     ///    makes the construction degenerate, or when a hyperbolic polygon, its
-    ///    double, or the domain of `o` or `**` fails a check of
+    ///    double, or the domain of `o`, `**`, `xx`, `*x`, or `22x` fails a
+    ///    check of
     ///    [`verify`](FundamentalDomain::verify).
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
         let supported = admitted(signature)?;
@@ -576,8 +587,9 @@ impl FundamentalDomain {
     /// reverse orientation.
     ///
     /// It does not say that every side is a mirror. The domain of `**` has two
-    /// mirror sides and two sides paired by a translation, so a caller that
-    /// needs the kind of each side reads [`Side::kind`].
+    /// mirror sides and two sides paired by a translation, and the domain of
+    /// `xx` has no mirror side, so a caller that needs the kind of each side
+    /// reads [`Side::kind`].
     ///
     /// # Examples
     ///
@@ -981,7 +993,7 @@ pub enum Orientation {
 mod tests {
     use escher_signature::Signature;
 
-    use super::{FundamentalDomain, Orientation};
+    use super::{FundamentalDomain, Orientation, PairingKind};
     use crate::triangle::{LARGEST_ORDER, MOST_ORDERS, Supported, admitted};
     use crate::wallpaper;
     use crate::{ErrorKind, ShapeParameters};
@@ -1105,10 +1117,31 @@ mod tests {
         annulus.sides[0].pairing.z_axis.y *= 2.0;
         let (_, mut mirror) = construct("**", &[1.0]);
         mirror.sides[1].orientation = Orientation::Preserving;
+        let (klein_class, mut klein) = construct("xx", &[1.0]);
+        for index in [0, 2] {
+            klein.sides[index].kind = PairingKind::Translation;
+        }
+        let (mobius_class, mut mobius) = construct("*x", &[1.0]);
+        mobius.sides[1].orientation = Orientation::Preserving;
+        let (cross_cap_class, mut cross_cap) = construct("22x", &[1.0]);
+        for vertex in [0, 2] {
+            cross_cap.corners[vertex].order = 1;
+        }
         for (label, class, corrupted) in [
             ("torus with exchanged partners", torus_class, torus),
             ("annulus with a doubled translation", annulus_class, annulus),
             ("annulus with a preserving mirror", annulus_class, mirror),
+            (
+                "xx with glides labelled as translations",
+                klein_class,
+                klein,
+            ),
+            ("*x with a preserving mirror", mobius_class, mobius),
+            (
+                "22x with a cycle of glides of order 1",
+                cross_cap_class,
+                cross_cap,
+            ),
         ] {
             let error = FundamentalDomain::guarded(class, corrupted).err();
             assert_eq!(
@@ -1124,7 +1157,13 @@ mod tests {
                 "{label}"
             );
         }
-        for (text, values) in [("o", &[1.0, 0.0][..]), ("**", &[1.0][..])] {
+        for (text, values) in [
+            ("o", &[1.0, 0.0][..]),
+            ("**", &[1.0][..]),
+            ("xx", &[1.0][..]),
+            ("*x", &[1.0][..]),
+            ("22x", &[1.0][..]),
+        ] {
             let (class, domain) = construct(text, values);
             assert!(FundamentalDomain::guarded(class, domain).is_ok(), "{text}");
         }

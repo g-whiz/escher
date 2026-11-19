@@ -308,6 +308,31 @@ fn info_prints_the_domain_summary_of_the_annulus_with_its_mirror_sides() {
 }
 
 #[test]
+fn info_prints_the_domain_summary_of_the_klein_bottle_with_its_glide_reflections() {
+    insta::assert_snapshot!(snapshot(&["info", "xx"]));
+}
+
+#[test]
+fn info_prints_the_domain_summary_of_the_mobius_strip_with_its_mirror_sides() {
+    insta::assert_snapshot!(snapshot(&["info", "*x"]));
+}
+
+#[test]
+fn info_prints_the_mobius_strip_typed_with_the_cross_cap_first_in_canonical_form() {
+    insta::assert_snapshot!(snapshot(&["info", "x*"]));
+}
+
+#[test]
+fn info_prints_the_domain_summary_of_two_half_turns_and_a_cross_cap() {
+    insta::assert_snapshot!(snapshot(&["info", "22x"]));
+}
+
+#[test]
+fn info_presentation_prints_the_side_relators_of_the_mobius_strip() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "*x"]));
+}
+
+#[test]
 fn info_check_prints_each_check_of_the_rectangle() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "*2222"]));
 }

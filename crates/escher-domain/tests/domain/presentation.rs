@@ -517,6 +517,9 @@ fn side_presentations_of_the_wallpaper_domains_have_the_documented_text() {
         let expected: &[&str] = match setting.text {
             "o" => &["s0 s2", "s1 s3", "s1 s0 s3 s2"],
             "**" => &["s0 s2", "s1^2", "s3^2", "s1 s0 s1 s2", "s3 s2 s3 s0"],
+            "xx" => &["s0 s2", "s1 s3", "s1 s0 s1 s2"],
+            "*x" => &["s0 s2", "s1^2", "s3^2", "s1 s0 s3 s2", "s2 s3 s0 s1"],
+            "22x" => &["s0 s2", "s1 s3", "(s1 s2)^2", "(s2 s3)^2"],
             text => panic!("{text} has no documented side presentation"),
         };
         let presentation = match setting.domain().side_presentation() {
@@ -535,7 +538,13 @@ fn side_and_conway_presentations_of_the_wallpaper_domains_give_equal_colouring_c
     let Ok(limit) = IndexLimit::new(WALLPAPER_COLOUR_LIMIT) else {
         panic!("{WALLPAPER_COLOUR_LIMIT} colours are out of range");
     };
-    for (text, first_counts) in [("o", [1, 3, 4, 7, 6]), ("**", [1, 7, 4, 19, 6])] {
+    for (text, first_counts) in [
+        ("o", [1, 3, 4, 7, 6]),
+        ("**", [1, 7, 4, 19, 6]),
+        ("xx", [1, 3, 4, 7, 6]),
+        ("*x", [1, 3, 4, 11, 6]),
+        ("22x", [1, 3, 6, 11, 10]),
+    ] {
         let side = match built(text).side_presentation() {
             Ok(presentation) => presentation,
             Err(error) => panic!("{text} has no side presentation: {error}"),
