@@ -3,8 +3,7 @@ use escher_signature::Geometry;
 
 use crate::common::signature;
 
-const UNSUPPORTED: [&str; 18] = [
-    "x",
+const UNSUPPORTED: [&str; 15] = [
     "4*3",
     "3*22",
     "*(inf)32",
@@ -14,8 +13,6 @@ const UNSUPPORTED: [&str; 18] = [
     "*22(inf)",
     "*(inf)222",
     "(inf)222",
-    "1",
-    "*",
     "oo",
     "xxx",
     "*732*",
@@ -72,6 +69,23 @@ fn build_gives_a_domain_of_every_euclidean_signature_of_its_list() {
 }
 
 #[test]
+fn build_gives_a_domain_of_every_spherical_type() {
+    let spherical = [
+        "22", "*22", "522", "*522", "332", "*332", "432", "*432", "532", "*532", "5*", "5x", "2*5",
+        "3*2", "*", "x", "1",
+    ];
+    for text in spherical {
+        let parsed = signature(text);
+        assert_eq!(parsed.geometry(), Geometry::Spherical, "{text}");
+        let built = FundamentalDomain::build(&parsed);
+        assert!(
+            built.as_ref().is_ok_and(|domain| domain.verify().passed()),
+            "{text}: {built:?}"
+        );
+    }
+}
+
+#[test]
 fn build_rejects_an_order_above_the_limit() {
     for text in [
         "*(1001)32",
@@ -100,6 +114,7 @@ fn build_rejects_an_order_above_the_limit() {
 fn build_rejects_an_order_of_a_spherical_kite_above_its_limit() {
     for (text, expected) in [
         ("(1001)*", "order 1001 is larger than 1000"),
+        ("(1001)x", "order 1001 is larger than 1000"),
         ("2*(501)", "order 501 is larger than 500"),
         ("2*(1001)", "order 1001 is larger than 500"),
     ] {
@@ -168,6 +183,11 @@ fn build_accepts_the_order_at_the_limit() {
         "3*",
         "(1000)*",
         "2*(500)",
+        "3x",
+        "(1000)x",
+        "x",
+        "*",
+        "1",
     ] {
         let built = FundamentalDomain::build(&signature(text));
         assert!(built.is_ok(), "{text}: {built:?}");

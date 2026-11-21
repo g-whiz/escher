@@ -10,10 +10,20 @@ Euler characteristic: 1
 Compact: yes
 Group order: 2
 Area: 2pi
-Domain: none, cannot build fundamental domain: the signature * is not supported
+Domain: 2 mirror sides
+Corner angles in degrees: 180.000000, 180.000000
+Side lengths: 3.141593, 3.141593
+Domain area: 6.283185
+Colourings: 2, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
 Presentation: 2 generators, 3 relators
 Generators: r1, l1
 Relators: r1^2, l1^-1 r1 l1 r1^-1, l1
 Order by coset enumeration: 2, equal to 2/chi
+Side presentation: 2 generators, 4 relators
+Side generators: s0, s1
+Side relators: s0^2, s1^2, s0 s1, s1 s0
+Side order by coset enumeration: 2, equal to 2/chi
 --- stderr
 --- end

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-19 |
+| Date | 2026-11-21 |
 | Applies to | The order of work of the proof of concept, from the first crate to the completion audit |
 
 ## Abstract
@@ -745,7 +745,9 @@ The reliance is limited, because `build_with` returns every new domain except th
 
 1. `feature/spherical-kite-groups`: `3*2`, `2*n`, and `n*`, the class of the predicate, the module `src/kite.rs`, the closure `Cycles`, the guard, the limit of 500 and its text, and their domain tests, including the certificate. In `escher-cli`, their snapshots and tests, with the examples of `3*2` and `2*` without a domain retargeted to `4*3` and `2*(501)`.
 2. `feature/spherical-lune-groups`: the kind `PairingKind::RotaryReflection` and its rule in check 2, `nx`, `x`, `*`, and `1`, and their domain tests, and the measured accuracy of all the new domains in `domain.md`. In `escher-cli`, the fourth form of the `Domain` line, the word `rotary reflection`, and their snapshots, diagnostics, and tests, with the examples of `*`, `x`, and `1` without a domain changed, including the unit test "Error text" of `escher-render`.
-3. `feature/spherical-groups-render`: the spherical group domain set, the tests, the golden images, and the measured tables of `escher-render`, and the two test helpers of the field "Scope". It updates `README.md` and Project Status in `AGENTS.md` when it merges.
+3. `feature/spherical-groups-render`: the spherical group domain set, the tests, the golden images, and the measured tables of `escher-render`, and the two test helpers of the field "Scope".
+
+Each branch updates `README.md` and Project Status in `AGENTS.md` for what it adds.
 
 ### 5.12. M12: Half-Plane, Band, and Klein Models
 

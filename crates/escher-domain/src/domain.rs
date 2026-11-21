@@ -9,7 +9,7 @@ use crate::error::{Error, Result};
 use crate::parameters::{ShapeParameters, validate};
 use crate::polygon::{Polygon, rectangle, triangle};
 use crate::sheets::{Cuts, side_lengths};
-use crate::spherical::{lune, triangle as spherical_triangle};
+use crate::spherical::{Base, lune, triangle as spherical_triangle};
 use crate::triangle::{Shape, SphericalGroup, Supported, admitted, construct};
 use crate::verify::Verification;
 use crate::{spherical as sphere, walk, wallpaper};
@@ -230,8 +230,8 @@ impl FundamentalDomain {
     /// parameters that the settings give.
     ///
     /// The signature must be `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
-    /// `4*2`, `3*3`, `3*2`, `2*n` with `n` from 2 to 500, or `n*` with `n` from
-    /// 2 to 1000, or have no handle or crosscap and
+    /// `4*2`, `3*3`, `3*2`, `2*n` with `n` from 2 to 500, `n*` or `nx` with `n`
+    /// from 2 to 1000, `*`, `x`, or `1`, or have no handle or crosscap and
     /// either one mirror boundary with finite corner orders and no cone point,
     /// or finite cone orders and no boundary. With a boundary, it must be one
     /// of these:
@@ -309,6 +309,21 @@ impl FundamentalDomain {
     /// in its own wall, and its sides 0 and 1 keep the pairings of the kite, the
     /// rotation through `2 pi / n` about vertex 0.
     ///
+    /// The domain of `nx` is the lune of `*nn`, with the same vertices, walls,
+    /// and centre. Its side 0 is paired with side 1 by the rotary reflection
+    /// `H R0` and side 1 with side 0 by `H R1`, where `Ri` is the reflection in
+    /// the wall of side `i` and `H` is the half-turn `(x, y, z) -> (-x, -y, z)`
+    /// about the axis through the centre. Each is computed by negating the
+    /// first two rows of `Ri`, so its entries are exact. The domains of `*`
+    /// and `x` are the lune of order 1, the hemisphere of the points with a
+    /// positive last coordinate, whose two sides both have the normal
+    /// `(0, 0, -1)` and meet at the vertices `(0, 1, 0)` and `(0, -1, 0)` at
+    /// the angle `pi`. Its sides are mirrors for `*`, with the reflection
+    /// `(x, y, z) -> (x, y, -z)`, and are paired by the antipodal map
+    /// `(x, y, z) -> (-x, -y, -z)` for `x`. The domain of `1` is the whole
+    /// sphere, with no side, no vertex, no corner, and the centre
+    /// [`ORIGIN`](escher_geometry::spherical::ORIGIN).
+    ///
     /// The reflection triangle of a Euclidean signature has side 0 of length 1,
     /// and the reflection rectangle has area 1. A spherical domain lies on the
     /// unit sphere and has no shape parameter. A hyperbolic polygon has its
@@ -320,8 +335,9 @@ impl FundamentalDomain {
     /// parameter without a setting takes its default value.
     ///
     /// A hyperbolic polygon, its double, the domain of `o`, `**`, `xx`, `*x`,
-    /// `22x`, `22*`, `2*22`, `4*2`, `3*3`, `3*2`, `2*n`, or `n*`, or the
-    /// domain of `2222` at any `skew` is returned only when it passes every
+    /// `22x`, `22*`, `2*22`, `4*2`, `3*3`, `3*2`, `2*n`, `n*`, `nx`, `x`, or
+    /// `1`, or the domain of `2222` at any `skew` is returned only when it
+    /// passes every
     /// check of
     /// [`verify`](FundamentalDomain::verify), because rounding
     /// keeps some domains from meeting the tolerances of the checks. A polygon
@@ -378,8 +394,8 @@ impl FundamentalDomain {
     ///    [`ErrorKind::Numerical`](crate::ErrorKind::Numerical) when rounding
     ///    makes the construction degenerate, or when a hyperbolic polygon, its
     ///    double, the domain of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
-    ///    `4*2`, `3*3`, `3*2`, `2*n`, or `n*`, or the domain of `2222` fails a
-    ///    check of [`verify`](FundamentalDomain::verify).
+    ///    `4*2`, `3*3`, `3*2`, `2*n`, `n*`, `nx`, `x`, or `1`, or the domain of
+    ///    `2222` fails a check of [`verify`](FundamentalDomain::verify).
     pub fn build_with(signature: &Signature, parameters: &ShapeParameters) -> Result<Self> {
         let supported = admitted(signature)?;
         let cuts = supported.shape().and_then(Shape::cuts);
@@ -400,16 +416,23 @@ impl FundamentalDomain {
                     .transpose()?;
                 wallpaper::construct(class, generating, kite.as_ref())?
             }
-            Supported::Sphere(group, area) => {
-                let kite = sphere::kite_triangle(group)
-                    .map(|(orders, _)| {
-                        Self::doubled(Shape::SphericalTriangle { orders, area }, None, &[])
-                    })
-                    .transpose()?;
-                sphere::construct(group, kite.as_ref())?
-            }
+            Supported::Sphere(group, area) => Self::spherical(group, area)?,
         };
         Self::guarded(supported, domain)
+    }
+
+    fn spherical(group: SphericalGroup, area: f64) -> Result<Self> {
+        match sphere::base(group) {
+            Base::Kite { orders, pair } => sphere::construct(
+                &Self::doubled(Shape::SphericalTriangle { orders, area }, None, &[])?,
+                pair,
+            ),
+            Base::MirrorLune => Self::reflection(Shape::Lune { order: 1, area }, None, &[]),
+            Base::RotaryLune(order) => {
+                sphere::rotary_lune(Self::reflection(Shape::Lune { order, area }, None, &[])?)
+            }
+            Base::WholeSphere => sphere::whole_sphere(area),
+        }
     }
 
     fn doubled(shape: Shape, cuts: Option<&Cuts>, values: &[f64]) -> Result<Self> {
@@ -486,7 +509,8 @@ impl FundamentalDomain {
     ///
     /// Side `j` joins vertex `j - 1` and vertex `j`, with indexes modulo the
     /// number of sides. Each side has the wall it lies on and the pairing
-    /// isometry that replicates the domain across it.
+    /// isometry that replicates the domain across it. The whole sphere of the
+    /// signature `1` has no side.
     #[must_use]
     pub fn sides(&self) -> &[Side] {
         &self.sides
@@ -505,8 +529,9 @@ impl FundamentalDomain {
     /// A vertex therefore lies off the hyperboloid by a rounding error, and a
     /// caller should not normalize it. For a Euclidean domain the vertices are points `(x, y, 1)`
     /// of the plane. For a spherical domain the vertices are points of the
-    /// unit sphere. The two vertices of a lune and of its double are the
-    /// antipodal points `(0, 1, 0)` and `(0, -1, 0)`.
+    /// unit sphere. The two vertices of a lune and of its double, and of the
+    /// domains of `nx`, `x`, and `*`, are the antipodal points `(0, 1, 0)` and
+    /// `(0, -1, 0)`. The whole sphere of `1` has no vertex.
     ///
     /// The vertices of a double follow those of the domain that it doubles,
     /// which has `n` vertices `V0` to `V(n-1)`. Vertex 0 of the double is
@@ -542,8 +567,11 @@ impl FundamentalDomain {
     /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) up to rounding. The two
     /// vertices of a lune are antipodal and have no midpoint, so its centre is
     /// [`ORIGIN`](escher_geometry::spherical::ORIGIN) exactly, halfway between
-    /// its two sides. A double has the centre of the domain that it doubles,
-    /// which lies inside that half of the double.
+    /// its two sides. The same holds for the domains of `nx`, `x`, and `*`, and
+    /// the whole sphere of `1` also has the centre
+    /// [`ORIGIN`](escher_geometry::spherical::ORIGIN). A double has the centre
+    /// of the domain that it doubles, which lies inside that half of the
+    /// double.
     #[must_use]
     pub fn centre(&self) -> DVec3 {
         self.centre
@@ -553,8 +581,9 @@ impl FundamentalDomain {
     ///
     /// The lengths are distances between the stored vertices, in the metric
     /// of curvature -1 for a hyperbolic domain and of the unit sphere for a
-    /// spherical one. Both sides of a lune and of its double have the length
-    /// `pi`.
+    /// spherical one. Both sides of a lune and of its double, and of the
+    /// domains of `nx`, `x`, and `*`, have the length `pi`. The list is empty
+    /// for the whole sphere of `1`.
     #[must_use]
     pub fn side_lengths(&self) -> Vec<f64> {
         self.lengths()
@@ -588,14 +617,15 @@ impl FundamentalDomain {
     ///
     /// The two vertices of a lune or of its double do not fix its sides, so
     /// both of its angles are measured from the unit normals `u0` and `u1` of
-    /// its two walls. For a lune it is the inverse cosine of `-u0 . u1`. For
+    /// its two walls. For a lune, which includes the domains of `nx`, `x`, and
+    /// `*`, it is the inverse cosine of `-u0 . u1`. For
     /// its double it is the two-argument arctangent of the length of `u0 x u1`
     /// and `-u0 . u1`, because its angle can be `pi`, where the inverse cosine
     /// magnifies a rounding error of the normals.
     ///
-    /// Every angle is NaN for a hyperbolic domain with fewer than three
-    /// vertices and for a spherical domain whose number of vertices is not
-    /// two, three, or four. An angle of a Euclidean domain is NaN when a
+    /// The list is empty for the whole sphere of `1`. Every angle is NaN for a
+    /// hyperbolic domain with fewer than three vertices and for a spherical
+    /// domain whose number of vertices is not zero, two, three, or four. An angle of a Euclidean domain is NaN when a
     /// neighbour of its vertex coincides with the vertex.
     #[must_use]
     pub fn corner_angles(&self) -> Vec<f64> {
@@ -615,11 +645,12 @@ impl FundamentalDomain {
     /// hyperbolic domain with `m` vertices, five or more, it is `(m - 2) pi`
     /// minus the sum of its corner angles, in which a vertex where two corners
     /// of a doubled domain meet counts with its whole angle. For a lune or its
-    /// double it is twice its angle. For a Euclidean domain it is the area that
-    /// the vertices enclose.
+    /// double it is twice its angle. For a spherical domain with no vertex, the
+    /// whole sphere of `1`, it is `4 pi`, the area of the unit sphere. For a
+    /// Euclidean domain it is the area that the vertices enclose.
     ///
     /// The area is NaN for a hyperbolic domain with fewer than three vertices
-    /// and for a spherical domain that has neither two, three, nor four
+    /// and for a spherical domain that has neither zero, two, three, nor four
     /// vertices.
     #[must_use]
     pub fn area(&self) -> f64 {
@@ -638,6 +669,7 @@ impl FundamentalDomain {
                 [[first, second, third], [fourth, fifth, sixth]] => {
                     (first + second + third - PI) + (fourth + fifth + sixth - PI)
                 }
+                _ if self.vertices.is_empty() => 4.0 * PI,
                 _ => match self.angles()[..] {
                     [first, _] => 2.0 * first,
                     _ => f64::NAN,
@@ -659,16 +691,18 @@ impl FundamentalDomain {
     /// orientation.
     ///
     /// It is true for a domain with a mirror side or a side paired by a
-    /// [glide reflection](PairingKind::GlideReflection), because both reverse
-    /// orientation, and false for a domain whose pairings are all rotations or
-    /// translations, such as the double of `732` or the domain of `o`. Only a
+    /// [glide reflection](PairingKind::GlideReflection) or a
+    /// [rotary reflection](PairingKind::RotaryReflection), because each
+    /// reverses orientation, and false for a domain whose pairings are all
+    /// rotations or translations, such as the double of `732` or the domain of
+    /// `o`, and for the whole sphere of `1`, which has no side. Only a
     /// domain for which it is true can be coloured by whether a tile is
     /// reached from the domain by an even or an odd number of pairings that
     /// reverse orientation.
     ///
     /// It does not say that every side is a mirror. The domain of `**` has two
-    /// mirror sides and two sides paired by a translation, and the domain of
-    /// `xx` has no mirror side, so a caller that needs the kind of each side
+    /// mirror sides and two sides paired by a translation, and the domains of
+    /// `xx` and `nx` have no mirror side, so a caller that needs the kind of each side
     /// reads [`Side::kind`].
     ///
     /// # Examples
@@ -845,7 +879,9 @@ impl FundamentalDomain {
                     {
                         let (normal, other) = (first.normal, second.normal);
                         let angle = match first.kind {
-                            PairingKind::Mirror => (-normal.dot(other)).clamp(-1.0, 1.0).acos(),
+                            PairingKind::Mirror | PairingKind::RotaryReflection => {
+                                (-normal.dot(other)).clamp(-1.0, 1.0).acos()
+                            }
                             PairingKind::Rotation
                             | PairingKind::Translation
                             | PairingKind::GlideReflection => {
@@ -975,7 +1011,10 @@ impl Side {
     /// coordinate 1, and in a spherical domain it is an orthogonal matrix. The
     /// isometry maps the neighbouring copy of the domain across this side onto
     /// the domain. For a side of kind [`PairingKind::Mirror`] it is
-    /// the reflection in the wall of the side. For a side of a double it is
+    /// the reflection in the wall of the side. For a side of the domain of `nx`
+    /// or `x` it is the reflection in the wall of the side followed by the
+    /// half-turn about the axis through the centre of the domain. For a side of
+    /// a double it is
     /// the product of two reflections of the domain that the double doubles,
     /// in the wall of its side 1 and in the wall of the side that this side is,
     /// or is the mirror image of. Each entry of the product is computed with
@@ -994,7 +1033,8 @@ impl Side {
     /// its partner. A pairing isometry that preserves orientation, such as
     /// that of a side of a double, maps the side onto its partner with the
     /// endpoints exchanged, and a
-    /// [glide reflection](PairingKind::GlideReflection) maps it with the
+    /// [glide reflection](PairingKind::GlideReflection) or a
+    /// [rotary reflection](PairingKind::RotaryReflection) maps it with the
     /// endpoints in the same order.
     #[must_use]
     pub fn partner(self) -> usize {
@@ -1010,8 +1050,8 @@ impl Side {
     /// Returns whether the pairing isometry preserves or reverses
     /// orientation.
     ///
-    /// A reflection and a glide reflection reverse orientation, and a
-    /// rotation or a translation preserves it.
+    /// A reflection, a glide reflection, and a rotary reflection reverse
+    /// orientation, and a rotation or a translation preserves it.
     #[must_use]
     pub fn orientation(self) -> Orientation {
         self.orientation
@@ -1053,6 +1093,13 @@ pub enum PairingKind {
     /// partner, another side of the domain. It reverses orientation and fixes
     /// no point.
     GlideReflection,
+    /// The pairing isometry is a rotary reflection of the sphere, a rotation
+    /// about an axis through the centre of the sphere followed by the
+    /// reflection in the plane through the centre perpendicular to that axis,
+    /// which maps the side onto its partner, another side of the domain. It
+    /// reverses orientation. The antipodal map, which sends each point to its
+    /// opposite, is the rotary reflection with the rotation through `pi`.
+    RotaryReflection,
 }
 
 /// Whether an isometry preserves or reverses orientation, the sense in which
@@ -1089,13 +1136,17 @@ pub enum Orientation {
 mod tests {
     use escher_signature::Signature;
 
-    use super::{FundamentalDomain, Orientation, PairingKind};
+    use core::f64::consts::PI;
+
+    use glam::DMat3;
+
+    use super::{FundamentalDomain, Orientation, PairingKind, Plane};
     use crate::shared::built_with_aspect;
     use crate::triangle::{
         LARGEST_ORDER, LARGEST_TWO_MIRROR_ORDER, MOST_ORDERS, Shape, Supported, admitted,
     };
+    use crate::wallpaper;
     use crate::{ErrorKind, ShapeParameters};
-    use crate::{spherical, wallpaper};
 
     fn signature(text: &str) -> Signature {
         match text.parse() {
@@ -1354,19 +1405,12 @@ mod tests {
         }
     }
 
-    fn spherical_kite(text: &str) -> (Supported, FundamentalDomain) {
+    fn spherical_domain(text: &str) -> (Supported, FundamentalDomain) {
         let supported = admitted(&signature(text));
         let Ok(Supported::Sphere(group, area)) = supported else {
             panic!("{text} is not a built spherical group signature");
         };
-        let kite = spherical::kite_triangle(group).map(|(orders, _)| {
-            let shape = Shape::SphericalTriangle { orders, area };
-            match FundamentalDomain::doubled(shape, None, &[]) {
-                Ok(doubled) => doubled,
-                Err(error) => panic!("{text} has no kite: {error}"),
-            }
-        });
-        match spherical::construct(group, kite.as_ref()) {
+        match FundamentalDomain::spherical(group, area) {
             Ok(domain) => (Supported::Sphere(group, area), domain),
             Err(error) => panic!("{text}: {error}"),
         }
@@ -1374,15 +1418,22 @@ mod tests {
 
     #[test]
     fn guard_refuses_a_spherical_domain_that_fails_its_checks() {
-        for text in ["3*2", "3*", "2*3"] {
-            let (class, domain) = spherical_kite(text);
+        for text in ["3*2", "3*", "2*3", "3x", "x", "1"] {
+            let (class, domain) = spherical_domain(text);
             assert!(FundamentalDomain::guarded(class, domain).is_ok(), "{text}");
         }
-        let (mirror_kite_class, mut mirror_kite) = spherical_kite("3*2");
+        let (mirror_class, mut mirror) = spherical_domain("*");
+        mirror.corners[0].order = 2;
+        assert!(FundamentalDomain::guarded(mirror_class, mirror).is_ok());
+        let (rotary_class, mut rotary) = spherical_domain("3x");
+        rotary.sides[0].pairing = DMat3::from_rotation_y(2.0 * PI / 3.0);
+        let (whole_class, mut whole) = spherical_domain("1");
+        whole.plane = Plane::Spherical { area: 2.0 * PI };
+        let (mirror_kite_class, mut mirror_kite) = spherical_domain("3*2");
         mirror_kite.corners[2].order = 2;
-        let (cone_mirror_class, mut cone_mirror) = spherical_kite("3*");
+        let (cone_mirror_class, mut cone_mirror) = spherical_domain("3*");
         cone_mirror.corners[0].order = 4;
-        let (two_mirror_class, mut two_mirror) = spherical_kite("2*3");
+        let (two_mirror_class, mut two_mirror) = spherical_domain("2*3");
         two_mirror.sides[2].orientation = Orientation::Reversing;
         for (label, class, corrupted) in [
             ("3*2 with a cone of order 2", mirror_kite_class, mirror_kite),
@@ -1392,6 +1443,12 @@ mod tests {
                 two_mirror_class,
                 two_mirror,
             ),
+            (
+                "3x with a rotation through a third of a turn",
+                rotary_class,
+                rotary,
+            ),
+            ("1 with the area of a hemisphere", whole_class, whole),
         ] {
             let error = FundamentalDomain::guarded(class, corrupted).err();
             assert_eq!(

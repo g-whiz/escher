@@ -13,6 +13,14 @@ pub(crate) fn signature(text: &str) -> Signature {
     }
 }
 
+pub(crate) fn order_text(order: u32) -> String {
+    if order < 10 {
+        order.to_string()
+    } else {
+        format!("({order})")
+    }
+}
+
 pub(crate) fn built(text: &str) -> FundamentalDomain {
     match FundamentalDomain::build(&signature(text)) {
         Ok(domain) => domain,

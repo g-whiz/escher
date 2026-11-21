@@ -10,9 +10,9 @@ use escher_signature::Geometry;
 use glam::{DMat3, DVec3};
 
 use crate::common::{
-    EXAMPLE_TRIPLES, Kite, LIMIT_ORDER, SMALL_ORDER, TWO_MIRROR_LIMIT_ORDER, built,
-    clear_rotation_polygons, cone_text, order_text, signature, small_kites, starred, test_set,
-    text, triangles,
+    EXAMPLE_TRIPLES, Kite, LIMIT_ORDER, LuneGroup, SMALL_ORDER, TWO_MIRROR_LIMIT_ORDER, built,
+    clear_rotation_polygons, cone_text, lune_test_set, order_text, signature, small_kites,
+    small_lune_groups, starred, test_set, text, triangles,
 };
 use crate::reference::{
     Matrix, Reference, add, div, identity, int, largest_entry_from_identity as largest_entry,
@@ -65,15 +65,21 @@ fn limit_signatures() -> Vec<String> {
     with_reflections(&[cone_text([LIMIT_ORDER, 2, 2]), lune(LIMIT_ORDER)])
 }
 
-fn small_spherical_kites() -> Vec<String> {
-    small_kites().into_iter().map(Kite::text).collect()
+fn small_spherical_groups() -> Vec<String> {
+    let mut texts: Vec<String> = small_kites().into_iter().map(Kite::text).collect();
+    texts.extend(small_lune_groups().into_iter().map(LuneGroup::text));
+    texts
 }
 
-fn spherical_kites() -> Vec<String> {
-    test_set().into_iter().map(Kite::text).collect()
+fn spherical_groups() -> Vec<String> {
+    let mut texts: Vec<String> = test_set().into_iter().map(Kite::text).collect();
+    texts.extend(lune_test_set().into_iter().map(LuneGroup::text));
+    texts
 }
 
-const CYCLE_RELATOR_KITES: [&str; 4] = ["3*2", "3*", "2*3", "2*"];
+const CYCLE_RELATOR_ORDERS: [&str; 6] = ["3*2", "3*", "2*3", "5x", "2*", "x"];
+
+const CYCLE_RELATOR_COUNTS: [&str; 5] = ["3*2", "3*", "2*3", "5x", "2*"];
 
 #[test]
 fn side_presentations_have_the_documented_text() {
@@ -416,7 +422,7 @@ fn side_relators_evaluate_to_the_identity() {
     texts.extend(limit_signatures());
     texts.extend(NAMED_POLYGONS.map(str::to_owned));
     texts.extend(clear_rotation_polygons());
-    texts.extend(spherical_kites());
+    texts.extend(spherical_groups());
     let mut reference = Reference::new();
     let empty = || {
         KINDS.map(|_| Largest {
@@ -643,7 +649,7 @@ fn side_and_conway_presentations_of_the_wallpaper_domains_give_equal_colouring_c
 }
 
 #[test]
-fn side_presentations_of_the_spherical_kites_have_the_documented_text() {
+fn side_presentations_of_the_spherical_groups_have_the_documented_text() {
     let mut cases: Vec<(String, Vec<String>)> = vec![(
         "3*2".to_owned(),
         ["s0^2", "s1^2", "s2 s3", "(s1 s0)^2", "s2 s0 s3 s1", "s3^3"]
@@ -676,13 +682,32 @@ fn side_presentations_of_the_spherical_kites_have_the_documented_text() {
             ],
         ));
     }
+    for order in (2..=SMALL_ORDER).chain([LIMIT_ORDER]) {
+        cases.push((
+            LuneGroup::ConeCrossCap(order).text(),
+            vec!["s0 s1".to_owned(), format!("(s1 s1)^{order}")],
+        ));
+    }
+    for (text, relators) in [
+        ("x", &["s0 s1", "s1 s1"][..]),
+        ("*", &["s0^2", "s1^2", "s0 s1", "s1 s0"][..]),
+        ("1", &[][..]),
+    ] {
+        cases.push((
+            text.to_owned(),
+            relators.iter().map(|&relator| relator.to_owned()).collect(),
+        ));
+    }
     for (text, relators) in cases {
         let (domain, presentation) = presentation(&text);
-        assert_eq!(
-            presentation.generator_names(),
-            side_names(domain.sides().len()),
-            "{text}"
-        );
+        let sides = match text.as_str() {
+            "1" => 0,
+            "x" | "*" => 2,
+            _ if text.ends_with('x') => 2,
+            _ => 4,
+        };
+        assert_eq!(domain.sides().len(), sides, "{text}");
+        assert_eq!(presentation.generator_names(), side_names(sides), "{text}");
         assert_eq!(relator_texts(&presentation), relators, "{text}");
     }
 }
@@ -701,36 +726,41 @@ fn without_relator(presentation: &Presentation, dropped: usize) -> Presentation 
     }
 }
 
-fn cycle_relators(domain: &FundamentalDomain) -> std::ops::Range<usize> {
+fn cycle_relators(
+    domain: &FundamentalDomain,
+    presentation: &Presentation,
+) -> std::ops::Range<usize> {
     let heads = domain
         .sides()
         .iter()
         .enumerate()
         .filter(|&(index, side)| side.kind() == PairingKind::Mirror || side.partner() > index)
         .count();
-    heads..heads + 3
+    heads..presentation.relators().len()
 }
 
 #[test]
-fn side_presentations_of_the_spherical_kites_give_the_group_order() {
+fn side_presentations_of_the_spherical_groups_give_the_group_order() {
     let mut slowest = (Duration::ZERO, String::new());
     let started = Instant::now();
-    for text in spherical_kites() {
+    for text in spherical_groups() {
         let elapsed = assert_side_order(&text);
         if elapsed > slowest.0 {
             slowest = (elapsed, text);
         }
     }
     println!(
-        "slowest side order of a spherical kite: {} in {:.3} ms, all in {:.3} s",
+        "slowest side order of a spherical group: {} in {:.3} ms, all in {:.3} s",
         slowest.1,
         slowest.0.as_secs_f64() * 1e3,
         started.elapsed().as_secs_f64()
     );
-    for text in CYCLE_RELATOR_KITES {
+    for text in CYCLE_RELATOR_ORDERS {
         let (domain, presentation) = presentation(text);
         let order = signature(text).group_order().map(core::num::NonZero::get);
-        for dropped in cycle_relators(&domain) {
+        let dropped_relators = cycle_relators(&domain, &presentation);
+        assert!(!dropped_relators.is_empty(), "{text}");
+        for dropped in dropped_relators {
             let reduced = without_relator(&presentation, dropped);
             let index = enumerate(&reduced, &[], CosetLimit::DEFAULT)
                 .ok()
@@ -778,7 +808,7 @@ fn colouring_counts(
 
 #[test]
 fn side_and_conway_presentations_of_the_spherical_groups_give_equal_colouring_counts() {
-    for text in small_spherical_kites() {
+    for text in small_spherical_groups() {
         let side = presentation(&text).1;
         let conway = match conway_presentation(&signature(&text)) {
             Ok(presentation) => presentation,
@@ -788,9 +818,9 @@ fn side_and_conway_presentations_of_the_spherical_groups_give_equal_colouring_co
         let by_conway = colouring_counts(&text, "Conway", &conway, SPHERICAL_COLOUR_LIMIT);
         assert!(by_sides.iter().all(Option::is_some), "{text}");
         assert_eq!(by_sides, by_conway, "{text}");
-        if CYCLE_RELATOR_KITES.contains(&text.as_str()) {
+        if CYCLE_RELATOR_COUNTS.contains(&text.as_str()) {
             let domain = built(&text);
-            for dropped in cycle_relators(&domain) {
+            for dropped in cycle_relators(&domain, &side) {
                 let reduced = without_relator(&side, dropped);
                 let name = format!(
                     "side without {}",

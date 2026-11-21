@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-19 |
+| Date | 2026-11-21 |
 | Applies to | `crates/escher-group` |
 
 ## Abstract
@@ -1202,9 +1202,9 @@ The prototype also measured these figures:
 
 ### 11.6. Figures of the Spherical Prototype
 
-This section holds the figures of the spherical group domains on a prototype and the figures that the tests of the crates measure for the kites `3*2`, `2*n`, and `n*`. `escher-domain` gives the domains of `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1` their side presentations by Section 5.4 of `docs/design/domain.md`, and the domain of `1`, which has no side, a presentation with no generator and no relator (DOM-62 of `docs/design/domain.md`). They need no code and no rule in this crate. `enumerate`, the search, the Conway presentations, and the ids serve these side presentations unchanged. A presentation with no generator enumerates to the index 1, and the search accepts it.
+This section holds the figures of the spherical group domains on a prototype and the figures that the tests of the crates measure for the kites `3*2`, `2*n`, and `n*` and for the lune groups `nx`, `x`, `*`, and `1`. `escher-domain` gives the domains of `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1` their side presentations by Section 5.4 of `docs/design/domain.md`, and the domain of `1`, which has no side, a presentation with no generator and no relator (DOM-62 of `docs/design/domain.md`). They need no code and no rule in this crate. `enumerate`, the search, the Conway presentations, and the ids serve these side presentations unchanged. A presentation with no generator enumerates to the index 1, and the search accepts it.
 
-A prototype outside the repository tested this design. A copy of the workspace gained the constructions of DOM-58 and DOM-59 of `docs/design/domain.md` as private code of `escher-domain`, and called `enumerate`, `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. It covered the 37 canonical signatures of the seven types with $n$ up to 12 and the three limits `(1000)*`, `(1000)x`, and `2*(500)`, 40 signatures in all. Every figure of this section comes from that prototype, in a release build on one thread, except the figures of the crates for the kites, which the section marks. The tests "Spherical side orders" and "Spherical counts" of `docs/design/domain.md` measure the same quantities on the crates, the counts up to 16 colours or the group order when that is smaller.
+A prototype outside the repository tested this design. A copy of the workspace gained the constructions of DOM-58 and DOM-59 of `docs/design/domain.md` as private code of `escher-domain`, and called `enumerate`, `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. It covered the 37 canonical signatures of the seven types with $n$ up to 12 and the three limits `(1000)*`, `(1000)x`, and `2*(500)`, 40 signatures in all. Every figure of this section comes from that prototype, in a release build on one thread, except the figures of the crates, which the section marks. The tests "Spherical side orders" and "Spherical counts" of `docs/design/domain.md` measure the same quantities on the crates, the counts up to 16 colours or the group order when that is smaller.
 
 Enumeration over the trivial subgroup gave the index $2/\chi$ for the side presentation of each of the 40 signatures. For $n$ up to 12, each run took at most 0.02 ms. At the limits, the side and the Conway presentations took these times:
 
@@ -1223,6 +1223,14 @@ The tests "Spherical side orders" and "Spherical counts" measured these figures 
 | Enumeration of the side presentation | Every kite gives `group_order()`. The slowest is `2*(500)`, at 140 to 148 ms, and the whole set takes 0.24 to 0.25 s | `2*(500)` at 18.3 ms, and at most 0.02 ms for $n$ up to 12 |
 | Colouring search to 16 colours or the group order, side and Conway presentations | Equal counts for every kite with $n$ up to 12. Each search takes at most 0.008 s | Equal counts up to 64 colours or the group order. Each search took at most 1 ms |
 | Search without a cycle relator | Run to 6 colours, or to 4 for `2*`, because the search to 16 colours took up to 23 s, for `3*2` without `s2 s0 s3 s1`. The counts differ from those of the Conway presentation, such as 1, 3, 10, 57, 60, and 504 for `3*2` without that relator against 1, 1, 1, 4, 0, and 7 | The counts differed |
+
+The same tests measured these figures for the lune groups, in a debug build:
+
+| Figure | Crates, debug build |
+| --- | --- |
+| Enumeration of the side presentation | Every lune group of the test set, `nx` with $n$ from 2 to 12 and at 1000, `x`, `*`, and `1`, gives `group_order()`. The slowest is `(1000)x`, at 168 ms, and the whole set of kites and lune groups takes 0.41 s |
+| Colouring search to 16 colours or the group order, side and Conway presentations | Equal counts for every lune group with $n$ up to 12, and for `x`, `*`, and `1`. Each search takes at most 0.001 s. For example, `5x` gives 1, 1, 0, 0, 1, 0, 0, 0, 0, and 1 at 1 to 10 colours |
+| Search without a cycle relator | Run to 6 colours. `5x` without `(s1 s1)^5` gives 1, 1, 1, 1, 1, and 1 against 1, 1, 0, 0, 1, and 0 for the Conway presentation |
 
 The counts of the side presentations of the kites, for 1 to 16 colours or to the group order when that is smaller, are these:
 

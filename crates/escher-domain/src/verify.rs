@@ -82,8 +82,11 @@ impl Check {
 /// vector with finite coordinates and, in a hyperbolic or Euclidean domain, a
 /// positive last coordinate, or, in a spherical domain, not the zero vector.
 /// Each also requires the domain to have as many vertices and corner orders
-/// as sides, and at least one side, and its residual is infinite when a
-/// requirement fails.
+/// as sides, and at least one side unless the domain is spherical, and its
+/// residual is infinite when a requirement fails. A spherical domain with no
+/// side, no vertex, and no corner, the whole sphere, meets every condition of
+/// these checks but that of the area, which compares `4 pi` with the area of
+/// the signature.
 ///
 /// # Examples
 ///
@@ -170,9 +173,12 @@ impl Verification {
     /// also infinite unless the kind of each side agrees with its partner and
     /// its orientation: a [mirror](crate::PairingKind::Mirror) is its own
     /// partner and reverses orientation, a
-    /// [glide reflection](crate::PairingKind::GlideReflection) has another
+    /// [glide reflection](crate::PairingKind::GlideReflection) or a
+    /// [rotary reflection](crate::PairingKind::RotaryReflection) has another
     /// side as its partner and reverses orientation, and a side of another
-    /// kind has another side as its partner and preserves orientation. The determinant
+    /// kind has another side as its partner and preserves orientation. A glide
+    /// reflection must lie in a domain that is not spherical and a rotary
+    /// reflection in a spherical domain. The determinant
     /// of each pairing must also be positive for a pairing that preserves
     /// orientation and negative for one that reverses it, and a side has the
     /// kind [`Translation`](crate::PairingKind::Translation) exactly when its
@@ -192,8 +198,8 @@ impl Verification {
     /// it must map to. Side `j` has the endpoints vertex `j - 1` and vertex
     /// `j`, so a pairing that preserves orientation must map vertex `j - 1`
     /// onto the second endpoint of the partner side, and vertex `j` onto its
-    /// first endpoint, and a glide reflection must map vertex `j - 1` onto the
-    /// first endpoint of the partner side, and vertex `j` onto its second
+    /// first endpoint, and a glide reflection or a rotary reflection must map
+    /// vertex `j - 1` onto the first endpoint of the partner side, and vertex `j` onto its second
     /// endpoint. The difference
     /// is divided by the last coordinate of the endpoint in a hyperbolic or
     /// Euclidean domain. The third is the largest coordinate of the sum of the
@@ -249,7 +255,8 @@ impl Verification {
     /// when the walk arrived at the vertex in the opposite direction, applies
     /// the pairing of that side, and moves to the vertex onto which the
     /// pairing carries the vertex. A pairing that reverses orientation, such
-    /// as a mirror or a glide reflection, reverses the direction of the walk.
+    /// as a mirror, a glide reflection, or a rotary reflection, reverses the
+    /// direction of the walk.
     /// The vertices that one walk visits until it returns to its start in its
     /// first direction form a vertex cycle, and a walk that does not return
     /// within twice as many steps as the domain has sides breaks its
@@ -294,8 +301,9 @@ impl Verification {
     /// Every domain whose check sums the angles over its vertex cycles is
     /// checked by those cycles instead, as the check of the relators walks
     /// them. These are the domain of `2222`, the wallpaper domains, those of
-    /// `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, and `3*3`, and the
-    /// spherical kites, those of `3*2`, `2*n`, and `n*`. The residual is the
+    /// `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, and `3*3`, the
+    /// spherical kites, those of `3*2`, `2*n`, and `n*`, and the domains of
+    /// `nx` and `x`. The residual is the
     /// largest absolute difference between `2 pi / n` and the sum of the
     /// angles that the walk of a cycle of order `n` visits, which counts a
     /// vertex that the walk visits from both of its sides twice. The four corners of the parallelogram of `o` form one cycle of
@@ -383,7 +391,8 @@ fn vertices_are_points(domain: &FundamentalDomain) -> bool {
         Plane::Hyperbolic { .. } | Plane::Euclidean => vertex.is_finite() && vertex.z > 0.0,
         Plane::Spherical { .. } => vertex.is_finite() && *vertex != DVec3::ZERO,
     };
-    count > 0
+    let whole_sphere = count == 0 && matches!(domain.plane, Plane::Spherical { .. });
+    (count > 0 || whole_sphere)
         && domain.vertices.len() == count
         && domain.corners.len() == count
         && domain.vertices.iter().all(is_point)
@@ -433,6 +442,7 @@ fn pairings(domain: &FundamentalDomain) -> f64 {
         let across = side_value(domain, partner.covector, current.pairing * centre) > 0.0;
         structural &= partner.partner == index && inside && across;
         structural &= kind_agrees(current.kind, current.partner == index, current.orientation);
+        structural &= kind_fits_plane(current.kind, domain.plane);
         structural &= (current.kind == PairingKind::Translation)
             == is_translation(domain.plane, current.pairing);
         let determinant = current.pairing.determinant();
@@ -452,11 +462,16 @@ fn pairings(domain: &FundamentalDomain) -> f64 {
                     );
                 }
             }
-            PairingKind::Rotation | PairingKind::Translation | PairingKind::GlideReflection => {
+            PairingKind::Rotation
+            | PairingKind::Translation
+            | PairingKind::GlideReflection
+            | PairingKind::RotaryReflection => {
                 let [start, end] = endpoints(domain, index);
                 let [partner_start, partner_end] = endpoints(domain, current.partner);
                 let targets = match current.kind {
-                    PairingKind::GlideReflection => [(start, partner_start), (end, partner_end)],
+                    PairingKind::GlideReflection | PairingKind::RotaryReflection => {
+                        [(start, partner_start), (end, partner_end)]
+                    }
                     PairingKind::Mirror | PairingKind::Rotation | PairingKind::Translation => {
                         [(start, partner_end), (end, partner_start)]
                     }
@@ -509,7 +524,18 @@ fn kind_agrees(kind: PairingKind, own_partner: bool, orientation: Orientation) -
         PairingKind::Rotation | PairingKind::Translation => {
             !own_partner && orientation == Orientation::Preserving
         }
-        PairingKind::GlideReflection => !own_partner && orientation == Orientation::Reversing,
+        PairingKind::GlideReflection | PairingKind::RotaryReflection => {
+            !own_partner && orientation == Orientation::Reversing
+        }
+    }
+}
+
+fn kind_fits_plane(kind: PairingKind, plane: Plane) -> bool {
+    let spherical = matches!(plane, Plane::Spherical { .. });
+    match kind {
+        PairingKind::GlideReflection => !spherical,
+        PairingKind::RotaryReflection => spherical,
+        PairingKind::Mirror | PairingKind::Rotation | PairingKind::Translation => true,
     }
 }
 
@@ -527,9 +553,10 @@ fn walls(domain: &FundamentalDomain) -> f64 {
         }
         let mirror = match current.kind {
             PairingKind::Mirror => true,
-            PairingKind::Rotation | PairingKind::Translation | PairingKind::GlideReflection => {
-                false
-            }
+            PairingKind::Rotation
+            | PairingKind::Translation
+            | PairingKind::GlideReflection
+            | PairingKind::RotaryReflection => false,
         };
         match domain.plane {
             Plane::Hyperbolic { .. } => {
@@ -604,9 +631,10 @@ pub(crate) fn side_kinds(domain: &FundamentalDomain) -> SideKinds {
         .iter()
         .filter(|side| match side.kind {
             PairingKind::Mirror => true,
-            PairingKind::Rotation | PairingKind::Translation | PairingKind::GlideReflection => {
-                false
-            }
+            PairingKind::Rotation
+            | PairingKind::Translation
+            | PairingKind::GlideReflection
+            | PairingKind::RotaryReflection => false,
         })
         .count();
     if mirrors == domain.sides.len() {
@@ -2816,8 +2844,11 @@ mod tests {
                 "{text}"
             );
         }
-        for text in ["3*2", "2*3", "3*", "2*"] {
+        for text in ["3*2", "2*3", "3*", "2*", "3x", "x"] {
             assert_eq!(built(text).closure, Closure::Cycles, "{text}");
+        }
+        for text in ["*", "1"] {
+            assert_eq!(built(text).closure, Closure::PerVertex, "{text}");
         }
     }
 
@@ -2837,6 +2868,10 @@ mod tests {
         ]
     }
 
+    fn rotary_lune_cycles(order: u32) -> Vec<ExpectedCycle> {
+        vec![(0, order, "(0+)(1-)", &[1, 1])]
+    }
+
     #[test]
     fn walk_finds_the_cycles_of_the_spherical_group_domains() {
         let cases = [
@@ -2846,6 +2881,9 @@ mod tests {
             ("3*", cone_mirror_cycles(3), 1.0 / 3.0),
             ("2*", cone_mirror_cycles(2), 1.0 / 2.0),
             ("(1000)*", cone_mirror_cycles(1000), 1.0 / 1000.0),
+            ("3x", rotary_lune_cycles(3), 1.0 / 3.0),
+            ("x", rotary_lune_cycles(1), 1.0),
+            ("(1000)x", rotary_lune_cycles(1000), 1.0 / 1000.0),
         ];
         for (text, expected, characteristic) in cases {
             let domain = built(text);
@@ -2935,6 +2973,115 @@ mod tests {
                 cycles.to_bits(),
                 "{aspect}"
             );
+        }
+    }
+
+    fn rotation_about_the_poles(angle: f64) -> glam::DMat3 {
+        glam::DMat3::from_axis_angle(DVec3::Y, angle)
+    }
+
+    #[test]
+    fn verify_fails_on_a_rotary_lune_paired_by_the_rotation_through_twice_its_angle() {
+        for order in [3, 4] {
+            let mut corrupted = built(&format!("{order}x"));
+            let angle = 2.0 * PI / f64::from(order);
+            for (index, turn) in [angle, -angle].into_iter().enumerate() {
+                let side = &mut corrupted.sides[index];
+                side.pairing = rotation_about_the_poles(turn);
+                side.kind = PairingKind::Rotation;
+                side.orientation = Orientation::Preserving;
+            }
+            assert_failed(
+                &corrupted,
+                &["pairings", "angles"],
+                &format!("{order}x paired by the rotation through 2 pi / {order}"),
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_rotary_reflections_labelled_as_glide_reflections() {
+        for text in ["x", "3x"] {
+            let mut corrupted = built(text);
+            for side in &mut corrupted.sides {
+                side.kind = PairingKind::GlideReflection;
+            }
+            assert_infinite_failures(
+                &corrupted,
+                &["pairings"],
+                &format!("{text} with its pairings labelled GlideReflection"),
+            );
+        }
+    }
+
+    #[test]
+    fn verify_fails_on_a_reversing_rotary_reflection_labelled_as_a_rotation() {
+        let mut corrupted = built("3x");
+        corrupted.sides[0].kind = PairingKind::Rotation;
+        assert_infinite_failures(
+            &corrupted,
+            &["pairings"],
+            "3x with side 0 labelled Rotation",
+        );
+    }
+
+    #[test]
+    fn verify_fails_on_a_rotary_reflection_replaced_by_its_reflection() {
+        let mut corrupted = built("3x");
+        corrupted.sides[0].pairing = spherical::reflection(corrupted.sides[0].normal);
+        assert_infinite_failures(
+            &corrupted,
+            &["pairings"],
+            "3x with the reflection of side 0 as its pairing",
+        );
+    }
+
+    #[test]
+    fn verify_fails_on_glide_reflections_labelled_as_rotary_reflections() {
+        for (text, sides) in [("xx", &[0, 2][..]), ("22x", &[0, 1, 2, 3][..])] {
+            let mut corrupted = built_with_aspect(text, 1.0, None);
+            for &index in sides {
+                assert_eq!(
+                    corrupted.sides[index].kind,
+                    PairingKind::GlideReflection,
+                    "{text}"
+                );
+                corrupted.sides[index].kind = PairingKind::RotaryReflection;
+            }
+            assert_infinite_failures(
+                &corrupted,
+                &["pairings"],
+                &format!("{text} with its glide reflections labelled RotaryReflection"),
+            );
+        }
+    }
+
+    #[test]
+    fn whole_sphere_passes_every_check_with_the_residual_zero() {
+        let whole = built("1");
+        let verification = whole.verify();
+        for (name, check) in NAMES.into_iter().zip([
+            verification.isometries(),
+            verification.pairings(),
+            verification.walls(),
+            verification.relators(),
+            verification.angles(),
+            verification.area(),
+        ]) {
+            assert_eq!(check.residual(), 0.0, "{name}: {verification:?}");
+        }
+        let mut hemisphere_area = whole;
+        hemisphere_area.plane = Plane::Spherical { area: 2.0 * PI };
+        assert_failed(&hemisphere_area, &["area"], "1 with the area 2 pi");
+    }
+
+    #[test]
+    fn domain_with_no_side_fails_off_the_sphere() {
+        for mut emptied in [domain([7, 3, 2]), built("*442")] {
+            emptied.sides.clear();
+            emptied.vertices.clear();
+            emptied.corners.clear();
+            assert_infinite_failures(&emptied, &READ_THE_COUNTS, "no side off the sphere");
         }
     }
 }

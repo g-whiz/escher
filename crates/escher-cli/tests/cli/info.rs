@@ -580,6 +580,36 @@ fn info_prints_the_domain_summary_of_a_spherical_kite_with_a_half_turn_and_a_cor
 }
 
 #[test]
+fn info_prints_the_domain_summary_of_a_lune_paired_by_rotary_reflections() {
+    insta::assert_snapshot!(snapshot(&["info", "5x"]));
+}
+
+#[test]
+fn info_prints_the_domain_summary_of_the_projective_plane() {
+    insta::assert_snapshot!(snapshot(&["info", "x"]));
+}
+
+#[test]
+fn info_prints_the_domain_summary_of_one_mirror() {
+    insta::assert_snapshot!(snapshot(&["info", "*"]));
+}
+
+#[test]
+fn info_prints_a_cross_cap_typed_before_its_cone_in_canonical_order() {
+    insta::assert_snapshot!(snapshot(&["info", "x3"]));
+}
+
+#[test]
+fn info_check_prints_each_check_of_a_lune_paired_by_rotary_reflections() {
+    insta::assert_snapshot!(snapshot(&["info", "--check", "5x"]));
+}
+
+#[test]
+fn info_presentation_prints_the_presentations_of_a_lune_paired_by_rotary_reflections() {
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "5x"]));
+}
+
+#[test]
 fn info_check_prints_each_check_of_a_spherical_kite_with_mirrors() {
     insta::assert_snapshot!(snapshot(&["info", "--check", "3*2"]));
 }
@@ -645,17 +675,34 @@ fn info_presentation_confirms_the_order_of_the_doubled_hemisphere() {
 
 #[test]
 fn info_presentation_confirms_the_order_of_signatures_without_a_domain() {
+    let outcome = run_args(&["info", "--presentation", "2*(501)"]);
+    assert_eq!(outcome.status, Status::Success);
+    assert_eq!(outcome.stderr, "");
+    assert!(
+        outcome
+            .stdout
+            .ends_with("\nOrder by coset enumeration: 2004, equal to 2/chi\n"),
+        "{}",
+        outcome.stdout
+    );
+}
+
+#[test]
+fn info_presentation_confirms_both_orders_of_the_hemispheres() {
     for signature in ["x", "*"] {
         let outcome = run_args(&["info", "--presentation", signature]);
         assert_eq!(outcome.status, Status::Success, "{signature}");
         assert_eq!(outcome.stderr, "", "{signature}");
-        assert!(
-            outcome
-                .stdout
-                .ends_with("\nOrder by coset enumeration: 2, equal to 2/chi\n"),
-            "{signature}: {}",
-            outcome.stdout
-        );
+        for line in [
+            "\nOrder by coset enumeration: 2, equal to 2/chi\n",
+            "\nSide order by coset enumeration: 2, equal to 2/chi\n",
+        ] {
+            assert!(
+                outcome.stdout.contains(line),
+                "{signature}: {}",
+                outcome.stdout
+            );
+        }
     }
 }
 

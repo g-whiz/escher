@@ -227,11 +227,14 @@ pub enum ErrorKind {
     ///   rotation.
     /// - The spherical signatures `3*2`, `2*n`, and `n*`, which have the kite of
     ///   `432`, `(2n)22`, or `n22` with two mirror sides and two sides paired by
-    ///   a rotation.
+    ///   a rotation, `nx`, which has the lune of `*nn` with its sides paired by
+    ///   rotary reflections, `*` and `x`, which have a hemisphere with two
+    ///   mirror sides or two sides paired by the antipodal map, and `1`, which
+    ///   has the whole sphere.
     ///
-    /// So the spherical signatures `nx`, `x`, `*`, and `1`, a hyperbolic
-    /// signature that mixes cone points with a mirror boundary, such as `4*3`,
-    /// and every signature with an infinite order give this kind.
+    /// So no spherical signature gives this kind, and a hyperbolic signature
+    /// that mixes cone points with a mirror boundary, such as `4*3`, and every
+    /// signature with an infinite order give this kind.
     UnsupportedSignature,
     /// The signature has more than eight corner or cone orders, a corner or
     /// cone order above 1000, or is `2*n` with `n` above 500, beyond which the
@@ -244,7 +247,8 @@ pub enum ErrorKind {
     /// that is not a point of the hyperbolic plane or of the sphere, a wall
     /// that cannot be found or is not finite, or a hyperbolic polygon, its
     /// double, or a domain of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
-    /// `4*2`, `3*3`, `2222`, `3*2`, `2*n`, or `n*` that failed a check of
+    /// `4*2`, `3*3`, `2222`, `3*2`, `2*n`, `n*`, `nx`, `x`, or `1` that failed
+    /// a check of
     /// [`FundamentalDomain::verify`](crate::FundamentalDomain::verify).
     ///
     /// A hyperbolic polygon gives it when its shape parameters are too
@@ -259,8 +263,8 @@ pub enum ErrorKind {
     /// of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, `3*3`, or `2222`
     /// gives it when it fails a check, which no setting in the ranges of its parameters is
     /// known to cause, and its text then names the verification. The domain
-    /// of `3*2`, `2*n`, or `n*` gives it when it fails a check, which no order
-    /// in its range is known to cause, and its text then names the
+    /// of `3*2`, `2*n`, `n*`, `nx`, `x`, or `1` gives it when it fails a
+    /// check, which no order in its range is known to cause, and its text then names the
     /// verification of a spherical domain.
     Numerical,
     /// A setting names no shape parameter of the signature.

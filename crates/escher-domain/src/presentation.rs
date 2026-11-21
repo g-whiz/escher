@@ -46,7 +46,10 @@ fn paired_relators(domain: &FundamentalDomain) -> Result<Vec<Relator>> {
     for (index, side) in domain.sides.iter().enumerate() {
         match side.kind {
             PairingKind::Mirror => relators.push(relator(&[index], 2)?),
-            PairingKind::Rotation | PairingKind::Translation | PairingKind::GlideReflection => {
+            PairingKind::Rotation
+            | PairingKind::Translation
+            | PairingKind::GlideReflection
+            | PairingKind::RotaryReflection => {
                 if side.partner > index {
                     relators.push(relator(&[index, side.partner], 1)?);
                 }
@@ -474,5 +477,15 @@ mod tests {
             "a vertex cycle joins corners of different orders",
             "22x with vertex 0 alone of order 1",
         );
+    }
+
+    #[test]
+    fn whole_sphere_has_no_generator_and_no_relator() {
+        let presentation = match built("1").side_presentation() {
+            Ok(presentation) => presentation,
+            Err(error) => panic!("1 has no side presentation: {error}"),
+        };
+        assert_eq!(presentation.generator_names().len(), 0);
+        assert_eq!(presentation.relators().len(), 0);
     }
 }

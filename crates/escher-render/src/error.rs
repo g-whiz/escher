@@ -482,12 +482,12 @@ mod tests {
 
     #[test]
     fn a_domain_without_a_side_presentation_keeps_the_domain_error_as_its_source() {
-        let signature: escher_signature::Signature = match "*".parse() {
+        let signature: escher_signature::Signature = match "4*3".parse() {
             Ok(signature) => signature,
             Err(error) => panic!("{error}"),
         };
         let Err(cause) = escher_domain::FundamentalDomain::build(&signature) else {
-            panic!("* has a domain");
+            panic!("4*3 has a domain");
         };
         let cause_text = cause.to_string();
         let error = Error::no_presentation(cause);

@@ -10,10 +10,18 @@ Euler characteristic: 2
 Compact: yes
 Group order: 1
 Area: 4pi
-Domain: none, cannot build fundamental domain: the signature 1 is not supported
+Domain: no sides
+Parity colouring: none, every side pairing preserves orientation
+Domain area: 12.566371
+Colourings: 1, complete to 12 colours
+Colourings with 1 colour: 1
 Presentation: 0 generators, 0 relators
 Generators: none
 Relators: none
 Order by coset enumeration: 1, equal to 2/chi
+Side presentation: 0 generators, 0 relators
+Side generators: none
+Side relators: none
+Side order by coset enumeration: 1, equal to 2/chi
 --- stderr
 --- end

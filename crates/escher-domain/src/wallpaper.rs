@@ -332,7 +332,10 @@ fn sheared(
                         1.0,
                     )))
                 }
-                PairingKind::Mirror | PairingKind::Rotation | PairingKind::GlideReflection => None,
+                PairingKind::Mirror
+                | PairingKind::Rotation
+                | PairingKind::GlideReflection
+                | PairingKind::RotaryReflection => None,
             }
         })
         .collect::<Option<Vec<DMat3>>>()

@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"rotary_lune_setting\", &[\"5x\", \"--set\", \"aspect=2\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 5x
+  caused by: cannot build fundamental domain: the signature 5x has no shape parameter with one of the given names
+--- end

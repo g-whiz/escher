@@ -5,7 +5,7 @@ use proptest::test_runner::Config;
 
 use crate::reference::{Vector, vector};
 use crate::shared::{NAMED_POLYGONS, built_with_aspect};
-pub(crate) use crate::shared::{built, signature};
+pub(crate) use crate::shared::{built, order_text, signature};
 
 pub(crate) const EXAMPLE_TRIPLES: [[u32; 3]; 6] = [
     [7, 3, 2],
@@ -79,14 +79,6 @@ pub(crate) fn all_triangles() -> Vec<[u32; 3]> {
 
 pub(crate) fn proptest_config() -> Config {
     Config::default()
-}
-
-pub(crate) fn order_text(order: u32) -> String {
-    if order < 10 {
-        order.to_string()
-    } else {
-        format!("({order})")
-    }
 }
 
 pub(crate) fn text(orders: [u32; 3]) -> String {
@@ -363,4 +355,43 @@ pub(crate) fn test_set() -> Vec<Kite> {
     let mut kites = small_kites();
     kites.extend(limit_kites());
     kites
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LuneGroup {
+    ConeCrossCap(u32),
+    CrossCap,
+    Mirror,
+    Trivial,
+}
+
+impl LuneGroup {
+    pub(crate) fn text(self) -> String {
+        match self {
+            Self::ConeCrossCap(order) => format!("{}x", order_text(order)),
+            Self::CrossCap => "x".to_owned(),
+            Self::Mirror => "*".to_owned(),
+            Self::Trivial => "1".to_owned(),
+        }
+    }
+
+    pub(crate) const fn order(self) -> Option<u32> {
+        match self {
+            Self::ConeCrossCap(order) => Some(order),
+            Self::CrossCap | Self::Mirror => Some(1),
+            Self::Trivial => None,
+        }
+    }
+}
+
+pub(crate) fn small_lune_groups() -> Vec<LuneGroup> {
+    let mut groups: Vec<LuneGroup> = (2..=SMALL_ORDER).map(LuneGroup::ConeCrossCap).collect();
+    groups.extend([LuneGroup::CrossCap, LuneGroup::Mirror, LuneGroup::Trivial]);
+    groups
+}
+
+pub(crate) fn lune_test_set() -> Vec<LuneGroup> {
+    let mut groups = small_lune_groups();
+    groups.push(LuneGroup::ConeCrossCap(LIMIT_ORDER));
+    groups
 }

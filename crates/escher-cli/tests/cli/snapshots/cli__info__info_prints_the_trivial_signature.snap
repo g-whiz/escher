@@ -10,6 +10,10 @@ Euler characteristic: 2
 Compact: yes
 Group order: 1
 Area: 4pi
-Domain: none, cannot build fundamental domain: the signature 1 is not supported
+Domain: no sides
+Parity colouring: none, every side pairing preserves orientation
+Domain area: 12.566371
+Colourings: 1, complete to 12 colours
+Colourings with 1 colour: 1
 --- stderr
 --- end

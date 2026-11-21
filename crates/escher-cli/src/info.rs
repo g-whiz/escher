@@ -545,7 +545,9 @@ fn push_domain_summary(
                 .filter(|(_, side)| side.kind() == PairingKind::Mirror)
                 .map(|(index, _)| index)
                 .collect();
-            if mirrors.len() == sides.len() {
+            if sides.is_empty() {
+                lines.push(("Domain".into(), "no sides".to_owned()));
+            } else if mirrors.len() == sides.len() {
                 lines.push(("Domain".into(), format!("{} mirror sides", sides.len())));
             } else {
                 let pairs: Vec<String> = sides
@@ -588,14 +590,16 @@ fn push_domain_summary(
                     "none, every side pairing preserves orientation".to_owned(),
                 ));
             }
-            lines.push((
-                "Corner angles in degrees".into(),
-                fixed_list(domain.corner_angles().into_iter().map(f64::to_degrees)),
-            ));
-            lines.push((
-                "Side lengths".into(),
-                fixed_list(domain.side_lengths().into_iter()),
-            ));
+            if !sides.is_empty() {
+                lines.push((
+                    "Corner angles in degrees".into(),
+                    fixed_list(domain.corner_angles().into_iter().map(f64::to_degrees)),
+                ));
+                lines.push((
+                    "Side lengths".into(),
+                    fixed_list(domain.side_lengths().into_iter()),
+                ));
+            }
             lines.push(("Domain area".into(), format!("{:.6}", domain.area())));
         }
         Err(error) => lines.push(("Domain".into(), format!("none, {error}"))),
@@ -620,6 +624,7 @@ fn kind_name(kind: PairingKind) -> &'static str {
         PairingKind::Rotation => "rotation",
         PairingKind::Translation => "translation",
         PairingKind::GlideReflection => "glide reflection",
+        PairingKind::RotaryReflection => "rotary reflection",
         _ => "another isometry",
     }
 }
@@ -1006,6 +1011,10 @@ mod tests {
         assert_eq!(kind_name(PairingKind::Rotation), "rotation");
         assert_eq!(kind_name(PairingKind::Translation), "translation");
         assert_eq!(kind_name(PairingKind::GlideReflection), "glide reflection");
+        assert_eq!(
+            kind_name(PairingKind::RotaryReflection),
+            "rotary reflection"
+        );
     }
 
     #[test]

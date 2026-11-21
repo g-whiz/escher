@@ -196,6 +196,22 @@ fn render_diagnostic_gives_the_cause_of_a_two_mirror_order_over_its_limit() {
 }
 
 #[test]
+fn render_diagnostic_gives_the_cause_of_parity_on_the_whole_sphere() {
+    insta::assert_snapshot!(render_snapshot(
+        "whole_sphere_parity",
+        &["1", "--colouring", "parity"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_gives_the_cause_of_a_setting_on_a_rotary_lune() {
+    insta::assert_snapshot!(render_snapshot(
+        "rotary_lune_setting",
+        &["5x", "--set", "aspect=2"]
+    ));
+}
+
+#[test]
 fn render_diagnostic_gives_the_cause_of_a_setting_on_a_spherical_kite() {
     insta::assert_snapshot!(render_snapshot(
         "spherical_kite_setting",
@@ -499,6 +515,41 @@ fn render_writes_a_png_file_of_a_spherical_kite_with_mirrors() {
 }
 
 #[test]
+fn render_writes_a_png_file_of_a_lune_paired_by_rotary_reflections() {
+    small_png("rotary_lune_file", &["5x"]);
+}
+
+#[test]
+fn render_writes_a_png_file_of_the_whole_sphere() {
+    small_png("whole_sphere_file", &["1"]);
+}
+
+#[test]
+fn render_draws_the_lune_groups_by_parity_as_their_reflection_groups() {
+    for (group, reflection, name) in [("5x", "*55", "rotary_lune"), ("x", "*", "cross_cap")] {
+        let default = small_png(&format!("{name}_default_file"), &[group]);
+        let mirrored = small_png(&format!("{name}_mirrored_file"), &[reflection]);
+        assert_eq!(default, mirrored, "{group} and {reflection}");
+    }
+}
+
+#[test]
+fn render_of_a_rotary_lune_does_not_depend_on_the_number_of_threads() {
+    let files: Vec<Vec<u8>> = ["1", "4"]
+        .into_iter()
+        .map(|threads| {
+            square_image(
+                "5x",
+                &format!("rotary_lune_threads_{threads}"),
+                &["--threads", threads],
+            )
+        })
+        .collect();
+    assert_png_bytes(&files[0], 64, 64);
+    assert_eq!(files[0], files[1]);
+}
+
+#[test]
 fn render_draws_each_spherical_kite_with_one_colour_as_its_double() {
     for (kite, double, name) in [
         ("3*2", "432", "three_mirror_two"),
@@ -788,6 +839,11 @@ fn render_without_a_domain_changes_no_file() {
 #[test]
 fn render_with_parity_for_a_domain_without_a_reversing_side_changes_no_file() {
     assert_no_file_changes("parity_rotation_file", &["732", "--colouring", "parity"]);
+}
+
+#[test]
+fn render_with_parity_on_the_whole_sphere_changes_no_file() {
+    assert_no_file_changes("whole_sphere_parity_file", &["1", "--colouring", "parity"]);
 }
 
 #[test]
@@ -1110,6 +1166,26 @@ fn render_of_a_two_mirror_order_over_its_limit_returns_failure() {
     assert_eq!(
         first_error_line(&["2*(501)"]),
         (Status::Failure, "error: cannot render 2*(501)".to_owned())
+    );
+}
+
+#[test]
+fn render_with_parity_on_the_whole_sphere_returns_failure() {
+    assert_eq!(
+        first_error_line(&["1", "--colouring", "parity"]),
+        (
+            Status::Failure,
+            "error: cannot render 1: the colouring parity does not exist, because no side pairing reverses orientation"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_of_a_rotary_lune_with_a_setting_returns_failure() {
+    assert_eq!(
+        first_error_line(&["5x", "--set", "aspect=2"]),
+        (Status::Failure, "error: cannot render 5x".to_owned())
     );
 }
 

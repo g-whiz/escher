@@ -1,0 +1,24 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"5x\"])"
+---
+status: Success
+--- stdout
+Signature: 5x
+Geometry: spherical
+Euler characteristic: 1/5
+Compact: yes
+Group order: 10
+Area: 2pi/5
+Domain: 2 sides in 1 pair
+Side pairs: 0 and 1 by rotary reflection
+Corner angles in degrees: 36.000000, 36.000000
+Side lengths: 3.141593, 3.141593
+Domain area: 1.256637
+Colourings: 4, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
+Colourings with 5 colours: 1
+Colourings with 10 colours: 1
+--- stderr
+--- end

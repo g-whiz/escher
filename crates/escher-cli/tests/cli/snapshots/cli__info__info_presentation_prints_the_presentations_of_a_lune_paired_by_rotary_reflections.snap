@@ -1,0 +1,32 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"--presentation\", \"5x\"])"
+---
+status: Success
+--- stdout
+Signature: 5x
+Geometry: spherical
+Euler characteristic: 1/5
+Compact: yes
+Group order: 10
+Area: 2pi/5
+Domain: 2 sides in 1 pair
+Side pairs: 0 and 1 by rotary reflection
+Corner angles in degrees: 36.000000, 36.000000
+Side lengths: 3.141593, 3.141593
+Domain area: 1.256637
+Colourings: 4, complete to 12 colours
+Colourings with 1 colour: 1
+Colourings with 2 colours: 1
+Colourings with 5 colours: 1
+Colourings with 10 colours: 1
+Presentation: 3 generators, 3 relators
+Generators: g1, z1, w1
+Relators: g1^5, z1 z1 w1^-1, g1 w1
+Order by coset enumeration: 10, equal to 2/chi
+Side presentation: 2 generators, 2 relators
+Side generators: s0, s1
+Side relators: s0 s1, (s1 s1)^5
+Side order by coset enumeration: 10, equal to 2/chi
+--- stderr
+--- end

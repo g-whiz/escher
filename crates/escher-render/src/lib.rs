@@ -37,7 +37,15 @@
 //! the kite of `432`, `(2n)22`, or `n22` with two mirror sides and two sides
 //! paired by the rotation about the vertex between them. It is drawn on the
 //! ball in the view of that kite, with borders on all of its sides, and
-//! [`Fill::Parity`] gives its two colours across each mirror side.
+//! [`Fill::Parity`] gives its two colours across each mirror side. It can be
+//! the domain of `nx`, the lune of `*nn` whose two sides are paired by rotary
+//! reflections, which reverse orientation, so its picture with
+//! [`Fill::Parity`] is that of `*nn`. It can be the hemisphere of `*`, with
+//! two mirror sides, or of `x`, whose two sides are paired by the antipodal
+//! map, which draw the same picture. Last, it can be the whole sphere of the
+//! trivial signature `1`, which has no side, so every point lies in it, no
+//! border is drawn, and [`Fill::Parity`] gives the whole ball its first
+//! colour.
 //!
 //! The view follows the geometry of the domain. For a hyperbolic domain, the
 //! Poincare disk is centred in the image, with the centre of the domain at the

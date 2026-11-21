@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"whole_sphere_parity\", &[\"1\", \"--colouring\", \"parity\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 1: the colouring parity does not exist, because no side pairing reverses orientation
+--- end

@@ -68,23 +68,32 @@
 //! `4*2` and a third of a turn for `3*3`. The crate returns such a domain only
 //! when it passes its checks.
 //!
-//! The fourth kind is a spherical signature with a cone point beside a mirror
-//! boundary: `3*2`, `2*n` with `n` from 2 to 500, and `n*` with `n` from 2 to
-//! 1000, which includes `2*`. Each has the kite of the double of a spherical
+//! The fourth kind is one of the remaining spherical signatures. A signature
+//! with a cone point beside a mirror boundary, `3*2`, `2*n` with `n` from 2 to
+//! 500, or `n*` with `n` from 2 to 1000, which includes `2*`, has the kite of the double of a spherical
 //! triangle with one pair of its sides turned into mirrors, with no shape
 //! parameter. The kite of `432` is the domain of `3*2`, and the kite of
 //! `(2n)22` is the domain of `2*n`, each with its sides 0 and 1 as mirrors and
 //! its sides 2 and 3 paired by the rotation about vertex 2. The kite of `n22`
 //! is the domain of `n*`, with its sides 2 and 3 as mirrors and its sides 0
 //! and 1 paired by the rotation through `2 pi / n` about vertex 0. The crate
-//! returns such a domain only when it passes its checks. The other spherical
-//! signatures with a cross-cap or with no cone point and no corner, `nx`,
-//! `x`, `*`, and `1`, have no domain.
+//! returns such a domain only when it passes its checks. The signature `nx`,
+//! with `n` from 2 to 1000, has the lune of `*nn`, whose two sides are paired
+//! by rotary reflections, each the reflection in the wall of its side
+//! followed by the half-turn about the axis through the centre of the lune.
+//! The signatures `*` and `x` have the lune of order 1, a hemisphere whose two
+//! sides lie on one great circle and meet at the angle `pi`. Its sides are
+//! mirrors for `*` and are paired by the antipodal map for `x`. The trivial
+//! signature `1` has the whole sphere, with no side, no vertex, and the area
+//! `4 pi`. The crate returns the domains of `nx`, `x`, and `1` only when they
+//! pass their checks. So every spherical signature has a domain within these
+//! limits.
 //!
 //! Every other signature gives an [`Error`]. The causes are an unsupported
 //! signature, more than eight corner or cone orders, an order above 1000, or
 //! above 500 for `2*n`, and a polygon, a double of a polygon, a wallpaper
-//! domain, or a spherical kite that fails its checks.
+//! domain, or a domain of `3*2`, `2*n`, `n*`, `nx`, `x`, or `1` that fails its
+//! checks.
 //! [`FundamentalDomain::verify`] checks a domain numerically, and
 //! [`FundamentalDomain::side_presentation`] reads a
 //! [`Presentation`](escher_group::Presentation) of its group from its sides.

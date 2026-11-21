@@ -11,8 +11,9 @@ use escher_signature::Geometry;
 use glam::{DMat3, DVec3};
 
 use crate::common::{
-    Kite, LIMIT_ORDER, LargestResiduals, TWO_MIRROR_LIMIT_ORDER, assert_same_domain, built,
-    largest_coordinate_error, limit_kites, signature, small_kites, test_set,
+    Kite, LIMIT_ORDER, LargestResiduals, LuneGroup, TWO_MIRROR_LIMIT_ORDER, assert_same_domain,
+    built, largest_coordinate_error, limit_kites, lune_test_set, signature, small_kites,
+    small_lune_groups, test_set,
 };
 use crate::reference::{
     Matrix, Model, Reference, Vector, Worst, div, error, int, matrix, max, mul, product, sub,
@@ -26,6 +27,14 @@ const LENGTH_BOUND: f64 = 4e-13;
 const CYCLE_BOUND: f64 = 2e-12;
 const FLAT_BOUND: f64 = 1e-12;
 const AREA_BOUND: f64 = 4e-14;
+
+const LUNE_VERTEX_BOUND: f64 = 0.0;
+const LUNE_NORMAL_BOUND: f64 = 1e-15;
+const LUNE_PAIRING_BOUND: f64 = 2e-15;
+const LUNE_LENGTH_BOUND: f64 = 1e-15;
+const LUNE_CYCLE_BOUND: f64 = 4e-13;
+const LUNE_FLAT_BOUND: f64 = 1e-15;
+const LUNE_AREA_BOUND: f64 = 4e-13;
 
 const KITE_IMAGE_FLOOR: f64 = 1e-2;
 
@@ -88,6 +97,90 @@ fn spherical_kites_have_the_sides_vertices_and_cycles_of_their_table() {
                 "{text}, cycle {states:?}: {difference:e}"
             );
         }
+    }
+}
+
+const LUNE_VERTICES: [DVec3; 2] = [DVec3::Y, DVec3::NEG_Y];
+
+#[test]
+fn spherical_lune_groups_have_the_sides_vertices_and_cycles_of_their_table() {
+    for group in small_lune_groups() {
+        let text = group.text();
+        let domain = built(&text);
+        assert_eq!(domain.geometry(), Geometry::Spherical, "{text}");
+        assert!(domain.verify().passed(), "{text}: {:?}", domain.verify());
+        assert!(parameters(&signature(&text)).is_empty(), "{text}");
+        assert_eq!(
+            domain.reverses_orientation(),
+            group != LuneGroup::Trivial,
+            "{text}"
+        );
+        assert_eq!(domain.centre(), spherical::ORIGIN, "{text}");
+        let Some(order) = group.order() else {
+            assert!(domain.sides().is_empty(), "{text}");
+            assert!(domain.vertices().is_empty(), "{text}");
+            assert!(domain.side_lengths().is_empty(), "{text}");
+            assert!(domain.corner_angles().is_empty(), "{text}");
+            assert_eq!(domain.area().to_bits(), (4.0 * PI).to_bits(), "{text}");
+            continue;
+        };
+        assert_eq!(domain.sides().len(), 2, "{text}");
+        for (vertex, expected) in domain.vertices().iter().zip(LUNE_VERTICES) {
+            let difference = (*vertex - expected).abs().max_element();
+            assert!(
+                difference <= 2.0 * LUNE_VERTEX_BOUND,
+                "{text}: {difference:e}"
+            );
+        }
+        for (index, side) in domain.sides().iter().enumerate() {
+            let expected = if group == LuneGroup::Mirror {
+                (PairingKind::Mirror, index, Orientation::Reversing)
+            } else {
+                (
+                    PairingKind::RotaryReflection,
+                    1 - index,
+                    Orientation::Reversing,
+                )
+            };
+            assert_eq!(
+                (side.kind(), side.partner(), side.orientation()),
+                expected,
+                "{text}, side {index}"
+            );
+        }
+        let angles = domain.corner_angles();
+        for (vertex, angle) in angles.iter().enumerate() {
+            let difference = (angle - PI).abs();
+            if order == 1 {
+                assert!(
+                    difference <= LUNE_FLAT_BOUND,
+                    "{text}, vertex {vertex}: {difference:e}"
+                );
+            } else {
+                assert!(difference > 1e-3, "{text}, vertex {vertex}: {angle}");
+            }
+        }
+        if group != LuneGroup::Mirror {
+            let sum = angles[0] + angles[1];
+            let difference = (sum - 2.0 * PI / f64::from(order)).abs();
+            assert!(difference <= LUNE_CYCLE_BOUND, "{text}: {difference:e}");
+        }
+    }
+}
+
+#[test]
+fn spherical_lune_groups_typed_in_another_order_build_the_domain_of_their_canonical_form() {
+    for (spelling, canonical) in [
+        ("1*", "*"),
+        ("*1", "*"),
+        ("1*1", "*"),
+        ("(1)*", "*"),
+        ("1x", "x"),
+        ("x1", "x"),
+        ("x3", "3x"),
+    ] {
+        assert_eq!(signature(spelling).to_string(), canonical, "{spelling}");
+        assert_eq!(built(spelling), built(canonical), "{spelling}");
     }
 }
 
@@ -222,38 +315,59 @@ fn spherical_kites_pass_their_checks_with_a_margin() {
         Kite::ConeMirror(LIMIT_ORDER - 1),
         Kite::TwoMirror(TWO_MIRROR_LIMIT_ORDER - 1),
     ]);
-    println!("random orders: {cone}* and 2*{two}");
+    let cross_cap = drawn(&mut state, LIMIT_ORDER);
+    println!("random orders: {cone}*, 2*{two}, and {cross_cap}x");
+    let mut texts: Vec<String> = kites.iter().map(|kite| kite.text()).collect();
+    texts.extend(lune_test_set().into_iter().map(LuneGroup::text));
+    texts.extend(
+        [
+            LuneGroup::ConeCrossCap(cross_cap),
+            LuneGroup::ConeCrossCap(LIMIT_ORDER - 1),
+        ]
+        .map(LuneGroup::text),
+    );
     let mut largest = LargestResiduals::new();
-    for kite in &kites {
-        let text = kite.text();
-        let verification = built(&text).verify();
-        assert_margin(&verification, &text);
-        largest.record_verification(&verification, &text);
+    for text in &texts {
+        let verification = built(text).verify();
+        assert_margin(&verification, text);
+        largest.record_verification(&verification, text);
     }
-    largest.print_and_assert_samples(kites.len());
+    largest.print_and_assert_samples(texts.len());
 }
 
 #[test]
 fn spherical_groups_pass_over_their_whole_range() {
-    let families: [(&str, Vec<Kite>); 2] = [
-        ("n*", (2..=LIMIT_ORDER).map(Kite::ConeMirror).collect()),
+    let families: [(&str, Vec<String>); 3] = [
+        (
+            "n*",
+            (2..=LIMIT_ORDER)
+                .map(|order| Kite::ConeMirror(order).text())
+                .collect(),
+        ),
+        (
+            "nx",
+            (2..=LIMIT_ORDER)
+                .map(|order| LuneGroup::ConeCrossCap(order).text())
+                .collect(),
+        ),
         (
             "2*n",
-            (2..=TWO_MIRROR_LIMIT_ORDER).map(Kite::TwoMirror).collect(),
+            (2..=TWO_MIRROR_LIMIT_ORDER)
+                .map(|order| Kite::TwoMirror(order).text())
+                .collect(),
         ),
     ];
     for (family, kites) in families {
         let started = Instant::now();
         let mut largest = LargestResiduals::new();
         let mut smallest = (f64::INFINITY, String::new());
-        for kite in &kites {
-            let text = kite.text();
-            let verification = built(&text).verify();
-            let margin = assert_margin(&verification, &text);
+        for text in &kites {
+            let verification = built(text).verify();
+            let margin = assert_margin(&verification, text);
             if margin < smallest.0 {
                 smallest = (margin, text.clone());
             }
-            largest.record_verification(&verification, &text);
+            largest.record_verification(&verification, text);
         }
         println!(
             "{family}: smallest margin {:.3e}, at {}, {} domains in {:.2} s",
@@ -388,6 +502,177 @@ fn spherical_kites_are_within_their_bounds_of_the_reference() {
     }
 }
 
+fn half_turn_rows(matrix: &Matrix) -> Matrix {
+    let [first, second, third] = matrix.clone();
+    [
+        first.map(|entry| entry.neg()),
+        second.map(|entry| entry.neg()),
+        third,
+    ]
+}
+
+fn exact_lune_pairing(group: LuneGroup, normals: &[Vector], index: usize) -> Matrix {
+    let reflection = reflection_of(&normals[index]);
+    match group {
+        LuneGroup::Mirror => reflection,
+        LuneGroup::ConeCrossCap(_) | LuneGroup::CrossCap | LuneGroup::Trivial => {
+            half_turn_rows(&reflection)
+        }
+    }
+}
+
+#[test]
+fn spherical_lune_groups_hold_their_exact_values() {
+    let half_turn = DMat3::from_diagonal(DVec3::new(-1.0, -1.0, 1.0));
+    for group in lune_test_set() {
+        let text = group.text();
+        let domain = built(&text);
+        assert_eq!(
+            vector_bits(domain.centre()),
+            vector_bits(spherical::ORIGIN),
+            "{text}"
+        );
+        let Some(order) = group.order() else {
+            assert_eq!(domain.area().to_bits(), (4.0 * PI).to_bits(), "{text}");
+            continue;
+        };
+        for (vertex, expected) in domain.vertices().iter().zip(LUNE_VERTICES) {
+            assert_eq!(vector_bits(*vertex), vector_bits(expected), "{text}");
+        }
+        for side in domain.sides() {
+            match group {
+                LuneGroup::ConeCrossCap(_) => assert_eq!(
+                    side.pairing(),
+                    half_turn * spherical::reflection(side.normal()),
+                    "{text}"
+                ),
+                LuneGroup::CrossCap => assert_eq!(side.pairing(), -DMat3::IDENTITY, "{text}"),
+                LuneGroup::Mirror => assert_eq!(
+                    side.pairing(),
+                    DMat3::from_diagonal(DVec3::new(1.0, 1.0, -1.0)),
+                    "{text}"
+                ),
+                LuneGroup::Trivial => {}
+            }
+            if order == 1 {
+                assert_eq!(side.normal(), DVec3::NEG_Z, "{text}");
+            }
+        }
+    }
+}
+
+fn lune_worst(groups: &[LuneGroup]) -> [(Worst, f64); 7] {
+    let lunes = groups
+        .iter()
+        .filter(|group| group.order().is_some())
+        .count();
+    let flats = 2 * groups
+        .iter()
+        .filter(|group| group.order() == Some(1))
+        .count();
+    let cycles = groups
+        .iter()
+        .filter(|group| matches!(group, LuneGroup::ConeCrossCap(_) | LuneGroup::CrossCap))
+        .count();
+    [
+        (
+            "vertex, largest coordinate error",
+            2 * lunes,
+            LUNE_VERTEX_BOUND,
+        ),
+        (
+            "normal, largest coordinate error",
+            2 * lunes,
+            LUNE_NORMAL_BOUND,
+        ),
+        (
+            "pairing, largest entry error",
+            2 * lunes,
+            LUNE_PAIRING_BOUND,
+        ),
+        ("side length, absolute error", 2 * lunes, LUNE_LENGTH_BOUND),
+        (
+            "angle sum of a cycle, absolute error against 2 pi / order",
+            cycles,
+            LUNE_CYCLE_BOUND,
+        ),
+        (
+            "flat vertex, absolute error against pi",
+            flats,
+            LUNE_FLAT_BOUND,
+        ),
+        (
+            "area, absolute error against the area of the signature",
+            lunes,
+            LUNE_AREA_BOUND,
+        ),
+    ]
+    .map(|(name, samples, bound)| {
+        (
+            Worst::new(format!("spherical lune groups, {name}"), samples),
+            bound,
+        )
+    })
+}
+
+#[test]
+fn spherical_lune_groups_are_within_their_bounds_of_the_reference() {
+    let mut reference = Reference::new();
+    let pi = reference.pi();
+    let groups = lune_test_set();
+    let mut worst = lune_worst(&groups);
+    for group in groups {
+        let text = group.text();
+        let input = || text.clone();
+        let domain = built(&text);
+        let Some(order) = group.order() else {
+            continue;
+        };
+        let exact = reference.lune(order);
+        let [vertices, normals, pairings, lengths, cycle, flat, area] = &mut worst;
+        for (vertex, exact) in domain.vertices().iter().zip(&exact.vertices) {
+            vertices
+                .0
+                .record(&largest_coordinate_error(*vertex, exact), &int(1), input);
+        }
+        for (index, side) in domain.sides().iter().enumerate() {
+            normals.0.record(
+                &largest_coordinate_error(side.normal(), &exact.normals[index]),
+                &int(1),
+                input,
+            );
+            pairings.0.record(
+                &largest_entry_error(
+                    side.pairing(),
+                    &exact_lune_pairing(group, &exact.normals, index),
+                ),
+                &int(1),
+                input,
+            );
+        }
+        for (length, exact) in domain.side_lengths().into_iter().zip(&exact.lengths) {
+            lengths.0.record(&error(length, exact), &int(1), input);
+        }
+        let angles = domain.corner_angles();
+        if group != LuneGroup::Mirror {
+            let expected = div(&mul(&int(2), &pi), &int(order));
+            cycle
+                .0
+                .record(&error(angles[0] + angles[1], &expected), &int(1), input);
+        }
+        if order == 1 {
+            for angle in &angles {
+                flat.0.record(&error(*angle, &pi), &int(1), input);
+            }
+        }
+        area.0
+            .record(&error(domain.area(), &exact.area), &int(1), input);
+    }
+    for (worst, bound) in &worst {
+        worst.assert_at_most(&mut reference, *bound);
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Axes {
     order: usize,
@@ -506,6 +791,13 @@ fn tabled_census(text: &str) -> Option<Census> {
         axes: axes.to_vec(),
     };
     Some(match text {
+        "1" => row(1, 1, 0, 0, false, &[]),
+        "*" => row(2, 1, 1, 1, false, &[]),
+        "x" => row(2, 1, 1, 0, true, &[]),
+        "2x" => row(4, 2, 2, 0, false, &[axes(2, 1, 0)]),
+        "3x" => row(6, 3, 3, 0, true, &[axes(3, 1, 0)]),
+        "4x" => row(8, 4, 4, 0, false, &[axes(4, 1, 0)]),
+        "(1000)x" => row(2000, 1000, 1000, 0, false, &[axes(1000, 1, 0)]),
         "2*" => row(4, 2, 2, 1, true, &[axes(2, 1, 0)]),
         "3*" => row(6, 3, 3, 1, false, &[axes(3, 1, 0)]),
         "4*" => row(8, 4, 4, 1, true, &[axes(4, 1, 0)]),
@@ -559,12 +851,71 @@ fn family_census(kite: Kite) -> Census {
     }
 }
 
-fn expected_census(kite: Kite) -> Census {
-    let family = family_census(kite);
-    if let Some(tabled) = tabled_census(&kite.text()) {
-        assert_eq!(family, tabled, "{}", kite.text());
+fn lune_family_census(group: LuneGroup) -> Census {
+    let widen = |order: u32| usize::try_from(order).unwrap_or(usize::MAX);
+    match group {
+        LuneGroup::ConeCrossCap(order) => Census {
+            order: 2 * widen(order),
+            rotations: widen(order),
+            reversing: widen(order),
+            reflections: 0,
+            antipodal: order % 2 == 1,
+            axes: vec![axes(widen(order), 1, 0)],
+        },
+        LuneGroup::CrossCap => Census {
+            order: 2,
+            rotations: 1,
+            reversing: 1,
+            reflections: 0,
+            antipodal: true,
+            axes: Vec::new(),
+        },
+        LuneGroup::Mirror => Census {
+            order: 2,
+            rotations: 1,
+            reversing: 1,
+            reflections: 1,
+            antipodal: false,
+            axes: Vec::new(),
+        },
+        LuneGroup::Trivial => Census {
+            order: 1,
+            rotations: 1,
+            reversing: 0,
+            reflections: 0,
+            antipodal: false,
+            axes: Vec::new(),
+        },
+    }
+}
+
+fn checked_against_the_table(text: &str, family: Census) -> Census {
+    if let Some(tabled) = tabled_census(text) {
+        assert_eq!(family, tabled, "{text}");
     }
     family
+}
+
+fn expected_census(kite: Kite) -> Census {
+    checked_against_the_table(&kite.text(), family_census(kite))
+}
+
+fn expected_lune_census(group: LuneGroup) -> Census {
+    checked_against_the_table(&group.text(), lune_family_census(group))
+}
+
+fn kite_censuses(kites: &[Kite]) -> Vec<(String, Census)> {
+    kites
+        .iter()
+        .map(|&kite| (kite.text(), expected_census(kite)))
+        .collect()
+}
+
+fn lune_censuses(groups: &[LuneGroup]) -> Vec<(String, Census)> {
+    groups
+        .iter()
+        .map(|&group| (group.text(), expected_lune_census(group)))
+        .collect()
 }
 
 fn near_points(domain: &FundamentalDomain) -> Vec<DVec3> {
@@ -591,9 +942,16 @@ fn near_points(domain: &FundamentalDomain) -> Vec<DVec3> {
             domain.vertices()[(index + count - 1) % count],
             domain.vertices()[index],
         );
+        let antipodal = (start + end).abs().max_element() <= WALL_TOLERANCE;
+        let across = side.normal().cross(end).normalize();
         for step in 1..16 {
             let along = f64::from(step) / 16.0;
-            let on_side = (start * (1.0 - along) + end * along).normalize();
+            let on_side = if antipodal {
+                let angle = PI * along;
+                end * angle.cos() + across * angle.sin()
+            } else {
+                (start * (1.0 - along) + end * along).normalize()
+            };
             for offset in [1e-3, -1e-3, 1e-6, -1e-6] {
                 points.push((on_side + side.normal() * offset).normalize());
             }
@@ -618,10 +976,9 @@ struct Certified {
     census: Census,
 }
 
-fn certify(kite: Kite, floor: f64) -> Certified {
-    let text = kite.text();
-    let domain = built(&text);
-    let order = group_order(&text);
+fn certify(text: &str, expected: &Census, floor: f64) -> Certified {
+    let domain = built(text);
+    let order = group_order(text);
     let group = Group::enumerate(&domain, order);
     assert_eq!(group.elements.len(), order, "{text}");
     let centre = domain.centre();
@@ -674,7 +1031,7 @@ fn certify(kite: Kite, floor: f64) -> Certified {
         );
     }
     let census = census(&group);
-    assert_eq!(census, expected_census(kite), "{text}");
+    assert_eq!(&census, expected, "{text}");
     Certified {
         closure: group.elements.len(),
         smallest,
@@ -684,11 +1041,11 @@ fn certify(kite: Kite, floor: f64) -> Certified {
     }
 }
 
-fn certify_all(kites: &[Kite], floor: f64, name: &str) {
+fn certify_all(groups: &[(String, Census)], floor: f64, name: &str) {
     let mut smallest = (f64::INFINITY, String::new());
-    for &kite in kites {
-        let certified = certify(kite, floor);
-        let text = kite.text();
+    for (text, expected) in groups {
+        let certified = certify(text, expected, floor);
+        let text = text.clone();
         println!(
             "{text}: closure of {} elements, smallest distance between two images of the centre {:.3e}, {} of {} points left out, census {:?}",
             certified.closure,
@@ -712,9 +1069,32 @@ fn certify_all(kites: &[Kite], floor: f64, name: &str) {
 #[test]
 fn spherical_kite_groups_have_their_order_tiling_and_census() {
     certify_all(
-        &small_kites(),
+        &kite_censuses(&small_kites()),
         KITE_IMAGE_FLOOR,
         "spherical kite certificate",
+    );
+}
+
+#[test]
+fn spherical_lune_groups_have_their_order_tiling_and_census() {
+    certify_all(
+        &lune_censuses(&small_lune_groups()),
+        KITE_IMAGE_FLOOR,
+        "spherical lune group certificate",
+    );
+}
+
+#[test]
+fn spherical_lune_groups_at_the_limit_have_their_order_tiling_and_census() {
+    let started = Instant::now();
+    certify_all(
+        &lune_censuses(&[LuneGroup::ConeCrossCap(LIMIT_ORDER)]),
+        LIMIT_IMAGE_FLOOR,
+        "spherical lune group certificate at the limit",
+    );
+    println!(
+        "spherical lune group certificate at the limit in {:.2} s",
+        started.elapsed().as_secs_f64()
     );
 }
 
@@ -722,7 +1102,7 @@ fn spherical_kite_groups_have_their_order_tiling_and_census() {
 fn spherical_kite_groups_at_the_limit_have_their_order_tiling_and_census() {
     let started = Instant::now();
     certify_all(
-        &limit_kites(),
+        &kite_censuses(&limit_kites()),
         LIMIT_IMAGE_FLOOR,
         "spherical kite certificate at the limit",
     );
@@ -734,12 +1114,23 @@ fn spherical_kite_groups_at_the_limit_have_their_order_tiling_and_census() {
 
 #[test]
 fn census_tells_each_wrong_group_from_its_signature() {
-    for (domain_text, label) in [
+    let mut cases: Vec<(String, String, Census)> = [
         ("2*2", Kite::ConeMirror(4)),
         ("2*3", Kite::ConeMirror(6)),
         ("6*", Kite::TwoMirror(3)),
-    ] {
-        let label_text = label.text();
+    ]
+    .into_iter()
+    .map(|(domain_text, label)| (domain_text.to_owned(), label.text(), expected_census(label)))
+    .collect();
+    for order in [3, 4] {
+        let label = LuneGroup::ConeCrossCap(order);
+        let double = 2 * order;
+        for domain_text in [format!("{double}{double}"), format!("*{order}{order}")] {
+            cases.push((domain_text, label.text(), expected_lune_census(label)));
+        }
+    }
+    for (domain_text, label_text, expected) in cases {
+        let domain_text = domain_text.as_str();
         let domain = built(domain_text);
         assert!(domain.verify().passed(), "{domain_text}");
         let presentation = match domain.side_presentation() {
@@ -753,7 +1144,6 @@ fn census_tells_each_wrong_group_from_its_signature() {
         let order = group_order(&label_text);
         assert_eq!(table.index(), order, "{domain_text} as {label_text}");
         let found = census(&Group::enumerate(&domain, order));
-        let expected = expected_census(label);
         println!(
             "{domain_text} labelled {label_text}: census {found:?}, of the label {expected:?}"
         );

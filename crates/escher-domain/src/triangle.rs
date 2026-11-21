@@ -281,13 +281,14 @@ pub(crate) fn admitted(signature: &Signature) -> Result<Supported, Error> {
         }
         Supported::Sphere(group, _) => {
             let limited = match group {
-                SphericalGroup::ConeMirror(order) => Some((order, LARGEST_ORDER)),
+                SphericalGroup::ConeMirror(order) | SphericalGroup::ConeCrossCap(order) => {
+                    Some((order, LARGEST_ORDER))
+                }
                 SphericalGroup::TwoMirrorN(order) => Some((order, LARGEST_TWO_MIRROR_ORDER)),
-                SphericalGroup::ThreeMirrorTwo => None,
-                SphericalGroup::ConeCrossCap(_)
+                SphericalGroup::ThreeMirrorTwo
                 | SphericalGroup::Mirror
                 | SphericalGroup::CrossCap
-                | SphericalGroup::Trivial => return Err(Error::unsupported(signature)),
+                | SphericalGroup::Trivial => None,
             };
             if let Some((order, limit)) = limited.filter(|&(order, limit)| order > limit) {
                 return Err(Error::limit_exceeded(order, limit));
@@ -552,12 +553,14 @@ mod tests {
     }
 
     #[test]
-    fn admitted_admits_the_spherical_kites_within_their_limits() {
+    fn admitted_admits_the_spherical_group_signatures_within_their_limits() {
         let kind = |text: &str| admitted(&signature(text)).map_err(|error| error.kind());
-        for text in ["3*2", "2*", "3*", "(1000)*", "2*3", "2*(500)"] {
+        for text in [
+            "3*2", "2*", "3*", "(1000)*", "2*3", "2*(500)", "3x", "(1000)x", "x", "*", "1",
+        ] {
             assert!(kind(text).is_ok(), "{text}");
         }
-        for text in ["(1001)*", "2*(501)"] {
+        for text in ["(1001)*", "2*(501)", "(1001)x"] {
             assert_eq!(kind(text).err(), Some(ErrorKind::LimitExceeded), "{text}");
         }
     }
