@@ -755,9 +755,7 @@ mod tests {
     use proptest::proptest;
 
     use super::{STACK_CAP, Stats, prepare, run};
-    use crate::common::{
-        FIXTURES, conway, letters, limit, names, proptest_config, random_presentation,
-    };
+    use crate::common::{FIXTURES, conway, letters, limit, names, random_presentation};
     use crate::enumerate::enumerate;
     use crate::error::ErrorKind;
     use crate::presentation::{Presentation, Relator};
@@ -888,8 +886,6 @@ mod tests {
     const CAPPED_LIMIT: u32 = 500;
 
     proptest! {
-        #![proptest_config(proptest_config())]
-
         #[test]
         fn closing_pass_changes_nothing((presentation, subgroup) in random_presentation()) {
             let (default, stats) = run(&presentation, &subgroup, limit(2000), STACK_CAP);

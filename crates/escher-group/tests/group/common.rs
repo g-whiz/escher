@@ -1,15 +1,10 @@
 use escher_signature::Signature;
 use proptest::collection::vec;
 use proptest::prelude::{Just, Strategy, any};
-use proptest::test_runner::Config;
 
 use crate::{
     CosetLimit, IndexLimit, Letter, Presentation, Relator, SearchBudget, Word, conway_presentation,
 };
-
-pub(crate) fn proptest_config() -> Config {
-    Config::default()
-}
 
 pub(crate) fn names(count: usize) -> Vec<String> {
     (0..count).map(|index| format!("g{index}")).collect()

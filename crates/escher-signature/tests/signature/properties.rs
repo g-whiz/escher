@@ -3,7 +3,7 @@ use proptest::prelude::{Just, Strategy, any, prop_assert, prop_assert_eq, prop_o
 
 use escher_signature::{ErrorKind, Geometry};
 
-use crate::common::{Model, Value, assert_same_result, parse, proptest_config};
+use crate::common::{Model, Value, assert_same_result, parse};
 
 fn value() -> impl Strategy<Value = Value> {
     prop_oneof![
@@ -121,8 +121,6 @@ fn compact_model() -> impl Strategy<Value = Model> {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn equivalent_spellings_give_equal_signatures_or_the_same_error_kind(
         model in model(),

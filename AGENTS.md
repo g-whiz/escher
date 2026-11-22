@@ -127,7 +127,7 @@ The change that alters what exists updates this section in the same change: the 
 | `AGENTS.md`, `CLAUDE.md` | These instructions, and the one-line file that imports them for Claude Code |
 | `README.md` | The README, also the readme of every crate |
 | `LICENSE` | The GNU General Public License, version 3 |
-| `Cargo.toml`, `Cargo.lock` | The workspace manifest, with the shared package fields, dependencies, and lint tables, and its lock file. `Cargo.toml` optimizes the dev-dependency `astro-float-num` in the `dev` profile, and `Cargo.lock` holds `flate2` at 1.1.9 for the reason that Section 8 of `docs/design/tooling.md` states |
+| `Cargo.toml`, `Cargo.lock` | The workspace manifest, with the shared package fields, dependencies, and lint tables, and its lock file. `Cargo.toml` sets the optimization levels of the `dev` profile (Section 4 of `docs/design/tooling.md`), and `Cargo.lock` holds `flate2` at 1.1.9 for the reason that Section 8 of that document states |
 | `crates/` | The six crates of Project Status |
 | `docs/` | The standards, design documents, and research documents |
 | `scripts/` | The custom checkers and the scripts that recipes run |

@@ -10,7 +10,7 @@ use proptest::prelude::{prop_assert, prop_assert_eq, prop_oneof, proptest};
 use proptest::sample::select;
 use proptest::strategy::Strategy;
 
-use crate::common::{big, largest_coordinate_error, proptest_config, signature};
+use crate::common::{big, largest_coordinate_error, signature};
 use crate::reference::{
     Cuts, FeatureKind, Reference, ReflectionPolygon, Worst, add, div, error, form, int,
     largest_magnitude, mul, num, sub, vector,
@@ -311,8 +311,6 @@ fn polygon_orders() -> impl Strategy<Value = Vec<u32>> {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn random_polygons_build_and_pass_or_are_refused(
         orders in polygon_orders(),

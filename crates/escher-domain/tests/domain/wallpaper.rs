@@ -5,7 +5,7 @@ use escher_geometry::euclidean;
 use glam::{DMat2, DMat3, DVec2, DVec3};
 use proptest::prelude::{Just, Strategy, prop_assert, prop_oneof, proptest};
 
-use crate::common::{LargestResiduals, largest_coordinate_error, proptest_config, signature};
+use crate::common::{LargestResiduals, largest_coordinate_error, signature};
 use crate::reference::{Reference, Worst, div, error, int, matrix, mul, num, sub};
 use crate::shared::{
     GRID_ASPECTS, GRID_SKEWS, build_with_aspect, built, built_with_aspect, relator_texts,
@@ -499,8 +499,6 @@ fn setting_strategy() -> impl Strategy<Value = Setting> {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn random_wallpaper_settings_build_and_pass(setting in setting_strategy()) {
         let built = setting.built();

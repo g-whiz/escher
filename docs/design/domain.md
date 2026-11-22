@@ -1775,7 +1775,7 @@ The expected values for $\{7, 3\}$ come from the split of the polygon into $2p$ 
 
 DOM-14. A test MUST NOT take an expected value from Table 2 of [HT], because the research records that the table and equation 29 disagree for $\{7, 3\}$, and a test built on the wrong one passes a wrong domain or fails a correct one.
 
-The property tests commit their regression files (TEST-9 of the coding standard). Every property test takes its configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest`.
+The property tests commit their regression files (TEST-9 of the coding standard). Every property test runs with the default configuration of `proptest`.
 
 The tests compare a value that passes through a transcendental function in three ways:
 

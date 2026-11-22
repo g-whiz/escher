@@ -1010,7 +1010,7 @@ mod tests {
     };
     use crate::colouring::ColouringId;
     use crate::common::{
-        Expected, SEARCH_BUDGET, SEARCH_FIXTURES, budget, coxeter, presentation, proptest_config,
+        Expected, SEARCH_BUDGET, SEARCH_FIXTURES, budget, coxeter, presentation,
         small_presentation, word,
     };
     use crate::enumerate::build;
@@ -1414,8 +1414,6 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(proptest_config())]
-
         #[test]
         fn pruning_partial_tables_loses_no_class((presentation, limit) in small_presentation()) {
             let partial = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Partial)).0;

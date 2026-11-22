@@ -6,7 +6,6 @@ use escher_geometry::spherical;
 use escher_render::{Colour, Fill, RenderOptions, RenderOptionsBuilder, RenderStats, Renderer};
 use escher_signature::Signature;
 use glam::{DMat3, DVec2, DVec3};
-use proptest::test_runner::Config;
 
 use crate::golden_images::{POLYGON_DOMAINS, PolygonShape, Shape, domain_with_aspect};
 use crate::reference::{self, Reference, Vector, Wall, matrix, vector};
@@ -135,10 +134,6 @@ pub(crate) const SPHERICAL_IMAGE_BOUNDS: [f64; 2] = [9e-13, 3e-13];
 
 pub(crate) const SPHERICAL_DECISION_COUNTS: [usize; 17] =
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0];
-
-pub(crate) fn proptest_config() -> Config {
-    Config::default()
-}
 
 pub(crate) fn text(orders: [u32; 3]) -> String {
     let corners: String = orders

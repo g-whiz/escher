@@ -7,9 +7,7 @@ use proptest::collection::vec;
 use proptest::prelude::{Just, Strategy, prop_assert, prop_oneof, proptest};
 use proptest::sample::select;
 
-use crate::common::{
-    cone_text, domain, is_hyperbolic, kite, order_text, proptest_config, text, triangles,
-};
+use crate::common::{cone_text, domain, is_hyperbolic, kite, order_text, text, triangles};
 use crate::reference::{
     Matrix, Reference, Worst, div, error, int, largest_entry_from_identity, matrix, max, mul, num,
     power, product,
@@ -90,8 +88,6 @@ fn counterclockwise(built: &FundamentalDomain) -> bool {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn random_triples_build_and_pass_their_checks(orders in hyperbolic_triple()) {
         for (built, input) in [(domain(orders), text(orders)), (kite(orders), cone_text(orders))] {

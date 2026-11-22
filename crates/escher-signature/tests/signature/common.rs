@@ -1,9 +1,4 @@
 use escher_signature::{Error, ErrorKind, Signature};
-use proptest::test_runner::Config;
-
-pub(crate) fn proptest_config() -> Config {
-    Config::default()
-}
 
 pub(crate) fn parse(text: &str) -> Result<Signature, Error> {
     text.parse()

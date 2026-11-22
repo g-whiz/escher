@@ -13,7 +13,7 @@ use proptest::prelude::{any, prop_assert, prop_assert_eq};
 use proptest::proptest;
 
 use crate::common::{
-    FIXTURES, SEARCH_BUDGET, budget, conway, coxeter, index_limit, letter, names, proptest_config,
+    FIXTURES, SEARCH_BUDGET, budget, conway, coxeter, index_limit, letter, names,
     random_presentation, small_presentation,
 };
 use crate::search::{class_tables, relabelled, rows};
@@ -104,8 +104,6 @@ fn check_laws(
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn returned_tables_obey_the_table_laws((presentation, subgroup) in random_presentation()) {
         let limit = CosetLimit::new(2000);
@@ -232,8 +230,6 @@ fn shuffled<T: Clone>(items: &[T], keys: &[u32]) -> Vec<T> {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn equal_subgroups_give_equal_tables(
         choice in any::<usize>(),
@@ -332,8 +328,6 @@ fn appended_conjugate(presentation: &Presentation, target: usize, by: usize) -> 
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn classes_are_least_and_hold_their_relabellings((presentation, limit) in small_presentation()) {
         let found = search(&presentation, limit, SEARCH_BUDGET);
@@ -452,8 +446,6 @@ fn word_cases() -> Vec<(Presentation, Colourings)> {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn a_relator_inside_a_side_sequence_keeps_the_colour(
         choice in any::<usize>(),

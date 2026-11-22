@@ -12,8 +12,7 @@ use crate::common::{
     EUCLIDEAN_TRIANGLES, EXAMPLE_TRIPLES, LIMIT_ROTATION_POLYGONS, LargestResiduals,
     REFUSED_DOUBLE_TEXT, all_triangles, aspects, assert_same_domain, built,
     built_or_refused_at_the_limit, clear_rotation_polygons, cone_text, domain, kite,
-    largest_coordinate_error, order_text, proptest_config, signature, starred, triangles,
-    with_aspect,
+    largest_coordinate_error, order_text, signature, starred, triangles, with_aspect,
 };
 use crate::polygons::signature_area;
 use crate::reference::{
@@ -818,8 +817,6 @@ fn cycle_relator_check_agrees_with_the_exact_powers() {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn doubled_rectangles_pass_their_checks_with_their_angles_and_area(aspect in 0.125..=8.0) {
         let double = with_aspect("2222", aspect);

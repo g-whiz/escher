@@ -615,7 +615,7 @@ The tests are these:
 | Auto traits | Compile-time assertion in a unit test in `lib.rs`, which calls a generic function with the bounds `Send + Sync + 'static` once for each public type | Each public type is `Send`, `Sync`, and `'static` | CONC-1 of the coding standard |
 | Doctests | Doctests | The examples of the crate-level documentation | Sections 7.4 and 7.5 of `docs/writing-documentation.md` |
 
-The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest`.
+The property tests commit their regression files (TEST-9 of the coding standard). They run with the default configuration of `proptest`.
 
 SIG-16. Withdrawn on 2026-11-19.
 

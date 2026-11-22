@@ -785,6 +785,11 @@ mod tests {
                 "the value NaN of the parameter skew is outside its range of -0.5 to 0.5",
             ),
             (
+                "o",
+                vec![setting("skew", 0.0), setting("aspect", 9.0)],
+                "the value 9 of the parameter aspect is outside its range of 0.125 to 8",
+            ),
+            (
                 "*3333",
                 vec![setting("slice1.length", f64::INFINITY)],
                 "the value inf of the parameter slice1.length is outside its range of 0.5 to 3.5",

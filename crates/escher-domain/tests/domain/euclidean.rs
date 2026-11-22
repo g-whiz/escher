@@ -8,7 +8,7 @@ use proptest::prelude::{prop_assert, proptest};
 
 use crate::common::{
     EUCLIDEAN_TRIANGLES, LargestResiduals, aspects, assert_same_domain, big, domain,
-    largest_coordinate_error, proptest_config, rectangle, signature, text,
+    largest_coordinate_error, rectangle, signature, text,
 };
 use crate::reference::{
     Matrix, Polygon, Reference, Vector, Worst, add, div, error, int, matrix, max, mul, num, sub,
@@ -278,8 +278,6 @@ fn euclidean_triangle_walls_are_the_lines_of_symmhub() {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn rectangles_pass_their_checks_with_right_angles_and_their_aspect(aspect in 0.125..=8.0) {
         let built = rectangle(aspect);

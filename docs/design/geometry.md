@@ -699,7 +699,7 @@ Each reference test and sweep that asserts a bound prints its largest error, in 
 
 A unit test asserts that `euclidean::isometry_defect` exceeds $10^{-9}$, the tolerance of check 1 of `docs/design/domain.md`, for a reflection scaled by $1 + 10^{-6}$ and for a reflection whose last row is set to $(0, 10^{-6}, 1)$.
 
-The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest`.
+The property tests commit their regression files (TEST-9 of the coding standard). They run with the default configuration of `proptest`.
 
 The self-check of the reference arithmetic does not test correct rounding, which Section 12 treats under `UNV-25`.
 
@@ -753,7 +753,7 @@ The crate sets `publish = false` (`DEC-22`), inherits the workspace fields and l
 
 With the features of the table, `glam` has no transitive dependency, and it computes `dot`, `cross`, and the product of a matrix and a vector with plain multiplications and additions, with no fused multiply-add. `astro-float-num` without `random` and `serde` adds no `rand` 0.8 beside the `rand` of the workspace. `astro-float` 0.9.6 fails the ban on duplicates with `syn` 1 even without its default features. The licences of both crates and of their dependencies are on the allow-list of Section 8 of `docs/design/tooling.md`, so `deny.toml` needs no new licence and no exception.
 
-The root `Cargo.toml` optimizes `astro-float-num` alone in the `dev` profile, with `opt-level = 3` in the table `[profile.dev.package.astro-float-num]`. The reference tests run about seven times faster with it. The crates of the workspace stay unoptimized in that profile, and the setting also shortens `just coverage`.
+The root `Cargo.toml` builds `astro-float-num` with `opt-level = 3` in the `dev` profile, in the table `[profile.dev.package.astro-float-num]`, because the high-precision arithmetic of the reference tests is slow without optimization. The setting also shortens `just coverage`. Section 4 of `docs/design/tooling.md` states the other levels of the profile.
 
 ## 12. Unverified Statements
 
@@ -800,7 +800,7 @@ No other document dictates these choices. Each looks like something a change cou
 | Inputs from a SplitMix64 generator with a fixed seed per test, so every run draws the same cases | 10.1 |
 | `astro-float-num` instead of `astro-float`, because `astro-float` brings a duplicate `syn` | 10.2, 11 |
 | `glam` without its default features, because nothing uses the integer and size types | 11 |
-| `opt-level = 3` for `astro-float-num` in the `dev` profile, because the reference tests run about seven times faster | 11 |
+| `opt-level = 3` for `astro-float-num` in the `dev` profile, because the reference tests are slow without it | 11 |
 | The representations of the Euclidean plane and of the sphere, the items of the modules `euclidean` and `spherical`, the formula of `euclidean::wall_through`, and the name `boost` on the sphere, which Section 13.3 puts to the owner | 3.4, 4.5, 4.6, 5.4, 6.7 |
 
 ### 13.3. Points for the Owner
@@ -811,7 +811,7 @@ None of these blocks the crate. Each states what the design does until the owner
 2. The comparison for `UNV-25`. It used the MPFR library of the container, called through its C interface from a script outside the repository (Section 12). The design treats the six agreeing values as the one comparison that the plan asks for. If the owner requires the comparison through another tool, such as `rug`, `UNV-25` stays open and the tests are unchanged.
 3. A gradient through the disk map. The renderer draws borders from a distance estimate that needs the derivative of the disk map (`DEC-28`), while the plan adds Jacobians to this crate only with the further model maps of Section 5.12 of the plan. This design adds none. The design of the renderer holds the derivative in `escher-render`, which Section 5.2 of `docs/design/render.md` specifies, until a later milestone moves it to this crate with the other Jacobians.
 4. The separation floor of `wall_through`. The crate states no accuracy for two points less than $10^{-5}$ apart (Section 8.4), and Section 1.5 excludes a distance form for close points. The design keeps the floor and the one formula of Section 5.3. The alternative is a form for close points in a later change, if a caller needs walls through such points.
-5. The `dev` profile of `astro-float-num`. The root `Cargo.toml` optimizes that dev-dependency alone (Section 11). The design keeps it, because the reference tests run about seven times faster with it. The alternative is to run them unoptimized.
+5. The `dev` profile of `astro-float-num`. The root `Cargo.toml` builds that dev-dependency with `opt-level = 3` (Section 11). The design keeps it, because the reference tests are slow without it. The alternative is to build it unoptimized.
 6. The representation of the Euclidean plane. The design uses the affine plane $x_3 = 1$ over the `glam` types of the hyperbolic module (Section 4.5), so that the fold and the border test of `escher-render` run unchanged, which a prototype outside the repository confirmed on the Euclidean triangles and the rectangle. The alternative is a `DVec2` point with a `DMat2` and `DVec2` pair for an isometry, which needs a second fold, a second side type, and a second border test.
 7. The items of the module `euclidean`. The design exports the constant and the seven functions of Section 3.1, with no `form`, `inverse`, or `normalize_point`, because no caller needs them (Section 3.4). The alternative is every name of `hyperbolic` that has a Euclidean counterpart. A later change adds `inverse` when a pairing is not an involution.
 8. The line through two points. No source states the cross-product formula of `euclidean::wall_through` (Section 5.4). The design uses it to compute a candidate and tests the three properties on the result, as it does for `UNV-26` in Section 5.3. The alternative is to wait for a source or a Lean proof, which would block the Euclidean domains of `docs/design/domain.md`.

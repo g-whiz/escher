@@ -6,7 +6,6 @@ use escher_geometry::hyperbolic::{
 };
 use escher_geometry::spherical;
 use glam::{DMat3, DVec3};
-use proptest::test_runner::Config;
 
 pub(crate) const CASES: usize = 100_000;
 
@@ -36,10 +35,6 @@ pub(crate) const DOMAIN_TRIPLES: [[u32; 3]; 10] = [
     [928, 4, 3],
     [999, 7, 6],
 ];
-
-pub(crate) fn proptest_config() -> Config {
-    Config::default()
-}
 
 pub(crate) struct Rng {
     state: u64,

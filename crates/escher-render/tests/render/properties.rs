@@ -14,8 +14,8 @@ use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
     Measure, REPLAY_BOUNDS, ROTATION_EUCLIDEAN_REPLAY_BOUNDS, ROTATION_REPLAY_BOUNDS,
     SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, TOLERANCE, domain, euclidean_band,
-    euclidean_domain, proptest_config, rotation_domain, spherical_domain, spherical_group_bounds,
-    text, wallpaper_bounds,
+    euclidean_domain, rotation_domain, spherical_domain, spherical_group_bounds, text,
+    wallpaper_bounds,
 };
 use crate::golden_images::{
     POLYGON_DOMAINS, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings,
@@ -148,8 +148,6 @@ impl RotationDomain {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn rotation_fold_converges_inside_every_side(
         index in 0..ROTATION_DOMAINS,
@@ -549,8 +547,6 @@ proptest! {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn polygon_fold_converges_inside_every_side(
         index in any::<Index>(),
@@ -629,8 +625,6 @@ proptest! {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn wallpaper_fold_converges_inside_every_side_with_a_last_coordinate_of_one(
         index in any::<Index>(),
@@ -886,8 +880,6 @@ fn fold_sides(
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn each_side_moves_the_coset_colour_by_the_inverse_column_of_its_generator(
         index in 0..COLOURED_DOMAINS.len(),
@@ -930,8 +922,6 @@ fn group_domain(index: usize) -> FundamentalDomain {
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn spherical_group_fold_converges_inside_every_side(
         index in 0..SPHERICAL_GROUP_DOMAINS.len(),

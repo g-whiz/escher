@@ -186,6 +186,11 @@ fn usage_error_keeps_usage_when_standard_error_fails() {
 #[test]
 fn render_help_option_prints_the_help_of_render() {
     let text = snapshot(&["render", "--help"]);
+    let trailing: Vec<&str> = text
+        .lines()
+        .filter(|line| line.ends_with(char::is_whitespace) && !line.trim().is_empty())
+        .collect();
+    assert_eq!(trailing, Vec::<&str>::new());
     let mut trimmed = String::new();
     for line in text.lines() {
         trimmed.push_str(line.trim_end());

@@ -12,8 +12,7 @@ use proptest::prelude::{Just, Strategy, any, prop_assert, prop_assert_eq, prop_o
 
 use crate::common::{
     CASES, EUCLIDEAN_RADIUS, Factor, Product, Rng, SPHERE_SEPARATION_FLOOR, Wall, euclidean_point,
-    largest_entry, line_covector, pair, polar_point, proptest_config, sphere_point, sphere_step,
-    tangent_basis,
+    largest_entry, line_covector, pair, polar_point, sphere_point, sphere_step, tangent_basis,
 };
 use crate::reference::{Reference, Worst, error, num};
 
@@ -271,8 +270,6 @@ fn assert_finite_normal_or_degenerate_wall(first: DVec3, second: DVec3) -> bool 
 }
 
 proptest! {
-    #![proptest_config(proptest_config())]
-
     #[test]
     fn wall_through_of_points_closer_than_1e_minus_5_is_a_finite_normal_or_degenerate_wall(
         radius in 0.0..10.0,

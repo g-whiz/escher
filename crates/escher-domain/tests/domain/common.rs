@@ -1,7 +1,6 @@
 use astro_float_num::BigFloat;
 use escher_domain::{Check, ErrorKind, FundamentalDomain, Verification};
 use glam::DVec3;
-use proptest::test_runner::Config;
 
 use crate::reference::{Vector, vector};
 use crate::shared::{NAMED_POLYGONS, built_with_aspect};
@@ -75,10 +74,6 @@ pub(crate) fn all_triangles() -> Vec<[u32; 3]> {
     let mut triples = small_triangles();
     triples.extend(triangles().filter(|&orders| !is_small(orders)));
     triples
-}
-
-pub(crate) fn proptest_config() -> Config {
-    Config::default()
 }
 
 pub(crate) fn text(orders: [u32; 3]) -> String {

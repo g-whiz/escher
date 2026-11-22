@@ -220,7 +220,7 @@ Every nextest command of Section 4.8 of the coding standard therefore passes `--
 
 nextest does not run doctests, so `check-doctest` runs them, as Section 4.8 of the coding standard states.
 
-The root `Cargo.toml` sets `opt-level = 3` for the dev-dependency `astro-float-num` alone in the `dev` profile, from which the `test` profile of Cargo inherits, for the reason that Section 11 of `docs/design/geometry.md` states. The crates of the workspace stay unoptimized in that profile.
+The root `Cargo.toml` sets the optimization levels of the `dev` profile, from which the `test` profile of Cargo inherits. The crates of the workspace build with `opt-level = 1`, because the tests render whole images. In one measurement in the development container, `just check` took 71.8 s at that level and 292.2 s at `opt-level = 0`. Every dependency builds with `opt-level = 0`, which keeps a clean build short. The exception is the dev-dependency `astro-float-num`, at `opt-level = 3` for the reason that Section 11 of `docs/design/geometry.md` states.
 
 ## 5. Git Hooks
 
@@ -715,7 +715,7 @@ Each row is a question that this document leaves open. The design document in th
 | --- | --- | --- |
 | TQ-4 | How is a release carried out: which recipe publishes, in which order the crates are published, and where the crates.io token is kept outside the repository? | This document |
 | TQ-6 | How does each published crate carry the text of its licence, which the GPL requires to accompany the work, given that Cargo does not package the root `LICENSE` when a manifest sets only the `license` field (Section 9)? | This document |
-| TQ-11 | Some tests are split or use small inputs for a reason that does not apply, because the owner withdrew `DEC-5` of `docs/design/architecture.md`. They are the single cases of Section 10.1 of `docs/design/group.md`, the integration test of `escher-domain` that checks the side order of `22` alone, one case of its test of the side orders of the spherical domains, and the integration tests of `escher-cli` that run one signature or one argument order of a table test on their own. They stay because they cost nothing. Should they be merged into their table tests? Also, the helper `proptest_config()` of each crate returns the default `proptest` configuration, and no rule requires it since the withdrawal of TEST-11 of the coding standard. Should the helpers be removed, or kept as the one place to change the number of cases? | `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/cli.md` for the tests, and the design document of each crate for its helper |
+| TQ-11 | Some tests are split or use small inputs for a reason that does not apply, because the owner withdrew `DEC-5` of `docs/design/architecture.md`. They are the single cases of Section 10.1 of `docs/design/group.md`, the integration test of `escher-domain` that checks the side order of `22` alone, one case of its test of the side orders of the spherical domains, and the integration tests of `escher-cli` that run one signature or one argument order of a table test on their own. They stay because they cost nothing. Should they be merged into their table tests? | `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/cli.md` |
 
 An identifier is never reused, so the next question takes TQ-12.
 

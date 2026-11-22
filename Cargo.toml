@@ -101,6 +101,14 @@ exhaustive_structs = "warn"
 partial_pub_fields = "warn"
 mod_module_files = "warn"
 
+# The tests render whole images, which takes about four times as long without optimization.
+# Dependencies stay unoptimized, which keeps a clean build short.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 0
+
 # The high-precision arithmetic of the reference tests is too slow to run without optimization.
 [profile.dev.package.astro-float-num]
 opt-level = 3
