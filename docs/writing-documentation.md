@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-15 |
+| Date | 2026-11-22 |
 | Applies to | Every Markdown document and all API documentation in this repository |
 
 ## Abstract
@@ -23,6 +23,8 @@ Documents must therefore be unambiguous, complete, and consistent in their termi
 The conventions here adapt to Markdown the documents that govern how Requests for Comments (RFCs) are written: [RFC2119], [RFC8174], [RFC7322], and [RFC2360]. They add practices from RFCs that are widely regarded as readable. Section 7 adds the conventions of the Rust ecosystem for API documentation [RUSTDOC] [RUST-API].
 
 This guide governs the content of API documentation. It does not cover code style, commit messages, or the content of any particular design. The instruction file `AGENTS.md` and the standards document `docs/rust-coding-standards.md` govern code style.
+
+Two guides add to this one: `docs/avoiding-claudelish.md` for every document and all API documentation, and `docs/writing-readmes.md` for every README.
 
 ## 2. Requirements Language
 
@@ -47,7 +49,7 @@ Each term in this section keeps exactly this meaning in every document in the re
 - standards document: A document that sets the rules that code in the repository follows, such as `docs/rust-coding-standards.md`.
 - reference list: A document that lists external sources for later consultation, with a topic index, such as `docs/rust-references.md`.
 - subject-matter reference: A document under `docs/research/` that states the mathematics that the code implements, with a citation for each claim, for an author who implements that mathematics in code.
-- README: The file `README.md` at the root of the repository, which is the landing page of the project on GitHub.
+- README: The root README, which is the file `README.md` at the root of the repository and the landing page of the project on GitHub, or a crate README once one exists, as `docs/writing-readmes.md` defines. "The README" means the root README.
 - instruction file: The file `AGENTS.md`, which every agent reads before it works in the repository. The file `CLAUDE.md` contains only the line `@AGENTS.md`, which imports the instruction file.
 - API documentation: The documentation comments, written with `///` for an item and `//!` for a crate or module, that rustdoc renders into the reference documentation of a crate.
 - public item: An item that code outside its crate can name. The rustc lint `missing_docs` checks these items.
@@ -155,6 +157,8 @@ When a tool could check a rule but no tool in the repository does yet, the docum
 A design document describes the design and architecture of a system, and the boundaries and interactions between systems. An author MUST NOT put progress records in a design document or in the README, because such records bury the design that the reader needs and go stale with the next change, while the history of the repository already holds them.
 
 Progress records include what works and what does not as a status, what was tried, what each step or milestone added, completion dates, dated measurements, identifiers of continuous integration runs, and counts of tests.
+
+An author MUST NOT put in a design document figures from prototypes, inventories of tests, output that a snapshot file or a golden file fixes, or measured values that a test asserts and prints, because the code and the tests already hold them, and a copy in a document goes stale with the next change to the code. A design document describes its tests by their layers, the named input sets, the oracles, and what each layer catches.
 
 ### 3.7. Subject-Matter Reference Skeleton
 
@@ -484,19 +488,13 @@ What the section says about each feature, including its default and what it enab
 
 ### 7.9. README and Crate Documentation
 
-The README describes the project as a whole: what it is, the list of crates with one sentence and a documentation link for each, the build requirements, and the licence. Crate-level documentation is the API reference of one crate.
+The README describes the project as a whole: what it is, the list of crates with one sentence for each, the build requirements, and the licence. From the first publication of a crate, it also links the documentation of each published crate. Crate-level documentation is the API reference of one crate.
 
 Each fact lives in one of the two places, and the other links to it (Section 4.5). An author MUST NOT copy API reference material into the README, because rustdoc does not check the copy, so it diverges from the code.
 
-Rust code in the README is compiled as a doctest by including the README in a crate. This illustration shows the form, with a path that depends on where the crate lives:
+The README holds no Rust code, because no crate includes it, so nothing would compile the code (RDM-22 of `docs/writing-readmes.md`). From the first publication of a crate, the Rust code of its crate README is compiled as doctests, as RDM-20 of that guide specifies.
 
-```rust
-#[cfg(doctest)]
-#[doc = include_str!("../../../README.md")]
-pub struct ReadmeDoctests;
-```
-
-Checked by: `cargo test --doc` for Rust code in the README. `scripts/check-prose` for the language of the README, as Section 8 describes. The division of content is a judgement rule.
+Checked by: `scripts/check-prose` for the language of the README, as Section 8 describes. From the first publication of a crate, `cargo test --doc` for the Rust code of its crate README. The absence of Rust code in the README and the division of content are judgement rules.
 
 ### 7.10. Language in API Documentation
 
@@ -542,7 +540,8 @@ This table summarizes how each rule in this section is checked.
 | Every mentioned item is linked | 7.7 | Judgement |
 | Every feature, and no other name, in a code span in the `# Features` section | 7.8 | `check-feature-docs` |
 | Default and effect of each feature, items that need a feature, and platform support | 7.8 | Judgement |
-| Rust code in the README compiles | 7.9 | `cargo test --doc` |
+| No Rust code in the README | 7.9 | Judgement |
+| Rust code in a crate README compiles, from the first publication of the crate | 7.9 | `cargo test --doc` |
 | Language of the README | 7.9 | `check-prose` |
 | Division of content between README and crate documentation | 7.9 | Judgement |
 | ASCII punctuation, no semicolons, and the listed spellings in API documentation | 7.10 | `check-prose` |

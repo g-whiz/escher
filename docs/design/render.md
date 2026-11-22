@@ -1025,9 +1025,9 @@ Beyond the range of accuracy, the test "Rim" of Section 8.1 asserts no bound. It
 
 ### 6.5. Measured Figures
 
-RND-16. A test that asserts a quantity for which this document states no measured bound MUST set its bound and record it in this document as TEST-13 of the coding standard requires, over an input set that this document states, in the same change as the test, and a bound on a count MUST be the count bound of the measured count, because Sections 6.2, 6.4, 6.6, 6.7, 6.8, 6.9, 8.1, and 8.4 are the one record of the bounds of this crate, a bound outside them has no measurement for a reviewer to check, and 8 times a count of 0 is a bound of 0, which fails on the first decision that differs on another platform.
+RND-16. A test that asserts a bound on a quantity MUST name its input set and print its largest value with its input and its margin, as TEST-13 of the coding standard requires, and MUST take the count bound of a measured count as the bound on that count, because 8 times a count of 0 is a bound of 0, which fails on the first decision that differs on another platform. This document MUST record a bound only where it is part of a contract of the crate, because the test repeats the measurement on every run, while a figure copied into this document goes stale with the next change to the code.
 
-The count bound is a choice of this design. Each bound of a floating-point quantity is at least 8 times its largest value, as TEST-13 requires. The tests print each largest value with its input and its margin, and the Validating Changes section of `AGENTS.md` gives the command that shows that output.
+The count bound is a choice of this design. A bound on a floating-point quantity is at least 8 times its largest value, as TEST-13 requires. The Validating Changes section of `AGENTS.md` gives the command that prints the largest values.
 
 The figures of Sections 6.2, 6.4, 6.6, 6.7, 6.8, 6.9, 6.11, 8.1, and 8.4 were measured on Linux x86-64 with the code of the crate. The figures of Section 11 come from the prototype, the Euclidean prototype, the sphere prototype, the rotation prototype, the colouring prototype, and the polygon prototype. Where a figure of the crate differs from one of a prototype, the figure of the crate is the fact, and the prototype's remains only as the evidence that motivated a choice. No bound takes a figure from a prototype, except the golden-image allowance, which Section 8.4 explains.
 
@@ -2171,7 +2171,7 @@ The assertion "Glide symmetry" of the exact test of "Wallpaper periodicity" comp
 
 The test "Wallpaper border subset" keeps only the kites. On the wallpaper prototype, at 256 by 256 pixels with one colour, `4*2` had 7936 border pixels against 13536 of `*442`, and `3*3` had 10588 against 18020 of `*632`, with no border pixel of a kite outside those of its triangle. Each of the six rectangular groups gave the image of `*2222` byte for byte, with 7936 border pixels at `aspect` 1 and 9984 at `aspect` 4, so an inclusion in `*2222` tests nothing (Section 5.14).
 
-The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest` (TEST-11 of the coding standard).
+The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest`.
 
 These tests compare a value that passes through a transcendental function exactly with a stored value:
 
@@ -2939,7 +2939,7 @@ The tags of the mathematical and software sources resolve to the reference secti
 | RND-13 | The tolerance constant is positive and the threshold is $\tau \sigma_i \lambda(x)$ | 6.2 |
 | RND-14 | `fold` and the renderer never panic | 6.3 |
 | RND-15 | The bounds of Section 6.4 hold in each radius band, and beyond the range of accuracy only a result without a panic is promised | 6.4 |
-| RND-16 | A test of a quantity without a measured bound here sets and records its bound as TEST-13 requires, in the same change, and a bound on a count is the count bound | 6.5 |
+| RND-16 | A test of a bound names its input set and prints its largest value, a bound on a count is the count bound, and this document records a bound only where it is part of a contract | 6.5 |
 | RND-17 | `Error` follows ERR-1, with the operation that failed | 7.1 |
 | RND-18 | The `Display` text of each error is the one stated | 7.2 |
 | RND-19 | The reference module shares no code with the crates under test | 8.3 |

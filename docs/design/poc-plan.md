@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-21 |
+| Date | 2026-11-22 |
 | Applies to | The order of work of the proof of concept, from the first crate to the completion audit |
 
 ## Abstract
@@ -82,7 +82,7 @@ PLAN-1. An agent MUST merge the design branch of a milestone before it merges an
 
 PLAN-2. An agent MUST NOT start the code of a milestone before the research prerequisite that Section 4 names for it has merged, because a change that implements mathematics starts from its subject-matter reference (Hard Rule 14 of `AGENTS.md`), and code written first has nothing to be checked against.
 
-PLAN-3. The design document of each crate MUST list every unverified statement of Section 7 that its code relies on, or else the statement cannot be traced and stays open after a source closes it.
+PLAN-3. The design document of each crate MUST list every unverified statement of Section 7 that its code relies on, one row per label, with the section of the document that relies on it, because without the list a statement cannot be traced and stays open after a source closes it. The list MUST NOT hold tables of evidence for a statement, because evidence copied into a design document goes stale. The evidence belongs in Section 7, the research documents, and the tests, which check the statement numerically.
 
 PLAN-4. An agent MUST NOT treat a milestone as accepted until every test that its "Tests and acceptance" field names exists and passes in `just check` and in CI, because those tests are the only evidence that the milestone meets its goal.
 
@@ -102,7 +102,7 @@ The other milestones carry the owner's decisions on colourings (M7, M8), models 
 
 ### 3.3. Planning Documents
 
-The planning documents, labelled M0, are the precondition of M1 and have no code to implement. They are `docs/design/architecture.md`, this plan, and `docs/design/roadmap.md`, which live in `docs/design/` as plans without status (`DEC-2`), together with the updates to `AGENTS.md` (Project Status, and the planned locations in Repository Layout) and to `README.md`. They are accepted when `just check` passes and when they call every crate planned.
+The planning documents, labelled M0, are the precondition of M1 and have no code to implement. They are `docs/design/architecture.md`, this plan, and `docs/design/roadmap.md`, which live in `docs/design/` as plans without status (`DEC-2`), together with the updates to `AGENTS.md` (Project Status and Repository Layout) and to `README.md`. They are accepted when `just check` passes and when they call every crate planned.
 
 ### 3.4. Milestone Overview
 
@@ -964,7 +964,7 @@ Each milestone updates these documents in the same change as its code (Hard Rule
 
 1. The design document of each crate that the milestone alters, before the code, with its assumptions, its open questions, and the list of PLAN-3. It records no status.
 2. The research documents: the prerequisite readings, and any source read, in the same change as `source-requests.md`.
-3. `AGENTS.md`: Project Status with its date, Repository Layout for each new crate, file, and recipe, and Technology Decisions when a decision takes force.
+3. `AGENTS.md`: Project Status with its date, Repository Layout for each new top-level file or directory, document, script, or change to the common crate layout, and Technology Decisions when a decision takes force.
 4. `README.md`: the crate table, the requirements, and the usage.
 5. The tooling design: Section 8 for every change to `deny.toml`, Section 3.2 for a recipe, Section 4 for the nextest profiles, and Section 14.2 for environment variables.
 6. The coding standard: the member list of Section 1.1, and Section 11 for new test rules.
@@ -1087,5 +1087,5 @@ The tool emits no logs. `--stats` prints its statistics on request.
 | --- | --- | --- |
 | PLAN-1 | The design branch of a milestone merges before any of its code branches | 3.1 |
 | PLAN-2 | The code of a milestone starts only after its research prerequisite has merged | 3.1 |
-| PLAN-3 | Each crate design document lists the unverified statements its code relies on | 3.1 |
+| PLAN-3 | Each crate design document lists the unverified statements its code relies on, one row per label with the section that relies on it, and no evidence tables | 3.1 |
 | PLAN-4 | A milestone is accepted only when every test it names passes in `just check` and CI | 3.1 |

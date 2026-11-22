@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-19 |
+| Date | 2026-11-22 |
 | Applies to | The repository's configuration, recipes, hooks, and continuous integration |
 
 ## Abstract
@@ -714,7 +714,7 @@ Each row is a question that this document leaves open. The design document in th
 | --- | --- | --- |
 | TQ-4 | How is a release carried out: which recipe publishes, in which order the crates are published, and where the crates.io token is kept outside the repository? | This document |
 | TQ-6 | How does each published crate carry the text of its licence, which the GPL requires to accompany the work, given that Cargo does not package the root `LICENSE` when a manifest sets only the `license` field (Section 9)? | This document |
-| TQ-11 | Some tests are split or use small inputs for a reason that does not apply, because the owner withdrew `DEC-5` of `docs/design/architecture.md`: the single cases of Section 10.1 of `docs/design/group.md`, the row "Side order of `22`" of Section 12.1 of `docs/design/domain.md`, and the tests "of its own" of Section 8.1 of `docs/design/cli.md`. They stay because they cost nothing. Should they be merged into their table tests? Also, the helper `proptest_config()` of each crate returns the default configuration of `proptest`, so TEST-11 of the coding standard requires a wrapper that changes nothing. Should the helpers be removed and TEST-11 withdrawn, or kept as the one place to change the number of cases? | `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/cli.md` for the tests, and `docs/rust-coding-standards.md` for TEST-11 |
+| TQ-11 | Some tests are split or use small inputs for a reason that does not apply, because the owner withdrew `DEC-5` of `docs/design/architecture.md`. They are the single cases of Section 10.1 of `docs/design/group.md`, the row "Side order of `22`" of Section 12.1 of `docs/design/domain.md`, and the tests "of its own" of Section 8.1 of `docs/design/cli.md`. They stay because they cost nothing. Should they be merged into their table tests? Also, the helper `proptest_config()` of each crate returns the default `proptest` configuration, and no rule requires it since the withdrawal of TEST-11 of the coding standard. Should the helpers be removed, or kept as the one place to change the number of cases? | `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/cli.md` for the tests, and the design document of each crate for its helper |
 
 An identifier is never reused, so the next question takes TQ-12.
 

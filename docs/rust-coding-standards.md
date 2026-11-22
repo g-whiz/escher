@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-19 |
+| Date | 2026-11-22 |
 | Applies to | All Rust code in this repository, and the agents that write or review it |
 
 ## Abstract
@@ -906,19 +906,17 @@ Reason: each Rust file directly in `tests/` is a separate test binary, so a help
 
 A helper outside `#[cfg(test)]` code also triggers `clippy::unwrap_used` and `unreachable_pub`, because the test options of Section 4.3 cover only `#[test]` functions and `#[cfg(test)]` code. The single-binary layout produced no findings in the run of Section 1.1.
 
-**TEST-11.** Give every property test its configuration from one helper, `proptest_config()`, in the crate's shared test module.
-
-Reason: one helper keeps the configuration of the property tests of a crate, such as the number of cases, in one place, so a change to it reaches every property test.
+**TEST-11.** Withdrawn on 2026-11-22.
 
 **TEST-12.** Write a snapshot of the output of a program as its status and each of its output streams after a fixed marker line, and end the snapshot with a final marker line. Reason: `insta` trims the whitespace at the end of a snapshot before it compares, so without a final marker a missing or extra line feed at the end of the last stream passes the test, and without a marker before each stream a reviewer cannot tell which stream a line belongs to.
 
-**TEST-13.** Compare a floating-point result that a transcendental function or a sequence of rounded operations produces with a tolerance that follows the scale of the quantity, and never bit for bit. Assert exact equality of two computed values only where IEEE 754 arithmetic makes them equal, such as a value and its negation, and state why in the design document of the crate. Check the formulas of a numeric crate against an independent implementation in high-precision arithmetic, in the test suite, that shares no code with the crate or with its vector library. Set each tolerance to at least 8 times the largest error measured over a stated deterministic input set, and record the input set, the tolerance, the largest error, and the margin in the design document of the crate.
+**TEST-13.** Compare a floating-point result that a transcendental function or a sequence of rounded operations produces with a tolerance that follows the scale of the quantity, and never bit for bit. Assert exact equality of two computed values only where IEEE 754 arithmetic makes them equal, such as a value and its negation, and state why in the design document of the crate. Check the formulas of a numeric crate in the test suite against an independent implementation in high-precision arithmetic that shares no code with the crate or with its vector library. Set each tolerance to at least 8 times the largest error over a stated deterministic input set. The test holds the tolerance and the input set, asserts the bound, and prints the largest error with its input and its margin. The design document of the crate states only the tolerances that are part of a contract of the crate, with no measured value, input, or margin.
 
-Reason: the last bits of a transcendental function differ between platform libraries, so a bit-for-bit assertion fails on a correct result. A tolerance without the scale of its quantity either fails on large inputs or hides a defect on small ones. An implementation that shares code with the crate shares its transcription errors. A tolerance set from a measurement with a margin passes on a correct implementation, while a guessed tolerance either fails on it or hides a defect, and the record lets a reviewer check each tolerance against its measurement.
+Reason: the last bits of a transcendental function differ between platform libraries, so a bit-for-bit assertion fails on a correct result. A tolerance without the scale of its quantity either fails on large inputs or hides a defect on small ones. An implementation that shares code with the crate shares its transcription errors. A tolerance set from a measurement with a margin passes on a correct implementation, while a guessed tolerance either fails on it or hides a defect. A test that prints its largest error lets a reviewer check each tolerance against its measurement on every run, while a measured value copied into a document goes stale with the next change to the code.
 
-**TEST-14.** Compare a golden image, a committed PNG file that a test renders again, by its decoded pixels and not by the bytes of the file, within an allowance of a largest difference per pixel and a number of pixels that may differ, and set the allowance from a measurement that the design document of the crate records with its input. On a failure, write the actual image and an image of the differences to a directory under the build output, and change the committed files only through the recipe that regenerates them.
+**TEST-14.** Compare a golden image, a committed PNG file that a test renders again, by its decoded pixels and not by the bytes of the file, within an allowance of a largest difference per pixel and a number of pixels that may differ. Set the number of pixels from a measurement that a test repeats and asserts. On a failure, write the actual image and an image of the differences to a directory under the build output, and change the committed files only through the recipe that regenerates them.
 
-Reason: the bytes of a PNG file depend on the encoder and its compression settings, so a byte comparison fails on an image that is pixel for pixel the same. A platform mathematics library can move a sample across a border, so an exact comparison fails on a correct renderer, while a guessed allowance either fails on it or hides a defect. The written images let a developer see what changed, and a single recipe keeps a test from rewriting its own expected result during an ordinary run.
+Reason: the bytes of a PNG file depend on the encoder and its compression settings, so a byte comparison fails on an image that is pixel for pixel the same. A platform mathematics library can move a sample across a border, so an exact comparison fails on a correct renderer, while a guessed pixel count either fails on it or hides a defect. The written images let a developer see what changed, and a single recipe keeps a test from rewriting its own expected result during an ordinary run.
 
 ## 12. Dependencies and Cargo Features
 
@@ -1125,10 +1123,10 @@ The identifiers FFI-1 to FFI-11, SYS-1 to SYS-8, and COM-1 to COM-13 are reserve
 | TEST-8 | Withdrawn on 2026-11-15. |
 | TEST-9 | No tests that restate the implementation, and property tests for round trips. |
 | TEST-10 | One integration-test binary per crate, `tests/<suite>/main.rs`, with sibling modules and a `#[cfg(test)] mod common;`. |
-| TEST-11 | Property tests take their configuration from one helper, `proptest_config()`, in the shared test module of the crate. |
+| TEST-11 | Withdrawn on 2026-11-22. |
 | TEST-12 | A snapshot of program output holds the status and each stream after a fixed marker line, and ends with a final marker line. |
-| TEST-13 | Floating-point results are compared with a tolerance that follows their scale and checked against an independent high-precision implementation, with each tolerance at least 8 times a recorded measured error. |
-| TEST-14 | Golden images are compared by decoded pixels within a recorded, measured allowance, write the actual and difference images on failure, and change only through their recipe. |
+| TEST-13 | Floating-point results are compared with a tolerance that follows their scale, never bit for bit except where IEEE 754 makes two values equal, and checked against an independent high-precision implementation. Each tolerance is at least 8 times the largest error over a stated deterministic input set, the test prints the measurement, and the design document states only the tolerances of a contract. |
+| TEST-14 | Golden images are compared by decoded pixels within an allowance whose pixel count comes from a measurement that a test repeats and asserts. A failure writes the actual and difference images, and only the recipe changes the committed files. |
 | DEP-1 | Cargo features are additive and named after what they enable. |
 | DEP-2 | Dependencies are few, preferably standard, and declared once in the workspace, except another version requirement on a member. |
 | DEP-3 | A crate that exposes a dependency below 1.0 stays below 1.0, and a breaking upgrade of a public dependency is a breaking release. |

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-19 |
+| Date | 2026-11-22 |
 | Applies to | The workspace crates of the proof of concept, the conventions between them, and the decisions that bind them |
 
 ## Abstract
@@ -310,7 +310,7 @@ Seven facts of the repository shape the design. Each row names the document that
 | --- | --- | --- |
 | Rust source has no licence header | Hard Rule 5 of `AGENTS.md`, Section 7.2 of `docs/writing-documentation.md`, and `check-rust-comments` | The MIT notice that Section 3.3 of `docs/research/symmhub.md` requires for ported code needs another place (`DEC-18`) |
 | Code cites no project document | Hard Rule 15 of `AGENTS.md` | Code and tests use no milestone wording, so unverified statements are tracked only in design documents |
-| Documents mirror configuration | Section 8 of `docs/design/tooling.md` states the settings of `deny.toml` and says that it has no `skip` or `ignore` list. Section 3.2 lists every recipe (TOOL-6). Section 1.1 of `docs/rust-coding-standards.md` lists the workspace members. Repository Layout and Project Status of `AGENTS.md` and the crate table of `README.md` do the same | Each of these changes in the same change as the first crates, dependencies, and recipes (Hard Rule 1 of `AGENTS.md`). Section 6 of `docs/design/poc-plan.md` lists the updates of each milestone |
+| Documents mirror configuration | Section 8 of `docs/design/tooling.md` states the settings of `deny.toml` and says that it has no `skip` or `ignore` list. Section 3.2 lists every recipe (TOOL-6). Section 1.1 of `docs/rust-coding-standards.md` lists the workspace members. The crate table of Project Status in `AGENTS.md` and the crate table of `README.md` do the same | Each of these changes in the same change as the first crates, dependencies, and recipes, and Repository Layout of `AGENTS.md` changes with the top-level files, documents, and scripts (Hard Rule 1 of `AGENTS.md`). Section 6 of `docs/design/poc-plan.md` lists the updates of each milestone |
 | Design documents hold no progress | Section 3.6 of `docs/writing-documentation.md` | `docs/design/poc-plan.md` states its milestones as a plan. Status goes only into Project Status of `AGENTS.md` |
 | No derivation in prose | Hard Rule 14 of `AGENTS.md`, Section 2.4 of `docs/research/geometry-models.md` | The linear models of Section 5.1 need a few statements that the research gives only in another convention or not at all. They are `UNV-26` and follow the owner's decision on unverified statements (Section 10.1) |
 | Research prerequisites | Sections 8.5 and 8.15 and gap G4 of `docs/research/fundamental-domains.md`, and Development Workflow of `AGENTS.md` | The research prerequisites of `docs/design/poc-plan.md` supply, before the milestones that need them, a step-level account of Todd-Coxeter and of the low-index search (Sections 7.8 to 7.21 of `docs/research/colourings.md`), and the geometry of SymmHub's Euclidean and spherical catalogue (Sections 7.1.1 to 7.1.9 of `docs/research/symmhub.md` and Sections 9.5 and 9.6 of `docs/research/fundamental-domains.md`). Deaton's thesis sources all nine cut rules and the twelve atoms (Section 8.15 of `docs/research/fundamental-domains.md`). Gap G4 keeps open SymmHub's order of the cuts, its pairing of corners of order 2 across the end of the signature, and its departures from the thesis. A change that implements mathematics starts from its subject-matter reference |
@@ -342,7 +342,7 @@ The tests form these layers, in the order in which they catch defects:
 8. Golden images.
 9. One integration-test binary per crate (TEST-10) and one smoke test of the binary as a process.
 
-The reference arithmetic is an independent implementation, in a high-precision type inside the test suite, of the few formulas that matter: the forms, the reflections, the constructions of the triangle and of the reflection polygon, the model maps, and the replay of a fold. It is not a generic instantiation of production code. The public API therefore stays concrete (SIMP-1 in Section 13 of `docs/rust-coding-standards.md`), and a transcription error is not shared between the code and its test. The design document of each crate that uses it gives the working precision and the tolerance of each quantity.
+The reference arithmetic is an independent implementation, in a high-precision type inside the test suite, of the few formulas that matter: the forms, the reflections, the constructions of the triangle and of the reflection polygon, the model maps, and the replay of a fold. It is not a generic instantiation of production code. The public API therefore stays concrete (SIMP-1 in Section 13 of `docs/rust-coding-standards.md`), and a transcription error is not shared between the code and its test. The design document of each crate that uses it gives the working precision and the tolerances that are part of a contract of the crate, and the tests hold every other tolerance (TEST-13).
 
 Coverage stays a report with no threshold (Section 7.1 of `docs/design/tooling.md`).
 
@@ -353,7 +353,7 @@ TEST-14 in Section 11 of `docs/rust-coding-standards.md` states the general rule
 - A golden image is a small PNG file, such as 192 by 192 pixels with fixed options, committed under `tests/<suite>/golden/` of its crate.
 - The test renders the image, decodes the golden file with `png`, and compares channel by channel with two limits: the largest allowed difference and the number of pixels allowed to differ. Section 11.1 of `docs/research/rust-ecosystem.md` recommends this comparison.
 - The comparison is in linear light, because samples are averaged in linear light (Section 4.1), so the weight of one sample in stored 8-bit sRGB units depends on the colours. The largest difference is the weight of one sample in the sample grid plus the size of one 8-bit sRGB step at the stored value, in linear light.
-- The design of the crate sets the number of pixels allowed to differ and records the evidence for it. Section 8.4 of `docs/design/render.md` gives the allowance of `escher-render` and the figures behind it.
+- The test sets the number of pixels allowed to differ from a measurement that it repeats and asserts. Section 8.4 of `docs/design/render.md` gives the allowance of `escher-render`.
 - On failure, the test writes the actual image and the difference image under the directory that `CARGO_TARGET_TMPDIR` names, which is under `target/`.
 - Golden files change only through the recipe `update-golden`. Section 3.2 of `docs/design/tooling.md` lists the recipe, and its Section 14.2 lists its environment variable.
 

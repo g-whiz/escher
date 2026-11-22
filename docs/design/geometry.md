@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-19 |
+| Date | 2026-11-22 |
 | Applies to | `crates/escher-geometry` |
 
 ## Abstract
@@ -734,7 +734,7 @@ Each test below names the item of the field "Tests and acceptance" of Section 5.
 | G26 Spherical reference | None | Reference, `formulas` | Each row of Section 8.6 against the reference arithmetic, on the inputs of the row and within its bound | Sections 5.5, 6.7, and 8.6 |
 | G27 Spherical properties | None | `proptest` and a sweep, `properties` | A reflection in the great circle of a random normal is an involution, fixes the points of its great circle, and has an `isometry_defect` within the bound of its row. The product of the reflections in two great circles through one random sphere point at the angle $\pi/n$, for $n$ from 2 to 12, raised to the power $n$ by repeated multiplication, is the identity. `wall_through` of two points of the range of Section 8.6 has the three properties of Section 5.5 within the bounds of its rows, and swapping the points gives exactly the negated result. Each within its row of Section 10.3. A second sweep, of pairs below the separation floor of Section 8.6, asserts only that each result is a finite vector or `DegenerateWall` | Sections 5.5, 6.7, and 8.6 |
 
-The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest` (TEST-11 of the coding standard).
+The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest`.
 
 G14 guards against a wrong precision or rounding argument and does not test correct rounding, which Section 12 treats under `UNV-25`.
 
@@ -809,9 +809,9 @@ The tolerance for a point of a wall carries the term in $K$, because the points 
 
 The swap of the arguments of `wall_through` is asserted exactly, as TEST-13 of the coding standard allows. In IEEE 754 arithmetic the cross product of the swapped points is the exact negation of the cross product of the points, and the covector, the form, and the square root that follow keep that relation, so the measured error is 0 over 100,000 pairs.
 
-GEO-19. A test that asserts a quantity for which this document states no measured bound MUST set its tolerance and record it in this document as TEST-13 of the coding standard requires, over an input set that this document states, in the same change as the test, because Sections 8.4 and 10.3 are the one record of the tolerances of this crate, and a tolerance outside it has no measurement for a reviewer to check.
+GEO-19. A test that asserts a tolerance on a quantity MUST name its input set and print its largest error with its input and its margin, as TEST-13 of the coding standard requires. This document MUST record a tolerance only where it is part of a contract of the crate, because the test repeats the measurement on every run, while a figure copied into this document goes stale with the next change to the code.
 
-GEO-16. Every test that compares a floating-point result MUST use the tolerance that this section states for its quantity, and MUST compare a result bit for bit only where TEST-13 of the coding standard allows it, because the tolerances of this section are the ones measured on the code, and a test with another tolerance asserts what no measurement supports.
+GEO-16. Every test that compares a floating-point result MUST use the tolerance that this document states for its quantity as part of a contract of the crate, and MUST compare a result bit for bit only where TEST-13 of the coding standard allows it, because a test that compares within a looser tolerance passes a result that breaks the contract.
 
 TEST-13 of the coding standard states the general rule that GEO-15, GEO-16, and GEO-19 apply to this crate.
 
@@ -993,10 +993,10 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-13 | `Error` follows ERR-1, with the operation that failed | 9.1 |
 | GEO-14 | The `Display` text of each kind is the one stated | 9.2 |
 | GEO-15 | The reference arithmetic implements each formula independently, without this crate or `glam` | 10.2 |
-| GEO-16 | Every floating-point comparison uses the stated tolerance, and a bit-for-bit comparison only where TEST-13 allows it | 10.3 |
+| GEO-16 | A comparison of a quantity with a tolerance stated as part of the contract uses that tolerance, and a bit-for-bit comparison is made only where TEST-13 allows it | 10.3 |
 | GEO-17 | Withdrawn on 2026-11-19. | 10.1 |
 | GEO-18 | `glam` and `thiserror` are the only normal dependencies, and `glam` is not re-exported | 11 |
-| GEO-19 | A test of a quantity without a measured bound here sets and records its tolerance as TEST-13 requires, in the same change | 10.3 |
+| GEO-19 | A test of a tolerance names its input set and prints its largest error, and this document records the tolerance only where it is part of a contract | 10.3 |
 | GEO-20 | Every Euclidean isometry of the module `euclidean` has the last row $(0, 0, 1)$ exactly | 4.5 |
 | GEO-21 | `euclidean::wall_through` returns a finite vector or `DegenerateWall` for every input, and on the range of Section 8.5 a line covector through both points | 5.4 |
 | GEO-22 | `euclidean::isometry_defect` returns infinity when an entry is not finite or the result is NaN | 6.6 |

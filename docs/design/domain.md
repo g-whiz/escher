@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-21 |
+| Date | 2026-11-22 |
 | Applies to | `crates/escher-domain` |
 
 ## Abstract
@@ -1876,7 +1876,7 @@ The test "SymmHub lines" measures the last row, and the three lines of SymmHub m
 
 At `aspect` 1 and 4, every number of the construction of the rectangle is a dyadic rational and every operation is exact in IEEE 754 arithmetic, and the square roots of 1 and 4 are exact. The test "Exact rectangle" therefore asserts exactly that the vertices are $(\pm w/2, \pm h/2, 1)$ and the covectors are $(\pm 1, 0, -w/2)$ and $(0, \pm 1, -h/2)$, as TEST-13 of the coding standard allows.
 
-DOM-19. A test that asserts a quantity of a domain for which this document states no measured bound MUST set its bound and record it in this document as TEST-13 of the coding standard requires, over an input set that this document states, in the same change as the test, because Sections 8.4 and 9.3 to 9.7 are the one record of the tolerances of this crate, and a bound outside them has no measurement for a reviewer to check.
+DOM-19. A test that asserts a bound on a quantity of a domain MUST name its input set and print its largest value with its input and its margin, as TEST-13 of the coding standard requires. This document MUST record a bound only where it is part of a contract of the crate, because the test repeats the measurement on every run, while a figure copied into this document goes stale with the next change to the code.
 
 ### 9.5. Accuracy of the Spherical Domains
 
@@ -2658,7 +2658,7 @@ The expected values for $\{7, 3\}$ come from the split of the polygon into $2p$ 
 
 DOM-14. A test MUST NOT take an expected value from Table 2 of [HT], because the research records that the table and equation 29 disagree for $\{7, 3\}$, and a test built on the wrong one passes a wrong domain or fails a correct one.
 
-The property tests commit their regression files (TEST-9 of the coding standard). Every property test, "Random polygons" included, takes its configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest` (TEST-11 of the coding standard).
+The property tests commit their regression files (TEST-9 of the coding standard). Every property test, "Random polygons" included, takes its configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest`.
 
 The tests compare a value that passes through a transcendental function in three ways:
 
@@ -3154,7 +3154,7 @@ The numerical technique of DOM-42 comes from a source that no research document 
 | DOM-16 | Withdrawn on 2026-11-19. | 12.1 |
 | DOM-17 | The crate declares only the dependencies of Section 13, each from the workspace table | 13 |
 | DOM-18 | `build_with` checks support, the limits on the number of orders and on the order, the names, and the values, in this order, and returns the first error that applies | 6.6 |
-| DOM-19 | A test of a quantity without a measured bound here sets and records its bound as TEST-13 requires, in the same change | 9.4 |
+| DOM-19 | A test of a bound names its input set and prints its largest value, and this document records the bound only where it is part of a contract | 9.4 |
 | DOM-20 | The angle of a domain with two vertices is measured from its two normals, by the clamped arccosine for a lune, which includes the domains of `nx`, `x`, and `*`, and by `atan2` for the double of a lune, and no other angle is | 7 |
 | DOM-21 | For a spherical domain, the vertex precondition of checks 2 to 6 is finite and not the zero vector, with no condition on the last coordinate | 8.2 |
 | DOM-22 | The exhaustive certificates cover every lune of their sets and stay while `UNV-29` is open | 12.1 |
