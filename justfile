@@ -218,6 +218,11 @@ test:
 update-golden:
     ESCHER_UPDATE_GOLDEN=1 CARGO_BUILD_WARNINGS=deny cargo nextest run -p escher-render --all-features --profile default --no-tests=warn -E 'test(=images::golden_images_match_the_committed_files)'
 
+# Build escher in release mode and write into docs/images/ the image of each escher render command that the README shows
+[group('rust')]
+readme-images:
+    scripts/readme-images
+
 # Check licences, security advisories, duplicate crates, and crate sources with cargo-deny, which needs network access
 [group('checks')]
 check-deny:

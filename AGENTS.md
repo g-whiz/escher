@@ -156,13 +156,14 @@ The documents:
 | `docs/design/roadmap.md` | The phases after the proof of concept |
 | `docs/design/signature.md`, `cli.md`, `geometry.md`, `group.md`, `domain.md`, `render.md` | One crate each, as the crate table of Project Status shows |
 | `docs/research/` | The subject-matter references, the surveys, and the list of sources to supply, `source-requests.md` |
+| `docs/images/` | The images that `README.md` shows, which `just readme-images` writes |
 
 The scripts under `scripts/`:
 
 - The checkers `check-prose` with `prose-wordlist.txt`, `check-rust-comments`, `check-doc-headings`, `check-doctest-attributes`, `check-feature-docs`, `check-workflow-pins`, `check-doc-references`, and `check-commit-message`, with the shared lexer `rust_lexer.py`.
 - `self-test-checker` and the cases in `fixtures/`, for the self-tests of the checkers.
 - `check-shell` and `justfile-recipes`, for `shellcheck`.
-- `claude-hook-prose`, `merge-branch`, and `worktree-prune`.
+- `claude-hook-prose`, `merge-branch`, `readme-images`, and `worktree-prune`.
 
 `target/`, `.worktrees/`, `.code-review/`, `.idea/`, `.claude/settings.local.json`, and `renders/` are local and ignored by git. `references/` is also ignored. It may hold copyrighted sources that the owner supplies, and nothing in it is ever committed (Hard Rule 14).
 
@@ -233,6 +234,7 @@ Run the checks that match the change, and `just check` before every merge. `just
 | A workflow under `.github/` changed | `just check-workflows`, `just check-workflow-pins` |
 | Code, configuration, a script, the `justfile`, or a rule table of a document changed | `just check-doc-references` |
 | A shell script or a recipe changed | `just check-shell` |
+| An `escher render` command of `README.md` or the output of `escher render` changed (commit the changed images) | `just readme-images` |
 | A checker, `scripts/rust_lexer.py`, or its cases under `scripts/fixtures/` changed | `just check-<checker>-self-test`, for `prose`, `rust-comments`, `doc-headings`, `doctest-attributes`, `feature-docs`, `workflow-pins`, and `doc-references` |
 | `scripts/check-commit-message` changed | `just check-commit-message-self-test` |
 | Cargo features changed | `just check-features` |

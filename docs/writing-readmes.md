@@ -103,8 +103,8 @@ Table 2. Sections of the root README.
 | 3 | `## Status` | Required | The status notice of Section 5.3 |
 | 4 | `## Crates` | Required | The table of Section 5.4 |
 | 5 | `## Requirements` | Required | The MSRV, what the first build downloads, and the supported platforms |
-| 6 | `## Getting Started` | Required | The first step of Section 5.5 |
-| 7 | `## Examples` | Optional | Commands of `escher` in the form that RDM-23 gives, each with the output that RDM-19 allows |
+| 6 | `## Getting Started` | Required | The first step of Section 5.5, with the image of its first render (RDM-29) |
+| 7 | `## Examples` | Optional | Commands of `escher` in the form that RDM-23 gives, each with the output that RDM-19 allows or the image that RDM-29 requires |
 | 8 | `## Supported Signatures` | Required | The summary of the signatures and shape parameters that Table 1 allows |
 | 9 | `## Documentation` | Required | Links to the design document of the command-line tool, the design documents, the research documents, and, for contributors, `AGENTS.md`. From the first publication of a crate, also a link to its hosted API documentation |
 | 10 | `## Licence` | Required | The licence of the project, with a link to its text |
@@ -236,15 +236,17 @@ A signature that contains `*`, `(`, or `)` is in single quotes in every command,
 This illustration shows the form of a block of several commands:
 
 ````markdown
-Run each command in the directory where you want the images:
+Run these commands in any directory:
 
 ```sh
-# Draw the tiling of *632 at the default size.
-escher render '*632' -o tiling.png
-# Draw the hyperbolic tiling of *732 at 1024 by 1024 pixels.
-escher render '*732' --size 1024x1024 -o disk.png
+# Print the properties of *632.
+escher info '*632'
+# List the colourings of *642 with up to 3 colours.
+escher info --colourings --max-colours 3 '*642'
 ```
 ````
+
+A command that renders an image stays in a block of its own, because RDM-29 puts its image directly under it.
 
 Checked by: `check-doctest-attributes` reports a code block marked `ignore` in every `README.md`. From the first publication of a crate, `cargo test --doc` compiles the Rust code of each included crate README, and `check-doctest` runs it. The presence of the include, hidden lines, example length and style, printed output, quoting, and commands are judgement rules.
 
@@ -274,7 +276,13 @@ RDM-28. A README MUST NOT contain raw HTML. crates.io sanitizes HTML and keeps o
 
 ### 8.6. Images and Badges
 
-RDM-29. Only the root README MAY hold an image besides the badge of RDM-30, at most one, and it MUST show an image that `escher render` writes, with alternative text that describes what it shows. An image that shows nothing about use adds length [YEGOR256].
+RDM-29. The root README MUST show, directly under the code block of each command in `Getting Started` and `Examples` that renders an image, the image that the command writes. Each such command is in a code block of its own. Each image MUST meet all of these conditions:
+
+- It is a file under `docs/images/` that the recipe `readme-images` writes with exactly the command shown.
+- It is linked by an absolute URL of the form `https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/<name>.png`.
+- Its alternative text describes what the image shows, in one short sentence.
+
+The README MUST NOT hold an image other than these and the badge of RDM-30, and a crate README holds no image. A change that alters a shown command or the output of `escher render` MUST run `readme-images` and commit the changed images in the same change. A reader sees what each command draws before running it and compares the result with the image, so an image that another command wrote reads as a failure. An image that shows nothing about use adds length [YEGOR256].
 
 RDM-30. Only the root README MAY hold a badge, at most one, which is the status of the CI workflow at `https://github.com/g-whiz/escher/actions/workflows/ci.yml/badge.svg`, directly under the title. A README MUST NOT load a badge from a third-party service. A badge signals project quality to a visitor [TROCKMAN], but crates.io already shows the version and licence of a crate, and a third-party image tells another host who reads the page.
 
@@ -305,7 +313,7 @@ Checked by: `check-prose` for ASCII punctuation, semicolons, and the listed spel
 
 This guide defines no component. Its first security consideration is that a README tells readers which commands to run, so a wrong command leads a reader to run something they did not intend. `escher render` replaces an existing output file, and an unquoted signature such as `*632` lets the shell expand `*` into the names of the files in the current directory that match. RDM-23 keeps commands exact and quoted, and RDM-24 keeps links absolute and checkable.
 
-Its second security consideration is that the first build downloads the dependencies from crates.io. `Requirements` of the root README states this, so that a reader who builds in an isolated environment knows before the build fails. RDM-30 keeps third-party images, which report each page view to their host, out of every README.
+Its second security consideration is that the first build downloads the dependencies from crates.io. `Requirements` of the root README states this, so that a reader who builds in an isolated environment knows before the build fails. RDM-30 keeps third-party images, which report each page view to their host, out of every README. The images of RDM-29 are files of this repository that GitHub serves, so they add no third-party host.
 
 The threat model is an author who writes a wrong or stale instruction. An attacker, and a compromise of GitHub or crates.io, are out of scope, because this guide governs writing and not hosting. The residual risk is a command or a pointer that a reviewer accepts without running or following it, because no configured tool checks links or commands.
 
@@ -369,7 +377,7 @@ The column Applies says "Now" for a rule that governs the root README today, and
 | RDM-26 | 8.3 | In-page anchors only to the fixed headings | Now | Judgement |
 | RDM-27 | 8.4 | Status alert and at most one more alert | Now | Judgement |
 | RDM-28 | 8.5 | No raw HTML | Now | Judgement |
-| RDM-29 | 8.6 | At most one image besides the badge, in the root README | Now | Judgement |
+| RDM-29 | 8.6 | Directly under each rendering command of the root README, the image that `readme-images` writes with it, linked by absolute URL with alternative text, and no other image than these and the badge | Now | Judgement |
 | RDM-30 | 8.6 | At most one badge, the CI status, in the root README | Now | Judgement |
 | RDM-31 | 9 | No progress records, changelog, API reference, marketing, document citations, local paths, or attribution | Now | Judgement |
 | RDM-32 | 10 | Language of Section 8 of the writing guide and the phrases of `docs/avoiding-claudelish.md` | Now | `check-prose`, `check-typos`, judgement for the rest |

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+usage: readme-images
+
+Builds escher in release mode, then runs each escher render command that the
+README shows, with the options it shows, inside docs/images/, so that each
+image there is the file that its command writes.
+EOF
+}
+
+if [[ $# -gt 0 ]]; then
+    usage
+    [[ "$1" == "-h" || "$1" == "--help" ]] && exit 0
+    exit 2
+fi
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${root}"
+
+cargo build --release --locked -p escher-cli
+binary="${root}/target/release/escher"
+
+escher() {
+    "${binary}" "$@"
+}
+
+mkdir -p docs/images
+cd docs/images
+
+escher render '*632' -o tiling.png
+escher render '*732' --size 640x640 -o disk.png
+escher render '*642' --colouring 3a -o three.png
+escher render '*642' --colouring 3a --colours '#dc143c,#ffd700,#000080' -o three-colours.png
+escher render '*2222' --set aspect=1.618 -o rectangles.png
+escher render '*3333' --set slice1.length=2.5 -o polygon.png
+escher render '*532' --rotation 20,35,0 -o ball.png

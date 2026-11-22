@@ -61,6 +61,8 @@ This command writes the tiling of `*632` to `tiling.png`, 512 by 512 pixels, and
 escher render '*632' -o tiling.png
 ```
 
+![Teal and sand triangles with black borders tile the plane, with twelve meeting at each centre of order 6.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/tiling.png)
+
 ## Examples
 
 Run each command in the directory where you want the images.
@@ -93,11 +95,13 @@ Colourings with 9 colours: 27
 Colourings with 12 colours: 94
 ```
 
-A hyperbolic signature renders in the Poincare disk. This command draws `*732` at 1024 by 1024 pixels:
+A hyperbolic signature renders in the Poincare disk. This command draws `*732` at 640 by 640 pixels:
 
 ```sh
-escher render '*732' --size 1024x1024 -o disk.png
+escher render '*732' --size 640x640 -o disk.png
 ```
+
+![Teal and sand triangles fill the Poincare disk and shrink toward its boundary circle.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/disk.png)
 
 `--colourings` lists each colouring with its id, and `--max-colours` sets the largest number of colours, from 1 to 64. This command lists the colourings of `*642` with up to 3 colours:
 
@@ -127,11 +131,15 @@ Colouring: 3c, 3 colours
 escher render '*642' --colouring 3a -o three.png
 ```
 
+![Triangles in the Poincare disk, coloured purple, teal, and sand.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/three.png)
+
 `--colours` gives one colour for each colour of the colouring, as `#rgb` or `#rrggbb`. A colouring with more than 12 colours needs it. This command draws the same colouring in crimson, gold, and navy:
 
 ```sh
-escher render '*642' --colouring 3a --colours '#dc143c,#ffd700,#000080' -o three.png
+escher render '*642' --colouring 3a --colours '#dc143c,#ffd700,#000080' -o three-colours.png
 ```
+
+![The same three-colour tiling in crimson, gold, and navy.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/three-colours.png)
 
 `escher info` prints one `Parameter` line for each shape parameter of a signature. For `*2222`, the line is:
 
@@ -145,17 +153,23 @@ Parameter: aspect, range 0.125 to 8, default 1
 escher render '*2222' --set aspect=1.618 -o rectangles.png
 ```
 
+![A checkerboard of teal and sand rectangles, each 1.618 times as wide as it is tall.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/rectangles.png)
+
 A hyperbolic reflection polygon has one length parameter for each corner beyond three. This command lengthens the one slice of `*3333` from its default of 1.317, which changes the shape of each tile:
 
 ```sh
 escher render '*3333' --set slice1.length=2.5 -o polygon.png
 ```
 
+![Quadrilaterals in the Poincare disk, stretched into long bands.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/polygon.png)
+
 A spherical signature renders as a ball with Phong shading. `--rotation` turns the ball by three angles in degrees, `YAW,PITCH,ROLL`. This command turns the ball of `*532` 20 degrees to the right and 35 degrees up:
 
 ```sh
 escher render '*532' --rotation 20,35,0 -o ball.png
 ```
+
+![A shaded ball covered in teal and sand triangles, with a highlight at the upper left.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/ball.png)
 
 `escher render --help` lists the other options, which set the border width and colour, the background, the samples in each pixel, the number of threads, and the light and shading of the ball.
 
