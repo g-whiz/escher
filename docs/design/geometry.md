@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the crate `escher-geometry`, which holds the linear model of the hyperbolic plane, with points on the hyperboloid, walls as unit normals, and isometries as 3x3 matrices, the affine model of the Euclidean plane, with points on the plane of last coordinate 1, lines as covectors, and isometries as 3x3 matrices, and the unit sphere, with points as unit vectors, great circles as unit normals, and isometries as orthogonal 3x3 matrices, over the double-precision vector and matrix types of `glam`. It defines the public functions and their domains, the formula behind each function with the convention of its source, the numerical form that each function uses and its behaviour at the edge of its domain, the map between the hyperboloid and the Poincare disk in both directions, the error type, the accuracy that the crate guarantees, and the layers of the tests, including the tests against high-precision reference arithmetic. It also states the dependencies, the unverified statements that the code relies on, the assumptions and choices of this design, and the points that the owner decides.
+This document specifies the crate `escher-geometry`, which holds the linear model of the hyperbolic plane, with points on the hyperboloid, walls as unit normals, and isometries as 3x3 matrices, the affine model of the Euclidean plane, with points on the plane of last coordinate 1, lines as covectors, and isometries as 3x3 matrices, and the unit sphere, with points as unit vectors, great circles as unit normals, and isometries as orthogonal 3x3 matrices, over the double-precision vector and matrix types of `glam`. It defines the public functions and their domains, the formula behind each function with the convention of its source, the numerical form that each function uses and its behaviour at the edge of its domain, the map between the hyperboloid and the Poincare disk in both directions, the maps from the upper half-plane, the band, and the Klein disk to the Poincare disk with their Jacobians, the error type, the accuracy that the crate guarantees, and the layers of the tests, including the tests against high-precision reference arithmetic. It also states the dependencies, the unverified statements that the code relies on, the assumptions and choices of this design, and the points that the owner decides.
 
 ## 1. Introduction
 
@@ -18,7 +18,7 @@ Every later crate computes with points, walls, and isometries of a geometry. The
 
 ### 1.2. Purpose
 
-`escher-geometry` is the one place where the conventions of Section 5 of the architecture become code. It exposes the bilinear form, the side test, point normalization, distance, the wall through two points, the basic isometries, the inverse, an isometry check, and the disk map, each as a free function over `glam` types. Its module `euclidean` exposes the side test, the distance, the line through two points, the reflection, the rotation, the translation, and an isometry check of the Euclidean plane. Its module `spherical` exposes the side test, point normalization, distance, the great circle through two points, the basic isometries, the inverse, and an isometry check of the sphere. Each function evaluates a formula in a numerical form chosen for its domain. A formula that the reference does not state in the project's convention is flagged as unverified or as an assumption, and a test covers it. Section 3 of the architecture places the crate in the workspace as a root with no internal dependency.
+`escher-geometry` is the one place where the conventions of Section 5 of the architecture become code. It exposes the bilinear form, the side test, point normalization, distance, the wall through two points, the basic isometries, the inverse, an isometry check, the disk map, and the maps from the half-plane, band, and Klein models to the disk with their Jacobians, each as a free function over `glam` types. Its module `euclidean` exposes the side test, the distance, the line through two points, the reflection, the rotation, the translation, and an isometry check of the Euclidean plane. Its module `spherical` exposes the side test, point normalization, distance, the great circle through two points, the basic isometries, the inverse, and an isometry check of the sphere. Each function evaluates a formula in a numerical form chosen for its domain. A formula that the reference does not state in the project's convention is flagged as unverified or as an assumption, and a test covers it. Section 3 of the architecture places the crate in the workspace as a root with no internal dependency.
 
 ### 1.3. Audience
 
@@ -26,7 +26,7 @@ The primary readers are the agent that implements the crate and the reviewer who
 
 ### 1.4. Scope
 
-This document covers the modules `hyperbolic`, `euclidean`, and `spherical`, the crate root with its error type, the disk map in both directions, the numerical robustness of each function, the tests, and the dependencies.
+This document covers the modules `hyperbolic`, `euclidean`, and `spherical`, the crate root with its error type, the disk map in both directions, the maps from the half-plane, band, and Klein models to the disk, the numerical robustness of each function, the tests, and the dependencies.
 
 ### 1.5. Non-Goals
 
@@ -36,7 +36,8 @@ These topics are owned elsewhere or come later:
 - The fold, its wall tolerance, and its normalization policy belong to `escher-render` (Sections 9.2 and 9.3 of the architecture).
 - The lift of a screen position onto the ball, its tangents, and the viewing rotation of the sphere belong to `escher-render` and are specified in Section 5.9 of `docs/design/render.md`. The module `spherical` has no model map.
 - The Euclidean functions that no caller needs, such as a form, an inverse, and a point normalization, are not part of the module `euclidean` (Section 3.4).
-- The Klein, half-plane, and band maps and the Jacobians of the model maps are added by the milestone of Section 5.12 of the plan. That change also records the image of the disk centre under the map to the half-plane and tests its round trip, as the row "Disk and half-plane" of Section 5.10 of the architecture requires.
+- The maps from the disk to the half-plane, band, and Klein models, and the maps between those models and the hyperboloid, are not part of this design, because the renderer, the only caller, maps a sample of a model to the disk and then to the hyperboloid (Section 7.4). The tests compute the maps from the disk in the reference arithmetic. The derivative of `from_disk`, which the renderer carries as its screen tangents, stays in `escher-render` (Section 5.2 of `docs/design/render.md`).
+- The star, ring, and bent band models are roadmap items (Section 10.1 of the architecture).
 - A distance form that is accurate for close points is not part of this design (Section 5.2).
 - The command line and its text are specified in `docs/design/cli.md`.
 
@@ -59,6 +60,11 @@ It adds these terms:
 - unit normal: A `DVec3` $u$ with $\langle u, u \rangle = 1$ up to rounding, which represents the wall $\lbrace x : \langle x, u \rangle = 0 \rbrace$.
 - isometry: A `DMat3` that meets the two conditions of Section 6.2, up to rounding.
 - disk position: A `DVec2` in the open unit disk, a point of the Poincare disk model.
+- half-plane position: A `DVec2` $w = (w_1, w_2)$ with $w_2 > 0$, read as the complex number $w_1 + i w_2$ of the upper half-plane model.
+- band position: A `DVec2` $w$ with $\lvert w_2 \rvert < 1$, read as the complex number $w_1 + i w_2$ of the band model in the strip of Section 5.10 of the architecture.
+- Klein position: A `DVec2` $s$ with $\lvert s \rvert < 1$, a point of the Klein disk model.
+- model position: A half-plane position, a band position, or a Klein position.
+- Jacobian: For a map from a model position to a disk position, the `DMat2` whose column $k$ is the partial derivative of the disk position in the coordinate $k$ of the model position. For a map that is holomorphic in $w$ with the complex derivative $c = a + ib$, its columns are $(a, b)$ and $(-b, a)$.
 - Euclidean point: A `DVec3` $(x, y, 1)$, a point of the Euclidean plane as the affine plane $x_3 = 1$ of Section 5.1 of the architecture.
 - line covector: A `DVec3` $(a_1, a_2, -t)$ with $a_1^2 + a_2^2 = 1$ up to rounding, which represents the line $P(a, t) = \lbrace p : a \cdot p = t \rbrace$ of Section 12 of the reference.
 - Euclidean isometry: A `DMat3` whose last row is $(0, 0, 1)$ and whose upper-left $2 \times 2$ block is orthogonal, up to rounding.
@@ -103,7 +109,7 @@ pub enum ErrorKind { NotAPoint, DegenerateWall }
 pub type Result<T> = core::result::Result<T, Error>;
 
 // escher_geometry::hyperbolic
-use glam::{DMat3, DVec2, DVec3};
+use glam::{DMat2, DMat3, DVec2, DVec3};
 
 pub const ORIGIN: DVec3;
 
@@ -121,6 +127,9 @@ pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3>;
 #[must_use] pub fn isometry_defect(matrix: DMat3) -> f64;
 #[must_use] pub fn to_disk(point: DVec3) -> DVec2;
 #[must_use] pub fn from_disk(position: DVec2) -> Option<DVec3>;
+#[must_use] pub fn disk_from_half_plane(position: DVec2) -> Option<(DVec2, DMat2)>;
+#[must_use] pub fn disk_from_band(position: DVec2) -> Option<(DVec2, DMat2)>;
+#[must_use] pub fn disk_from_klein(position: DVec2) -> Option<(DVec2, DMat2)>;
 
 // escher_geometry::euclidean
 use glam::{DMat3, DVec3};
@@ -152,7 +161,7 @@ pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3>;
 #[must_use] pub fn isometry_defect(matrix: DMat3) -> f64;
 ```
 
-The module `hyperbolic` has one constant and 14 functions, the module `euclidean` has one constant and 7 functions, and the module `spherical` has one constant and 10 functions. The crate root re-exports `Error`, `ErrorKind`, and `Result` from the private module `error`, and nothing else.
+The module `hyperbolic` has one constant and 17 functions, the module `euclidean` has one constant and 7 functions, and the module `spherical` has one constant and 10 functions. The crate root re-exports `Error`, `ErrorKind`, and `Result` from the private module `error`, and nothing else.
 
 ### 3.2. Meaning and Invariants
 
@@ -175,6 +184,9 @@ Section 3.2 and `DEC-4` of the architecture decide that a point, a unit normal, 
 | `isometry_defect` | How far a matrix is from an isometry | Any matrix | Total. 0 for an exact isometry, and `f64::INFINITY` when the second condition of Section 6.2 fails or the result is not a number |
 | `to_disk` | The Poincare disk position of a point | A point | Total |
 | `from_disk` | The point of a disk position | Any position | `Some` point inside the disk, and `None` on and outside the unit circle (Section 7.2) |
+| `disk_from_half_plane` | The disk position of a half-plane position, with the Jacobian | Any position | `Some` for a finite position with $w_2 > 0$, and `None` otherwise (Section 7.5) |
+| `disk_from_band` | The disk position of a band position, with the Jacobian | Any position | `Some` for a finite position with $\lvert w_2 \rvert < 1$, and `None` otherwise (Section 7.6) |
+| `disk_from_klein` | The disk position of a Klein position, with the Jacobian | Any position | `Some` inside the unit circle, and `None` on and outside it (Section 7.7) |
 | `euclidean::ORIGIN` | The point $(0, 0, 1)$ | Not applicable | Exact |
 | `euclidean::side` | The side value $c \cdot x = a \cdot p - t$ of the point $p$ of $x$ for the line covector $c$ | A line covector and a Euclidean point | Total. Positive means outside a line whose covector is oriented outward (Section 5.2 of the architecture) |
 | `euclidean::wall_through` | A line covector of the line through both points | Two distinct Euclidean points | A line covector, or `DegenerateWall` (Section 5.4) |
@@ -207,7 +219,7 @@ The crate has these modules, each a file named after the module:
 
 - `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, `pub mod euclidean;`, `pub mod hyperbolic;`, `pub mod spherical;`, the re-exports of `Error`, `ErrorKind`, and `Result`, and the unit test "Auto traits" of Section 10.1.
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
-- `src/hyperbolic.rs`: The constant, the 14 functions, and their unit tests. The file form, not `hyperbolic/mod.rs`, is what the workspace lint `mod_module_files` requires.
+- `src/hyperbolic.rs`: The constant, the 17 functions, and their unit tests. The file form, not `hyperbolic/mod.rs`, is what the workspace lint `mod_module_files` requires.
 - `src/euclidean.rs`: The constant, the 7 functions of the module `euclidean`, and their unit tests.
 - `src/spherical.rs`: The constant, the 10 functions of the module `spherical`, and their unit tests.
 
@@ -215,13 +227,13 @@ The crate has these modules, each a file named after the module:
 
 Each geometry has one module: `hyperbolic`, `euclidean`, and `spherical`. A module uses the name of `hyperbolic` for the same operation, such as `side`, `reflection`, `rotation`, `translation`, `distance`, and `isometry_defect`, so that a caller changes only the module path. A module holds only the functions that a caller needs, so `euclidean` has no `form`, `covector`, `normalize_point`, `inverse`, `boost`, or model map, and `spherical` has no `form`, `covector`, or model map, because its form is the dot product and a great-circle normal is its own covector. The crate has no trait over the modules and no `Geometry` enum, because the enum lives in `escher-signature` (Section 3.4 of the architecture, `DEC-26`), and no caller is generic over the geometry: the fold of `escher-render` uses dot products and matrix products of the `glam` types, which serve every module, and only its point size depends on the geometry (Section 5.3 of `docs/design/render.md`), and SIMP-1 of the coding standard forbids an abstraction that gives no benefit now.
 
-Model maps are free functions named `to_<model>` and `from_<model>` in the module of their geometry, such as `to_disk` and `from_disk` in `hyperbolic`. A further map, such as one to the Klein model, is a new pair of functions in the same module.
+Model maps between the linear model and a model are free functions named `to_<model>` and `from_<model>` in the module of their geometry, such as `to_disk` and `from_disk` in `hyperbolic`. A map from another planar model to the disk is a free function named `disk_from_<model>` in the same module, which returns the disk position with its Jacobian, such as `disk_from_band`. A caller reaches the linear model from any planar model through the disk, so the crate has one map to the hyperboloid, `from_disk`, and one place where the loss of digits near the limit circle is stated (Section 7.3). The crate has no map from the disk to another planar model, because no caller needs one (SIMP-1 of the coding standard), and the tests compute those maps in the reference arithmetic (Section 10.2).
 
 ## 4. Conventions
 
 ### 4.1. Types and Storage
 
-- A point, a unit normal, and a covector are a `DVec3` with the time coordinate as `.z`, or in the module `euclidean` the last coordinate of Section 4.5, or in the module `spherical` the unit vector of Section 4.6. An isometry is a `DMat3`. A disk position is a `DVec2`.
+- A point, a unit normal, and a covector are a `DVec3` with the time coordinate as `.z`, or in the module `euclidean` the last coordinate of Section 4.5, or in the module `spherical` the unit vector of Section 4.6. An isometry is a `DMat3`. A disk position and a model position are a `DVec2`, and a Jacobian is a `DMat2` whose columns `x_axis` and `y_axis` are its columns 1 and 2.
 - Vectors are columns. `matrix * vector` applies the isometry to the vector. `DMat3` is column-major, so `DMat3::from_cols(c0, c1, c2)` takes the images of the three basis vectors.
 - Composition is the `glam` product `a * b`, which applies `b` first. The reference states that composition of isometries of the hyperboloid is the matrix product (Section 6.1 of the reference, [CFKP] Theorem 10.2).
 
@@ -508,17 +520,92 @@ These cases show the behaviour at the edge of each domain:
 
 The smallest positive value of $d = 1 - s$ is about $1.1 \times 10^{-16}$, so no result of `from_disk` overflows. Near the limit circle, `from_disk` loses accuracy: the computed $d$ carries an absolute error of about $\varepsilon$, so each coordinate of the result carries a relative error of about $\varepsilon / (1 - \lvert z \rvert^2)$, which the row `from_disk` of Section 8.4 bounds. A unit test and a reference test assert the two radii of `to_disk` in the table within $4\varepsilon$. A point at distance $r$ from the centre lies at $1 - \Theta(e^{-r})$ in the disk ([KC24], Section 8.3 of the reference), so for a large distance the radius that `to_disk` returns differs from 1 by rounding alone. The test asserts this at distance 38.2 only. These limits are part of `UNV-4` (Section 9.4 of the architecture), and the renderer measures their effect on an image.
 
+### 7.4. Maps From Other Models
+
+The renderer draws a hyperbolic tiling in the upper half-plane, the band, or the Klein disk by mapping each sample of the model to the disk and then to the hyperboloid with `from_disk` (Section 5.16 of `docs/design/render.md`). Each of the three functions of Sections 7.5 to 7.7 takes a model position, tests whether it lies in the model, and returns the disk position with the Jacobian of the map at that position. The renderer multiplies the Jacobian into its screen tangents, so the border estimate sees the stretch of each model, including the stretch of the Klein model, which differs by direction (Section 3.1 of the reference).
+
+GEO-28. `disk_from_half_plane`, `disk_from_band`, and `disk_from_klein` MUST each return `None` exactly when the test of its section fails, which every NaN or infinite coordinate fails, and `Some` otherwise, because the renderer draws `None` as background, and the formula of a map can give a disk position inside the disk for a position outside its model, such as the band formula of Section 7.6, which gives the centre of the disk for $(0, 4)$.
+
+GEO-29. Each of the three functions MUST return, with the disk position, the Jacobian of its formula at the same input, with column $k$ the partial derivative in coordinate $k$, because the renderer builds its screen tangents from it (Section 5.16 of `docs/design/render.md`), and a wrong Jacobian draws borders of the wrong width without any error.
+
+GEO-30. The three functions MUST use the formulas of Sections 7.5 to 7.7, with the half-plane map of [BEA] and the band constant $\pi/4$, and no other convention, because the canonical views and the golden images of `escher-render` fix where each tile appears, and another convention turns or scales every image without any error (`DEC-75` and Section 5.10 of the architecture).
+
+No source states the three Jacobians, so Section 12 records them as statements of this design. The tests compare each Jacobian with central differences of the reference map, and the moduli of the two holomorphic Jacobians with the sourced moduli of Sections 7.5 and 7.6.
+
+The cases of this table show the behaviour at the edge of each model:
+
+| Input | Result |
+| --- | --- |
+| `disk_from_half_plane((0, 1))`, the point $i$ | `Some`, with the position $(0, 0)$ up to the sign of zero and the Jacobian of $c = -i/2$ |
+| `disk_from_half_plane((0, 0))`, on the real axis | `None` |
+| `disk_from_half_plane((0, -1))`, below the real axis | `None` |
+| `disk_from_half_plane((NaN, 1))`, `disk_from_half_plane((inf, 1))` | `None` |
+| `disk_from_band((0, 0))` | `Some`, with the position $(0, 0)$ and the Jacobian $\frac{\pi}{4} I$ |
+| `disk_from_band((0, 1))` and `disk_from_band((0, -1))`, on an edge of the strip | `None` |
+| `disk_from_band((0, 4))`, outside the strip | `None` |
+| `disk_from_band((inf, 0))`, `disk_from_band((0, NaN))` | `None` |
+| `disk_from_klein((0, 0))` | `Some`, with the position $(0, 0)$ and the Jacobian $\frac{1}{2} I$ |
+| `disk_from_klein((1, 0))`, on the unit circle, and `disk_from_klein((2, 0))` | `None` |
+| `disk_from_klein((NaN, 0))` | `None` |
+
+A position inside a model can still give a disk position on the unit circle after rounding, or a disk position that is not finite, such as a half-plane position close to the real axis or far from $i$, or a band position far along the strip. The function returns it, because it lies in the model, and `from_disk` then returns `None` for it (GEO-9). Section 8.7 states where the maps are accurate.
+
+### 7.5. Half-Plane to Disk
+
+[BEA], Section 7.2, p. 131, gives a map from the half-plane onto the disk, "a 1-1 map of $H^2$ onto $\Delta$", and shows with $\frac{2 \lvert f'(z) \rvert}{1 - \lvert f(z) \rvert^2} = \frac{1}{\operatorname{Im} z}$ that it is an isometry (P, Section 4.3 of the reference):
+
+$$\operatorname{disk\_from\_half\_plane}(w) = f(w) = \frac{w - i}{w + i}$$
+
+The sources do not agree on one map between the disk and the half-plane (Section 4.3 of the reference), so the choice of this map is `DEC-75` of the architecture. It maps $i$ to the centre of the disk, as [CAM] records for the same formula (A, Section 4.3 of the reference), and the ray above $i$ to the positive first axis of the disk.
+
+The test is $w_2 > 0$ with both coordinates finite. The Jacobian is that of the complex derivative
+
+$$c = \frac{2i}{(w + i)^2}$$
+
+which this design states (Section 12). The function computes $q = w + i$ once as a `num-complex` value, then $(w - i)/q$ and $2i/(q q)$. The imaginary part of $q$ is above 1 on the model, so the denominator has a modulus above 1 and cancels nothing.
+
+### 7.6. Band to Disk
+
+The band is the strip $\lvert \operatorname{Im} w \rvert < 1$ with the constant $4/\pi$ of Section 5.10 of the architecture. The map from the band to the disk is the inverse that only the code of [SYMMHUB] states, `band2disc` in `lib/shaders/complex.glsl.mjs`, lines 77 to 82 (P-code, Section 5.1 of the reference), which is `UNV-13`:
+
+$$\operatorname{disk\_from\_band}(w) = \tanh\left(\frac{\pi w}{4}\right)$$
+
+It maps the band position 0 to the centre of the disk. The test is $\lvert w_2 \rvert < 1$ with $w_1$ finite. The Jacobian is that of the complex derivative
+
+$$c = \frac{\pi}{4}\left(1 - z^2\right), \qquad z = \tanh\left(\frac{\pi w}{4}\right)$$
+
+which this design states (Section 12). [SYMMHUB] multiplies its scale factor by $\frac{\pi}{4} \lvert 1 - \tanh^2(\pi w/4) \rvert$, lines 94 to 100 of the same file (P-code, Section 5.1 of the reference), which is $\lvert c \rvert$. The function computes $z$ with `Complex::tanh` of `num-complex` on $\frac{\pi}{4} w$, with the constant `core::f64::consts::FRAC_PI_4`, and $c$ from that $z$.
+
+Far along the band, $z$ approaches $\pm 1$ and $1 - z^2$ cancels, so the Jacobian there carries an absolute error of a few $\varepsilon$, which is a large relative error where $\lvert c \rvert$ is small (Section 8.7). The same positions give disk positions near the unit circle, outside the range of accuracy of the renderer (Section 6.12 of `docs/design/render.md`).
+
+### 7.7. Klein to Disk
+
+The composition $\beta \circ \gamma$ of the connecting maps of [CFKP], p. 71, gives the map from the Klein model to the disk (P, Section 4.2 of the reference):
+
+$$\operatorname{disk\_from\_klein}(s) = \frac{s}{1 + \sqrt{1 - \lvert s \rvert^2}}$$
+
+It maps the centre of the Klein disk to the centre of the disk. [BEA], p. 128, states the inverse $s = 2u/(1 + \lvert u \rvert^2)$ and that it takes each geodesic of the disk onto the chord with the same endpoints (P), which the tests of Section 10.1 use.
+
+The function computes `d = 1.0 - s.length_squared()` as `from_disk` does, returns `None` unless `d > 0.0`, and then computes $r = \sqrt{d}$ and $s / (1 + r)$. The Jacobian is
+
+$$J_{jk} = \frac{\delta_{jk}}{1 + r} + \frac{s_j s_k}{r (1 + r)^2}$$
+
+which this design states (Section 12). The denominator $1 + r$ is at least 1. Near the unit circle, $d$ cancels as in `from_disk`, so $r$ carries a relative error of about $\varepsilon / d$, and the Jacobian grows like $1/r$.
+
 ## 8. Numerical Robustness
 
 ### 8.1. Input Outside a Domain
 
-Every function is total (GEO-2). Only the functions `normalize_point` and `wall_through` of each module and `from_disk` check their input, because each returns a value that a caller stores and builds on. The other functions return an unspecified value for input outside their domain, because a check in each would cost time in the fold and the caller already holds a value of the right kind:
+Every function is total (GEO-2). Only the functions `normalize_point` and `wall_through` of each module, `from_disk`, and the three functions `disk_from_<model>` check their input, because each returns a value that a caller stores and builds on. The other functions return an unspecified value for input outside their domain, because a check in each would cost time in the fold and the caller already holds a value of the right kind:
 
 | Function | Input outside the domain | Behaviour |
 | --- | --- | --- |
 | `normalize_point` | Spacelike, null, non-positive last coordinate, NaN, infinite, or $q$ underflowing or overflowing | `NotAPoint` |
 | `wall_through` | Equal points, or a pair whose $w$ has a non-positive or non-finite form | `DegenerateWall` |
 | `from_disk` | On or outside the unit circle, NaN | `None` |
+| `disk_from_half_plane` | On or below the real axis, NaN, infinite | `None` |
+| `disk_from_band` | On or outside an edge of the strip, NaN, infinite | `None` |
+| `disk_from_klein` | On or outside the unit circle, NaN | `None` |
 | `distance` | A vector off the hyperboloid | A number from the clamped formula, or NaN for NaN input |
 | `to_disk` | A vector off the hyperboloid | The formula, possibly infinite or NaN |
 | `reflection` | A normal that is not a unit normal | A matrix that is not a reflection |
@@ -544,6 +631,8 @@ The crate chooses these forms:
 - `translation` reads the polar radius as $\operatorname{arsinh}$ of the spatial length, from the linear representation of [KC24] (Section 8.3 of the reference), and not as $\operatorname{arcosh} t_3$, which is ill-conditioned near $t_3 = 1$ and would lose about half the digits of a target near `ORIGIN`.
 - `to_disk` adds 1 to $x_3 \ge 1$, which does not cancel.
 - `from_disk` cancels in $1 - \lvert z \rvert^2$ near the limit circle. No reformulation avoids it, because the input carries the lost digits. Section 7.3 states the loss.
+- `disk_from_half_plane` divides by $w + i$, whose modulus is above 1 on the model, so it cancels nothing (Section 7.5).
+- `disk_from_band` cancels in $1 - z^2$ far along the band, and `disk_from_klein` in $1 - \lvert s \rvert^2$ near the unit circle, for the reason that `from_disk` does (Sections 7.6 and 7.7).
 - `distance` keeps the ill-conditioned $\operatorname{arcosh}$ near 1, with the clamp of Section 5.2, because its well-conditioned alternative needs polar input.
 - `spherical::distance` keeps the ill-conditioned $\arccos$ near $\pm 1$, with the clamp of Section 5.5, for the same reason. `spherical::translation` reads its polar angle with `atan2` of `hypot` and $t_3$, not as $\arccos t_3$, which is ill-conditioned near $t_3 = \pm 1$.
 
@@ -557,7 +646,7 @@ GEO-11. Every function other than the two functions `normalize_point` and the th
 
 ### 8.4. Accuracy
 
-GEO-12. Each function MUST meet the accuracy of this table over the stated range of inputs, because `docs/design/domain.md` sets its own tolerances on top of these, and a function that is less accurate than stated makes a correct domain fail its verification.
+GEO-12. Each function MUST meet the accuracy of this table, and of the tables of Sections 8.5 to 8.7, over the stated range of inputs, because `docs/design/domain.md` sets its own tolerances on top of these, and a function that is less accurate than stated makes a correct domain fail its verification.
 
 The tests of Section 10.1 assert each bound against the reference arithmetic of Section 10.2 over the range of its row, with 10,000 or 100,000 random cases from a fixed seed and the edge cases that the row names, and print the largest error with its input and its margin. Each test also asserts that it measured at least a stated number of cases, so a test that measures nothing fails. On Linux, where the `f64` methods of Rust call the transcendental functions of the C library, every bound holds with a measured margin of at least 8, as TEST-13 of the coding standard requires. Each bound uses the scales of Section 2.1:
 
@@ -646,6 +735,22 @@ The reference value of $R^{\varphi} T^{\rho} R^{-\varphi} x$ takes $\cos\rho = t
 
 The table guarantees nothing outside its ranges. `spherical::wall_through` has no stated accuracy for two points less than $10^{-3}$ apart or less than $10^{-3}$ from antipodal. For such points it returns a finite vector or `DegenerateWall`, and the tests below that floor assert only that.
 
+### 8.7. Accuracy of the Model Maps
+
+The tests measure each row of this table as Section 8.4 states, and GEO-12 applies to each row, because the renderer builds the point and the screen tangents of every sample of a model from these results. The input set of every row is the model set: disk positions $z$ with $1 - \lvert z \rvert$ from $10^{-6}$ to 1, log-uniform, at uniform angles, which is the range of accuracy of the renderer (Section 6.4 of `docs/design/render.md`), each mapped to the model by the reference arithmetic of Section 10.2 and rounded to `f64`, together with the image of the centre of the disk in each model. Each reference value is computed from the exact `f64` value of the model position. $m$ is the largest absolute entry of the reference Jacobian:
+
+| Function | Accuracy |
+| --- | --- |
+| `disk_from_half_plane`, position | Each coordinate within $8\varepsilon$ of the reference value of $(w - i)/(w + i)$ |
+| `disk_from_half_plane`, Jacobian | Each entry within $16\varepsilon m$ of its reference value |
+| `disk_from_band`, position | Each coordinate within $16\varepsilon$ of the reference value of $\tanh(\pi w / 4)$ |
+| `disk_from_band`, Jacobian | Each entry within $16\varepsilon$ of its reference value, an absolute bound, because $1 - z^2$ cancels where $\lvert c \rvert$ is small (Section 7.6) |
+| `disk_from_klein`, position | Each coordinate within $8\varepsilon / \sqrt{1 - \lvert s \rvert^2}$ of the reference value of Section 7.7, with $\lvert s \rvert$ the reference value for the exact input |
+| `disk_from_klein`, Jacobian | Each entry within $16\varepsilon m / (1 - \lvert s \rvert^2)$ of its reference value |
+| Round trip, each of the three maps | The disk position that the function returns, within $16\varepsilon / (1 - \lvert z \rvert)$ of the disk position $z$ of the model set from which the model position was computed |
+
+Each constant of this table is a bound that the tests assert. The geometry branch of `M12` (Section 5.12 of the plan) sets each constant from the largest error that it measures on the code, with a margin of at least 8, as TEST-13 of the coding standard requires. The table guarantees nothing outside the model set. The renderer reaches model positions outside it, such as half-plane positions close to the real axis, and states its own bounds there (Section 6.12 of `docs/design/render.md`).
+
 ## 9. Errors
 
 ### 9.1. Structure
@@ -659,7 +764,7 @@ GEO-13. The crate MUST implement `Error` as ERR-1 of the coding standard require
 
 `kind()` computes the kind from `detail` with a `match` that has no wildcard arm, so the kind is not stored twice (TYPE-3 and TYPE-7 of the coding standard). `thiserror` derives `Display` and `std::error::Error` on `Error` and on the detail enum, in the pattern of `escher-signature` (Section 10.1 of `docs/design/signature.md`). No error of this crate has a cause, so `source()` returns `None` and the struct has no source field. No `glam` type and no value of the input appears in the error (ERR-2 of the coding standard).
 
-`from_disk` returns an `Option` and not a `Result`, because a position outside the disk is a normal outcome of every image, not a failure.
+`from_disk` and the three functions `disk_from_<model>` return an `Option` and not a `Result`, because a position outside the model is a normal outcome of every image, not a failure. They add no error kind.
 
 ### 9.2. Kinds and Text
 
@@ -681,7 +786,7 @@ The unit tests sit beside the code (TEST-1 of the coding standard). The integrat
 
 `common` holds the shared helpers and the named input sets:
 
-- The random ranges of the rows of Sections 8.4 to 8.6. A reference test or sweep takes its random inputs from a SplitMix64 generator with a fixed seed of its own, so every run draws the same cases. A helper that redraws an input until it meets a condition, such as two points at least 0.1 apart, stops after 1,000 attempts with a panic, so a defect that rejects every input fails the test instead of hanging it.
+- The random ranges of the rows of Sections 8.4 to 8.6, and the model set of Section 8.7. A reference test or sweep takes its random inputs from a SplitMix64 generator with a fixed seed of its own, so every run draws the same cases. A helper that redraws an input until it meets a condition, such as two points at least 0.1 apart, stops after 1,000 attempts with a panic, so a defect that rejects every input fails the test instead of hanging it.
 - The point table: the points at distances 0, 0.1, 1, 5, 10, and 20 from `ORIGIN`, each at eight angles, and as vectors those points multiplied by 0.5, 1, and 2.
 - The triangle set: the triangles of the ten triples $(7, 3, 2)$, $(100, 3, 2)$, $(100, 100, 100)$, $(98, 95, 88)$, $(100, 89, 87)$, $(100, 98, 95)$, $(99, 98, 87)$, $(99, 4, 4)$, $(93, 4, 3)$, and $(100, 7, 6)$, built with the functions of this crate by the steps of Section 6.1 of `docs/design/domain.md`.
 
@@ -689,10 +794,10 @@ The tests form these layers:
 
 | Layer | What it checks | What it catches |
 | --- | --- | --- |
-| Reference arithmetic | Each row of Sections 8.4 to 8.6 against the reference arithmetic of Section 10.2, on the inputs of the row and within its bound, and the five functions of Section 8.4 on the triangle set. The maps of [KC24] and the disk maps against their formulas in the reference type, and the three properties of each wall evaluated in the reference type from the exact `f64` values of the result and the points | A wrong formula, a wrong convention, and a lost digit |
-| Property tests and sweeps | Deterministic sweeps of 100,000 cases, and `proptest` on 256 cases, of relations that hold in exact arithmetic: a reflection is an involution, fixes the points of its wall, and has a small `isometry_defect`, a product of isometries preserves `form` and `distance`, `distance(ORIGIN, boost(l) * ORIGIN)` is $\lvert l \rvert$, `distance` agrees with the disk formula of [RAT], Theorem 4.5.1, both disk round trips return their input, the product of the reflections in two walls at the angle $\pi/n$ raised to the power $n$ is the identity, and swapping the arguments of each `wall_through` negates its result exactly. Below the separation floors of Sections 8.4 and 8.6, and beyond distance 15 for `normalize_point`, the tests assert only a finite result or the error | A formula that holds on the reference inputs but breaks a law elsewhere in its range |
-| Exact cases | Unit tests of the values that IEEE 754 arithmetic gives exactly: dyadic reflections, copies, negations, the identity from `spherical::translation` of `spherical::ORIGIN` and of every zero vector, the transpose, `rotation` of each module equal bit for bit to `hyperbolic::rotation`, and the last row of `euclidean::reflection`. Further unit tests assert `isometry_defect` within $10^{-12}$ of its value on six matrices that each break one of its equations | A wrong sign, a wrong constant, and a special case that rounds |
-| Failure paths and any input | `NotAPoint` and `DegenerateWall` for every input that Sections 5.1, 5.3 to 5.5, and 8.1 name, including underflow and overflow, the results of Section 8.1 for non-finite input, the rows of the table of Section 7.3, and the error texts of Section 9.2. A property test passes any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value to every function and asserts no panic and the invariants of GEO-2, GEO-20, GEO-21, and GEO-23 to GEO-26 | A missing check, a panic, and a changed text |
+| Reference arithmetic | Each row of Sections 8.4 to 8.7 against the reference arithmetic of Section 10.2, on the inputs of the row and within its bound, and the five functions of Section 8.4 on the triangle set. The maps of [KC24] and the disk maps against their formulas in the reference type, and the three properties of each wall evaluated in the reference type from the exact `f64` values of the result and the points. The Jacobian of each model map against central differences of the reference map, and the round trip of each model map from the model set | A wrong formula, a wrong convention, a lost digit, and a wrong Jacobian |
+| Property tests and sweeps | Deterministic sweeps of 100,000 cases, and `proptest` on 256 cases, of relations that hold in exact arithmetic: a reflection is an involution, fixes the points of its wall, and has a small `isometry_defect`, a product of isometries preserves `form` and `distance`, `distance(ORIGIN, boost(l) * ORIGIN)` is $\lvert l \rvert$, `distance` agrees with the disk formula of [RAT], Theorem 4.5.1, both disk round trips return their input, the product of the reflections in two walls at the angle $\pi/n$ raised to the power $n$ is the identity, and swapping the arguments of each `wall_through` negates its result exactly. For the model maps, on the model set: the modulus of the Jacobian of `disk_from_half_plane` meets the relation of [BEA] of Section 7.5, the modulus of the Jacobian of `disk_from_band` equals the scale factor of [SYMMHUB] of Section 7.6, each holomorphic Jacobian has the form of Section 2.1, and the map of [BEA], p. 128, applied to the result of `disk_from_klein` returns its input. Below the separation floors of Sections 8.4 and 8.6, and beyond distance 15 for `normalize_point`, the tests assert only a finite result or the error | A formula that holds on the reference inputs but breaks a law elsewhere in its range |
+| Exact cases | Unit tests of the values that IEEE 754 arithmetic gives exactly: the images of the centres of the three models in the table of Section 7.4, dyadic reflections, copies, negations, the identity from `spherical::translation` of `spherical::ORIGIN` and of every zero vector, the transpose, `rotation` of each module equal bit for bit to `hyperbolic::rotation`, and the last row of `euclidean::reflection`. Further unit tests assert `isometry_defect` within $10^{-12}$ of its value on six matrices that each break one of its equations | A wrong sign, a wrong constant, and a special case that rounds |
+| Failure paths and any input | `NotAPoint` and `DegenerateWall` for every input that Sections 5.1, 5.3 to 5.5, and 8.1 name, including underflow and overflow, the results of Section 8.1 for non-finite input, the rows of the tables of Sections 7.3 and 7.4, and the error texts of Section 9.2. A property test passes any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value to every function and asserts no panic and the invariants of GEO-2, GEO-20, GEO-21, GEO-23 to GEO-26, and GEO-28 | A missing check, a panic, and a changed text |
 | Other tests | A compile-time assertion that `Error` and `ErrorKind` are `Send`, `Sync`, and `'static`, and the doctests | A wrong auto trait and a stale example |
 
 Each reference test and sweep that asserts a bound prints its largest error, in the form of the bound, with its margin and the input that gave it. The test harness captures that output for a test that passes. The tests of `docs/design/domain.md` check its triangles themselves.
@@ -715,10 +820,11 @@ These rules apply to the module:
 - Points are arrays of three numbers of the high-precision type.
 - Comparison: `astro-float-num` has no public conversion from its number type `BigFloat` to `f64`, while `BigFloat::from_f64` is public and `BigFloat` implements `PartialEq` and `PartialOrd`. A test therefore converts each `f64` result of the crate into the high-precision type, which is exact, computes the difference there, and compares it with the tolerance with `PartialOrd`. A test that prints a measured error formats the number with `format`.
 - Inputs and functions: `num` converts each `f64` input with `BigFloat::from_f64`, which is exact, and the tests of the module `spherical` use `acos` for the reference distance. The module imports nothing from this crate or from `glam`.
+- Model maps: complex values are pairs of the high-precision type, and the module writes complex multiplication, division, the hyperbolic tangent, and the logarithm componentwise from the real functions of `astro-float-num`. It evaluates the three maps of Sections 7.5 to 7.7 from their formulas, and maps a disk position $\zeta$ to each model for the model set of Section 8.7 by these formulas: to the half-plane by $i(1 + \zeta)/(1 - \zeta)$, which [CAM] prints beside the map of [BEA] as its inverse (A, Section 4.3 of the reference), to the band by $\frac{4}{\pi} \operatorname{artanh} \zeta$ of [B2] and [B3], evaluated as $\frac{2}{\pi}\left(\log(1 + \zeta) - \log(1 - \zeta)\right)$ by the rule of [B1] (P, Section 5.1 of the reference), and to the Klein model by $2\zeta/(1 + \lvert \zeta \rvert^2)$ of [BEA], p. 128 (P). The round trip of Section 8.7 compares the crate with the inverse of each formula, so a forward formula that is wrong fails the round trip.
 
 ### 10.3. Tolerances
 
-A test of a quantity that a row of Sections 8.4 to 8.6 bounds takes the tolerance and the range of inputs of that row, and the property tests assert the same tolerances on 256 cases. The sweeps and property tests of relations that no row bounds, such as preserved quantities, involutions, points of a wall, products of reflections, and the disk formula, hold their own tolerances over named input sets. Each such tolerance is at least 8 times the largest error measured, and each test prints its largest error with its input and its margin. These tolerances bound the tests' own relations and are not part of a contract of the crate, so GEO-16 does not apply to them and this document does not record them (GEO-19).
+A test of a quantity that a row of Sections 8.4 to 8.7 bounds takes the tolerance and the range of inputs of that row, and the property tests assert the same tolerances on 256 cases. The sweeps and property tests of relations that no row bounds, such as preserved quantities, involutions, points of a wall, products of reflections, and the disk formula, hold their own tolerances over named input sets. Each such tolerance is at least 8 times the largest error measured, and each test prints its largest error with its input and its margin. These tolerances bound the tests' own relations and are not part of a contract of the crate, so GEO-16 does not apply to them and this document does not record them (GEO-19).
 
 The tolerance for a point of a wall carries a term in $K \max(a_3, b_3)$, because the points lie on the wall only to within the error of `wall_through`, and without that term the measured margin fell below 8 for walls through close points.
 
@@ -732,7 +838,7 @@ TEST-13 of the coding standard states the general rule that GEO-15, GEO-16, and 
 
 ## 11. Dependencies
 
-GEO-18. The crate MUST declare `glam` and `thiserror` as its only normal dependencies and MUST NOT re-export `glam`, because each further dependency adds build time, licence obligations, and supply-chain risk (DEP-2 of the coding standard), and a re-export would be a second path to the `glam` types that every crate declares itself (Section 3.1 of the architecture, API-10).
+GEO-18. The crate MUST declare `glam`, `thiserror`, and `num-complex` as its only normal dependencies, MUST NOT re-export `glam` or `num-complex`, and MUST NOT put a type of `num-complex` in a public signature, because each further dependency adds build time, licence obligations, and supply-chain risk (DEP-2 of the coding standard), a re-export would be a second path to the `glam` types that every crate declares itself (Section 3.1 of the architecture, API-10), and a `num-complex` type in a signature would make it a public dependency with the obligations of DEP-3 (Section 3.5 of the architecture).
 
 The crate declares these dependencies, each from one entry in the `[workspace.dependencies]` table of the root `Cargo.toml` (DEP-2):
 
@@ -740,6 +846,7 @@ The crate declares these dependencies, each from one entry in the `[workspace.de
 | --- | --- | --- | --- |
 | `glam` | Normal, public | `0.34.3`, a caret requirement, `default-features = false`, with `std` and `float-types` | The types `DVec2`, `DVec3`, and `DMat3` (`DEC-4`). The default features also turn on the integer and size types, which nothing uses |
 | `thiserror` | Normal | As the workspace, default features | Derives `Display` and `std::error::Error`, in the pattern of `escher-signature` |
+| `num-complex` | Normal, private | `0.4.6`, a caret requirement, `default-features = false`, with `std` | The complex arithmetic and the complex hyperbolic tangent of Sections 7.5 and 7.6 (`DEC-4`). Its feature `std` provides the functions of `Complex<f64>` that call the `f64` methods of the standard library, and its other features are not needed |
 | `proptest` | Dev | As the workspace | The property tests (Section 7.1 of the architecture) |
 | `astro-float-num` | Dev | `0.3.7`, a caret requirement, `default-features = false`, with `std` only | The reference arithmetic of `DEC-3` (Section 10.2). Its default features are `std`, `random`, and `serde`, and this crate turns off `random` and `serde` |
 | `escher-reference` | Dev | As the workspace | The shared core of the reference arithmetic (Section 10.2) |
@@ -752,6 +859,10 @@ The crate sets `publish = false` (`DEC-22`), inherits the workspace fields and l
 
 With the features of the table, `glam` has no transitive dependency, and it computes `dot`, `cross`, and the product of a matrix and a vector with plain multiplications and additions, with no fused multiply-add. `astro-float-num` without `random` and `serde` adds no `rand` 0.8 beside the `rand` of the workspace. `astro-float` 0.9.6 fails the ban on duplicates with `syn` 1 even without its default features. The licences of both crates and of their dependencies are on the allow-list of Section 8 of `docs/design/tooling.md`, so `deny.toml` needs no new licence and no exception.
 
+`num-complex` 0.4.6 is under `MIT OR Apache-2.0`, declares the minimum Rust version 1.60, and depends only on `num-traits` (Section 6 of `docs/research/rust-ecosystem.md`). `Cargo.lock` already holds `num-traits` 0.2.19 through another dependency, which is under `MIT OR Apache-2.0` too. The change that adds `num-complex` confirms with `just check-deny` that it resolves no second version of `num-traits` and needs no new licence and no exception, and with `just check-msrv` that the workspace still builds at its minimum Rust version. It adds the entry to the `[workspace.dependencies]` table in the form of the `glam` entry.
+
+The crate could compute the two holomorphic maps with `DVec2` and the real functions of `f64` instead. That needs complex division, multiplication, and the complex hyperbolic tangent written by hand, and the tangent needs a formula in terms of real functions that no document under `docs/research/` states, so it would become one more unverified statement of this design. `num-complex` gives each operation by its name, and the owner already chose it for complex numbers (`DEC-4`), so this design keeps it.
+
 The root `Cargo.toml` builds `astro-float-num` with `opt-level = 3` in the `dev` profile, in the table `[profile.dev.package.astro-float-num]`, because the high-precision arithmetic of the reference tests is slow without optimization. The setting also shortens `just coverage`. Section 4 of `docs/design/tooling.md` states the other levels of the profile.
 
 ## 12. Unverified Statements
@@ -763,7 +874,10 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | `UNV-26` | The normal through two points with the time coordinate last, $w = J(a \times b)$ with $J = \operatorname{diag}(1, 1, -1)$, where [RAT] states the Lorentzian cross product with the time coordinate first (Section 7.4 of the reference). Also the Euclidean reflection of [RAT] (4.1.1) as the matrix of `euclidean::reflection` on the plane $x_3 = 1$ | 5.3, 6.6 | Uses the formula of the normal only to compute a candidate, checks that its form is positive and finite, and normalizes it. The tests check the three properties of Section 5.3 on the result, which are what callers rely on. They compare the Euclidean reflection applied to points with (4.1.1) in the reference arithmetic, and check that it is an involution that fixes the points of its line. The second part of `UNV-26`, the relation between normals and the corner angle, is not used by this crate |
 | None | The line through two points as a normalized cross product, item 24 of Section 15.1 of the reference | 5.4 | Uses the formula only to compute a candidate. The tests check the three properties of Section 5.4 on the result |
 | `UNV-25` | Correct rounding of the reference-arithmetic crate, in tests only | 10.2 | Works at 256 bits against tolerances of a few multiples of $\varepsilon$ at the tightest, so a wrong last bit of the reference cannot change a verdict. The self-check of `escher-reference` (Section 7.1 of the architecture) checks the precision and rounding arguments. A comparison of six values with the MPFR library 4.2.2 at 200 bits, called through its C interface, agreed exactly to more than 60 significant digits, and item 2 of Section 13.3 asks the owner whether it closes `UNV-25` |
-| `UNV-4` | The precision of the disk map near the limit circle | 7.3, 8.4 | States the loss of `from_disk` and the distance beyond which the radius of `to_disk` is within rounding of 1 (Section 7.3), and tests both against the reference arithmetic at radius up to $1 - 10^{-12}$. The effect on an image is measured by the renderer |
+| `UNV-4` | The precision of the disk map near the limit circle, and of the band and Klein maps near the edges of their models | 7.3, 7.6, 7.7, 8.4, 8.7 | States the loss of `from_disk` and the distance beyond which the radius of `to_disk` is within rounding of 1 (Section 7.3), and tests both against the reference arithmetic at radius up to $1 - 10^{-12}$. States the cancellation of the band and Klein maps and bounds it on the model set. The effect on an image is measured by the renderer |
+| `UNV-13` | The map from the band to the disk, $\tanh(\pi w / 4)$, which only the code of [SYMMHUB] states (item 14 of Section 13.1 of `docs/research/rendering.md`). The choice of the map between the half-plane and the disk, which is `DEC-75` of the architecture and not a fact, is the other part of the label. The band metric, the third part, is not used, because the renderer takes the Jacobian of the map | 7.6 | Evaluates the inverse of the forward map of [B2] and [B3] that Section 5.1 of the reference states. The round trip of Section 8.7 checks it against that forward map in the reference arithmetic, and the modulus of its Jacobian against the scale factor of [SYMMHUB] |
+| This design | The Jacobians of Sections 7.5 to 7.7, as derivatives of their formulas, and the columns $(a, b)$ and $(-b, a)$ of the Jacobian of a holomorphic map with the complex derivative $a + ib$ (Section 2.1) | 7.5, 7.6, 7.7 | The reference tests compare each Jacobian with central differences of the reference map, and the property tests compare the moduli of the two holomorphic Jacobians with the sourced moduli of [BEA] and [SYMMHUB] |
+| This design | The map of [CAM] from the disk to the half-plane, which rests on a summary, in the tests only | 10.2 | Computes the half-plane positions of the model set. A wrong formula fails the round trip of `disk_from_half_plane`, whose map rests on [BEA] |
 
 `UNV-28` does not apply. No test of this crate uses SymmHub's triangle as an oracle.
 
@@ -786,13 +900,16 @@ No other document dictates these choices. Each looks like something a change cou
 | No type of the crate's own and no wrapper around the `glam` types, because Section 3.2 and `DEC-4` of the architecture fix the types of points and isometries | 3.2 |
 | One module per geometry, with flat functions `to_<model>` and `from_<model>`, no trait, and no `compose` function, because no caller is generic over the geometry and composition is the `glam` product | 3.4, 6.1 |
 | `from_disk` returns an `Option`, because a position outside the disk is a normal outcome of every image | 7.2, 9.1 |
+| The other models reach the hyperboloid through the disk, with one function `disk_from_<model>` for each model that returns the disk position and the Jacobian together, and no map from the disk to another model (`DEC-74` of the architecture) | 3.4, 7.4 |
+| The half-plane map of [BEA], which sends $i$ to the centre of the disk (`DEC-75` of the architecture) | 7.5 |
+| `num-complex` for the two holomorphic maps, kept private, because hand-written complex functions need a formula that no research document states | 7.5, 7.6, 11 |
 | `normalize_point` rejects a vector with a non-positive last coordinate and does not flip it, because such a vector is a symptom of an error upstream | 5.1 |
 | `distance` has one form, because the forms for close points need polar input, clamped to at least 1 so that rounding cannot make the result NaN, and keeps a NaN input visible | 5.2 |
 | `wall_through` states no orientation, because the caller orients the result with `side` from a point that it knows to lie inside | 5.3 |
 | `translation` reads no last coordinate, and the design relies only on its product and its image of `ORIGIN`, because no source states the product on the hyperboloid | 6.4 |
 | `isometry_defect` returns a number, with infinity for a failed condition, because each caller has its own tolerance | 6.2 |
 | No function except `normalize_point` and `wall_through` renormalizes, because renormalization is the caller's policy | 8.3 |
-| Every accuracy bound of Sections 8.4 to 8.6 with its range of inputs, each constant set from the largest error measured on the code with a margin of at least 8, as TEST-13 of the coding standard requires | 8.4 to 8.6 |
+| Every accuracy bound of Sections 8.4 to 8.7 with its range of inputs, each constant set from the largest error measured on the code with a margin of at least 8, as TEST-13 of the coding standard requires | 8.4 to 8.7 |
 | No stated accuracy of `wall_through` for points less than $10^{-5}$ apart, where the measured error grew with each sample, or of `normalize_point` beyond distance 15, where it may reject the vector of a point | 8.4 |
 | The term $d$ in the first form of the bound of `distance`, and the term in $K$ in the tolerance for a point of a wall, because without them the margin falls below 8 | 8.4, 10.3 |
 | An exact assertion for the swap of the arguments of `wall_through`, because IEEE 754 arithmetic keeps the negation exactly | 10.3 |
@@ -808,7 +925,7 @@ None of these blocks the crate. Each states what the design does until the owner
 
 1. `astro-float-num` instead of `astro-float`. `DEC-3` names `astro-float`, whose macro crate pulls `syn` 1. The design depends on `astro-float-num`, the number crate of the same project without the macro, which resolves with no duplicate (Section 11). The alternative is `astro-float` with a `skip` entry for `syn` 1 in `deny.toml`, which TOOL-26 of `docs/design/tooling.md` allows with a reason. The design takes `astro-float-num`, because it needs no exception to the dependency policy.
 2. The comparison for `UNV-25`. It used the MPFR library of the container, called through its C interface from a script outside the repository (Section 12). The design treats the six agreeing values as the one comparison that the plan asks for. If the owner requires the comparison through another tool, such as `rug`, `UNV-25` stays open and the tests are unchanged.
-3. A gradient through the disk map. The renderer draws borders from a distance estimate that needs the derivative of the disk map (`DEC-28`), while the plan adds Jacobians to this crate only with the further model maps of Section 5.12 of the plan. This design adds none. The design of the renderer holds the derivative in `escher-render`, which Section 5.2 of `docs/design/render.md` specifies, until a later milestone moves it to this crate with the other Jacobians.
+3. A gradient through the disk map. The renderer draws borders from a distance estimate that needs the derivative of the disk map (`DEC-28`). The Jacobians of the maps from the other models to the disk are in this crate (Section 7.4), and the derivative of `from_disk` stays in `escher-render`, which Section 5.2 of `docs/design/render.md` specifies, so that the images of the disk keep their bytes (RND-50 of that document). The alternative moves that derivative to this crate as a function of its own.
 4. The separation floor of `wall_through`. The crate states no accuracy for two points less than $10^{-5}$ apart (Section 8.4), and Section 1.5 excludes a distance form for close points. The design keeps the floor and the one formula of Section 5.3. The alternative is a form for close points in a later change, if a caller needs walls through such points.
 5. The `dev` profile of `astro-float-num`. The root `Cargo.toml` builds that dev-dependency with `opt-level = 3` (Section 11). The design keeps it, because the reference tests are slow without it. The alternative is to build it unoptimized.
 6. The representation of the Euclidean plane. The design uses the affine plane $x_3 = 1$ over the `glam` types of the hyperbolic module (Section 4.5), so that the fold and the border test of `escher-render` run unchanged, which a prototype outside the repository confirmed on the Euclidean triangles and the rectangle. The alternative is a `DVec2` point with a `DMat2` and `DVec2` pair for an isometry, which needs a second fold, a second side type, and a second border test.
@@ -825,12 +942,12 @@ The threat model is a caller that passes values derived from untrusted input to 
 The attacks in scope are a panic that stops the caller, and a non-finite value that propagates into a stored result. The crate counters them with these measures:
 
 - No function panics for any input (GEO-2), and a property test checks every function with arbitrary bit patterns (Section 10.1).
-- The six functions whose result a caller stores and builds on, the two functions `normalize_point`, the three functions `wall_through`, and `from_disk`, reject every input outside their domain, including NaN and infinities (GEO-4, GEO-6, GEO-9, GEO-21, GEO-23, GEO-25).
+- The nine functions whose result a caller stores and builds on, the two functions `normalize_point`, the three functions `wall_through`, `from_disk`, and the three functions `disk_from_<model>`, reject every input outside their domain, including NaN and infinities (GEO-4, GEO-6, GEO-9, GEO-21, GEO-23, GEO-25, GEO-28).
 - Every function runs in constant time and allocates nothing, so no input exhausts memory or time. The crate therefore needs no limit of its own. The limits on the orders of a signature, which bound the values that reach this crate, are stated in the Security Considerations of `docs/design/domain.md`.
 
 The other topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
-- Unsafe code: the crate has none, because the workspace denies `unsafe_code`, and it calls no native library. `glam` with the features of Section 11 uses no SIMD intrinsics in its double-precision types.
+- Unsafe code: the crate has none, because the workspace denies `unsafe_code`, and it calls no native library. `glam` with the features of Section 11 uses no SIMD intrinsics in its double-precision types. `num-complex` is checked by the dependency policy like every other dependency.
 - Untrusted input and file paths: the arguments are the only input. The crate reads and writes no file and keeps no state between calls.
 - Build scripts: the crate has none. The procedural macro of `thiserror` runs at build time on the source of this crate only.
 - Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under the policy of Section 8 of `docs/design/tooling.md`, for the dev-dependencies as well as the normal ones.
@@ -850,6 +967,7 @@ Every failure is an `ErrorKind`, a `None`, or a non-finite value:
 | A vector that is not timelike with a positive last coordinate, or for `spherical::normalize_point` a vector with no finite, positive length | `NotAPoint` | Check the computation that produced the vector. The error indicates a defect upstream |
 | Two points that span no wall, such as two equal points, or two antipodal points on the sphere | `DegenerateWall` | Pass two distinct points, which on the sphere are also not antipodal |
 | A disk position on or outside the unit circle, or NaN | `None` from `from_disk` | Treat the position as outside the model, such as background |
+| A model position outside its model, NaN, or infinite | `None` from `disk_from_half_plane`, `disk_from_band`, or `disk_from_klein` | Treat the position as outside the model, such as background |
 | A matrix that is not an isometry | A large or infinite `isometry_defect` | Rebuild the matrix from its factors |
 | A point far beyond a distance of 38 from `ORIGIN` | `to_disk` returns a position within rounding of the unit circle, which `from_disk` can reject | None. The disk cannot represent the point in `f64` (Section 7.3) |
 | A boost length above about 710.5 | Infinite entries | None. The hyperboloid cannot represent the point in `f64` |
@@ -865,6 +983,9 @@ Every failure is an `ErrorKind`, a `None`, or a non-finite value:
 
 The tags of the mathematical sources and source code resolve to the reference sections of `docs/research/geometry-models.md`:
 
+- [B1], [B2], and [B3] Section 16.1 of `docs/research/geometry-models.md`.
+- [BEA] Section 16.1 of `docs/research/geometry-models.md`.
+- [CAM] Section 16.2 of `docs/research/geometry-models.md`.
 - [CFKP] Section 16.1 of `docs/research/geometry-models.md`.
 - [CS] Section 16.1 of `docs/research/geometry-models.md`.
 - [DAVIS] Section 16.1 of `docs/research/geometry-models.md`.
@@ -873,6 +994,7 @@ The tags of the mathematical sources and source code resolve to the reference se
 - [HT] Section 16.1 of `docs/research/geometry-models.md`.
 - [KC24] Section 16.1 of `docs/research/geometry-models.md`.
 - [RAT] Section 16.1 of `docs/research/geometry-models.md`.
+- [SYMMHUB] Section 16.1 of `docs/research/geometry-models.md`.
 - [W-AFFINE] Section 16.3 of `docs/research/geometry-models.md`.
 - [W-HYPERBOLOID] Section 16.3 of `docs/research/geometry-models.md`.
 
@@ -891,13 +1013,13 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-9 | `from_disk` returns `None` exactly when the computed $1 - \lvert z \rvert^2$ is not positive | 7.2 |
 | GEO-10 | `translation` computes the polar radius with `hypot` and $\operatorname{arsinh}$, and reads no last coordinate | 8.2 |
 | GEO-11 | Only the two functions `normalize_point` and the three functions `wall_through` divide by a norm | 8.3 |
-| GEO-12 | Each function meets the accuracy of Sections 8.4, 8.5, and 8.6 | 8.4 |
+| GEO-12 | Each function meets the accuracy of Sections 8.4 to 8.7 | 8.4 |
 | GEO-13 | `Error` follows ERR-1, with the operation that failed | 9.1 |
 | GEO-14 | The `Display` text of each kind is the one stated | 9.2 |
 | GEO-15 | The reference arithmetic implements each formula independently, without this crate or `glam` | 10.2 |
 | GEO-16 | A comparison of a quantity with a tolerance stated as part of the contract uses that tolerance, and a bit-for-bit comparison is made only where TEST-13 allows it | 10.3 |
 | GEO-17 | Withdrawn on 2026-11-19. | 10.1 |
-| GEO-18 | `glam` and `thiserror` are the only normal dependencies, and `glam` is not re-exported | 11 |
+| GEO-18 | `glam`, `thiserror`, and `num-complex` are the only normal dependencies, none is re-exported, and no `num-complex` type is in a public signature | 11 |
 | GEO-19 | A test of a tolerance names its input set and prints its largest error, and this document records the tolerance only where it is part of a contract | 10.3 |
 | GEO-20 | Every Euclidean isometry of the module `euclidean` has the last row $(0, 0, 1)$ exactly | 4.5 |
 | GEO-21 | `euclidean::wall_through` returns a finite vector or `DegenerateWall` for every input, and on the range of Section 8.5 a line covector through both points | 5.4 |
@@ -907,3 +1029,6 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-25 | `spherical::wall_through` returns a finite vector or `DegenerateWall` for every input, and on the range of Section 8.6 a great-circle normal through both points | 5.5 |
 | GEO-26 | `spherical::isometry_defect` returns infinity when an entry is not finite or the result is NaN | 6.7 |
 | GEO-27 | `spherical::inverse` returns the transpose and never a general inverse | 6.7 |
+| GEO-28 | Each `disk_from_<model>` returns `None` exactly when the test of its model fails, including for every NaN or infinite coordinate | 7.4 |
+| GEO-29 | Each `disk_from_<model>` returns the Jacobian of its formula at the same input, column $k$ in coordinate $k$ | 7.4 |
+| GEO-30 | The model maps use the formulas of Sections 7.5 to 7.7, with the half-plane map of [BEA] and the band constant $\pi/4$ | 7.4 |

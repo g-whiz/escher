@@ -32,7 +32,7 @@ This document covers the six crates of the proof of concept and the test support
 
 These topics are owned elsewhere, and this document cites them:
 
-- The milestones `M1` to `M13` and `M19` to `M22`, the research prerequisites `RP-1` to `RP-5`, and the table of unverified statements `UNV-1` to `UNV-35` are defined in `docs/design/poc-plan.md`. The milestones `M14` to `M18` are items of Section 4.1 of `docs/design/roadmap.md`.
+- The milestones `M1` to `M13` and `M19` to `M22`, the research prerequisites `RP-1` to `RP-5`, and the table of unverified statements `UNV-1` to `UNV-36` are defined in `docs/design/poc-plan.md`. The milestones `M14` to `M18` are items of Section 4.1 of `docs/design/roadmap.md`.
 - The phases after the proof of concept are defined in `docs/design/roadmap.md`.
 - The application programming interface (API) of each crate, beyond the public surface of Section 3.2, is specified in the crate design documents `docs/design/signature.md`, `docs/design/geometry.md`, `docs/design/group.md`, `docs/design/domain.md`, `docs/design/render.md`, and `docs/design/cli.md` (`DEC-1`).
 - The commands, options, output format, exit status, and diagnostics of the binary are specified in `docs/design/cli.md`.
@@ -100,7 +100,7 @@ Each list below is the public surface of one crate as this document designs it, 
 
 `escher-signature`: `Signature`, valid by construction and in canonical form, with its feature accessors, its exact Euler characteristic, and its classification, and an `Error` that carries the byte span of the offending input. Section 3 of `docs/design/signature.md` specifies the public surface.
 
-`escher-geometry`: no vector or matrix type of its own (`DEC-4`), and one module per geometry, `hyperbolic`, `spherical`, and `euclidean`, of free functions over the `glam` types. They give the bilinear form and the side test (Sections 5.1 and 5.2), point normalization, distance, the reflection from a unit normal, rotation, translation, the inverse, an isometry check, and the model maps in both directions between the hyperboloid and the disk, Klein, half-plane, and band models, with the Jacobians of the maps. The lift onto the ball of the sphere and its screen tangents are private to `escher-render` (Section 5.9 of `docs/design/render.md`). Section 3 of `docs/design/geometry.md` specifies the public surface, and its Section 3.4 states where the other geometries and the further model maps go.
+`escher-geometry`: no vector or matrix type of its own (`DEC-4`), and one module per geometry, `hyperbolic`, `spherical`, and `euclidean`, of free functions over the `glam` types. They give the bilinear form and the side test (Sections 5.1 and 5.2), point normalization, distance, the reflection from a unit normal, rotation, translation, the inverse, an isometry check, the model maps in both directions between the hyperboloid and the disk, and the maps from the Klein, half-plane, and band models to the disk with their Jacobians (`DEC-74`). The lift onto the ball of the sphere and its screen tangents are private to `escher-render` (Section 5.9 of `docs/design/render.md`). Section 3 of `docs/design/geometry.md` specifies the public surface, and its Section 3.4 states where the other geometries and the further model maps go.
 
 `escher-group`:
 
@@ -120,7 +120,7 @@ Section 3 of `docs/design/group.md` specifies the public surface.
 
 `escher-render`:
 
-- `View`, with the model and the canonical placement.
+- `HyperbolicModel`, the option that chooses the model of a hyperbolic domain. The view with its canonical placement stays private (Section 3.4 of `docs/design/render.md`).
 - A `RenderOptions` builder, with the size, the sample grid, the border width with its unit and colour, the fold cap, the background, and the viewing rotation, the light, and the shading of the sphere.
 - `render_rows`, which renders a band of rows into a buffer that the caller owns, and a convenience operation for the whole image.
 - `RenderStats`, its own colour type, and PNG encoding.
@@ -295,7 +295,7 @@ This table records the pick for each topic on which the sources differ:
 | Cosets of a colouring | Left cosets, numbered through the right coset $S g^{-1}$ of the table (Section 5.4, `DEC-40`) | Sections 2.3 and 4.1 of `docs/research/colourings.md`. The numbering is `UNV-17` |
 | Cosets of a coset table | Right cosets and a right action, with coset 0 the subgroup (`DEC-36`) | Section 7.21 of `docs/research/colourings.md`: every source read uses right cosets and a right action, and none uses left cosets |
 | Band | The strip $\lvert \operatorname{Im} w \rvert < 1$ with $w = \frac{4}{\pi} \operatorname{artanh} z$ | Sections 5.1 and 14 of `docs/research/geometry-models.md`, Section 2.3 of `docs/research/rendering.md` |
-| Disk and half-plane | The connecting maps of [CFKP] through the hemisphere, which connect all five models in one primary source and are already time-last. [BEA] and [RAT] each give a primary map from the half-plane to the disk, and the sources do not agree on one map (Section 4.3 of `docs/research/geometry-models.md`). The design document of `escher-geometry` records the image of the disk centre and tests the round trip | Sections 4.1 and 4.3 of `docs/research/geometry-models.md`, Section 2.3 of `docs/research/rendering.md` |
+| Disk and half-plane | The map $f(z) = (z - i)/(z + i)$ of [BEA] from the half-plane to the disk, which sends $i$ to the centre of the disk (`DEC-75`, Section 7.5 of `docs/design/geometry.md`). The sources do not agree on one map (Section 4.3 of `docs/research/geometry-models.md`) | Sections 4.1 and 4.3 of `docs/research/geometry-models.md`, Section 2.3 of `docs/research/rendering.md` |
 | Glyphs | `o` for a handle and `x` for a crosscap, never `o` for a crosscap | Sections 2.5 and 3.3 of `docs/research/orbifold-notation.md` |
 | Reversal of a single boundary | The conditional rule of [CH] | Sections 2.5 and 4.1 of `docs/research/orbifold-notation.md` |
 | Direction of commutator and conjugation | As [CH] gives them for the Conway presentation | Section 9.1 of `docs/research/orbifold-notation.md`, Section 2.5 of `docs/research/fundamental-domains.md` |
@@ -503,7 +503,7 @@ The layout of the planning documents is a proposal that the owner may change. It
 
 ### 10.2. Proposed Defaults
 
-The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-18`, `DEC-19`, `DEC-21`, `DEC-28`, `DEC-29`, `DEC-30`, `DEC-37`, `DEC-38`, `DEC-39`, and `DEC-63` to `DEC-73`, the view of a rotation signature in `DEC-12`, and the listing of the colourings of conjugate subgroups in `DEC-15` (`DEC-37`), and has withdrawn `DEC-5`. The criterion of `DEC-65` applies to `DEC-15`, `DEC-37`, and `DEC-38`, and `DEC-71` to `DEC-73` amend `DEC-7`, `DEC-32`, `DEC-43`, and `DEC-44`. Section 10.1 states these decisions. Every other default is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
+The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-18`, `DEC-19`, `DEC-21`, `DEC-28`, `DEC-29`, `DEC-30`, `DEC-37`, `DEC-38`, `DEC-39`, and `DEC-63` to `DEC-73`, the view of a rotation signature in `DEC-12`, and the listing of the colourings of conjugate subgroups in `DEC-15` (`DEC-37`), and has withdrawn `DEC-5`. The criterion of `DEC-65` applies to `DEC-15`, `DEC-37`, and `DEC-38`, and `DEC-71` to `DEC-73` amend `DEC-7`, `DEC-32`, `DEC-43`, and `DEC-44`. Section 10.1 states these decisions. Every other default, including `DEC-74` to `DEC-77`, is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
 
 | Label | Topic | Proposed default | Reason |
 | --- | --- | --- | --- |
@@ -580,10 +580,16 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-71` | Ids of the valid colourings | Decided by the owner: the ids number the valid colourings of each colour count that the command line uses, one for each conjugacy class (`DEC-37`), with no gap, in the order of `DEC-43` | Section 10.1 |
 | `DEC-72` | Default colouring | Decided by the owner: the valid colouring with 2 colours when the domain has one, and one colour otherwise | Section 10.1 |
 | `DEC-73` | Counts in `info` | Decided by the owner: `escher info` counts and lists only the valid colourings, one for each conjugacy class (`DEC-37`) | Section 10.1 |
+| `DEC-74` | Other hyperbolic models | `escher-geometry` maps a position of the half-plane, the band, or the Klein model to the disk with the Jacobian of the map, and `escher-render` maps the disk position to the hyperboloid with `from_disk` and builds its screen tangents from that Jacobian and the derivative of `from_disk`, which it keeps. The disk keeps its computation bit for bit. No map from the disk to another model exists outside the tests. Section 7.4 of `docs/design/geometry.md` and Section 5.16 of `docs/design/render.md` state it. The alternative is a map from each model straight to the hyperboloid, with tangents of its own | One map to the hyperboloid and one border estimate serve every model, so the Klein model needs no rule of its own, and the images of the disk keep their bytes. The renderer needs only the direction from the model to the disk |
+| `DEC-75` | Map from the half-plane to the disk | $f(z) = (z - i)/(z + i)$ of [BEA], p. 131, which sends $i$ to the centre of the disk (Section 7.5 of `docs/design/geometry.md`). The alternative is another candidate of Section 4.3 of `docs/research/geometry-models.md`, such as `uhp2disc` of SymmHub | [BEA] prints the map and proves it an isometry, which no other candidate of a primary source does in the plane. The choice is part of `UNV-13` |
+| `DEC-76` | Canonical views of the other hyperbolic models | The disk scale and the margin of the disk, with the image of the centre of the disk at the centre of the image: $i$ in the half-plane, 0 in the band and the Klein model, and the background outside each model (Section 5.16 of `docs/design/render.md`). The alternative is a window of its own for each model | One scale and one placement for every model is the simplest rule, and the domain stays at the centre of the image as `DEC-12` asks. It is a choice of this proposal, which no source gives |
+| `DEC-77` | `--model` on another geometry | No effect on a Euclidean or spherical signature, and no diagnostic. The alternative is a diagnostic for every value other than `disk` | The options of the ball have no effect on a hyperbolic or Euclidean signature (Section 4.6 of `docs/design/cli.md`), so the same rule keeps the options consistent |
 
 Items 34 to 39 of Section 15.3 of `docs/design/domain.md` put the defaults of the reflection polygons to the owner, with their alternatives: `DEC-13` as amended, `DEC-47`, the corner limit and the guard of `DEC-48`, `DEC-14` as amended, and `DEC-50`. Items 43 and 44 of Section 15.3 of `docs/design/domain.md` put the tiles of `DEC-51` to the owner, the kites of `4*2` and `3*3` and the layout of the rectangular groups, item 45 puts the convention of `DEC-52`, and point 40 of Section 12.3 of `docs/design/render.md` puts `DEC-55`. `DEC-51` to `DEC-55` and the amendments of `DEC-12`, `DEC-14`, and `DEC-17` for `M10` are proposals, and the owner has decided none of them.
 
 `DEC-56` to `DEC-62` and the amendments of `DEC-12` and `DEC-54` for `M11` are proposals, and the owner has decided none of them. Four of them are put to the owner with their alternatives: `DEC-58`, whether `1` has a domain, `DEC-59`, the limit of `2*n`, `DEC-61`, the shared pictures and the view of `*`, `x`, and `1`, and `DEC-62`, the lune of order 1 and the mirror side of `n*`. Items 47 to 50 of Section 15.3 of `docs/design/domain.md` state `DEC-58`, `DEC-59`, and `DEC-62`, and points 42 and 43 of Section 12.3 of `docs/design/render.md` state `DEC-61`.
+
+`DEC-74` to `DEC-77` for `M12` are proposals, and the owner has decided none of them. Points 45 and 46 of Section 12.3 of `docs/design/render.md` put `DEC-76` and the orientation that `DEC-75` gives to the owner, and item 39 of Section 11.3 of `docs/design/cli.md` puts `DEC-77`.
 
 ## 11. Security Considerations
 

@@ -32,7 +32,7 @@ This document covers the workflow of a milestone, the owner's staging, the resea
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-73`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-77`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the milestones `M14` to `M18` that the owner moved there, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -225,7 +225,7 @@ Each command in this section illustrates its milestone, and Project Status in `A
 
 ### 5.12. M12: Half-Plane, Band, and Klein Models
 
-**Goal.** `--model half-plane|band|klein`, with the Poincare disk as the default.
+**Goal.** `--model disk|half-plane|band|klein`, with the Poincare disk as the default.
 
 **Command line.** This command renders in the band model:
 
@@ -233,19 +233,25 @@ Each command in this section illustrates its milestone, and Project Status in `A
 escher render '*732' --model band -o band.png
 ```
 
-**Scope.** Model maps and their Jacobians in `escher-geometry`, a canonical view for each model, and borders through the gradient estimate, so that the Klein model needs no special case.
+**Scope.** The maps from the half-plane, the band, and the Klein model to the disk with their Jacobians in `escher-geometry` (Sections 7.4 to 7.7 of `docs/design/geometry.md`). The option `HyperbolicModel` of `escher-render`, a canonical view for each model, and borders through the gradient estimate with screen tangents built from the Jacobian, so that the Klein model needs no special case (Section 5.16 of `docs/design/render.md`). The option `--model` of `escher render` (Section 4.6 of `docs/design/cli.md`). The images of the disk keep their bytes (RND-50 of `docs/design/render.md`).
 
-**Design documents.** Extensions of `geometry.md`, `render.md`, and `cli.md`.
+**Design documents.** Extensions of `geometry.md`, `render.md`, and `cli.md`, and the proposed defaults `DEC-74` to `DEC-77` of `docs/design/architecture.md`, with the amendment of its row "Disk and half-plane" of Section 5.10.
 
-**Sources.** The connecting maps and metrics of [CFKP] (`geometry-models.md` 4.1 and 3.1, `rendering.md` 8.1). [KC24] for the Klein model (`geometry-models.md` 4.2). The band map and its constant (`geometry-models.md` 5.1). The evaluation of the complex inverse hyperbolic tangent by logarithms ([B1], `geometry-models.md` 5.1).
+**Sources.** The map from the half-plane to the disk of [BEARDON], p. 131 (`geometry-models.md` 4.3). The connecting maps of [CFKP] for the map from the Klein model to the disk, and the inverse of [BEARDON], p. 128, for the tests (`geometry-models.md` 4.1 and 4.2, `rendering.md` 8.1). The band map and its constant (`geometry-models.md` 5.1). The evaluation of the complex inverse hyperbolic tangent by logarithms ([B1], `geometry-models.md` 5.1), in the reference arithmetic of the tests only.
 
-**Unverified statements relied on.** `UNV-13`. The inverse of the band map is stated only in SymmHub's code (`rendering.md` 13.1 item 14), the band metric rests only on a summary, and the correspondence of the half-plane is a project choice (`geometry-models.md` 4.3).
+**Unverified statements relied on.** `UNV-13`, and `UNV-4` and `UNV-15` through the renderer. The inverse of the band map is stated only in SymmHub's code (`rendering.md` 13.1 item 14), and the choice of the map from the half-plane to the disk is a project choice (`DEC-75`, `geometry-models.md` 4.3). The design uses no band metric, because the border estimate takes the Jacobian of the map. The Jacobians of the three maps, and the screen tangents built from them, are unverified statements of the geometry design and the render design, which their tests check against central differences.
 
-**Tests and acceptance.** Round trips against reference arithmetic. The same hyperbolic point has the same tile colour in all four models. Borders in the Klein model are straight (Section 9 of [CFKP]). Golden images.
+**Tests and acceptance.** Round trips against reference arithmetic. The same hyperbolic point has the same tile colour in all four models. Borders in the Klein model are straight (Section 9 of [CFKP]). Golden images. Section 10.1 of `docs/design/geometry.md`, Section 8.1 of `docs/design/render.md`, and Section 8.1 of `docs/design/cli.md` name the tests.
 
-**Dependencies and `deny.toml` work.** `num-complex`, with the licence and duplicate checks.
+**Dependencies and `deny.toml` work.** `num-complex` 0.4.6 in `escher-geometry`, without its default features and with `std`. Its licence, `MIT OR Apache-2.0`, is on the allow-list, and its one dependency, `num-traits`, is already in `Cargo.lock`. `just check-deny` confirms the licence and that no duplicate resolves, and `just check-msrv` the minimum Rust version (Section 11 of `docs/design/geometry.md`).
 
-**Risks.** View conventions. Periodicity of the band is not a goal (`geometry-models.md` 5.3).
+**Risks.** View conventions (`DEC-76`). Periodicity of the band is not a goal (`geometry-models.md` 5.3).
+
+**Split.** Three branches, in this order:
+
+1. Design: the design documents above.
+2. Geometry: `disk_from_half_plane`, `disk_from_band`, and `disk_from_klein` with their Jacobians, the dependency on `num-complex`, and their tests in `escher-geometry`.
+3. Render and command line: `HyperbolicModel` and the views of `escher-render` with their tests and three golden images, `--model` of `escher-cli` with its snapshots and plain tests, and Project Status in `AGENTS.md`.
 
 ### 5.13. M13: Intrinsic Border Width
 

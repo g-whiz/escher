@@ -28,7 +28,7 @@ The primary readers are the coding agents that implement or extend `escher-cli`.
 
 This document covers the command `info` with its argument and its options `--check`, `--presentation`, `--colourings`, and `--max-colours`, the command `render` with its argument and its options, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. It prints the shape parameters of the signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, the number of its valid colourings for each colour count, with `--colourings` one valid colouring for each conjugacy class with its id, and with `--check` the result of each check of its verification. With `--presentation`, it prints the Conway presentation of the signature and the side presentation of its domain, and for a spherical signature the group order that coset enumeration finds for each.
 
-`render` draws, with `escher-render`, the tiling of a signature that `escher-domain` constructs with the shape parameters that the option `--set` gives, in one colour, in its valid colouring with two colours, or in the colouring that an id names. It draws the tiling in the Poincare disk for a hyperbolic domain, in the Euclidean plane for a Euclidean one, and as a lit ball for a spherical one, with the viewing rotation, the light, and the shading of its options, and writes it to a PNG file. With `--stats`, it also prints statistics of the rendering.
+`render` draws, with `escher-render`, the tiling of a signature that `escher-domain` constructs with the shape parameters that the option `--set` gives, in one colour, in its valid colouring with two colours, or in the colouring that an id names. It draws a hyperbolic tiling in the Poincare disk, or in the upper half-plane, the band, or the Klein disk that the option `--model` names, a Euclidean tiling in the Euclidean plane, and a spherical tiling as a lit ball, with the viewing rotation, the light, and the shading of its options, and writes it to a PNG file. With `--stats`, it also prints statistics of the rendering.
 
 ### 1.5. Non-Goals
 
@@ -44,7 +44,7 @@ These topics are owned elsewhere, and this document cites them:
 - The mathematics is stated in `docs/research/orbifold-notation.md` and, for rendering, in `docs/research/rendering.md`.
 - The recipes, the nextest profiles, the hooks, and the dependency policy are specified in `docs/design/tooling.md`.
 
-The options of `render` that later milestones add, such as `--model` in M12, belong to those milestones (Section 3.4 of `docs/design/poc-plan.md`).
+The options of `render` that later milestones add, such as `--border-unit` in M13, belong to those milestones (Section 3.4 of `docs/design/poc-plan.md`).
 
 ## 2. Requirements Language
 
@@ -226,15 +226,16 @@ The help text has these summaries, the long help of `--set` below the table, and
 | `--border-colour` | `The border colour, as #rgb or #rrggbb` |
 | `--samples` | `The number of samples along each side of a pixel. The pixel averages N by N samples` |
 | `--max-folds` | `The largest number of folds of one sample. A sample that needs more takes the border colour` |
-| `--background` | `The colour outside the disk of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb` |
+| `--background` | `The colour outside the model of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb` |
 | `--threads` | `The number of threads, from 1 to 256. The default is the available parallelism, at most 256` |
 | `--stats` | `Print statistics of the rendering to standard output` |
 | `--set` | `Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature` |
+| `--model` | `The model in which a hyperbolic tiling is drawn: the Poincare disk, the upper half-plane, the band, or the Klein disk` |
 | `--rotation` | `The rotation of the ball of a spherical tiling, as three angles in degrees. YAW turns the front of the ball to the right, PITCH turns it up, and ROLL turns the image counterclockwise, in this order` |
 | `--light` | `The direction from the ball of a spherical tiling to the light, as X,Y,Z, with X to the right, Y up, and Z toward the viewer. The length is ignored` |
 | `--shading` | `Phong shading of the ball of a spherical tiling, or none` |
 
-The help of `render` uses the summary of `SIGNATURE` above. It also shows `[default: <value>]` for each option with a fixed default in the table of Section 4.6, which excludes `--colouring` and `--colours`, whose defaults depend on the domain, and `[possible values: phong, none]` for `--shading`, which `clap` generates (Section 11.1). `--colouring` shows no possible values, because its private value parser accepts ids (CLI-42). The help of `info` shows `[default: 12]` for `--max-colours`. The argument struct declares `--rotation`, `--light`, and `--shading` after `--set`, so they come last in the help.
+The help of `render` uses the summary of `SIGNATURE` above. It also shows `[default: <value>]` for each option with a fixed default in the table of Section 4.6, which excludes `--colouring` and `--colours`, whose defaults depend on the domain, and `[possible values: phong, none]` for `--shading` and `[possible values: disk, half-plane, band, klein]` for `--model`, which `clap` generates (Section 11.1). `--colouring` shows no possible values, because its private value parser accepts ids (CLI-42). The help of `info` shows `[default: 12]` for `--max-colours`. The argument struct declares `--model` after `--set`, and `--rotation`, `--light`, and `--shading` after `--model`, so the options of the ball come last in the help.
 
 `--set` is the one option with a long help, the constant `SET_LONG_HELP` in `args`. It lists each shape parameter of `escher-domain` with the signatures that take it: `aspect`, `skew`, `cornerpair<k>.length`, and `slice<i>.length`. It then says that every other signature has no shape parameter, that `escher info <SIGNATURE>` prints one `Parameter` line for each parameter with its range and default (Section 5.1), and gives these example commands:
 
@@ -305,6 +306,12 @@ This command writes an image of `*642` in its colouring `4a`, which has 4 colour
 escher render '*642' --colouring 4a --colours '#dc143c,#ffd700,#000080,#2e8b57' -o four.png
 ```
 
+This command writes an image of `*732` in the band model in place of the Poincare disk:
+
+```sh
+escher render '*732' --model band -o band.png
+```
+
 Several Euclidean signatures share a picture, because their tiles and borders coincide (Section 5.14 of `docs/design/render.md`, `DEC-55`). With `--colouring one`, the six signatures `**`, `xx`, `*x`, `22*`, `22x`, and `2*22` give the image of `*2222`, `4*2` that of `442`, and `3*3` that of `632`. These signatures differ in their colourings, so a user tells them apart with `--colouring` and an id that `escher info --colourings` lists.
 
 `render` runs these steps in this order. It stops at the first step that fails and writes the diagnostic of Section 6.8, except at step 1, whose diagnostic is that of Section 6.1:
@@ -313,7 +320,7 @@ Several Euclidean signatures share a picture, because their tiles and borders co
 2. Read the border colour and the background colour (Section 4.6).
 3. Put the settings into a `ShapeParameters` of `escher-domain` in the order given, and stop at the first setting whose name an earlier setting already gave. Build the domain with `FundamentalDomain::build_with` and those settings, which checks each name and value. When `build_with` returns `UnknownParameter` or `ParameterOutOfRange`, find the first rejected setting with `parameters` and `ParameterSpec` of `escher-domain`, as CLI-29 states, and stop with the diagnostic of Section 6.8 that names it.
 4. Choose the colouring: the value of `--colouring`, or the default of CLI-34. Then read the fill colours for that colouring, or take the default colours (Section 4.6). The number of colours comes from the colouring alone, so this step runs no search, also for a colouring id, except for the default colouring of a domain that is not all-reversing, which needs the search of CLI-34 to know whether it has 1 or 2 colours.
-5. Check the render options: build the render options of `escher-render` from the size, the sample grid, a placeholder fill of one colour, the border colour, the border width, the background colour, the fold cap, the viewing rotation in radians, the light direction, and the shading, and drop the result. `escher-render` checks every value, for every geometry.
+5. Check the render options: build the render options of `escher-render` from the size, the sample grid, a placeholder fill of one colour, the border colour, the border width, the background colour, the fold cap, the viewing rotation in radians, the light direction, the shading, and the hyperbolic model, and drop the result. `escher-render` checks every value, for every geometry.
 6. Build the fill: `Fill::One` for `one` and for the id `1a`, and `Fill::Parity` for `parity` on an all-reversing domain, with the colours of step 4. For `parity` on any other domain, and for any other colouring id, resolve the colouring as CLI-43 states, `parity` as the id `2a`, then build the coset fill of `escher-render` from the domain, the colouring, and the colours. Then build the render options again with this fill and the same values, which gives no error once step 5 has passed.
 7. Build a thread pool with the number of threads of `--threads`, or with the default of Section 4.6, which this step computes.
 8. Build the renderer, then render the image on the thread pool, in bands of one row, each with the band operation of `escher-render`, and merge the statistics of the bands. The time of the rendering is the time of the statistics lines.
@@ -379,6 +386,7 @@ The `clap` argument struct holds `--stats` as a `bool`, which `render` converts 
 | `--rotation <YAW,PITCH,ROLL>` | A triple: three numbers in degrees | `0,0,0` (`DEC-16`) |
 | `--light <X,Y,Z>` | A triple: three numbers | `-1,1,2` (`DEC-16`) |
 | `--shading <SHADING>` | `phong` or `none` | `phong` (`DEC-16`) |
+| `--model <MODEL>` | `disk`, `half-plane`, `band`, or `klein` | `disk` |
 
 `clap` parses `--samples` and `--max-folds` with its parser of `u32`, `--threads` with its parser of a range of `u16` from 1 to 256, whose value converts to `usize` without a fallible conversion, and `--border-width` with its parser of `f64`. A private parser in `args` reads `--size`. For a value of another form it returns the message `expected two decimal integers joined by x, such as 512x512`, which `clap` puts into its usage error. A second private parser in `args` reads each value of `--set`: it splits the value at the first `=`, requires a name that is not empty, and reads the rest with the `FromStr` implementation of `f64`, as `--border-width` is read. For a value of another form, such as `aspect`, `=2`, or `aspect=x`, it returns the message `expected a parameter name and a number joined by =, such as aspect=1.5`. `clap` collects the values of `--set` in the order given, with its action `Append`. A NaN or infinite number reads as a number, and `escher-domain` rejects it as outside the range of its parameter. The value of `--output` is a `std::path::PathBuf`, so a path that is not valid UTF-8 is accepted.
 
@@ -389,6 +397,10 @@ A triple is exactly three items separated by commas, each read by the `FromStr` 
 CLI-31. `--rotation` and `--light` MUST accept a value that starts with `-`, because the default light direction and many rotations have a negative number first, and without the setting `clap` rejects `--light -1,1,2` as an unknown argument.
 
 `render` reads the three options for every signature. For a hyperbolic or Euclidean signature `escher-render` checks them and they have no effect, as `--background` has no effect on a Euclidean tiling.
+
+`--model` is a value enum of `clap` with the values `disk`, `half-plane`, `band`, and `klein`, which give the variants `Disk`, `HalfPlane`, `Band`, and `Klein` of `HyperbolicModel` of `escher-render`. A private enum in `args` holds the value, and `render` maps it to the type of `escher-render`, as it does for `--shading`. Any other value, such as `poincare` or `Band`, is a usage error, whose message `clap` writes with the possible values. `render` passes the model for every signature, and for a Euclidean or spherical signature it has no effect, as the options of the ball have none on a hyperbolic tiling (`DEC-77`). So `escher render '*632' --model band -o tiling.png` writes the image of `*632` in the Euclidean plane, with no diagnostic.
+
+CLI-55. `render` MUST accept as the value of `--model` exactly `disk`, `half-plane`, `band`, and `klein`, MUST take `disk` when the option is absent, and MUST pass the variant of the same name to `escher-render` for every signature without a check of the geometry, because the default keeps every image of a hyperbolic signature as it was, and `escher-render` alone decides which domains read the model (RND-23 and RND-52 of `docs/design/render.md`).
 
 A colour is `#` followed by exactly three or exactly six hexadecimal digits. The digits are ASCII `0` to `9` and `a` to `f` in either case. In the form `#rrggbb`, each pair of digits is one 8-bit sRGB channel, in the order red, green, and blue. In the form `#rgb`, each digit stands for the channel whose two digits both equal it, so `#e9c` is `#ee99cc`. Nothing is trimmed, so a colour with a space before or after it is not a colour. Every colour is opaque, and `render` has no transparent background (`DEC-7`). The colours are read by a private parser in the module `render`, with no dependency (`DEC-29`).
 
@@ -431,7 +443,7 @@ So `escher render '*732' -o tiling.png` draws two colours with no search. A doma
 
 `escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, and returns an error kind for a value outside its limits, such as a width of 0, a grid of 0, a border width that is negative or not finite, a rotation angle that is not finite, or a light direction that is zero or not finite. Section 4.1 of `docs/design/render.md` states each limit and the error kind for a value outside it. `render` reports such an error as Section 6.8 states.
 
-CLI-24. `render` MUST pass the size, the sample grid, the border width, the fold cap, the components of the light direction, and the angles of the viewing rotation after their conversion to radians to `escher-render` unchanged, and MUST NOT check them against a limit itself, because a second check in this crate can differ from the limits that `docs/design/render.md` states, and a value would then pass one check and fail the other.
+CLI-24. `render` MUST pass the size, the sample grid, the border width, the fold cap, the components of the light direction, the angles of the viewing rotation after their conversion to radians, and the hyperbolic model to `escher-render` unchanged, and MUST NOT check them against a limit itself, because a second check in this crate can differ from the limits that `docs/design/render.md` states, and a value would then pass one check and fail the other.
 
 The limit of 256 threads is this crate's own, because the thread pool belongs to this crate (Section 3.5 of `docs/design/architecture.md`). The default never exceeds it.
 
@@ -1187,6 +1199,8 @@ The plain tests that an input error of steps 4 and 5 comes before the search use
 
 The plain tests of the colourings cover these cases: the default colouring and `parity` on an all-reversing domain, which give the bytes of `2a`, on a domain that is not all-reversing and has a valid colouring with 2 colours, on a domain without one, such as that of `1`, and with a search for 2 colours that stops at a limit, through the private function with a small budget. They also cover `1a` on a domain other than that of `1`, which gives the bytes of `one`, and an id that exists under `ColouringSet::All` but not under `ColouringSet::ValidClasses`, which gives the diagnostic of CLI-43. The snapshots of `info` hold the counts and listings of `ColouringSet::ValidClasses`.
 
+For `--model`, the snapshots of `render --help` and `render -h` show the option with its help, its default, and its possible values, and one usage snapshot shows the usage error of `--model poincare`. The plain tests cover these cases: `--model disk` gives the bytes of the same command without the option, `--model half-plane`, `--model band`, and `--model klein` on `*732` each write a PNG file of the size of `--size` whose bytes differ from those of the disk, and `--model band` on `*632` and on `*532` gives the bytes of the same command without the option (CLI-55). A unit test in `args` checks that each value maps to the variant of the same name.
+
 A snapshot holds the status, the standard output, and the standard error of one `run` call, in this form, which a helper in the module `common` builds (rule TEST-12 of `docs/rust-coding-standards.md`):
 
 ```text
@@ -1317,7 +1331,7 @@ Section 10.1 of `docs/design/architecture.md` records, under `DEC-21`, that Miri
 
 ## 10. Unverified Statements
 
-This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-6`, `UNV-7`, `UNV-10`, `UNV-11`, `UNV-22`, `UNV-26`, `UNV-27`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, `UNV-32`, `UNV-33`, and `UNV-34` through `escher-domain`, on `UNV-17`, `UNV-19`, `UNV-22`, `UNV-35`, and `UNV-36` through `escher-group`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, `UNV-17`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
+This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-6`, `UNV-7`, `UNV-10`, `UNV-11`, `UNV-22`, `UNV-26`, `UNV-27`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, `UNV-32`, `UNV-33`, and `UNV-34` through `escher-domain`, on `UNV-17`, `UNV-19`, `UNV-22`, `UNV-35`, and `UNV-36` through `escher-group`, on `UNV-13` through `escher-geometry`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-13`, `UNV-15`, `UNV-16`, `UNV-17`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
 
 | Id | How this crate relies on it |
 | --- | --- |
@@ -1338,6 +1352,7 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 | `UNV-1` | `render` relies on the fold to stop for the samples of an image of a reflection triangle, polygon, rectangle, or lune. `Unconverged samples` counts the samples for which it does not stop within the fold cap, which on the sphere can happen near a vertex of very high order |
 | `UNV-2` | `render` relies on the fold to stop for the samples of an image of a rotation domain, a wallpaper domain, whose pairings include translations and glide reflections, or a spherical group domain, whose pairings include rotary reflections. `Unconverged samples` counts the samples for which it does not stop within the fold cap |
 | `UNV-16` | The ball that `render` draws comes from the lift onto the ball and the Phong reflection model, whose primary paper is unread |
+| `UNV-13` | The image of `--model band` comes from the map from the band to the disk that only the code of SymmHub states (Section 7.6 of `docs/design/geometry.md`) |
 | `UNV-3` | A sample on or next to a wall can take either neighbouring tile, which is why CLI-28 masks the fold counts |
 | `UNV-4` | The default fold cap of `DEC-7` rests on fold counts measured on a prototype, and no source bounds them |
 | `UNV-15` | The border that `render` draws comes from the gradient form of the border estimate (`DEC-28`) |
@@ -1353,7 +1368,7 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 - With its features `env` and `wrap_help` off, `clap` reads no environment variable, so the output does not depend on the environment. A reading of the source of `clap_builder` supports this, and no run has confirmed it.
 - The residual of a passed check and the fold counts can differ in their last digits between platforms, which is why Section 8.1 masks them (CLI-20, CLI-28). No run on two platforms has measured this, and the masking is safe either way.
 - With the default actions of its derive API, `clap` rejects a flag or an option that is given more than once. With the action `Append`, it accepts `--set` more than once and keeps its values in the order given, which the diagnostic of a parameter set twice relies on.
-- `clap` generates the usage line of `render` that Section 4.1 gives, the text `[default: <value>]` and `[possible values: phong, none]` in its help, and no possible values for `--colouring`, whose value parser is a private function.
+- `clap` generates the usage line of `render` that Section 4.1 gives, the text `[default: <value>]`, `[possible values: phong, none]`, and `[possible values: disk, half-plane, band, klein]` in its help, and no possible values for `--colouring`, whose value parser is a private function.
 - A setting of `--set` does not change the side presentation of a domain, so the colouring ids of a signature do not depend on it. The side presentation reads only the kinds, partners, corner orders, and vertex cycles of the sides (Section 5.4 of `docs/design/domain.md`), and the numbering of the sides depends on the canonical signature alone (DOM-37, DOM-43, and DOM-53 of that document). No test of this crate compares the side presentations of two settings.
 - `rayon` reads the environment variable `RAYON_NUM_THREADS` only for a pool whose builder sets no number of threads, so it has no effect on the pool of `render`, which always sets one. Nothing has confirmed this, and an error here changes only the number of threads that a call starts.
 - `std::fs::write` follows a symbolic link at the path, as the documentation of `std::fs::File::create` states.
@@ -1379,6 +1394,7 @@ These choices are made here, and no other document dictates them. Each one is ea
 13. `parity` names the valid colouring with 2 colours, `2a`, and is refused where the domain has none, so the alias and the default of `DEC-72` name one colouring. The alternative keeps `parity` for the reversal parity colouring of Section 5.12 of `docs/design/render.md`, which is not valid on every domain, so `info` would have to list it apart from the valid colourings (Section 4.6).
 14. `1a` stays accepted on every domain as the colouring with one colour, although `info` lists it only for `1`, so that command lines with `1a` keep working (Section 4.6). The alternative accepts only `one`.
 15. The line `Parity colouring` is withdrawn, because rows 18 and 19 show whether `parity` exists (row 13 of Section 5.1). The alternative keeps it with a new condition, which needs the search of 2 colours on every domain that is not all-reversing.
+16. `--model` is passed for every signature and has no effect on a Euclidean or spherical one (`DEC-77`), as the options of the ball have none on a hyperbolic one, so `render` needs no check of the geometry for it (Section 4.6).
 
 ### 11.3. Points for the Owner
 
@@ -1422,6 +1438,7 @@ None of these blocks the implementation. Points 1, 3, 4, 5, 8, and 36 belong to 
 36. Tests kept for a reason that does not apply belong to TQ-11 of `docs/design/tooling.md`, which puts them to the owner.
 37. Withdrawn on 2026-11-22.
 38. The pictures of the spherical groups (`DEC-61` of `docs/design/architecture.md`). With the default colouring, `5x` renders the image of `*55` and `x` that of `*`, and with `--colouring one`, `3*2` renders the image of `432`. For the orders that Section 5.15 of `docs/design/render.md` treats, no picture of a colouring id tells `n*` from `n22` or `nx` from `*nn`. The default images of `*`, `x`, and `1` differ only in a thin rim, so a user who renders `*` sees no mirror until `--rotation` turns the ball. Points 42 and 43 of Section 12.3 of `docs/design/render.md` hold the alternatives.
+39. `--model` on a Euclidean or spherical signature has no effect and gives no diagnostic (`DEC-77`, Section 4.6). The alternative is the diagnostic `error: cannot render *632: --model applies only to a hyperbolic signature` for every value other than `disk`.
 
 ## 12. Security Considerations
 
@@ -1519,7 +1536,7 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-21 | 4.5 | `render` creates or changes the output file only after rendering and encoding succeed. |
 | CLI-22 | 4.5 | `render` builds its own thread pool for each call, never the global pool. |
 | CLI-23 | 4.5 | The bytes of the output file do not depend on the number of threads. |
-| CLI-24 | 4.6 | `render` passes the size, grid, border width, fold cap, light direction, and rotation in radians to `escher-render` unchanged and checks no limit of them itself. |
+| CLI-24 | 4.6 | `render` passes the size, grid, border width, fold cap, light direction, rotation in radians, and hyperbolic model to `escher-render` unchanged and checks no limit of them itself. |
 | CLI-25 | 4.7 | `render` writes to standard output only the statistics lines, with `--stats`, after the output file is written. |
 | CLI-26 | 6.8 | No diagnostic of `render` repeats an option value or the output path, except a colouring id under CLI-49, the echoed name of a setting that names no parameter, and the parsed value of a setting outside its range. |
 | CLI-27 | 8.1 | Withdrawn on 2026-11-19. |
@@ -1550,3 +1567,4 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-52 | 8.1 | A snapshot of `info` on a wallpaper domain uses the default colour limit of 12, unless its measured debug time exceeds that of the snapshots of `*2222`, and prints only the default settings. |
 | CLI-53 | 5.5 | For a domain with no side, `info` prints `Domain: no sides` and no `Corner angles in degrees` and `Side lengths` lines, and the `Side pairs` line names `rotary reflection` for `PairingKind::RotaryReflection`. |
 | CLI-54 | 8.1 | A snapshot of `info` on a spherical group domain uses the default colour limit of 12 and holds only inputs whose printed values meet the rounding condition of CLI-20. |
+| CLI-55 | 4.6 | `--model` accepts exactly `disk`, `half-plane`, `band`, and `klein`, defaults to `disk`, and passes the variant of the same name to `escher-render` for every signature. |
