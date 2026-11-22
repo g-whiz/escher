@@ -12,14 +12,13 @@ Domain: 3 mirror sides
 Corner angles in degrees: 30.000000, 60.000000, 90.000000
 Side lengths: 1.000000, 1.154701, 0.577350
 Domain area: 0.288675
-Colourings: 180, complete to 12 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 3
-Colourings with 3 colours: 6
-Colourings with 4 colours: 5
-Colourings with 6 colours: 32
-Colourings with 8 colours: 12
-Colourings with 9 colours: 27
-Colourings with 12 colours: 94
+Colourings: 39, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 3 colours: 1
+Colourings with 4 colours: 1
+Colourings with 6 colours: 10
+Colourings with 8 colours: 3
+Colourings with 9 colours: 3
+Colourings with 12 colours: 20
 --- stderr
 --- end

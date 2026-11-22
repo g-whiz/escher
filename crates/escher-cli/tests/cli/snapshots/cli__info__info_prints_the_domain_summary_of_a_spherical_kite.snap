@@ -12,15 +12,13 @@ Group order: 60
 Area: pi/15
 Domain: 4 sides in 2 pairs
 Side pairs: 0 and 1 by rotation, 2 and 3 by rotation
-Parity colouring: none, every side pairing preserves orientation
 Corner angles in degrees: 72.000000, 90.000000, 120.000000, 90.000000
 Side lengths: 0.553574, 0.553574, 0.364864, 0.364864
 Domain area: 0.209440
-Colourings: 28, complete to 12 colours
-Colourings with 1 colour: 1
-Colourings with 5 colours: 5
-Colourings with 6 colours: 6
-Colourings with 10 colours: 10
-Colourings with 12 colours: 6
+Colourings: 4, complete to 12 colours
+Colourings with 5 colours: 1
+Colourings with 6 colours: 1
+Colourings with 10 colours: 1
+Colourings with 12 colours: 1
 --- stderr
 --- end

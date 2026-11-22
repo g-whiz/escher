@@ -191,7 +191,7 @@ Each command in this section illustrates its milestone, and Project Status in `A
 
 **Goal.** The first side pairings that are not reflections.
 
-**Delivers.** The rotation signatures `pqr`, `22n`, `nn`, and `2222` as doubles of reflection domains, their rendering, the `Side pairs` and `Parity colouring` lines of `escher info`, and the default colouring of `escher render`.
+**Delivers.** The rotation signatures `pqr`, `22n`, `nn`, and `2222` as doubles of reflection domains, their rendering, the `Side pairs` and `Parity colouring` lines of `escher info`, and the default colouring of `escher render`. M20 withdraws the `Parity colouring` line and changes the default colouring (`DEC-72`).
 
 ### 5.7. M7: Presentations and Coset Enumeration
 
@@ -346,7 +346,7 @@ escher render '*642' --colouring <id> -o valid.png
 1. Design: the design documents above, and `colourings.md`.
 2. Search: `ColouringSet`, `contained_generator`, the filter, and the ids of `escher-group`, with its tests.
 3. Classes: `ColouringSet::ValidClasses` of `escher-group`, with its tests.
-4. Command line: the counts, the listing, the aliases, and the default colouring of `escher-cli`, the tests and coset golden images of `escher-render`, the snapshots, the examples and images of `README.md`, and `scripts/readme-images`, which renders the colouring `3a` of `*642` to `three*.png`.
+4. Command line: the counts, the listing, the aliases, and the default colouring of `escher-cli`, the tests and coset golden images of `escher-render`, the snapshots, the examples and images of `README.md`, and `scripts/readme-images`, which renders the colouring `4a` of `*642` to `four.png` and `four-colours.png`, because `*642` has no valid colouring with 3 colours.
 
 ### 5.21. M21: Schlafli Symbols in `escher info`
 

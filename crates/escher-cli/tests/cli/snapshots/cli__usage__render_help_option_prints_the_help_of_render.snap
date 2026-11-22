@@ -22,7 +22,7 @@ Options:
           [default: 512x512]
 
       --colouring <COLOURING>
-          One colour for every tile, two colours by parity, or the id of a colouring that the command info --colourings lists, such as 3a. The default is parity when a side pairing of the domain reverses orientation, and one otherwise
+          One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise
 
       --colours <COLOURS>
           The fill colours, separated by commas, each as #rgb or #rrggbb, one for each colour of the colouring. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'

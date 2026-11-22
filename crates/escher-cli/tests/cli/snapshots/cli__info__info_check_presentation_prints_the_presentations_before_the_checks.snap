@@ -14,13 +14,12 @@ Domain: 3 mirror sides
 Corner angles in degrees: 36.000000, 60.000000, 90.000000
 Side lengths: 0.553574, 0.652358, 0.364864
 Domain area: 0.104720
-Colourings: 46, complete to 12 colours
-Colourings with 1 colour: 1
+Colourings: 8, complete to 12 colours
 Colourings with 2 colours: 1
-Colourings with 5 colours: 5
-Colourings with 6 colours: 6
-Colourings with 10 colours: 15
-Colourings with 12 colours: 18
+Colourings with 5 colours: 1
+Colourings with 6 colours: 1
+Colourings with 10 colours: 2
+Colourings with 12 colours: 3
 Presentation: 5 generators, 9 relators
 Generators: r1, r2, r3, r4, l1
 Relators: r1^2, (r1 r2)^5, r2^2, (r2 r3)^3, r3^2, (r3 r4)^2, r4^2, l1^-1 r1 l1 r4^-1, l1

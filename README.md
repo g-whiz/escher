@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/g-whiz/escher/actions/workflows/ci.yml/badge.svg)](https://github.com/g-whiz/escher/actions/workflows/ci.yml)
 
-Escher is a command-line tool that renders symmetric tilings, like those in some works of M. C. Escher, into PNG images. You name a symmetry in Conway's orbifold notation, such as `*632`, and Escher draws its tiling in the Euclidean plane, on a shaded ball for a spherical symmetry, or in the Poincare disk for a hyperbolic one. It also counts and lists the colourings of a tiling that respect its symmetry, and draws any of them in colours that you choose.
+Escher is a command-line tool that renders symmetric tilings, like those in some works of M. C. Escher, into PNG images. You name a symmetry in Conway's orbifold notation, such as `*632`, and Escher draws its tiling in the Euclidean plane, on a shaded ball for a spherical symmetry, or in the Poincare disk for a hyperbolic one. It also counts and lists the colourings of a tiling that respect its symmetry and give neighbouring tiles different colours, and draws any of them in colours that you choose.
 
 ## Status
 
@@ -85,15 +85,14 @@ Domain: 3 mirror sides
 Corner angles in degrees: 30.000000, 60.000000, 90.000000
 Side lengths: 1.000000, 1.154701, 0.577350
 Domain area: 0.288675
-Colourings: 180, complete to 12 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 3
-Colourings with 3 colours: 6
-Colourings with 4 colours: 5
-Colourings with 6 colours: 32
-Colourings with 8 colours: 12
-Colourings with 9 colours: 27
-Colourings with 12 colours: 94
+Colourings: 39, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 3 colours: 1
+Colourings with 4 colours: 1
+Colourings with 6 colours: 10
+Colourings with 8 colours: 3
+Colourings with 9 colours: 3
+Colourings with 12 colours: 20
 ```
 
 A hyperbolic signature renders in the Poincare disk. This command draws `*732` at 640 by 640 pixels:
@@ -104,43 +103,40 @@ escher render '*732' --size 640x640 -o disk.png
 
 ![Teal and sand triangles fill the Poincare disk and shrink toward its boundary circle.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/disk.png)
 
-`--colourings` lists each colouring with its id, and `--max-colours` sets the largest number of colours, from 1 to 64. This command lists the colourings of `*642` with up to 3 colours:
+`--colourings` lists each colouring with its id, and `--max-colours` sets the largest number of colours, from 1 to 64. This command lists the colourings of `*642` with up to 4 colours:
 
 ```sh
-escher info --colourings --max-colours 3 '*642'
+escher info --colourings --max-colours 4 '*642'
 ```
 
 After the properties and the counts, it prints one line for each colouring:
 
 ```text
-Colouring: 1a, 1 colour, alias one
-Colouring: 2a, 2 colours
-Colouring: 2b, 2 colours
-Colouring: 2c, 2 colours
-Colouring: 2d, 2 colours
-Colouring: 2e, 2 colours
-Colouring: 2f, 2 colours
-Colouring: 2g, 2 colours, alias parity
-Colouring: 3a, 3 colours
-Colouring: 3b, 3 colours
-Colouring: 3c, 3 colours
+Colouring: 2a, 2 colours, alias parity
+Colouring: 4a, 4 colours
+Colouring: 4b, 4 colours
+Colouring: 4c, 4 colours
+Colouring: 4d, 4 colours
+Colouring: 4e, 4 colours
+Colouring: 4f, 4 colours
+Colouring: 4g, 4 colours
 ```
 
-`--colouring` takes an id from this list, or `one` or `parity`. This command draws the colouring `3a` in the first three colours of a built-in list of 12:
+`--colouring` takes an id from this list, or `one` or `parity`. This command draws the colouring `4a` in the first four colours of a built-in list of 12:
 
 ```sh
-escher render '*642' --colouring 3a -o three.png
+escher render '*642' --colouring 4a -o four.png
 ```
 
-![Triangles in the Poincare disk, coloured purple, teal, and sand.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/three.png)
+![Triangles in the Poincare disk, coloured sand, teal, purple, and olive.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/four.png)
 
-`--colours` gives one colour for each colour of the colouring, as `#rgb` or `#rrggbb`. A colouring with more than 12 colours needs it. This command draws the same colouring in crimson, gold, and navy:
+`--colours` gives one colour for each colour of the colouring, as `#rgb` or `#rrggbb`. A colouring with more than 12 colours needs it. This command draws the same colouring in crimson, gold, navy, and sea green:
 
 ```sh
-escher render '*642' --colouring 3a --colours '#dc143c,#ffd700,#000080' -o three-colours.png
+escher render '*642' --colouring 4a --colours '#dc143c,#ffd700,#000080,#2e8b57' -o four-colours.png
 ```
 
-![The same three-colour tiling in crimson, gold, and navy.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/three-colours.png)
+![The same four-colour tiling in crimson, gold, navy, and sea green.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/four-colours.png)
 
 `escher info` prints one `Parameter` line for each shape parameter of a signature. For `*2222`, the line is:
 

@@ -5,10 +5,8 @@ use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use escher_domain::{FundamentalDomain, ParameterSpec, ShapeParameters, parameters};
-use escher_group::{
-    ColouringId, ColouringSet, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index,
-};
+use escher_domain::{FundamentalDomain, Orientation, ParameterSpec, ShapeParameters, parameters};
+use escher_group::{ColouringId, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index};
 use escher_render::{
     Colour, CosetFill, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png,
 };
@@ -85,8 +83,8 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         };
         anyhow::Error::new(error).context(context)
     })?;
-    let colouring = colouring(args.colouring, domain.reverses_orientation())
-        .map_err(|detail| cannot_render(&signature, detail))?;
+    let (colouring, found_parity) =
+        chosen_colouring(&domain, &signature, args.colouring, SearchBudget::DEFAULT)?;
     let colours = fill_colours(colouring, args.colours.as_deref())
         .map_err(|detail| cannot_render(&signature, detail))?;
     let options_with = |fill| {
@@ -98,6 +96,7 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         &domain,
         &signature,
         colouring,
+        found_parity,
         colours,
         SearchBudget::DEFAULT,
     )?;
@@ -249,25 +248,56 @@ fn cannot_render(signature: &Signature, detail: impl Display) -> anyhow::Error {
     anyhow::anyhow!("cannot render {signature}: {detail}")
 }
 
-fn colouring(
-    requested: Option<Colouring>,
-    reverses_orientation: bool,
-) -> Result<Colouring, String> {
-    match (requested, reverses_orientation) {
-        (Some(Colouring::Parity), false) => Err(
-            "the colouring parity does not exist, because no side pairing reverses orientation"
-                .to_owned(),
-        ),
-        (Some(colouring), _) => Ok(colouring),
-        (None, true) => Ok(Colouring::Parity),
-        (None, false) => Ok(Colouring::One),
+#[derive(Clone, Debug)]
+enum Parity {
+    Reversals,
+    Cosets(escher_group::Colouring),
+}
+
+fn is_all_reversing(domain: &FundamentalDomain) -> bool {
+    let sides = domain.sides();
+    !sides.is_empty()
+        && sides
+            .iter()
+            .all(|side| side.orientation() == Orientation::Reversing)
+}
+
+fn parity(
+    domain: &FundamentalDomain,
+    signature: &Signature,
+    budget: SearchBudget,
+) -> anyhow::Result<Option<Parity>> {
+    if is_all_reversing(domain) {
+        return Ok(Some(Parity::Reversals));
     }
+    let found = search(domain, signature, 2, budget)?;
+    match found.list().first() {
+        Some(colouring) => Ok(Some(Parity::Cosets(colouring.clone()))),
+        None if found.is_complete() => Ok(None),
+        None => Err(cannot_render(signature, stopped_text("parity"))),
+    }
+}
+
+fn chosen_colouring(
+    domain: &FundamentalDomain,
+    signature: &Signature,
+    requested: Option<Colouring>,
+    budget: SearchBudget,
+) -> anyhow::Result<(Colouring, Option<Parity>)> {
+    if let Some(colouring) = requested {
+        return Ok((colouring, None));
+    }
+    Ok(match parity(domain, signature, budget)? {
+        Some(found) => (Colouring::Parity, Some(found)),
+        None => (Colouring::One, None),
+    })
 }
 
 fn fill(
     domain: &FundamentalDomain,
     signature: &Signature,
     colouring: Colouring,
+    found_parity: Option<Parity>,
     colours: Vec<Colour>,
     budget: SearchBudget,
 ) -> anyhow::Result<Fill> {
@@ -280,21 +310,56 @@ fn fill(
             ),
         )
     };
-    match colouring {
-        Colouring::One => <[Colour; 1]>::try_from(colours)
-            .map(|[colour]| Fill::One(colour))
-            .map_err(wrong_count),
-        Colouring::Parity => <[Colour; 2]>::try_from(colours)
-            .map(Fill::Parity)
-            .map_err(wrong_count),
-        Colouring::Id(id) => {
-            let found = resolve(domain, signature, id, budget)?;
-            Ok(Fill::Cosets(
-                CosetFill::new(domain, found, colours)
-                    .with_context(|| format!("cannot render {signature}"))?,
-            ))
+    let found = match colouring {
+        Colouring::One => return one_colour(colours).map_err(wrong_count),
+        Colouring::Id(id) if is_one_colour(id) => {
+            return one_colour(colours).map_err(wrong_count);
         }
-    }
+        Colouring::Id(id) => resolve(domain, signature, id, budget)?,
+        Colouring::Parity => {
+            let found = match found_parity {
+                Some(found) => found,
+                None => parity(domain, signature, budget)?.ok_or_else(|| {
+                    cannot_render(
+                        signature,
+                        "the colouring parity does not exist, because the signature has no colouring with 2 colours",
+                    )
+                })?,
+            };
+            match found {
+                Parity::Reversals => {
+                    return <[Colour; 2]>::try_from(colours)
+                        .map(Fill::Parity)
+                        .map_err(wrong_count);
+                }
+                Parity::Cosets(colouring) => colouring,
+            }
+        }
+    };
+    Ok(Fill::Cosets(
+        CosetFill::new(domain, found, colours)
+            .with_context(|| format!("cannot render {signature}"))?,
+    ))
+}
+
+fn is_one_colour(id: ColouringId) -> bool {
+    (id.colours(), id.ordinal()) == (1, 1)
+}
+
+fn one_colour(colours: Vec<Colour>) -> Result<Fill, Vec<Colour>> {
+    <[Colour; 1]>::try_from(colours).map(|[colour]| Fill::One(colour))
+}
+
+fn search(
+    domain: &FundamentalDomain,
+    signature: &Signature,
+    colours: u32,
+    budget: SearchBudget,
+) -> anyhow::Result<ColouringsOfIndex> {
+    let context = || format!("cannot render {signature}");
+    let presentation = domain.side_presentation().with_context(context)?;
+    let colours = IndexLimit::new(colours).with_context(context)?;
+    colourings_of_index(&presentation, crate::COLOURING_SET, colours, budget).with_context(context)
 }
 
 fn resolve(
@@ -303,11 +368,7 @@ fn resolve(
     id: ColouringId,
     budget: SearchBudget,
 ) -> anyhow::Result<escher_group::Colouring> {
-    let context = || format!("cannot render {signature}");
-    let presentation = domain.side_presentation().with_context(context)?;
-    let colours = IndexLimit::new(id.colours()).with_context(context)?;
-    let found = colourings_of_index(&presentation, ColouringSet::All, colours, budget)
-        .with_context(context)?;
+    let found = search(domain, signature, id.colours(), budget)?;
     found_colouring(&found, id).map_err(|detail| cannot_render(signature, detail))
 }
 
@@ -318,10 +379,12 @@ fn found_colouring(
     match found.find(id) {
         Some(colouring) => Ok(colouring.clone()),
         None if found.is_complete() => Err(missing_text(id, found.list().len())),
-        None => Err(format!(
-            "the search for the colouring {id} stopped at a limit before it found it"
-        )),
+        None => Err(stopped_text(id)),
     }
+}
+
+fn stopped_text(colouring: impl Display) -> String {
+    format!("the search for the colouring {colouring} stopped at a limit before it found it")
 }
 
 fn missing_text(id: ColouringId, count: usize) -> String {
@@ -448,8 +511,8 @@ mod tests {
     use escher_signature::Signature;
 
     use super::{
-        DEFAULT_COLOURS, fill_colours, missing_text, parse_colour, resolve, setting_text,
-        shape_parameters, statistics_text, thread_pool_error,
+        DEFAULT_COLOURS, Parity, chosen_colouring, fill, fill_colours, missing_text, parse_colour,
+        resolve, setting_text, shape_parameters, statistics_text, thread_pool_error,
     };
     use crate::Status;
     use crate::args::{Colouring, Setting};
@@ -661,6 +724,111 @@ mod tests {
         assert_eq!(
             resolved("*632", "2a", 100),
             Err("cannot render *632: the search for the colouring 2a stopped at a limit before it found it".to_owned())
+        );
+    }
+
+    fn default_colouring(text: &str, steps: u64) -> Result<String, String> {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        let budget = SearchBudget::new(steps).expect("the budget is valid");
+        match chosen_colouring(&domain(text), &signature, None, budget) {
+            Ok((colouring, None)) => Ok(colouring.to_string()),
+            Ok((colouring, Some(Parity::Reversals))) => Ok(format!("{colouring} by reversals")),
+            Ok((colouring, Some(Parity::Cosets(found)))) => {
+                Ok(format!("{colouring} {}", found.id()))
+            }
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    #[test]
+    fn default_colouring_is_parity_without_a_search_on_an_all_reversing_domain() {
+        for signature in ["*632", "*2222", "*532", "*", "x"] {
+            assert_eq!(
+                default_colouring(signature, 1),
+                Ok("parity by reversals".to_owned()),
+                "{signature}"
+            );
+        }
+    }
+
+    #[test]
+    fn default_colouring_is_the_valid_colouring_with_two_colours_when_one_exists() {
+        for signature in ["442", "2222", "o", "4*2", "22*"] {
+            assert_eq!(
+                default_colouring(signature, 10_000_000),
+                Ok("parity 2a".to_owned()),
+                "{signature}"
+            );
+        }
+    }
+
+    #[test]
+    fn default_colouring_is_one_when_no_valid_colouring_with_two_colours_exists() {
+        for signature in ["1", "632", "3*3", "732", "532"] {
+            assert_eq!(
+                default_colouring(signature, 10_000_000),
+                Ok("one".to_owned()),
+                "{signature}"
+            );
+        }
+    }
+
+    #[test]
+    fn default_colouring_fails_when_its_search_stops_at_a_limit() {
+        assert_eq!(
+            default_colouring("442", 1),
+            Err("cannot render 442: the search for the colouring parity stopped at a limit before it found it".to_owned())
+        );
+    }
+
+    fn parity_fill(text: &str, steps: u64) -> Result<(), String> {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        let budget = SearchBudget::new(steps).expect("the budget is valid");
+        let colours = fill_colours(Colouring::Parity, None).expect("parity has default colours");
+        fill(
+            &domain(text),
+            &signature,
+            Colouring::Parity,
+            None,
+            colours,
+            budget,
+        )
+        .map(drop)
+        .map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn the_default_parity_is_drawn_without_a_second_search() {
+        let text = "442";
+        let signature: Signature = text.parse().expect("the signature is valid");
+        let domain = domain(text);
+        let (colouring, found) = chosen_colouring(&domain, &signature, None, SearchBudget::DEFAULT)
+            .expect("the search of 442 completes");
+        let colours = fill_colours(colouring, None).expect("parity has default colours");
+        let budget = SearchBudget::new(1).expect("the budget is valid");
+        assert!(matches!(found, Some(Parity::Cosets(_))));
+        assert!(fill(&domain, &signature, colouring, found, colours, budget).is_ok());
+    }
+
+    #[test]
+    fn parity_is_drawn_where_a_valid_colouring_with_two_colours_exists() {
+        assert_eq!(parity_fill("*632", 1), Ok(()));
+        assert_eq!(parity_fill("442", 10_000_000), Ok(()));
+    }
+
+    #[test]
+    fn parity_fails_where_no_valid_colouring_with_two_colours_exists() {
+        assert_eq!(
+            parity_fill("632", 10_000_000),
+            Err("cannot render 632: the colouring parity does not exist, because the signature has no colouring with 2 colours".to_owned())
+        );
+    }
+
+    #[test]
+    fn parity_claims_nothing_when_its_search_stops_at_a_limit() {
+        assert_eq!(
+            parity_fill("442", 1),
+            Err("cannot render 442: the search for the colouring parity stopped at a limit before it found it".to_owned())
         );
     }
 

@@ -70,7 +70,7 @@ pub(crate) enum Command {
         presentation: bool,
         #[arg(
             long,
-            help = "Print every colouring of the fundamental domain with its id, up to the largest number of colours"
+            help = "Print the valid colourings of the fundamental domain, in which no two neighbouring tiles share a colour, one for each conjugacy class of subgroups, with its id, up to the largest number of colours"
         )]
         colourings: bool,
         #[arg(
@@ -78,7 +78,7 @@ pub(crate) enum Command {
             value_name = "N",
             default_value = "12",
             value_parser = parse_max_colours,
-            help = "The largest number of colours of the colourings to count and list, from 1 to 64"
+            help = "The largest number of colours of the valid colourings to count and list, from 1 to 64"
         )]
         max_colours: IndexLimit,
     },
@@ -111,7 +111,7 @@ pub(crate) struct RenderArgs {
         long,
         value_name = "COLOURING",
         value_parser = parse_colouring,
-        help = "One colour for every tile, two colours by parity, or the id of a colouring that the command info --colourings lists, such as 3a. The default is parity when a side pairing of the domain reverses orientation, and one otherwise"
+        help = "One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise"
     )]
     pub(crate) colouring: Option<Colouring>,
     #[arg(
@@ -274,7 +274,7 @@ fn parse_colouring(text: &str) -> Result<Colouring, &'static str> {
             .parse()
             .ok()
             .map(Colouring::Id)
-            .ok_or("expected one, parity, or a colouring id such as 3a"),
+            .ok_or("expected one, parity, or a colouring id such as 4a"),
     }
 }
 
@@ -445,7 +445,7 @@ mod tests {
         ] {
             assert_eq!(
                 parse_colouring(text),
-                Err("expected one, parity, or a colouring id such as 3a"),
+                Err("expected one, parity, or a colouring id such as 4a"),
                 "{text:?}"
             );
         }

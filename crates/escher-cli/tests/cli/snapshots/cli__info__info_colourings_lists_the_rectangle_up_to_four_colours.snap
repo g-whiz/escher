@@ -13,33 +13,10 @@ Domain: 4 mirror sides
 Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000
 Side lengths: 1.000000, 1.000000, 1.000000, 1.000000
 Domain area: 1.000000
-Colourings: 89, complete to 4 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 15
-Colourings with 3 colours: 6
-Colourings with 4 colours: 67
-Colouring: 1a, 1 colour, alias one
-Colouring: 2a, 2 colours
-Colouring: 2b, 2 colours
-Colouring: 2c, 2 colours
-Colouring: 2d, 2 colours
-Colouring: 2e, 2 colours
-Colouring: 2f, 2 colours
-Colouring: 2g, 2 colours
-Colouring: 2h, 2 colours
-Colouring: 2i, 2 colours
-Colouring: 2j, 2 colours
-Colouring: 2k, 2 colours
-Colouring: 2l, 2 colours
-Colouring: 2m, 2 colours
-Colouring: 2n, 2 colours
-Colouring: 2o, 2 colours, alias parity
-Colouring: 3a, 3 colours
-Colouring: 3b, 3 colours
-Colouring: 3c, 3 colours
-Colouring: 3d, 3 colours
-Colouring: 3e, 3 colours
-Colouring: 3f, 3 colours
+Colourings: 18, complete to 4 colours
+Colourings with 2 colours: 1
+Colourings with 4 colours: 17
+Colouring: 2a, 2 colours, alias parity
 Colouring: 4a, 4 colours
 Colouring: 4b, 4 colours
 Colouring: 4c, 4 colours
@@ -57,55 +34,5 @@ Colouring: 4n, 4 colours
 Colouring: 4o, 4 colours
 Colouring: 4p, 4 colours
 Colouring: 4q, 4 colours
-Colouring: 4r, 4 colours
-Colouring: 4s, 4 colours
-Colouring: 4t, 4 colours
-Colouring: 4u, 4 colours
-Colouring: 4v, 4 colours
-Colouring: 4w, 4 colours
-Colouring: 4x, 4 colours
-Colouring: 4y, 4 colours
-Colouring: 4z, 4 colours
-Colouring: 4aa, 4 colours
-Colouring: 4ab, 4 colours
-Colouring: 4ac, 4 colours
-Colouring: 4ad, 4 colours
-Colouring: 4ae, 4 colours
-Colouring: 4af, 4 colours
-Colouring: 4ag, 4 colours
-Colouring: 4ah, 4 colours
-Colouring: 4ai, 4 colours
-Colouring: 4aj, 4 colours
-Colouring: 4ak, 4 colours
-Colouring: 4al, 4 colours
-Colouring: 4am, 4 colours
-Colouring: 4an, 4 colours
-Colouring: 4ao, 4 colours
-Colouring: 4ap, 4 colours
-Colouring: 4aq, 4 colours
-Colouring: 4ar, 4 colours
-Colouring: 4as, 4 colours
-Colouring: 4at, 4 colours
-Colouring: 4au, 4 colours
-Colouring: 4av, 4 colours
-Colouring: 4aw, 4 colours
-Colouring: 4ax, 4 colours
-Colouring: 4ay, 4 colours
-Colouring: 4az, 4 colours
-Colouring: 4ba, 4 colours
-Colouring: 4bb, 4 colours
-Colouring: 4bc, 4 colours
-Colouring: 4bd, 4 colours
-Colouring: 4be, 4 colours
-Colouring: 4bf, 4 colours
-Colouring: 4bg, 4 colours
-Colouring: 4bh, 4 colours
-Colouring: 4bi, 4 colours
-Colouring: 4bj, 4 colours
-Colouring: 4bk, 4 colours
-Colouring: 4bl, 4 colours
-Colouring: 4bm, 4 colours
-Colouring: 4bn, 4 colours
-Colouring: 4bo, 4 colours
 --- stderr
 --- end

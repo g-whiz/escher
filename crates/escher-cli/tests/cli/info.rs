@@ -781,7 +781,9 @@ fn info_colourings_lists_the_colourings_of_the_doubled_hemisphere() {
         assert_eq!(outcome.status, Status::Success, "{args:?}");
         assert_eq!(outcome.stderr, "", "{args:?}");
         assert!(
-            outcome.stdout.ends_with("\nColouring: 2a, 2 colours\n"),
+            outcome
+                .stdout
+                .ends_with("\nColouring: 2a, 2 colours, alias parity\n"),
             "{args:?}: {}",
             outcome.stdout
         );
@@ -801,7 +803,7 @@ fn info_counts_the_colourings_of_the_doubled_hemisphere() {
 
 #[test]
 fn info_colourings_up_to_one_colour_ends_with_the_alias_one() {
-    let outcome = run_args(&["info", "--colourings", "--max-colours", "1", "22"]);
+    let outcome = run_args(&["info", "--colourings", "--max-colours", "1", "1"]);
     assert_eq!(outcome.status, Status::Success);
     assert_eq!(outcome.stderr, "");
     assert!(

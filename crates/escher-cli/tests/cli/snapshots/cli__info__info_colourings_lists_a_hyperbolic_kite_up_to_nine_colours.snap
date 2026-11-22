@@ -12,46 +12,16 @@ Area: pi/21
 Deformation dimension: 0
 Domain: 4 sides in 2 pairs
 Side pairs: 0 and 1 by rotation, 2 and 3 by rotation
-Parity colouring: none, every side pairing preserves orientation
 Corner angles in degrees: 51.428571, 90.000000, 120.000000, 90.000000
 Side lengths: 0.545275, 0.545275, 0.283128, 0.283128
 Domain area: 0.149600
-Colourings: 32, complete to 9 colours
-Colourings with 1 colour: 1
-Colourings with 7 colours: 14
-Colourings with 8 colours: 8
-Colourings with 9 colours: 9
-Colouring: 1a, 1 colour, alias one
+Colourings: 4, complete to 9 colours
+Colourings with 7 colours: 2
+Colourings with 8 colours: 1
+Colourings with 9 colours: 1
 Colouring: 7a, 7 colours
 Colouring: 7b, 7 colours
-Colouring: 7c, 7 colours
-Colouring: 7d, 7 colours
-Colouring: 7e, 7 colours
-Colouring: 7f, 7 colours
-Colouring: 7g, 7 colours
-Colouring: 7h, 7 colours
-Colouring: 7i, 7 colours
-Colouring: 7j, 7 colours
-Colouring: 7k, 7 colours
-Colouring: 7l, 7 colours
-Colouring: 7m, 7 colours
-Colouring: 7n, 7 colours
 Colouring: 8a, 8 colours
-Colouring: 8b, 8 colours
-Colouring: 8c, 8 colours
-Colouring: 8d, 8 colours
-Colouring: 8e, 8 colours
-Colouring: 8f, 8 colours
-Colouring: 8g, 8 colours
-Colouring: 8h, 8 colours
 Colouring: 9a, 9 colours
-Colouring: 9b, 9 colours
-Colouring: 9c, 9 colours
-Colouring: 9d, 9 colours
-Colouring: 9e, 9 colours
-Colouring: 9f, 9 colours
-Colouring: 9g, 9 colours
-Colouring: 9h, 9 colours
-Colouring: 9i, 9 colours
 --- stderr
 --- end

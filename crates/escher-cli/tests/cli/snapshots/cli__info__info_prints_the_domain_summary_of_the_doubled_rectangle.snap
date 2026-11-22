@@ -12,22 +12,20 @@ Parameter: aspect, range 0.125 to 8, default 1
 Parameter: skew, range -0.5 to 0.5, default 0
 Domain: 6 sides in 3 pairs
 Side pairs: 0 and 1 by rotation, 2 and 5 by translation, 3 and 4 by rotation
-Parity colouring: none, every side pairing preserves orientation
 Corner angles in degrees: 180.000000, 90.000000, 90.000000, 180.000000, 90.000000, 90.000000
 Side lengths: 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000
 Domain area: 2.000000
-Colourings: 1123, complete to 12 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 7
-Colourings with 3 colours: 12
-Colourings with 4 colours: 31
-Colourings with 5 colours: 30
-Colourings with 6 colours: 76
-Colourings with 7 colours: 56
-Colourings with 8 colours: 127
-Colourings with 9 colours: 117
-Colourings with 10 colours: 186
-Colourings with 11 colours: 132
-Colourings with 12 colours: 348
+Colourings: 229, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 3 colours: 3
+Colourings with 4 colours: 13
+Colourings with 5 colours: 5
+Colourings with 6 colours: 25
+Colourings with 7 colours: 7
+Colourings with 8 colours: 40
+Colourings with 9 colours: 12
+Colourings with 10 colours: 39
+Colourings with 11 colours: 11
+Colourings with 12 colours: 73
 --- stderr
 --- end

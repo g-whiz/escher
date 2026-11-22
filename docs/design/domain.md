@@ -243,7 +243,7 @@ Each item guarantees its invariant by construction, so no caller checks it:
 | `side_lengths()` | The length of each side, in side order | Section 7 |
 | `corner_angles()` | The angle at each vertex in radians, in vertex order | Section 7. Empty for the whole sphere |
 | `area()` | The area measured from the corner angles, or for a Euclidean domain from the vertices | Section 7. For a spherical domain, in the metric of the unit sphere, and $4\pi$ for the whole sphere |
-| `reverses_orientation()` | Whether some side has the orientation `Reversing` | True for every reflection domain, for every wallpaper domain other than that of `o`, and for every spherical group domain other than the whole sphere, and false for every double, for `o`, and for the whole sphere of `1`. It is true exactly when the group has a parity colouring, the colouring by its orientation-preserving subgroup, and it is the one place that decides this for `escher-cli`. It does not say that every side is a mirror: a caller that needs the kinds reads `Side::kind` |
+| `reverses_orientation()` | Whether some side has the orientation `Reversing` | True for every reflection domain, for every wallpaper domain other than that of `o`, and for every spherical group domain other than the whole sphere, and false for every double, for `o`, and for the whole sphere of `1`. It is true exactly when the group has a reversal parity colouring, the colouring by its orientation-preserving subgroup. It does not say that every side is a mirror: a caller that needs the kinds reads `Side::kind` |
 | `verify()` | The result of the six checks of Section 8.2 | Pure and never panics (DOM-8) |
 | `side_presentation()` | The side presentation of Section 5.4 | Pure and never panics. Returns `InvalidPairing` for a domain whose sides give no presentation (DOM-35), which no domain that `build_with` returns does |
 | `Verification::passed` | Whether every check passed | True exactly when each of the six `Check::passed` is true |
@@ -276,7 +276,7 @@ The polygons and the wallpaper domains add no public signature. They need these 
 
 The detail of `ParameterOutOfRange` carries the variant of the parameter, from which its name and its range derive, so `Error` keeps `Eq` (Section 10.2).
 
-`reverses_orientation()` is a proposed default of this design. A caller could scan `sides()` for a `Reversing` side instead, and the accessor keeps that rule in one place for `escher-cli`. A caller must not read `reverses_orientation()` as "every side is a mirror". That reading is false for the eight wallpaper domains with a reversing side, of which `xx` and `22x` have no mirror at all, and for the spherical kites and the domains of `nx` and `x`, of which the last two have no mirror. A caller that decides between the forms of a domain reads the count of the sides of the kind `Mirror` instead. The command-line design states the summary of `escher info` in that way (CLI-51).
+`reverses_orientation()` is a proposed default of this design. A caller could scan `sides()` for a `Reversing` side instead, and the accessor keeps that rule in one place. A caller must not read `reverses_orientation()` as "every side is a mirror". That reading is false for the eight wallpaper domains with a reversing side, of which `xx` and `22x` have no mirror at all, and for the spherical kites and the domains of `nx` and `x`, of which the last two have no mirror. A caller that decides between the forms of a domain reads the count of the sides of the kind `Mirror` instead. The command-line design states the summary of `escher info` in that way (CLI-51).
 
 `Verification` has one accessor for each check and no enum of checks, so a caller needs no wildcard arm, and a later check is a new accessor.
 
@@ -1942,7 +1942,7 @@ Item 19. The doubled wall (`DEC-11`). The design doubles across side 1, the wall
 
 Item 20. The kinds `Rotation` and `Translation`. The design gives a translation its own kind (Section 3.2). The alternative is one kind for every orientation-preserving pairing, which would call a translation a rotation.
 
-Item 21. The accessor `reverses_orientation()`. The design adds it, so that `escher-cli` decides in one place whether a parity colouring exists (Section 3.2). The alternative is that each caller scans `sides()`.
+Item 21. The accessor `reverses_orientation()`. The design adds it, so that a caller decides in one place whether the domain has a reversing side (Section 3.2). The alternative is that each caller scans `sides()`.
 
 Item 23. Compensated pairings of a double (DOM-25). The design computes each pairing as a compensated product at construction, for the convergence of the fold. The alternatives are plain products, which a prototype found less accurate near the order 1000, above the limit of DOM-3, or a fold that applies the reflections of the generating domain and needs no rotation pairing.
 

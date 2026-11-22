@@ -16,13 +16,10 @@ Side pairs: 2 and 3 by rotation
 Corner angles in degrees: 90.000000, 90.000000, 120.000000, 90.000000
 Side lengths: 0.785398, 0.785398, 0.615480, 0.615480
 Domain area: 0.523599
-Colourings: 25, complete to 12 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 1
-Colourings with 3 colours: 1
-Colourings with 4 colours: 4
-Colourings with 6 colours: 7
-Colourings with 8 colours: 4
-Colourings with 12 colours: 7
+Colourings: 7, complete to 12 colours
+Colourings with 4 colours: 1
+Colourings with 6 colours: 2
+Colourings with 8 colours: 1
+Colourings with 12 colours: 3
 --- stderr
 --- end

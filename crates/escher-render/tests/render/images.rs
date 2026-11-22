@@ -10,9 +10,9 @@ use crate::common::{
 };
 use crate::golden_images::{
     ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
-    GoldenImage, POLYGON_DOMAINS, Shape, TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS,
-    colouring as golden_colouring, colourings_of, compare, coset_fill, domain_with_aspect,
-    domain_with_settings, linear_table, renderer, shifted_pairs, translation,
+    GoldenImage, POLYGON_DOMAINS, Shape, TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS, colouring,
+    colourings_of, compare, coset_fill, domain_with_aspect, domain_with_settings, golden_colouring,
+    linear_table, renderer, shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -492,7 +492,7 @@ fn coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_par
     };
     for text in ["*732", "*642", "*2222", "*532", "732"] {
         let domain = domain_with_aspect(text, None);
-        let trivial = golden_colouring(&domain, "1a");
+        let trivial = colouring(&domain, "1a");
         let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
             Ok(fill) => fill,
             Err(error) => panic!("{text}: {error}"),
@@ -521,7 +521,7 @@ fn coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_par
 fn coset_fill_render_equals_render_rows_over_any_split_into_bands() {
     for (text, id) in [("*642", "3a"), ("532", "5a")] {
         let domain = domain_with_aspect(text, None);
-        let fill = coset_fill(&domain, golden_colouring(&domain, id));
+        let fill = coset_fill(&domain, colouring(&domain, id));
         let options = options(
             RenderOptions::builder(Fill::Cosets(fill))
                 .size(64, 48)
@@ -561,7 +561,7 @@ fn polygon_images_fold_every_sample_within_the_cap() {
 #[test]
 fn coset_golden_colouring_of_the_pentagon_fixes_the_numbering_of_its_sides() {
     let domain = domain_with_aspect("*22222", None);
-    let colouring = golden_colouring(&domain, "3k");
+    let colouring = golden_colouring(&domain, "8ekf");
     let sides = domain.sides();
     let colours: Vec<u32> = sides
         .iter()
@@ -583,7 +583,7 @@ fn coset_golden_colouring_of_the_pentagon_fixes_the_numbering_of_its_sides() {
                 .unwrap_or_else(|| panic!("side {index} has no generator"))
         })
         .collect();
-    assert_eq!(colours, [0, 0, 1, 0, 2]);
+    assert_eq!(colours, [1, 2, 3, 4, 5]);
 }
 
 fn assert_wallpaper_images_converge(domains: core::ops::Range<usize>) {
@@ -890,7 +890,7 @@ fn wallpaper_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_a
     for shape in cases {
         let name = shape.name();
         let domain = shape.domain();
-        let trivial = golden_colouring(&domain, "1a");
+        let trivial = colouring(&domain, "1a");
         let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
             Ok(fill) => fill,
             Err(error) => panic!("{name}: {error}"),
@@ -1139,7 +1139,7 @@ fn spherical_group_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the
             let options = options(turned_builder(fill, degrees).size(64, 64).samples(2));
             renderer(&domain, options).render()
         };
-        let trivial = golden_colouring(&domain, "1a");
+        let trivial = colouring(&domain, "1a");
         let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
             Ok(fill) => fill,
             Err(error) => panic!("{text}: {error}"),

@@ -118,7 +118,7 @@ CLD-13. An author MUST state the significance of a change or an item as what a u
 
 | Tell | Example | Rewrite | Checked by |
 | --- | --- | --- | --- |
-| Sycophantic opener | `Great question! The tool draws the parity colouring by default.` | `escher render` draws two colours by parity when a side pairing of the domain reverses orientation, and one colour otherwise. | Judgement, with the phrase list |
+| Sycophantic opener | `Great question! The tool draws the valid colouring with 2 colours by default.` | `escher render` draws the valid colouring with 2 colours when the domain has one, and one colour otherwise. | Judgement, with the phrase list |
 | Chat leftover | `I hope this helps! Let me know if you would like more examples.` | Delete the sentences. | Judgement, with the phrase list |
 | Apology | `Apologies for the confusion in the earlier section.` | Correct the earlier section. | Judgement, with the phrase list |
 | Inflated significance | `This change is a pivotal milestone for symmetry-based art.` | After this change, `escher render` draws each of the 17 Euclidean signatures. | Judgement, with the phrase list for the marker word |

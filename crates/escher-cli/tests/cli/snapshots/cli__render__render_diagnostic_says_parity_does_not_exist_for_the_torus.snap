@@ -1,9 +1,0 @@
----
-source: crates/escher-cli/tests/cli/render.rs
-expression: "render_snapshot(\"torus_parity\", &[\"o\", \"--colouring\", \"parity\"])"
----
-status: Failure
---- stdout
---- stderr
-error: cannot render o: the colouring parity does not exist, because no side pairing reverses orientation
---- end

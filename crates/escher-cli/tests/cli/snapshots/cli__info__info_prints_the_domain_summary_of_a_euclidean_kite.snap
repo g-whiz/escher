@@ -10,19 +10,17 @@ Euler characteristic: 0
 Compact: yes
 Domain: 4 sides in 2 pairs
 Side pairs: 0 and 1 by rotation, 2 and 3 by rotation
-Parity colouring: none, every side pairing preserves orientation
 Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000
 Side lengths: 1.000000, 1.000000, 1.000000, 1.000000
 Domain area: 1.000000
-Colourings: 211, complete to 12 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 3
-Colourings with 4 colours: 11
-Colourings with 5 colours: 10
-Colourings with 6 colours: 12
-Colourings with 8 colours: 39
-Colourings with 9 colours: 9
-Colourings with 10 colours: 50
-Colourings with 12 colours: 76
+Colourings: 48, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 4 colours: 7
+Colourings with 5 colours: 2
+Colourings with 6 colours: 2
+Colourings with 8 colours: 13
+Colourings with 9 colours: 1
+Colourings with 10 colours: 8
+Colourings with 12 colours: 14
 --- stderr
 --- end

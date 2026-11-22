@@ -2,11 +2,10 @@ use core::num::NonZeroU64;
 use std::borrow::Cow;
 use std::io::Write;
 
-use escher_domain::{Check, FundamentalDomain, Orientation, PairingKind, Verification, parameters};
+use escher_domain::{Check, FundamentalDomain, PairingKind, Verification, parameters};
 use escher_group::{
-    Colouring, ColouringCounts, ColouringId, ColouringSet, Colourings, CosetLimit, ErrorKind,
-    IndexLimit, Letter, Presentation, SearchBudget, colourings, conway_presentation,
-    count_colourings, enumerate,
+    Colouring, ColouringCounts, ColouringId, Colourings, CosetLimit, ErrorKind, IndexLimit,
+    Presentation, SearchBudget, colourings, conway_presentation, count_colourings, enumerate,
 };
 use escher_signature::{Geometry, Rational, Signature};
 
@@ -124,7 +123,7 @@ pub(crate) fn info(text: &str, options: Options, stdout: &mut dyn Write) -> Vec<
                 .map_err(|error| error.to_string()),
                 Err(error) => Err(error.to_string()),
             };
-            push_colourings(&mut lines, found, &reversing_sides(domain));
+            push_colourings(&mut lines, found);
             Some(presentation.map_err(|error| error.to_string()))
         }
         Err(_) => None,
@@ -264,14 +263,6 @@ impl Found {
     }
 }
 
-fn reversing_sides(domain: &FundamentalDomain) -> Vec<bool> {
-    domain
-        .sides()
-        .iter()
-        .map(|side| side.orientation() == Orientation::Reversing)
-        .collect()
-}
-
 fn search_colourings(
     presentation: &Presentation,
     limit: IndexLimit,
@@ -281,36 +272,28 @@ fn search_colourings(
     Ok(match listing {
         Listing::Count => Found::Counted(count_colourings(
             presentation,
-            ColouringSet::All,
+            crate::COLOURING_SET,
             limit,
             budget,
         )?),
-        Listing::List => Found::Listed(colourings(presentation, ColouringSet::All, limit, budget)?),
+        Listing::List => Found::Listed(colourings(
+            presentation,
+            crate::COLOURING_SET,
+            limit,
+            budget,
+        )?),
     })
 }
 
-fn alias_of(colouring: &Colouring, reversing: &[bool]) -> Option<Alias> {
-    match colouring.colours() {
-        1 => Some(Alias::One),
-        2 if is_parity(colouring, reversing) => Some(Alias::Parity),
+fn alias_of(id: ColouringId) -> Option<Alias> {
+    match (id.colours(), id.ordinal()) {
+        (1, 1) => Some(Alias::One),
+        (2, 1) => Some(Alias::Parity),
         _ => None,
     }
 }
 
-fn is_parity(colouring: &Colouring, reversing: &[bool]) -> bool {
-    let table = colouring.table();
-    table.generator_count() == reversing.len()
-        && reversing.iter().enumerate().all(|(side, &reverses)| {
-            u8::try_from(side).is_ok_and(|side| {
-                matches!(
-                    table.image(0, Letter::generator(side)),
-                    Some(coset) if (coset != 0) == reverses
-                )
-            })
-        })
-}
-
-fn push_colourings(lines: &mut Lines, found: Result<Found, String>, reversing: &[bool]) {
+fn push_colourings(lines: &mut Lines, found: Result<Found, String>) {
     let found = match found {
         Ok(found) => found,
         Err(text) => {
@@ -336,7 +319,7 @@ fn push_colourings(lines: &mut Lines, found: Result<Found, String>, reversing: &
     for colouring in found.list() {
         lines.push((
             "Colouring".into(),
-            listed_text(colouring.id(), alias_of(colouring, reversing)),
+            listed_text(colouring.id(), alias_of(colouring.id())),
         ));
     }
 }
@@ -590,12 +573,6 @@ fn push_domain_summary(
                 }
                 lines.push(("Side pairs".into(), pairs.join(", ")));
             }
-            if !domain.reverses_orientation() {
-                lines.push((
-                    "Parity colouring".into(),
-                    "none, every side pairing preserves orientation".to_owned(),
-                ));
-            }
             if !sides.is_empty() {
                 lines.push((
                     "Corner angles in degrees".into(),
@@ -727,9 +704,9 @@ mod tests {
     use escher_signature::Signature;
 
     use super::{
-        Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, check_text, count_label,
-        enumerate_order, failed_checks, index_list, joined, kind_name, listed_text, order_mismatch,
-        order_text, push_colourings, push_order, push_verification, reported, reversing_sides,
+        Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, alias_of, check_text,
+        count_label, enumerate_order, failed_checks, index_list, joined, kind_name, listed_text,
+        order_mismatch, order_text, push_colourings, push_order, push_verification, reported,
         search_colourings, size_text, summary_text, write_text,
     };
     use crate::Status;
@@ -1050,12 +1027,31 @@ mod tests {
             "1a, 1 colour, alias one"
         );
         assert_eq!(
-            listed_text(crate::colouring_id("2g"), Some(Alias::Parity)),
-            "2g, 2 colours, alias parity"
+            listed_text(crate::colouring_id("2a"), Some(Alias::Parity)),
+            "2a, 2 colours, alias parity"
         );
         assert_eq!(
             listed_text(crate::colouring_id("3a"), None),
             "3a, 3 colours"
+        );
+    }
+
+    #[test]
+    fn alias_of_marks_exactly_1a_and_2a() {
+        let aliases: Vec<Option<Alias>> = ["1a", "1b", "2a", "2b", "3a", "12a"]
+            .into_iter()
+            .map(|text| alias_of(crate::colouring_id(text)))
+            .collect();
+        assert_eq!(
+            aliases,
+            [
+                Some(Alias::One),
+                None,
+                Some(Alias::Parity),
+                None,
+                None,
+                None
+            ]
         );
     }
 
@@ -1069,24 +1065,18 @@ mod tests {
         let found = search_colourings(&presentation, IndexLimit::DEFAULT, budget, listing)
             .map_err(|error| error.to_string());
         let mut lines = Vec::new();
-        push_colourings(&mut lines, found, &reversing_sides(&domain));
+        push_colourings(&mut lines, found);
         joined(&lines)
     }
 
     #[test]
     fn a_search_stopped_at_a_limit_prints_only_the_complete_colour_counts() {
-        let head = "Colourings: 4, complete to 2 colours, the search stopped at a limit before 3 colours\n\
-                    Colourings with 1 colour: 1\n\
-                    Colourings with 2 colours: 3\n";
+        let head = "Colourings: 1, complete to 2 colours, the search stopped at a limit before 3 colours\n\
+                    Colourings with 2 colours: 1\n";
         assert_eq!(colouring_text("*632", 3_000, Listing::Count), head);
         assert_eq!(
             colouring_text("*632", 3_000, Listing::List),
-            format!(
-                "{head}Colouring: 1a, 1 colour, alias one\n\
-                 Colouring: 2a, 2 colours\n\
-                 Colouring: 2b, 2 colours\n\
-                 Colouring: 2c, 2 colours, alias parity\n"
-            )
+            format!("{head}Colouring: 2a, 2 colours, alias parity\n")
         );
     }
 
@@ -1104,7 +1094,6 @@ mod tests {
         push_colourings(
             &mut lines,
             Err("cannot search colourings: a limit".to_owned()),
-            &[],
         );
         assert_eq!(
             joined(&lines),

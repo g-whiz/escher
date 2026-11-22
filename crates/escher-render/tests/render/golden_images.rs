@@ -28,7 +28,7 @@ impl GoldenImage {
             GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
         let fill = match self.colouring {
             None => Fill::Parity([even, odd]),
-            Some(id) => Fill::Cosets(coset_fill(domain, colouring(domain, id))),
+            Some(id) => Fill::Cosets(coset_fill(domain, golden_colouring(domain, id))),
         };
         let [yaw, pitch, roll] = self.rotation.map(f64::to_radians);
         match RenderOptions::builder(fill)
@@ -138,23 +138,23 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 33] = [
 ];
 
 pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 18] = [
-    coset("*642", "3a", "cos-6-4-2-3a.png"),
+    coset("*642", "4a", "cos-6-4-2-4a.png"),
     coset("*732", "8a", "cos-7-3-2-8a.png"),
     coset("432", "3a", "cos-rot-4-3-2-3a.png"),
     coset("532", "5a", "cos-rot-5-3-2-5a.png"),
     coset("*2222", "4a", "cos-2-2-2-2-4a.png"),
     coset("*532", "5a", "cos-5-3-2-5a.png"),
-    coset("*22222", "3k", "cos-2-2-2-2-2-3k.png"),
-    coset_with("o", &[("skew", 0.25)], "5e", "cos-wp-o-5e.png"),
-    coset("**", "4q", "cos-wp-s-s-4q.png"),
-    coset("xx", "6k", "cos-wp-x-x-6k.png"),
-    coset("*x", "4g", "cos-wp-s-x-4g.png"),
-    coset("22*", "4e", "cos-wp-2-2-s-4e.png"),
-    coset("22x", "6j", "cos-wp-2-2-x-6j.png"),
-    coset("2*22", "3b", "cos-wp-2-s-2-2-3b.png"),
+    coset("*22222", "8ekf", "cos-2-2-2-2-2-8ekf.png"),
+    coset_with("o", &[("skew", 0.25)], "5c", "cos-wp-o-5c.png"),
+    coset("**", "6g", "cos-wp-s-s-6g.png"),
+    coset("xx", "6f", "cos-wp-x-x-6f.png"),
+    coset("*x", "4c", "cos-wp-s-x-4c.png"),
+    coset("22*", "6h", "cos-wp-2-2-s-6h.png"),
+    coset("22x", "6e", "cos-wp-2-2-x-6e.png"),
+    coset("2*22", "4d", "cos-wp-2-s-2-2-4d.png"),
     coset("4*2", "4c", "cos-wp-4-s-2-4c.png"),
-    coset("3*3", "3b", "cos-wp-3-s-3-3b.png"),
-    coset("3*2", "4c", "cos-sg-3-s-2-4c.png"),
+    coset("3*3", "3a", "cos-wp-3-s-3-3a.png"),
+    coset("3*2", "4a", "cos-sg-3-s-2-4a.png"),
     coset("2*5", "5a", "cos-sg-2-s-5-5a.png"),
 ];
 
@@ -172,18 +172,17 @@ pub(crate) const GOLDEN_COSET_FILL: [[u8; 3]; 8] = [
 ];
 
 pub(crate) fn colourings_of(domain: &FundamentalDomain, colours: u32) -> Vec<Colouring> {
+    colourings_in(domain, colours, ColouringSet::All)
+}
+
+fn colourings_in(domain: &FundamentalDomain, colours: u32, set: ColouringSet) -> Vec<Colouring> {
     let presentation = domain
         .side_presentation()
         .unwrap_or_else(|error| panic!("the domain has no side presentation: {error}"));
     let limit = IndexLimit::new(colours)
         .unwrap_or_else(|error| panic!("{colours} colours are too many: {error}"));
-    let found = colourings_of_index(
-        &presentation,
-        ColouringSet::All,
-        limit,
-        SearchBudget::DEFAULT,
-    )
-    .unwrap_or_else(|error| panic!("the search for {colours} colours fails: {error}"));
+    let found = colourings_of_index(&presentation, set, limit, SearchBudget::DEFAULT)
+        .unwrap_or_else(|error| panic!("the search for {colours} colours fails: {error}"));
     assert!(
         found.is_complete(),
         "the search for {colours} colours is not complete"
@@ -203,11 +202,19 @@ pub(crate) fn find_colouring(colourings: &[Colouring], id: &str) -> Colouring {
 }
 
 pub(crate) fn colouring(domain: &FundamentalDomain, id: &str) -> Colouring {
+    colouring_in(domain, id, ColouringSet::All)
+}
+
+pub(crate) fn golden_colouring(domain: &FundamentalDomain, id: &str) -> Colouring {
+    colouring_in(domain, id, ColouringSet::ValidClasses)
+}
+
+fn colouring_in(domain: &FundamentalDomain, id: &str, set: ColouringSet) -> Colouring {
     let colours = id
         .parse::<ColouringId>()
         .unwrap_or_else(|error| panic!("{id:?} is rejected: {error}"))
         .colours();
-    find_colouring(&colourings_of(domain, colours), id)
+    find_colouring(&colourings_in(domain, colours, set), id)
 }
 
 pub(crate) fn coset_fill(domain: &FundamentalDomain, colouring: Colouring) -> CosetFill {

@@ -383,7 +383,7 @@ mod tests {
     use crate::golden_images::{
         ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_COSET_FILL, GOLDEN_GRID, GOLDEN_IMAGES,
         POLYGON_DOMAINS, WALLPAPER_DOMAINS, colouring, colourings_of, compare, coset_fill,
-        domain_with_aspect, find_colouring, linear_table, renderer,
+        domain_with_aspect, find_colouring, golden_colouring, linear_table, renderer,
     };
     use crate::options::{RenderOptions, Shading};
     use crate::reference::{ReferenceExt, count_bound, plane_border_distance};
@@ -1365,7 +1365,7 @@ mod tests {
             .filter(|image| matches!(image.signature, "*642" | "532"))
             .filter_map(|image| {
                 let domain = image.domain();
-                let colouring = colouring(&domain, image.colouring?);
+                let colouring = golden_colouring(&domain, image.colouring?);
                 Some((domain, colouring))
             })
             .collect();

@@ -1,9 +1,9 @@
 ---
 source: crates/escher-cli/tests/cli/render.rs
-expression: "render_snapshot(\"missing_id\", &[\"*642\", \"--colouring\", \"3d\"])"
+expression: "render_snapshot(\"missing_id\", &[\"*642\", \"--colouring\", \"3a\"])"
 ---
 status: Failure
 --- stdout
 --- stderr
-error: cannot render *642: the colouring 3d does not exist, because the signature has 3 colourings with 3 colours
+error: cannot render *642: the colouring 3a does not exist, because the signature has no colouring with 3 colours
 --- end

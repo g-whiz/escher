@@ -35,9 +35,9 @@ fn render_diagnostic_gives_the_cause_of_an_order_over_the_limit() {
 }
 
 #[test]
-fn render_diagnostic_says_parity_does_not_exist_without_a_reversing_side() {
+fn render_diagnostic_says_parity_does_not_exist_without_a_valid_colouring_with_two_colours() {
     insta::assert_snapshot!(render_snapshot(
-        "parity_without_reversing_side",
+        "parity_without_valid_colouring",
         &["732", "--colouring", "parity"]
     ));
 }
@@ -78,7 +78,7 @@ fn render_diagnostic_gives_the_position_of_a_colour_name() {
 fn render_diagnostic_says_a_colouring_id_does_not_exist() {
     insta::assert_snapshot!(render_snapshot(
         "missing_id",
-        &["*642", "--colouring", "3d"]
+        &["*642", "--colouring", "3a"]
     ));
 }
 
@@ -102,7 +102,7 @@ fn render_diagnostic_counts_two_colours_for_an_id_with_three() {
 fn render_diagnostic_says_the_search_for_an_id_stopped_at_a_limit() {
     insta::assert_snapshot!(render_snapshot(
         "search_limit",
-        &["*666", "--colouring", "12a"]
+        &["*(12)(12)6", "--colouring", "12a"]
     ));
 }
 
@@ -216,14 +216,6 @@ fn render_diagnostic_gives_the_cause_of_a_setting_on_a_spherical_kite() {
     insta::assert_snapshot!(render_snapshot(
         "spherical_kite_setting",
         &["3*2", "--set", "aspect=2"]
-    ));
-}
-
-#[test]
-fn render_diagnostic_says_parity_does_not_exist_for_the_torus() {
-    insta::assert_snapshot!(render_snapshot(
-        "torus_parity",
-        &["o", "--colouring", "parity"]
     ));
 }
 
@@ -512,17 +504,27 @@ fn render_writes_a_png_file_of_the_kite_with_a_third_of_a_turn() {
 }
 
 #[test]
-fn render_draws_each_kite_by_parity_and_with_one_colour_as_its_rotation_signature() {
+fn render_draws_each_kite_with_one_colour_as_its_rotation_signature() {
     for (kite, rotation, name) in [("4*2", "442", "quarter"), ("3*3", "632", "third")] {
-        let default = small_png(&format!("{name}_kite_default_file"), &[kite]);
         let one = small_png(
             &format!("{name}_kite_one_file"),
             &[kite, "--colouring", "one"],
         );
-        let doubled = small_png(&format!("{name}_double_file"), &[rotation]);
-        assert_ne!(default, doubled, "{kite}");
+        let doubled = small_png(
+            &format!("{name}_double_file"),
+            &[rotation, "--colouring", "one"],
+        );
         assert_eq!(one, doubled, "{kite}");
     }
+    let quarter = small_png("quarter_kite_default_file", &["4*2"]);
+    let quarter_parity = small_png("quarter_kite_parity_file", &["4*2", "--colouring", "2a"]);
+    assert_eq!(quarter, quarter_parity);
+    let third = small_png("third_kite_default_file", &["3*3"]);
+    let third_one = small_png(
+        "third_kite_default_one_file",
+        &["3*3", "--colouring", "one"],
+    );
+    assert_eq!(third, third_one);
 }
 
 #[test]
@@ -577,12 +579,12 @@ fn render_draws_each_spherical_kite_with_one_colour_as_its_double() {
         ("2*5", "(10)22", "two_mirror_five"),
     ] {
         let one = small_png(&format!("{name}_one_file"), &[kite, "--colouring", "one"]);
-        let doubled = small_png(&format!("{name}_double_file"), &[double]);
+        let doubled = small_png(
+            &format!("{name}_double_file"),
+            &[double, "--colouring", "one"],
+        );
         assert_eq!(one, doubled, "{kite}");
     }
-    let default = small_png("three_mirror_two_default_file", &["3*2"]);
-    let doubled = small_png("octahedral_double_file", &["432"]);
-    assert_ne!(default, doubled);
 }
 
 #[test]
@@ -730,7 +732,7 @@ fn rendered_colouring_with_threads(test: &str, threads: &str) -> Vec<u8> {
         &[
             "*642",
             "--colouring",
-            "3a",
+            "4a",
             "--size",
             "64x64",
             "--samples",
@@ -750,19 +752,20 @@ fn render_writes_the_same_bytes_of_a_colouring_for_one_thread_and_four() {
         .expect("the domain has a side presentation");
     let found = colourings_of_index(
         &presentation,
-        ColouringSet::All,
-        IndexLimit::new(3).expect("the limit is valid"),
+        ColouringSet::ValidClasses,
+        IndexLimit::new(4).expect("the limit is valid"),
         SearchBudget::DEFAULT,
     )
     .expect("the search runs");
     let colouring = found
-        .find("3a".parse().expect("the id is valid"))
-        .expect("the colouring 3a exists")
+        .find("4a".parse().expect("the id is valid"))
+        .expect("the colouring 4a exists")
         .clone();
     let colours = vec![
         Colour::from_srgb8(0xe9, 0xc4, 0x6a),
         Colour::from_srgb8(0x2a, 0x9d, 0x8f),
         Colour::from_srgb8(0x91, 0x36, 0x71),
+        Colour::from_srgb8(0x91, 0xab, 0x3b),
     ];
     let fill =
         Fill::Cosets(CosetFill::new(&domain, colouring, colours).expect("the fill is valid"));
@@ -854,7 +857,7 @@ fn render_without_a_domain_changes_no_file() {
 }
 
 #[test]
-fn render_with_parity_for_a_domain_without_a_reversing_side_changes_no_file() {
+fn render_with_parity_for_a_domain_without_a_valid_colouring_with_two_colours_changes_no_file() {
     assert_no_file_changes("parity_rotation_file", &["732", "--colouring", "parity"]);
 }
 
@@ -869,9 +872,8 @@ fn render_of_a_two_mirror_order_over_its_limit_changes_no_file() {
 }
 
 #[test]
-fn render_of_the_torus_with_a_skew_outside_its_range_or_parity_changes_no_file() {
+fn render_of_the_torus_with_a_skew_outside_its_range_changes_no_file() {
     assert_no_file_changes("torus_skew_file", &["o", "--set", "skew=0.6"]);
-    assert_no_file_changes("torus_parity_file", &["o", "--colouring", "parity"]);
 }
 
 #[test]
@@ -1055,6 +1057,34 @@ fn render_colours_a_rotation_domain_with_one_colour_by_default() {
 }
 
 #[test]
+fn render_colours_a_domain_without_a_valid_colouring_with_two_colours_with_one_colour_by_default() {
+    for (test, signature) in [("whole_sphere", "1"), ("kite", "3*3"), ("sphere", "532")] {
+        assert_eq!(
+            small_file(&format!("default_{test}"), &[signature]),
+            small_file(&format!("one_{test}"), &[signature, "--colouring", "one"]),
+            "{signature}"
+        );
+    }
+}
+
+#[test]
+fn render_colours_a_domain_that_is_not_all_reversing_by_its_valid_colouring_with_two_colours() {
+    for (test, signature) in [("torus", "o"), ("rotation", "442"), ("mixed", "**")] {
+        let default = small_file(&format!("default_{test}"), &[signature]);
+        assert_eq!(
+            default,
+            small_file(&format!("id_{test}"), &[signature, "--colouring", "2a"]),
+            "{signature}"
+        );
+        assert_ne!(
+            default,
+            small_file(&format!("one_{test}"), &[signature, "--colouring", "one"]),
+            "{signature}"
+        );
+    }
+}
+
+#[test]
 fn render_colours_a_reflection_domain_by_parity_by_default() {
     assert_eq!(
         small_file("default_reflection", &["*732"]),
@@ -1139,6 +1169,9 @@ fn render_draws_the_parity_colouring_as_parity() {
         ("parity_kite", "*642"),
         ("parity_rectangle", "*2222"),
         ("parity_sphere", "*532"),
+        ("parity_torus", "o"),
+        ("parity_rotation", "442"),
+        ("parity_mixed", "4*2"),
     ] {
         let id = parity_id(signature);
         assert_eq!(
@@ -1192,7 +1225,7 @@ fn render_with_parity_on_the_whole_sphere_returns_failure() {
         first_error_line(&["1", "--colouring", "parity"]),
         (
             Status::Failure,
-            "error: cannot render 1: the colouring parity does not exist, because no side pairing reverses orientation"
+            "error: cannot render 1: the colouring parity does not exist, because the signature has no colouring with 2 colours"
                 .to_owned()
         )
     );
@@ -1223,24 +1256,24 @@ fn render_of_a_spherical_kite_with_a_setting_returns_failure() {
 }
 
 #[test]
-fn render_with_parity_for_a_domain_without_a_reversing_side_returns_failure() {
+fn render_with_parity_for_a_domain_without_a_valid_colouring_with_two_colours_returns_failure() {
     assert_eq!(
         first_error_line(&["732", "--colouring", "parity"]),
         (
             Status::Failure,
-            "error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation"
+            "error: cannot render 732: the colouring parity does not exist, because the signature has no colouring with 2 colours"
                 .to_owned()
         )
     );
 }
 
 #[test]
-fn render_with_parity_for_the_torus_returns_failure() {
+fn render_with_an_id_of_a_colouring_that_is_not_valid_returns_failure() {
     assert_eq!(
-        first_error_line(&["o", "--colouring", "parity"]),
+        first_error_line(&["*632", "--colouring", "2b"]),
         (
             Status::Failure,
-            "error: cannot render o: the colouring parity does not exist, because no side pairing reverses orientation"
+            "error: cannot render *632: the colouring 2b does not exist, because the signature has 1 colouring with 2 colours"
                 .to_owned()
         )
     );
@@ -1311,7 +1344,7 @@ fn render_with_a_malformed_colouring_id_returns_usage() {
         first_error_line(&["*732", "--colouring", "3A"]),
         (
             Status::Usage,
-            "error: invalid value '3A' for '--colouring <COLOURING>': expected one, parity, or a colouring id such as 3a"
+            "error: invalid value '3A' for '--colouring <COLOURING>': expected one, parity, or a colouring id such as 4a"
                 .to_owned()
         )
     );
@@ -1320,10 +1353,10 @@ fn render_with_a_malformed_colouring_id_returns_usage() {
 #[test]
 fn render_with_a_colouring_id_reports_a_bad_colour_before_the_search() {
     assert_eq!(
-        first_error_line(&["*666", "--colouring", "12a", "--colours", "oops"]),
+        first_error_line(&["*(12)(12)6", "--colouring", "12a", "--colours", "oops"]),
         (
             Status::Failure,
-            "error: cannot render *666: the colouring 12a needs 12 colours, and 1 was given"
+            "error: cannot render *(12)(12)6: the colouring 12a needs 12 colours, and 1 was given"
                 .to_owned()
         )
     );
@@ -1332,10 +1365,10 @@ fn render_with_a_colouring_id_reports_a_bad_colour_before_the_search() {
 #[test]
 fn render_with_a_colouring_id_reports_more_than_twelve_colours_before_the_search() {
     assert_eq!(
-        first_error_line(&["*666", "--colouring", "13a"]),
+        first_error_line(&["*(12)(12)6", "--colouring", "13a"]),
         (
             Status::Failure,
-            "error: cannot render *666: the colouring 13a needs 13 colours, more than the 12 default colours, so give 13 colours with --colours"
+            "error: cannot render *(12)(12)6: the colouring 13a needs 13 colours, more than the 12 default colours, so give 13 colours with --colours"
                 .to_owned()
         )
     );
@@ -1345,7 +1378,7 @@ fn render_with_a_colouring_id_reports_more_than_twelve_colours_before_the_search
 fn render_with_a_colouring_id_reports_an_empty_size_before_the_search() {
     let outcome = run_args(&[
         "render",
-        "*666",
+        "*(12)(12)6",
         "--colouring",
         "12a",
         "--size",
@@ -1356,7 +1389,7 @@ fn render_with_a_colouring_id_reports_an_empty_size_before_the_search() {
     assert_eq!(outcome.status, Status::Failure);
     assert_eq!(
         outcome.stderr,
-        "error: cannot render *666\n  caused by: cannot build render options: the image size 0x0 is empty\n"
+        "error: cannot render *(12)(12)6\n  caused by: cannot build render options: the image size 0x0 is empty\n"
     );
 }
 

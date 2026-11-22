@@ -21,13 +21,11 @@
 //! sides are not all mirrors, the sides where the group reflects, such as the
 //! domain of `732` or of `**`, has sides that the side pairings join in pairs.
 //! The summary then lists the mirror sides, if the domain has any, and the
-//! pairs of sides. When no side pairing reverses orientation, as for `732` and
-//! `o`, the summary also states that the domain has no colouring by the parity
-//! of reflections. For a domain, the command also
-//! counts the colourings of the tiles that the symmetry respects, one for each
-//! subgroup of finite index, for each number of colours up to the limit that
+//! pairs of sides. For a domain, the command also counts the valid colourings
+//! of the tiles, which the symmetry respects and in which no two neighbouring
+//! tiles share a colour, for each number of colours up to the limit that
 //! the option `--max-colours` sets, 12 by default. With the option
-//! `--colourings`, it lists each colouring with its id, such as `3a`. A search
+//! `--colourings`, it lists each valid colouring with its id, such as `4a`. A search
 //! that stops at its limit on work or memory says up to which number of
 //! colours it is complete. A malformed signature produces a
 //! diagnostic on standard error that locates the error in the signature. With
@@ -50,20 +48,20 @@
 //! builds for the call. It writes the PNG file only after the rendering and
 //! the encoding succeed, and it replaces a file that exists. The option
 //! `--colouring` takes `one`, `parity`, or a colouring id that
-//! `escher info --colourings` lists, such as `3a`. Without it, the command
-//! colours the tiles by the parity of reflections when a side pairing of the
-//! domain reverses orientation, and in one colour otherwise, as for the domain
-//! of `732`. For an id, it gives each tile the colour of its coset in that
-//! colouring. The option `--colours` gives one colour for each colour of the
-//! colouring, and without it the command takes the first colours of a
-//! built-in list of 12. It fails for a signature without a domain, for a
-//! setting that the domain does not accept, for the colouring `parity` of a
-//! domain whose side pairings all preserve orientation, for an id that names
-//! no colouring of the domain or whose search stops at a limit, for an id
-//! with more than 12 colours without `--colours`, and for a number of colours
-//! that differs from that of the colouring. It prints nothing on standard
-//! output unless the option `--stats` is given, which prints statistics of the
-//! rendering after the file is written.
+//! `escher info --colourings` lists, such as `4a`. Without it, the command
+//! draws the valid colouring with two colours, `parity`, when the domain has
+//! one, and one colour otherwise, as for the domain of `632`. For an id, it
+//! gives each tile the colour of its coset in that colouring. The option
+//! `--colours` gives one colour for each colour of the colouring, and without
+//! it the command takes the first colours of a built-in list of 12. It fails
+//! for a signature without a domain, for a setting that the domain does not
+//! accept, for the colouring `parity` of a domain without a valid colouring
+//! with two colours, for an id that names no valid colouring of the domain,
+//! for a colouring whose search stops at a limit, for an id with more than 12
+//! colours without `--colours`, and for a number of colours that differs from
+//! that of the colouring. It prints nothing on standard output unless the
+//! option `--stats` is given, which prints statistics of the rendering after
+//! the file is written.
 //!
 //! ```
 //! use escher_cli::{Status, run};
@@ -237,6 +235,8 @@ fn usage(error: &clap::Error, stdout: &mut dyn Write, stderr: &mut dyn Write) ->
         }
     }
 }
+
+const COLOURING_SET: escher_group::ColouringSet = escher_group::ColouringSet::ValidClasses;
 
 fn count_of_colours(count: u64) -> String {
     if count == 1 {

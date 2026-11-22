@@ -6,7 +6,7 @@ use escher_geometry::hyperbolic::{from_disk, side, to_disk};
 use escher_geometry::spherical;
 use escher_group::{Colouring, ColouringSet, IndexLimit, Letter, SearchBudget, colourings};
 use escher_render::fold;
-use glam::{DVec2, DVec3};
+use glam::{DMat3, DVec2, DVec3};
 use proptest::prelude::{any, prop_assert, prop_assert_eq, prop_assume, proptest};
 use proptest::sample::Index;
 use proptest::test_runner::TestCaseError;
@@ -1059,5 +1059,109 @@ fn spherical_group_folds_of_paired_points_stay_within_the_pairing_bound_with_the
             }
         }
         worst.assert_at_most(&mut reference, bound);
+    }
+}
+
+fn lies_in_subgroup(colouring: &Colouring, side: usize) -> bool {
+    let generator = Letter::generator(u8::try_from(side).unwrap_or(u8::MAX));
+    colouring.table().image(0, generator) == Some(0)
+}
+
+fn neighbour_colours(
+    coloured: &ColouredDomain,
+    colouring: &Colouring,
+    reference: &mut Reference,
+    point: DVec3,
+    neighbour: DVec3,
+) -> Option<(u32, u32)> {
+    let colour = fold_sides(coloured, reference, point)?;
+    let neighbour_colour = fold_sides(coloured, reference, neighbour)?;
+    Some((
+        colouring.colour_of(&colour)?,
+        colouring.colour_of(&neighbour_colour)?,
+    ))
+}
+
+#[test]
+fn a_colouring_is_valid_exactly_when_no_neighbour_of_the_domain_shares_its_colour() {
+    let mut reference = Reference::new();
+    for coloured in COLOURED.iter() {
+        let centre = coloured.domain.centre();
+        for colouring in &coloured.colourings {
+            let mut shared = false;
+            for (side, wall) in coloured.domain.sides().iter().enumerate() {
+                let neighbour = wall.pairing().inverse() * centre;
+                let Some((colour, neighbour_colour)) =
+                    neighbour_colours(coloured, colouring, &mut reference, centre, neighbour)
+                else {
+                    panic!(
+                        "{} {} side {side}: a centre does not fold",
+                        coloured.name,
+                        colouring.id()
+                    );
+                };
+                assert_eq!(colour, 0, "{} {}", coloured.name, colouring.id());
+                assert_eq!(
+                    colour == neighbour_colour,
+                    lies_in_subgroup(colouring, side),
+                    "{} {} side {side}",
+                    coloured.name,
+                    colouring.id()
+                );
+                shared |= colour == neighbour_colour;
+            }
+            assert_eq!(
+                colouring.contained_generator().is_none(),
+                !shared,
+                "{} {}",
+                coloured.name,
+                colouring.id()
+            );
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn no_two_neighbouring_tiles_share_a_colour_in_a_valid_colouring(
+        index in 0..COLOURED_DOMAINS.len(),
+        chosen in any::<Index>(),
+        unit in 0.0..=1.0_f64,
+        angle in 0.0..TAU,
+        word in proptest::collection::vec(any::<Index>(), 0..=3),
+        side in any::<Index>(),
+    ) {
+        let coloured = &COLOURED[index];
+        let colouring = chosen.get(&coloured.colourings);
+        let sides = coloured.domain.sides();
+        let side = side.index(sides.len());
+        let start = fold(&coloured.domain, coloured_point(coloured.measure, unit, angle), DEFAULT_CAP, |_| {});
+        prop_assume!(start.converged());
+        let tile = word
+            .iter()
+            .fold(DMat3::IDENTITY, |tile, step| tile * sides[step.index(sides.len())].pairing());
+        let point = tile * start.point();
+        let neighbour = tile * sides[side].pairing().inverse() * start.point();
+        if coloured.measure == Measure::Hyperbolic {
+            prop_assume!(to_disk(point).length() <= LARGEST_DISK_RADIUS);
+            prop_assume!(to_disk(neighbour).length() <= LARGEST_DISK_RADIUS);
+        }
+        let mut reference = Reference::new();
+        let colours = neighbour_colours(coloured, colouring, &mut reference, point, neighbour);
+        prop_assume!(colours.is_some());
+        let shared = colours.is_some_and(|(colour, neighbour_colour)| colour == neighbour_colour);
+        if colouring.contained_generator().is_none() {
+            prop_assert!(!shared, "{} {} side {}", coloured.name, colouring.id(), side);
+        }
+        if word.is_empty() {
+            prop_assert_eq!(
+                shared,
+                lies_in_subgroup(colouring, side),
+                "{} {} side {}",
+                coloured.name,
+                colouring.id(),
+                side
+            );
+        }
     }
 }
