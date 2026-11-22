@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::LazyLock;
 
 use escher_group::{
-    Colouring, Colourings, CosetLimit, CosetTable, ErrorKind, Letter, Presentation, Relator,
-    SearchBudget, Word, colourings, colourings_of_index, conway_presentation, count_colourings,
-    enumerate,
+    Colouring, ColouringSet, Colourings, CosetLimit, CosetTable, ErrorKind, Letter, Presentation,
+    Relator, SearchBudget, Word, colourings, colourings_of_index, conway_presentation,
+    count_colourings, enumerate,
 };
 use proptest::collection::vec;
 use proptest::prelude::{any, prop_assert, prop_assert_eq};
@@ -16,7 +16,7 @@ use crate::common::{
     FIXTURES, SEARCH_BUDGET, budget, conway, coxeter, index_limit, letter, names,
     random_presentation, small_presentation,
 };
-use crate::search::{class_tables, relabelled, rows};
+use crate::search::{class_tables, published_presentations, relabelled, rows};
 use crate::spherical::spherical_signatures;
 
 fn expanded(relator: &Relator) -> Word {
@@ -259,7 +259,16 @@ proptest! {
 }
 
 fn search(presentation: &Presentation, limit: u32, steps: u64) -> Colourings {
-    match colourings(presentation, index_limit(limit), budget(steps)) {
+    search_set(presentation, ColouringSet::All, limit, steps)
+}
+
+fn search_set(
+    presentation: &Presentation,
+    set: ColouringSet,
+    limit: u32,
+    steps: u64,
+) -> Colourings {
+    match colourings(presentation, set, index_limit(limit), budget(steps)) {
         Ok(found) => found,
         Err(error) => panic!("the search fails: {error}"),
     }
@@ -385,7 +394,7 @@ proptest! {
     #[test]
     fn counts_and_single_colour_counts_agree_with_the_list((presentation, limit) in small_presentation()) {
         let found = search(&presentation, limit, SEARCH_BUDGET);
-        let counts = count_colourings(&presentation, index_limit(limit), budget(SEARCH_BUDGET));
+        let counts = count_colourings(&presentation, ColouringSet::All, index_limit(limit), budget(SEARCH_BUDGET));
         prop_assert!(counts.is_ok());
         if let Ok(counts) = counts
             && found.complete_to() == limit
@@ -397,7 +406,7 @@ proptest! {
                 prop_assert_eq!(counts.colourings(colours), u64::try_from(listed.len()).ok());
                 prop_assert_eq!(found.count(colours), u64::try_from(listed.len()).ok());
                 prop_assert_eq!(counts.classes(colours), u64::try_from(classes).ok());
-                let single = colourings_of_index(&presentation, index_limit(colours), budget(SEARCH_BUDGET));
+                let single = colourings_of_index(&presentation, ColouringSet::All, index_limit(colours), budget(SEARCH_BUDGET));
                 prop_assert!(single.is_ok());
                 if let Ok(single) = single
                     && single.is_complete()
@@ -471,4 +480,186 @@ proptest! {
 fn search_budgets_are_built_from_steps() {
     assert_eq!(budget(5).get(), 5);
     assert_eq!(SearchBudget::default().get(), 1 << 28);
+}
+
+fn is_valid(rows: &[Vec<u32>]) -> bool {
+    rows.first()
+        .is_some_and(|row| row.iter().step_by(2).all(|&entry| entry != 0))
+}
+
+fn valid_classes(
+    all: &Colourings,
+    colours: u32,
+    by_rows: &BTreeMap<Vec<Vec<u32>>, &Colouring>,
+) -> Result<u64, String> {
+    let mut classes = 0_u64;
+    for class in class_tables(all)
+        .into_iter()
+        .filter(|class| class.colours() == colours)
+    {
+        let own = rows(class.table());
+        let bases = u32::try_from(own.len()).map_err(|error| error.to_string())?;
+        let Some(first) = (0..bases)
+            .map(|base| relabelled(&own, base))
+            .find(|table| is_valid(table))
+        else {
+            continue;
+        };
+        classes += 1;
+        let named = by_rows
+            .get(&first)
+            .ok_or_else(|| format!("the first valid conjugate of {} is missing", class.id()))?
+            .id();
+        for member in all
+            .list()
+            .iter()
+            .filter(|member| member.class() == class.id() && member.contained_generator().is_none())
+        {
+            let kept = by_rows
+                .get(&rows(member.table()))
+                .ok_or_else(|| format!("the valid colouring {} is missing", member.id()))?;
+            if kept.class() != named {
+                return Err(format!(
+                    "{} has the class {} and not {named}",
+                    kept.id(),
+                    kept.class()
+                ));
+            }
+        }
+    }
+    Ok(classes)
+}
+
+fn valid_laws(presentation: &Presentation, limit: u32, steps: u64) -> Result<u32, String> {
+    let all = search_set(presentation, ColouringSet::All, limit, steps);
+    let valid = search_set(presentation, ColouringSet::Valid, limit, steps);
+    let counts = count_colourings(
+        presentation,
+        ColouringSet::Valid,
+        index_limit(limit),
+        budget(steps),
+    )
+    .map_err(|error| error.to_string())?;
+    if valid
+        .list()
+        .iter()
+        .any(|colouring| colouring.colours() > valid.complete_to())
+    {
+        return Err("a valid colouring lies above complete_to()".to_owned());
+    }
+    let by_rows: BTreeMap<Vec<Vec<u32>>, &Colouring> = valid
+        .list()
+        .iter()
+        .map(|colouring| (rows(colouring.table()), colouring))
+        .collect();
+    let checked = all.complete_to().min(valid.complete_to());
+    for colours in 1..=checked {
+        let listed = of_count(&valid, colours);
+        let kept: Vec<CosetTable> = of_count(&all, colours)
+            .into_iter()
+            .filter(|colouring| colouring.contained_generator().is_none())
+            .map(|colouring| colouring.table().clone())
+            .collect();
+        let tables: Vec<CosetTable> = listed
+            .iter()
+            .map(|colouring| colouring.table().clone())
+            .collect();
+        if tables != kept {
+            return Err(format!(
+                "the valid tables of {colours} colours are not the filtered ones"
+            ));
+        }
+        for (rank, colouring) in listed.iter().enumerate() {
+            let ordinal = u32::try_from(rank + 1).map_err(|error| error.to_string())?;
+            if colouring.id().colours() != colours || colouring.id().ordinal() != ordinal {
+                return Err(format!("{} is not ranked {ordinal}", colouring.id()));
+            }
+        }
+        if valid.count(colours) != u64::try_from(listed.len()).ok() {
+            return Err(format!(
+                "the count of {colours} colours differs from the list"
+            ));
+        }
+        let classes = valid_classes(&all, colours, &by_rows)?;
+        let named = listed
+            .iter()
+            .filter(|colouring| colouring.class() == colouring.id())
+            .count();
+        if u64::try_from(named).ok() != Some(classes) {
+            return Err(format!(
+                "{colours} colours name {named} classes, not {classes}"
+            ));
+        }
+        if colours <= counts.complete_to()
+            && (counts.colourings(colours) != u64::try_from(listed.len()).ok()
+                || counts.classes(colours) != Some(classes))
+        {
+            return Err(format!(
+                "the counts of {colours} colours differ from the list"
+            ));
+        }
+        let single = colourings_of_index(
+            presentation,
+            ColouringSet::Valid,
+            index_limit(colours),
+            budget(steps),
+        )
+        .map_err(|error| error.to_string())?;
+        if single.is_complete() && single.list() != listed.as_slice() {
+            return Err(format!(
+                "the single search of {colours} colours differs from the list"
+            ));
+        }
+    }
+    Ok(checked)
+}
+
+fn valid_two_colourings(presentation: &Presentation) -> Result<usize, String> {
+    let found = colourings_of_index(
+        presentation,
+        ColouringSet::Valid,
+        index_limit(2),
+        SearchBudget::DEFAULT,
+    )
+    .map_err(|error| error.to_string())?;
+    if !found.is_complete() {
+        return Err("the search of 2 colours stopped at a limit".to_owned());
+    }
+    Ok(found.list().len())
+}
+
+proptest! {
+    #[test]
+    fn valid_colourings_are_the_filtered_colourings_of_all((presentation, limit) in small_presentation()) {
+        let checked = valid_laws(&presentation, limit, SEARCH_BUDGET);
+        prop_assert!(checked.is_ok(), "{:?}", checked);
+    }
+
+    #[test]
+    fn a_presentation_has_at_most_one_valid_two_colouring((presentation, _) in small_presentation()) {
+        let count = valid_two_colourings(&presentation);
+        prop_assert!(count.as_ref().is_ok_and(|&count| count <= 1), "{:?}", count);
+    }
+}
+
+#[test]
+fn the_published_presentations_filter_their_valid_colourings() {
+    for (label, presentation) in published_presentations() {
+        assert_eq!(
+            valid_laws(&presentation, 10, SearchBudget::DEFAULT.get()),
+            Ok(10),
+            "{label}"
+        );
+    }
+}
+
+#[test]
+fn the_published_presentations_have_at_most_one_valid_two_colouring() {
+    for (label, presentation) in published_presentations() {
+        let count = valid_two_colourings(&presentation);
+        assert!(
+            count.as_ref().is_ok_and(|&count| count <= 1),
+            "{label} {count:?}"
+        );
+    }
 }

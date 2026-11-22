@@ -139,13 +139,13 @@ impl FromStr for ColouringId {
 ///
 /// ```
 /// use escher_group::{
-///     ColouringId, IndexLimit, SearchBudget, colourings_of_index, conway_presentation,
+///     ColouringId, ColouringSet, IndexLimit, SearchBudget, colourings_of_index, conway_presentation,
 /// };
 /// use escher_signature::Signature;
 ///
 /// let signature: Signature = "532".parse()?;
 /// let presentation = conway_presentation(&signature)?;
-/// let found = colourings_of_index(&presentation, IndexLimit::new(5)?, SearchBudget::DEFAULT)?;
+/// let found = colourings_of_index(&presentation, ColouringSet::All, IndexLimit::new(5)?, SearchBudget::DEFAULT)?;
 /// assert!(found.is_complete());
 /// let colouring = found.find("5a".parse()?).ok_or("5a is missing")?;
 /// assert_eq!(colouring.colours(), 5);
@@ -171,13 +171,20 @@ impl Colouring {
         self.id
     }
 
-    /// Returns the least id in the conjugacy class of the subgroup.
+    /// Returns the id of one colouring of the conjugacy class of the
+    /// subgroup, the same for all of its conjugates in the result.
     ///
-    /// All conjugates of one subgroup return the same id. The search keeps
-    /// one table for each class, the least of the tables that relabelling it
-    /// from each of its cosets gives, and ids rank tables in that same order.
-    /// The kept table therefore has the least id, and it is the one member of
-    /// the class whose `class()` equals its `id()`.
+    /// The search keeps one table for each class, the least of the tables
+    /// that relabelling it from each of its cosets gives, and relabels it
+    /// from coset 0 upward. The class names the first of those relabellings
+    /// that the call returns. With [`ColouringSet::All`](crate::ColouringSet::All)
+    /// that is the kept table itself, which has the least id of its class,
+    /// because ids rank tables in the same order. With
+    /// [`ColouringSet::Valid`](crate::ColouringSet::Valid) the kept table can
+    /// be left out, and the class then names a valid colouring of the class
+    /// that the call does return. Either way the colouring that the class
+    /// names is the one member of the class whose `class()` equals its
+    /// `id()`.
     #[must_use]
     pub fn class(&self) -> ColouringId {
         self.class
@@ -209,12 +216,12 @@ impl Colouring {
     /// # Examples
     ///
     /// ```
-    /// use escher_group::{IndexLimit, Letter, SearchBudget, colourings, conway_presentation};
+    /// use escher_group::{ColouringSet, IndexLimit, Letter, SearchBudget, colourings, conway_presentation};
     /// use escher_signature::Signature;
     ///
     /// let signature: Signature = "532".parse()?;
     /// let presentation = conway_presentation(&signature)?;
-    /// let found = colourings(&presentation, IndexLimit::new(6)?, SearchBudget::DEFAULT)?;
+    /// let found = colourings(&presentation, ColouringSet::All, IndexLimit::new(6)?, SearchBudget::DEFAULT)?;
     /// for colouring in found.list() {
     ///     let inner = colouring.colour_of(&[1, 2]).ok_or("side 1 or 2 is missing")?;
     ///     let outer = colouring.colour_of(&[0, 1, 2]).ok_or("side 0 is missing")?;
@@ -228,6 +235,44 @@ impl Colouring {
             self.table.image(coset, Letter::inverse_of(side))
         })
     }
+
+    /// Returns the least generator that lies in the subgroup, or `None` when
+    /// no generator does, which is when the colouring is valid.
+    ///
+    /// A generator lies in the subgroup when it maps coset 0 to coset 0 in
+    /// the table, and the test reads one entry for each generator. The
+    /// colouring with one colour is the whole group, so it contains generator
+    /// 0 of every presentation that has a generator, and it is valid only for
+    /// a presentation with no generator.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use escher_group::{
+    ///     ColouringSet, IndexLimit, Letter, Presentation, Relator, SearchBudget, Word, colourings,
+    /// };
+    ///
+    /// let x = Letter::generator(0);
+    /// let square = Relator::new([x].into_iter().collect::<Word>(), 2)?;
+    /// let presentation = Presentation::new(vec!["x".to_owned()], vec![square])?;
+    /// let found = colourings(&presentation, ColouringSet::All, IndexLimit::new(2)?, SearchBudget::DEFAULT)?;
+    /// let whole = found.find("1a".parse()?).ok_or("1a is missing")?;
+    /// assert_eq!(whole.contained_generator(), Some(0));
+    /// let halves = found.find("2a".parse()?).ok_or("2a is missing")?;
+    /// assert_eq!(halves.contained_generator(), None);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn contained_generator(&self) -> Option<u8> {
+        self.table.row(0).and_then(fixed_generator)
+    }
+}
+
+pub(crate) fn fixed_generator(row: &[u32]) -> Option<u8> {
+    row.iter()
+        .step_by(2)
+        .position(|&entry| entry == 0)
+        .and_then(|generator| u8::try_from(generator).ok())
 }
 
 /// The colourings that one search found, ordered by id, with how far the
@@ -241,12 +286,12 @@ impl Colouring {
 /// # Examples
 ///
 /// ```
-/// use escher_group::{IndexLimit, SearchBudget, colourings, conway_presentation};
+/// use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings, conway_presentation};
 /// use escher_signature::Signature;
 ///
 /// let signature: Signature = "532".parse()?;
 /// let presentation = conway_presentation(&signature)?;
-/// let found = colourings(&presentation, IndexLimit::new(6)?, SearchBudget::DEFAULT)?;
+/// let found = colourings(&presentation, ColouringSet::All, IndexLimit::new(6)?, SearchBudget::DEFAULT)?;
 /// assert_eq!((found.requested(), found.complete_to()), (6, 6));
 /// let ids: Vec<String> = found.list().iter().map(|colouring| colouring.id().to_string()).collect();
 /// assert_eq!(ids.first().map(String::as_str), Some("1a"));
@@ -307,12 +352,12 @@ impl Colourings {
     /// # Examples
     ///
     /// ```
-    /// use escher_group::{IndexLimit, SearchBudget, colourings, conway_presentation};
+    /// use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings, conway_presentation};
     /// use escher_signature::Signature;
     ///
     /// let signature: Signature = "*642".parse()?;
     /// let presentation = conway_presentation(&signature)?;
-    /// let found = colourings(&presentation, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
+    /// let found = colourings(&presentation, ColouringSet::All, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
     /// assert_eq!(found.count(2), Some(7));
     /// assert_eq!(found.count(4), None);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -346,12 +391,12 @@ impl Colourings {
 /// # Examples
 ///
 /// ```
-/// use escher_group::{ColouringId, IndexLimit, SearchBudget, colourings_of_index, conway_presentation};
+/// use escher_group::{ColouringSet, ColouringId, IndexLimit, SearchBudget, colourings_of_index, conway_presentation};
 /// use escher_signature::Signature;
 ///
 /// let signature: Signature = "*642".parse()?;
 /// let presentation = conway_presentation(&signature)?;
-/// let found = colourings_of_index(&presentation, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
+/// let found = colourings_of_index(&presentation, ColouringSet::All, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
 /// assert_eq!(found.colours(), 3);
 /// assert!(found.is_complete());
 /// assert_eq!(found.list().len(), 3);
@@ -421,12 +466,12 @@ impl ColouringsOfIndex {
 /// # Examples
 ///
 /// ```
-/// use escher_group::{IndexLimit, SearchBudget, conway_presentation, count_colourings};
+/// use escher_group::{ColouringSet, IndexLimit, SearchBudget, conway_presentation, count_colourings};
 /// use escher_signature::Signature;
 ///
 /// let signature: Signature = "532".parse()?;
 /// let presentation = conway_presentation(&signature)?;
-/// let counts = count_colourings(&presentation, IndexLimit::new(6)?, SearchBudget::DEFAULT)?;
+/// let counts = count_colourings(&presentation, ColouringSet::All, IndexLimit::new(6)?, SearchBudget::DEFAULT)?;
 /// assert_eq!(counts.complete_to(), 6);
 /// assert_eq!(counts.colourings(5), Some(5));
 /// assert_eq!(counts.classes(5), Some(1));
@@ -498,10 +543,11 @@ impl ColouringCounts {
 
 #[cfg(test)]
 mod tests {
-    use super::{Colouring, ColouringId};
-    use crate::common::{conway, index_limit};
+    use super::{Colouring, ColouringId, Colourings};
+    use crate::common::{conway, coxeter, index_limit, presentation};
     use crate::error::ErrorKind;
-    use crate::search::{SearchBudget, colourings};
+    use crate::presentation::Presentation;
+    use crate::search::{ColouringSet, SearchBudget, colourings};
     use crate::word::Letter;
 
     #[test]
@@ -576,8 +622,13 @@ mod tests {
 
     #[test]
     fn colour_of_applies_the_inverse_of_the_first_side_last() {
-        let found = colourings(&conway("532"), index_limit(6), SearchBudget::DEFAULT)
-            .expect("the search runs");
+        let found = colourings(
+            &conway("532"),
+            ColouringSet::All,
+            index_limit(6),
+            SearchBudget::DEFAULT,
+        )
+        .expect("the search runs");
         assert_eq!(found.complete_to(), 6);
         assert_eq!(found.list().len(), 12);
         for colouring in found.list() {
@@ -599,6 +650,65 @@ mod tests {
             }
             assert_eq!(colouring.colour_of(&[3]), None);
             assert_eq!(colouring.colour_of(&[0, 255, 1]), None);
+        }
+    }
+
+    fn search_of(presentation: &Presentation, set: ColouringSet, limit: u32) -> Colourings {
+        let found = colourings(presentation, set, index_limit(limit), SearchBudget::DEFAULT)
+            .expect("the search runs");
+        assert_eq!(found.complete_to(), limit);
+        found
+    }
+
+    #[test]
+    fn contained_generator_is_the_least_generator_that_fixes_coset_0() {
+        let dihedral = presentation("xy", &[("x", 2), ("y", 2), ("xy", 3)]);
+        for (presentation, generators) in [(dihedral.clone(), 2), (coxeter(6, 4, 2), 3)] {
+            for colouring in search_of(&presentation, ColouringSet::All, 6).list() {
+                let least = (0..generators).find(|&generator| {
+                    colouring.table().image(0, Letter::generator(generator)) == Some(0)
+                });
+                assert_eq!(colouring.contained_generator(), least, "{}", colouring.id());
+            }
+        }
+        let contained = |presentation: &Presentation, colours: u32| -> Vec<Option<u8>> {
+            let mut contained: Vec<Option<u8>> =
+                search_of(presentation, ColouringSet::All, colours)
+                    .list()
+                    .iter()
+                    .filter(|colouring| colouring.colours() == colours)
+                    .map(Colouring::contained_generator)
+                    .collect();
+            contained.sort_unstable();
+            contained
+        };
+        assert_eq!(contained(&dihedral, 3), [None, Some(0), Some(1)]);
+        assert_eq!(
+            contained(&coxeter(6, 4, 2), 2),
+            [None, Some(0), Some(0), Some(0), Some(1), Some(1), Some(2)]
+        );
+    }
+
+    #[test]
+    fn one_colour_is_valid_only_without_generators() {
+        let trivial = Presentation::new(Vec::new(), Vec::new()).expect("it is valid");
+        let found = search_of(&trivial, ColouringSet::Valid, 2);
+        let ids: Vec<String> = found
+            .list()
+            .iter()
+            .map(|colouring| colouring.id().to_string())
+            .collect();
+        assert_eq!(ids, ["1a"]);
+        assert_eq!(
+            found.list().first().map(Colouring::contained_generator),
+            Some(None)
+        );
+        for presentation in [conway("532"), coxeter(6, 4, 2), conway("x")] {
+            let all = search_of(&presentation, ColouringSet::All, 1);
+            let whole = all.list().first().expect("the whole group");
+            assert_eq!(whole.contained_generator(), Some(0));
+            let valid = search_of(&presentation, ColouringSet::Valid, 1);
+            assert_eq!((valid.list().len(), valid.count(1)), (0, Some(0)));
         }
     }
 

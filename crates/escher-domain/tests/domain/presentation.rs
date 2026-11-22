@@ -3,8 +3,8 @@ use std::time::{Duration, Instant};
 use escher_domain::{FundamentalDomain, PairingKind};
 use escher_geometry::{hyperbolic, spherical};
 use escher_group::{
-    CosetLimit, IndexLimit, Letter, Presentation, Relator, SearchBudget, Word, conway_presentation,
-    count_colourings, enumerate,
+    ColouringSet, CosetLimit, IndexLimit, Letter, Presentation, Relator, SearchBudget, Word,
+    conway_presentation, count_colourings, enumerate,
 };
 use escher_signature::Geometry;
 use glam::{DMat3, DVec3};
@@ -618,7 +618,7 @@ fn side_and_conway_presentations_of_the_wallpaper_domains_give_equal_colouring_c
         };
         let counts = [("side", &side), ("Conway", &conway)].map(|(name, presentation)| {
             let started = Instant::now();
-            let counts = match count_colourings(presentation, limit, SearchBudget::DEFAULT) {
+            let counts = match count_colourings(presentation, ColouringSet::All, limit, SearchBudget::DEFAULT) {
                 Ok(counts) => counts,
                 Err(error) => panic!("{text}: the search of the {name} presentation fails: {error}"),
             };
@@ -791,7 +791,12 @@ fn colouring_counts(
         panic!("{colours} colours are out of range");
     };
     let started = Instant::now();
-    let counts = match count_colourings(presentation, limit, SearchBudget::DEFAULT) {
+    let counts = match count_colourings(
+        presentation,
+        ColouringSet::All,
+        limit,
+        SearchBudget::DEFAULT,
+    ) {
         Ok(counts) => counts,
         Err(error) => panic!("{text}: the search of the {name} presentation fails: {error}"),
     };

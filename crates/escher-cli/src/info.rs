@@ -4,8 +4,9 @@ use std::io::Write;
 
 use escher_domain::{Check, FundamentalDomain, Orientation, PairingKind, Verification, parameters};
 use escher_group::{
-    Colouring, ColouringCounts, ColouringId, Colourings, CosetLimit, ErrorKind, IndexLimit, Letter,
-    Presentation, SearchBudget, colourings, conway_presentation, count_colourings, enumerate,
+    Colouring, ColouringCounts, ColouringId, ColouringSet, Colourings, CosetLimit, ErrorKind,
+    IndexLimit, Letter, Presentation, SearchBudget, colourings, conway_presentation,
+    count_colourings, enumerate,
 };
 use escher_signature::{Geometry, Rational, Signature};
 
@@ -278,8 +279,13 @@ fn search_colourings(
     listing: Listing,
 ) -> escher_group::Result<Found> {
     Ok(match listing {
-        Listing::Count => Found::Counted(count_colourings(presentation, limit, budget)?),
-        Listing::List => Found::Listed(colourings(presentation, limit, budget)?),
+        Listing::Count => Found::Counted(count_colourings(
+            presentation,
+            ColouringSet::All,
+            limit,
+            budget,
+        )?),
+        Listing::List => Found::Listed(colourings(presentation, ColouringSet::All, limit, budget)?),
     })
 }
 

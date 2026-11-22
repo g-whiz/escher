@@ -3,7 +3,7 @@ use std::path::Path;
 
 use escher_cli::{Status, run};
 use escher_domain::FundamentalDomain;
-use escher_group::{IndexLimit, SearchBudget, colourings_of_index};
+use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings_of_index};
 use escher_render::{Colour, CosetFill, Fill, RenderOptions, Renderer, encode_png};
 use escher_signature::Signature;
 
@@ -750,6 +750,7 @@ fn render_writes_the_same_bytes_of_a_colouring_for_one_thread_and_four() {
         .expect("the domain has a side presentation");
     let found = colourings_of_index(
         &presentation,
+        ColouringSet::All,
         IndexLimit::new(3).expect("the limit is valid"),
         SearchBudget::DEFAULT,
     )

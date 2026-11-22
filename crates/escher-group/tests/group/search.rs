@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use escher_group::{
-    Colouring, Colourings, CosetLimit, CosetTable, Letter, Presentation, SearchBudget, Word,
-    colourings, count_colourings, enumerate,
+    Colouring, ColouringSet, Colourings, CosetLimit, CosetTable, Letter, Presentation,
+    SearchBudget, Word, colourings, count_colourings, enumerate,
 };
 
 use crate::common::{
@@ -11,7 +11,12 @@ use crate::common::{
 };
 
 pub(crate) fn listing(presentation: &Presentation, limit: u32) -> Colourings {
-    match colourings(presentation, index_limit(limit), SearchBudget::DEFAULT) {
+    match colourings(
+        presentation,
+        ColouringSet::All,
+        index_limit(limit),
+        SearchBudget::DEFAULT,
+    ) {
         Ok(found) => found,
         Err(error) => panic!("the search fails: {error}"),
     }
@@ -57,6 +62,32 @@ pub(crate) fn relabelled(rows: &[Vec<u32>], base: u32) -> Vec<Vec<u32>> {
                 .collect()
         })
         .collect()
+}
+
+pub(crate) fn rotation_sides(p: u32, q: u32) -> Presentation {
+    presentation(
+        "abcd",
+        &[("ab", 1), ("cd", 1), ("b", p), ("ca", 2), ("d", q)],
+    )
+}
+
+pub(crate) fn published_presentations() -> Vec<(&'static str, Presentation)> {
+    vec![
+        ("*732", coxeter(7, 3, 2)),
+        ("*832", coxeter(8, 3, 2)),
+        ("*542", coxeter(5, 4, 2)),
+        ("*432", coxeter(4, 3, 2)),
+        ("*642", coxeter(6, 4, 2)),
+        ("*842", coxeter(8, 4, 2)),
+        ("*664", coxeter(6, 6, 4)),
+        ("732", rotation_sides(7, 3)),
+        ("832", rotation_sides(8, 3)),
+        ("542", rotation_sides(5, 4)),
+        ("532", conway("532")),
+        ("642", conway("642")),
+        ("433", conway("433")),
+        ("2222", conway("2222")),
+    ]
 }
 
 pub(crate) fn class_tables(found: &Colourings) -> Vec<&Colouring> {
@@ -595,13 +626,6 @@ fn triangle(text: &str) -> (u32, u32) {
     (orders[0], orders[1])
 }
 
-fn rotation_sides(p: u32, q: u32) -> Presentation {
-    presentation(
-        "abcd",
-        &[("ab", 1), ("cd", 1), ("b", p), ("ca", 2), ("d", q)],
-    )
-}
-
 #[test]
 fn frettloh_table_1_counts_the_classes_with_a_fixed_coset() {
     for case in TABLE_1 {
@@ -671,8 +695,13 @@ fn the_cube_has_one_perfect_colouring_with_1_3_and_6_colours() {
 #[test]
 fn triangles_with_even_orders_have_seven_two_colourings() {
     for (p, q) in [(6, 4), (8, 4), (6, 6)] {
-        let counts = count_colourings(&coxeter(p, q, 2), index_limit(2), SearchBudget::DEFAULT)
-            .expect("the search runs");
+        let counts = count_colourings(
+            &coxeter(p, q, 2),
+            ColouringSet::All,
+            index_limit(2),
+            SearchBudget::DEFAULT,
+        )
+        .expect("the search runs");
         assert_eq!(counts.colourings(2), Some(7), "*{p}{q}2");
         assert_eq!(counts.classes(2), Some(7), "*{p}{q}2");
     }
@@ -688,8 +717,13 @@ fn bulatov_colour_counts_exist() {
     ];
     for (label, presentation, shown) in cases {
         let largest = shown.iter().copied().max().expect("a count");
-        let counts = count_colourings(&presentation, index_limit(largest), SearchBudget::DEFAULT)
-            .expect("the search runs");
+        let counts = count_colourings(
+            &presentation,
+            ColouringSet::All,
+            index_limit(largest),
+            SearchBudget::DEFAULT,
+        )
+        .expect("the search runs");
         assert_eq!(counts.complete_to(), largest, "{label}");
         for &colours in shown {
             assert!(

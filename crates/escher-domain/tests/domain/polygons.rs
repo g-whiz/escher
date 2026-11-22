@@ -4,7 +4,7 @@ use std::time::Instant;
 use astro_float_num::BigFloat;
 use escher_domain::{ErrorKind, FundamentalDomain, ParameterSpec, ShapeParameters, parameters};
 use escher_geometry::hyperbolic;
-use escher_group::{IndexLimit, SearchBudget, conway_presentation, count_colourings};
+use escher_group::{ColouringSet, IndexLimit, SearchBudget, conway_presentation, count_colourings};
 use escher_signature::{Geometry, Signature};
 use proptest::prelude::{prop_assert, prop_assert_eq, prop_oneof, proptest};
 use proptest::sample::select;
@@ -886,7 +886,12 @@ fn side_and_conway_presentations_give_equal_colouring_counts() {
             Err(error) => panic!("{text} has no Conway presentation: {error}"),
         };
         let counts = [&side, &conway].map(|presentation| {
-            match count_colourings(presentation, limit, SearchBudget::DEFAULT) {
+            match count_colourings(
+                presentation,
+                ColouringSet::All,
+                limit,
+                SearchBudget::DEFAULT,
+            ) {
                 Ok(counts) => counts,
                 Err(error) => panic!("{text}: the search fails: {error}"),
             }

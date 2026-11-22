@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use escher_domain::{FundamentalDomain, ParameterSpec, ShapeParameters, parameters};
-use escher_group::{ColouringId, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index};
+use escher_group::{
+    ColouringId, ColouringSet, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index,
+};
 use escher_render::{
     Colour, CosetFill, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png,
 };
@@ -304,7 +306,8 @@ fn resolve(
     let context = || format!("cannot render {signature}");
     let presentation = domain.side_presentation().with_context(context)?;
     let colours = IndexLimit::new(id.colours()).with_context(context)?;
-    let found = colourings_of_index(&presentation, colours, budget).with_context(context)?;
+    let found = colourings_of_index(&presentation, ColouringSet::All, colours, budget)
+        .with_context(context)?;
     found_colouring(&found, id).map_err(|detail| cannot_render(signature, detail))
 }
 

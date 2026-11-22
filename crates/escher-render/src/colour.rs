@@ -104,13 +104,13 @@ pub enum Fill {
 ///
 /// ```
 /// use escher_domain::FundamentalDomain;
-/// use escher_group::{IndexLimit, SearchBudget, colourings_of_index};
+/// use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings_of_index};
 /// use escher_render::{Colour, CosetFill, Fill, RenderOptions, Renderer};
 /// use escher_signature::Signature;
 ///
 /// let domain = FundamentalDomain::build(&"*642".parse::<Signature>()?)?;
 /// let presentation = domain.side_presentation()?;
-/// let found = colourings_of_index(&presentation, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
+/// let found = colourings_of_index(&presentation, ColouringSet::All, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
 /// let colouring = found.find("3a".parse()?).ok_or("3a is missing")?.clone();
 /// let colours = vec![
 ///     Colour::from_srgb8(245, 222, 179),
@@ -380,6 +380,7 @@ mod tests {
         };
         let found = match escher_group::colourings_of_index(
             &swapped,
+            escher_group::ColouringSet::All,
             limit,
             escher_group::SearchBudget::DEFAULT,
         ) {

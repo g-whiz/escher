@@ -1,5 +1,7 @@
 use escher_domain::{FundamentalDomain, ShapeParameters, parameters};
-use escher_group::{Colouring, ColouringId, IndexLimit, SearchBudget, colourings_of_index};
+use escher_group::{
+    Colouring, ColouringId, ColouringSet, IndexLimit, SearchBudget, colourings_of_index,
+};
 use escher_signature::Signature;
 use glam::{DMat3, DVec2};
 
@@ -175,8 +177,13 @@ pub(crate) fn colourings_of(domain: &FundamentalDomain, colours: u32) -> Vec<Col
         .unwrap_or_else(|error| panic!("the domain has no side presentation: {error}"));
     let limit = IndexLimit::new(colours)
         .unwrap_or_else(|error| panic!("{colours} colours are too many: {error}"));
-    let found = colourings_of_index(&presentation, limit, SearchBudget::DEFAULT)
-        .unwrap_or_else(|error| panic!("the search for {colours} colours fails: {error}"));
+    let found = colourings_of_index(
+        &presentation,
+        ColouringSet::All,
+        limit,
+        SearchBudget::DEFAULT,
+    )
+    .unwrap_or_else(|error| panic!("the search for {colours} colours fails: {error}"));
     assert!(
         found.is_complete(),
         "the search for {colours} colours is not complete"

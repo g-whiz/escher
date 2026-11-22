@@ -1,4 +1,6 @@
-use crate::colouring::{Colouring, ColouringCounts, ColouringId, Colourings, ColouringsOfIndex};
+use crate::colouring::{
+    Colouring, ColouringCounts, ColouringId, Colourings, ColouringsOfIndex, fixed_generator,
+};
 use crate::enumerate::{Prepared, build, check_expanded, grow_within};
 use crate::error::{Detail, Error, Limit, Result};
 use crate::presentation::Presentation;
@@ -122,15 +124,67 @@ impl Default for SearchBudget {
     }
 }
 
-/// Counts the colourings, which are the subgroups of finite index, and their
-/// conjugacy classes for each colour count from 1 to `limit` in the group of
-/// `presentation`.
+/// The colourings that a search returns: every subgroup of finite index, or
+/// only the valid ones.
+///
+/// A colouring is valid when no generator of the presentation lies in its
+/// subgroup, which [`Colouring::contained_generator`] tests. `Valid` returns
+/// exactly the colourings that `All` returns with `contained_generator()`
+/// equal to `None`, in the same order. The ids of each colour count are
+/// ranked within the set, so with `Valid` they run from `a` with no gap,
+/// and the same id can name another colouring, or none, under `All`.
+///
+/// # Examples
+///
+/// ```
+/// use escher_group::{
+///     ColouringSet, IndexLimit, Letter, Presentation, Relator, SearchBudget, Word, colourings,
+/// };
+///
+/// let [x, y] = [Letter::generator(0), Letter::generator(1)];
+/// let relators = vec![
+///     Relator::new([x].into_iter().collect::<Word>(), 2)?,
+///     Relator::new([y].into_iter().collect::<Word>(), 2)?,
+///     Relator::new([x, y].into_iter().collect::<Word>(), 3)?,
+/// ];
+/// let presentation = Presentation::new(vec!["x".to_owned(), "y".to_owned()], relators)?;
+/// let limit = IndexLimit::new(6)?;
+/// let all = colourings(&presentation, ColouringSet::All, limit, SearchBudget::DEFAULT)?;
+/// let valid = colourings(&presentation, ColouringSet::Valid, limit, SearchBudget::DEFAULT)?;
+/// let filtered: Vec<_> = all
+///     .list()
+///     .iter()
+///     .filter(|colouring| colouring.contained_generator().is_none())
+///     .map(|colouring| colouring.table())
+///     .collect();
+/// let tables: Vec<_> = valid.list().iter().map(|colouring| colouring.table()).collect();
+/// assert_eq!(tables, filtered);
+/// let ids: Vec<String> = valid.list().iter().map(|colouring| colouring.id().to_string()).collect();
+/// assert_eq!(ids, ["2a", "3a", "6a"]);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[expect(
+    clippy::exhaustive_enums,
+    reason = "a colouring either is valid or is not, so a search returns every colouring or the valid ones and no third set"
+)]
+pub enum ColouringSet {
+    /// Every subgroup of finite index, each its own colouring.
+    All,
+    /// The colourings in which no generator lies in the subgroup.
+    Valid,
+}
+
+/// Counts the colourings of `set`, which are the subgroups of finite index or
+/// the valid ones among them, and their conjugacy classes for each colour
+/// count from 1 to `limit` in the group of `presentation`.
 ///
 /// The search is the low-index subgroup search over partial coset tables. It
 /// keeps one table for each conjugacy class and counts the distinct tables
 /// that relabelling it from each of its cosets gives, which are the
-/// subgroups of the class. It stores none of them, so only `budget` can stop
-/// it.
+/// subgroups of the class. With [`ColouringSet::Valid`] it counts only the
+/// valid ones, and a class counts only when one of its subgroups is valid.
+/// It stores none of them, so only `budget` can stop it.
 ///
 /// A first run looks for every subgroup of index up to `limit`. When it
 /// reaches the budget, the call discards what it found and runs the bounds
@@ -142,12 +196,15 @@ impl Default for SearchBudget {
 /// # Examples
 ///
 /// ```
-/// use escher_group::{IndexLimit, Letter, Presentation, Relator, SearchBudget, Word, count_colourings};
+/// use escher_group::{
+///     ColouringSet, IndexLimit, Letter, Presentation, Relator, SearchBudget, Word, count_colourings,
+/// };
 ///
 /// let x = Letter::generator(0);
 /// let square = Relator::new([x].into_iter().collect::<Word>(), 2)?;
 /// let presentation = Presentation::new(vec!["x".to_owned(), "y".to_owned()], vec![square])?;
-/// let counts = count_colourings(&presentation, IndexLimit::new(5)?, SearchBudget::DEFAULT)?;
+/// let limit = IndexLimit::new(5)?;
+/// let counts = count_colourings(&presentation, ColouringSet::All, limit, SearchBudget::DEFAULT)?;
 /// let numbers: Vec<Option<u64>> = (1..=5).map(|colours| counts.colourings(colours)).collect();
 /// assert_eq!(numbers, [Some(1), Some(3), Some(7), Some(23), Some(71)]);
 /// assert_eq!(counts.classes(3), Some(3));
@@ -163,10 +220,11 @@ impl Default for SearchBudget {
 /// error.
 pub fn count_colourings(
     presentation: &Presentation,
+    set: ColouringSet,
     limit: IndexLimit,
     budget: SearchBudget,
 ) -> Result<ColouringCounts> {
-    let settings = Settings::new(budget);
+    let settings = Settings::new(budget).within(set);
     let (found, _) = search(presentation, limit.get(), Request::Count, settings)?;
     Ok(ColouringCounts::new(
         limit.get(),
@@ -176,27 +234,28 @@ pub fn count_colourings(
     ))
 }
 
-/// Lists the colourings, which are the subgroups of finite index, for each
-/// colour count from 1 to `limit` in the group of `presentation`, ordered by
-/// id.
+/// Lists the colourings of `set`, which are the subgroups of finite index or
+/// the valid ones among them, for each colour count from 1 to `limit` in the
+/// group of `presentation`, ordered by id.
 ///
 /// The search is that of [`count_colourings`], and it stores the standard
-/// table of every subgroup of every class that it finds. The id of a
-/// colouring ranks its table among all the tables of its colour count, so it
-/// does not depend on `limit` or `budget`. A call stores at most 65536
-/// colourings with at most 4194304 table entries in total. Reaching either
+/// table of every subgroup of `set` of every class that it finds. The id of
+/// a colouring ranks its table among the tables of its colour count in
+/// `set`, so it does not depend on `limit` or `budget`. A call stores at
+/// most 65536 colourings with at most 4194304 table entries in total, and a
+/// colouring that `set` leaves out counts toward neither. Reaching either
 /// limit counts as reaching the budget, so the result is then complete to a
 /// lower colour count and says nothing about the colour counts above it.
 ///
 /// # Examples
 ///
 /// ```
-/// use escher_group::{IndexLimit, SearchBudget, colourings, conway_presentation};
+/// use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings, conway_presentation};
 /// use escher_signature::Signature;
 ///
 /// let signature: Signature = "*642".parse()?;
 /// let presentation = conway_presentation(&signature)?;
-/// let found = colourings(&presentation, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
+/// let found = colourings(&presentation, ColouringSet::All, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
 /// assert_eq!(found.complete_to(), 3);
 /// let two = found.list().iter().filter(|colouring| colouring.colours() == 2).count();
 /// assert_eq!(two, 7);
@@ -211,20 +270,21 @@ pub fn count_colourings(
 /// total. A search that reaches a limit returns its result and not an error.
 pub fn colourings(
     presentation: &Presentation,
+    set: ColouringSet,
     limit: IndexLimit,
     budget: SearchBudget,
 ) -> Result<Colourings> {
-    let settings = Settings::new(budget);
+    let settings = Settings::new(budget).within(set);
     let (found, _) = search(presentation, limit.get(), Request::List, settings)?;
     Ok(found.into_colourings(limit.get()))
 }
 
-/// Lists the colourings with exactly `colours` colours of the group of
-/// `presentation`, ordered by id.
+/// Lists the colourings of `set` with exactly `colours` colours of the group
+/// of `presentation`, ordered by id.
 ///
 /// The call searches only the subgroups of index `colours`, which is all that
 /// a caller resolving one [`ColouringId`] needs, and gives each the same id as
-/// [`colourings`] does. When that search reaches `budget` or the limits on
+/// [`colourings`] does with the same `set`. When that search reaches `budget` or the limits on
 /// what one call stores, the list is empty and
 /// [`ColouringsOfIndex::is_complete`] is false, which says nothing about the
 /// colourings. The result says nothing about any other colour count.
@@ -232,12 +292,13 @@ pub fn colourings(
 /// # Examples
 ///
 /// ```
-/// use escher_group::{IndexLimit, SearchBudget, colourings_of_index, conway_presentation};
+/// use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings_of_index, conway_presentation};
 /// use escher_signature::Signature;
 ///
 /// let signature: Signature = "*642".parse()?;
 /// let presentation = conway_presentation(&signature)?;
-/// let found = colourings_of_index(&presentation, IndexLimit::new(3)?, SearchBudget::DEFAULT)?;
+/// let colours = IndexLimit::new(3)?;
+/// let found = colourings_of_index(&presentation, ColouringSet::All, colours, SearchBudget::DEFAULT)?;
 /// assert!(found.is_complete());
 /// assert_eq!(found.list().len(), 3);
 /// assert!(found.find("3d".parse()?).is_none());
@@ -252,10 +313,11 @@ pub fn colourings(
 /// total. A search that reaches a limit returns its result and not an error.
 pub fn colourings_of_index(
     presentation: &Presentation,
+    set: ColouringSet,
     colours: IndexLimit,
     budget: SearchBudget,
 ) -> Result<ColouringsOfIndex> {
-    let settings = Settings::new(budget);
+    let settings = Settings::new(budget).within(set);
     let (found, _) = search(presentation, colours.get(), Request::Index, settings)?;
     let complete = found.complete_to == colours.get();
     Ok(ColouringsOfIndex::new(
@@ -306,6 +368,7 @@ pub(crate) struct Settings {
     pub(crate) colourings: usize,
     pub(crate) entries: usize,
     pub(crate) pruning: Pruning,
+    pub(crate) set: ColouringSet,
 }
 
 impl Settings {
@@ -315,7 +378,12 @@ impl Settings {
             colourings: MAX_STORED_COLOURINGS,
             entries: MAX_STORED_ENTRIES,
             pruning: Pruning::Partial,
+            set: ColouringSet::All,
         }
+    }
+
+    pub(crate) fn within(self, set: ColouringSet) -> Self {
+        Self { set, ..self }
     }
 }
 
@@ -875,17 +943,11 @@ impl<'a> Run<'a> {
         } else {
             self.rows
         };
-        self.expand(bases)?;
-        if cfg!(test) {
-            let size = index(self.rows) * self.columns;
-            if self.scratch.get(..size) != self.table.get(..size) {
-                stats.relabel_changes += 1;
-            }
-        }
+        self.expand(bases, stats)?;
         self.keep(found, keeping)
     }
 
-    fn expand(&mut self, bases: u32) -> core::result::Result<(), Stop> {
+    fn expand(&mut self, bases: u32, stats: &mut Stats) -> core::result::Result<(), Stop> {
         let size = index(self.rows) * self.columns;
         self.scratch.clear();
         let needed = index(bases) * size;
@@ -896,13 +958,34 @@ impl<'a> Run<'a> {
         for base in 0..bases {
             let start = self.scratch.len();
             self.relabel(base)?;
-            if self.repeats(start, size)? {
+            if cfg!(test)
+                && base == 0
+                && self.scratch.get(start..start + size) != self.table.get(..size)
+            {
+                stats.relabel_changes += 1;
+            }
+            if !self.valid(start)? || self.repeats(start, size)? {
                 self.scratch.truncate(start);
             } else {
                 self.bases.push(base);
             }
         }
         Ok(())
+    }
+
+    fn valid(&mut self, start: usize) -> core::result::Result<bool, Stop> {
+        if self.settings.set == ColouringSet::All {
+            return Ok(true);
+        }
+        let generators = self.columns / 2;
+        let row = self
+            .scratch
+            .get(start..start + self.columns)
+            .unwrap_or_default();
+        let fixed = fixed_generator(row);
+        let reads = fixed.map_or(generators, |generator| usize::from(generator) + 1);
+        self.tally(u64::try_from(reads).unwrap_or(u64::MAX))?;
+        Ok(fixed.is_none())
     }
 
     fn repeats(&mut self, start: usize, size: usize) -> core::result::Result<bool, Stop> {
@@ -961,6 +1044,9 @@ impl<'a> Run<'a> {
     }
 
     fn keep(&mut self, found: &mut Found, keeping: Keeping) -> core::result::Result<(), Stop> {
+        if self.bases.is_empty() {
+            return Ok(());
+        }
         let colours = self.rows;
         let position = index(colours) - 1;
         if let Some(count) = found.colourings.get_mut(position) {
@@ -975,7 +1061,7 @@ impl<'a> Run<'a> {
         let size = index(self.rows) * self.columns;
         let class = found.class_count;
         found.class_count += 1;
-        for (position, &base) in self.bases.iter().enumerate() {
+        for position in 0..self.bases.len() {
             if found.pending.len() >= self.settings.colourings
                 || found.held + size > self.settings.entries
             {
@@ -992,7 +1078,7 @@ impl<'a> Run<'a> {
             found.pending.push(Pending {
                 table,
                 class,
-                representative: base == 0,
+                representative: position == 0,
             });
             found.held += size;
         }
@@ -1006,9 +1092,10 @@ mod tests {
     use proptest::proptest;
 
     use super::{
-        Capacities, IndexLimit, Pruning, Request, Rows, Run, SearchBudget, Settings, Stats, search,
+        Capacities, ColouringSet, IndexLimit, Pruning, Request, Rows, Run, SearchBudget, Settings,
+        Stats, search,
     };
-    use crate::colouring::ColouringId;
+    use crate::colouring::{ColouringId, fixed_generator};
     use crate::common::{
         Expected, SEARCH_BUDGET, SEARCH_FIXTURES, budget, coxeter, presentation,
         small_presentation, word,
@@ -1208,9 +1295,13 @@ mod tests {
         use crate::word::Letter;
         let relator = Relator::new(letters(&[Letter::generator(0)]), 65537).expect("valid");
         let presentation = Presentation::new(names(1), vec![relator]).expect("valid");
-        let error =
-            super::count_colourings(&presentation, IndexLimit::DEFAULT, SearchBudget::DEFAULT)
-                .expect_err("over the limit");
+        let error = super::count_colourings(
+            &presentation,
+            ColouringSet::All,
+            IndexLimit::DEFAULT,
+            SearchBudget::DEFAULT,
+        )
+        .expect_err("over the limit");
         assert_eq!(
             (error.kind(), error.to_string()),
             (
@@ -1226,6 +1317,7 @@ mod tests {
         let trivial = Presentation::new(Vec::new(), Vec::new()).expect("it is valid");
         let found = super::colourings(
             &trivial,
+            ColouringSet::All,
             IndexLimit::new(3).expect("valid"),
             SearchBudget::DEFAULT,
         )
@@ -1244,6 +1336,7 @@ mod tests {
         assert_eq!(first.colour_of(&[0]), None);
         let single = super::colourings_of_index(
             &trivial,
+            ColouringSet::All,
             IndexLimit::new(2).expect("valid"),
             SearchBudget::DEFAULT,
         )
@@ -1251,6 +1344,7 @@ mod tests {
         assert_eq!((single.is_complete(), single.list().len()), (true, 0));
         let counts = super::count_colourings(
             &trivial,
+            ColouringSet::All,
             IndexLimit::new(2).expect("valid"),
             SearchBudget::DEFAULT,
         )
@@ -1388,6 +1482,85 @@ mod tests {
         assert_eq!((found.complete_to, found.into_list().len()), (12, 661));
     }
 
+    fn dihedral() -> Presentation {
+        presentation("xy", &[("x", 2), ("y", 2), ("xy", 3)])
+    }
+
+    fn is_valid(table: &CosetTable) -> bool {
+        table.row(0).and_then(fixed_generator).is_none()
+    }
+
+    fn valid_listing(presentation: &Presentation, limit: u32) -> Listing {
+        listed(
+            presentation,
+            limit,
+            Settings::new(SearchBudget::DEFAULT).within(ColouringSet::Valid),
+        )
+        .0
+    }
+
+    #[test]
+    fn a_class_whose_class_table_is_not_valid_keeps_its_valid_conjugates() {
+        let mut found = 0;
+        for presentation in [dihedral(), coxeter(6, 3, 2), coxeter(6, 4, 2)] {
+            let all = listed(&presentation, 6, Settings::new(SearchBudget::DEFAULT)).0;
+            let valid = valid_listing(&presentation, 6);
+            assert_eq!((all.0, valid.0), (6, 6));
+            let valid_ids: Vec<(ColouringId, ColouringId)> =
+                valid.1.iter().map(|(id, class, _)| (*id, *class)).collect();
+            for (id, class, table) in &all.1 {
+                if id != class || is_valid(table) {
+                    continue;
+                }
+                let members: Vec<&CosetTable> = all
+                    .1
+                    .iter()
+                    .filter(|(_, member, member_table)| member == class && is_valid(member_table))
+                    .map(|(_, _, member_table)| member_table)
+                    .collect();
+                if members.is_empty() {
+                    continue;
+                }
+                found += 1;
+                assert!(!valid.1.iter().any(|(_, _, kept)| kept == table));
+                let classes: Vec<ColouringId> = valid
+                    .1
+                    .iter()
+                    .filter(|(_, _, kept)| members.contains(&kept))
+                    .map(|(_, kept_class, _)| *kept_class)
+                    .collect();
+                assert_eq!(classes.len(), members.len());
+                let named = classes.first().copied().expect("a valid member");
+                assert!(classes.iter().all(|&kept_class| kept_class == named));
+                assert!(valid_ids.contains(&(named, named)));
+            }
+        }
+        assert!(found > 0);
+    }
+
+    #[test]
+    fn stored_limits_count_only_the_valid_colourings() {
+        let presentation = coxeter(6, 4, 2);
+        let unlimited = Settings::new(SearchBudget::MAX).within(ColouringSet::Valid);
+        let (found, _) =
+            search(&presentation, 12, Request::Index, unlimited).expect("the search runs");
+        let valid = found.into_list().len();
+        assert!((2..661).contains(&valid), "{valid}");
+        for (colourings, expected) in [(valid, (12, valid)), (valid - 1, (0, 0))] {
+            let limited = Settings {
+                colourings,
+                ..unlimited
+            };
+            let (found, _) =
+                search(&presentation, 12, Request::Index, limited).expect("the search runs");
+            assert_eq!(
+                (found.complete_to, found.into_list().len()),
+                expected,
+                "{colourings}"
+            );
+        }
+    }
+
     #[test]
     fn capacities_stay_at_the_size_that_the_bound_sets() {
         let (_, stats) = search(
@@ -1416,28 +1589,32 @@ mod tests {
     proptest! {
         #[test]
         fn pruning_partial_tables_loses_no_class((presentation, limit) in small_presentation()) {
-            let partial = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Partial)).0;
-            let complete = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Complete)).0;
-            let unpruned = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Off)).0;
-            if partial.0 == limit && complete.0 == limit {
-                prop_assert_eq!(&partial, &complete);
-            }
-            if partial.0 == limit && unpruned.0 == limit {
-                let ids = |listing: &Listing| -> Vec<(ColouringId, CosetTable)> {
-                    listing.1.iter().map(|(id, _, table)| (*id, table.clone())).collect()
-                };
-                prop_assert_eq!(ids(&partial), ids(&unpruned));
+            for set in [ColouringSet::All, ColouringSet::Valid] {
+                let partial = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Partial).within(set)).0;
+                let complete = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Complete).within(set)).0;
+                let unpruned = listed(&presentation, limit, settings(SEARCH_BUDGET, Pruning::Off).within(set)).0;
+                if partial.0 == limit && complete.0 == limit {
+                    prop_assert_eq!(&partial, &complete);
+                }
+                if partial.0 == limit && unpruned.0 == limit {
+                    let ids = |listing: &Listing| -> Vec<(ColouringId, CosetTable)> {
+                        listing.1.iter().map(|(id, _, table)| (*id, table.clone())).collect()
+                    };
+                    prop_assert_eq!(ids(&partial), ids(&unpruned));
+                }
             }
         }
 
         #[test]
         fn leaf_checks_discard_nothing_and_leaves_are_standard((presentation, limit) in small_presentation()) {
-            for pruning in [Pruning::Partial, Pruning::Complete] {
-                let (_, stats) = search(&presentation, limit, Request::Count, settings(SEARCH_BUDGET, pruning))
-                    .expect("the search runs");
-                prop_assert_eq!(stats.leaf_discards, 0);
-                prop_assert_eq!(stats.relabel_changes, 0);
-                prop_assert!(stats.leaves >= 1 || stats.first_run_stopped);
+            for set in [ColouringSet::All, ColouringSet::Valid] {
+                for pruning in [Pruning::Partial, Pruning::Complete] {
+                    let (_, stats) = search(&presentation, limit, Request::Count, settings(SEARCH_BUDGET, pruning).within(set))
+                        .expect("the search runs");
+                    prop_assert_eq!(stats.leaf_discards, 0);
+                    prop_assert_eq!(stats.relabel_changes, 0);
+                    prop_assert!(stats.leaves >= 1 || stats.first_run_stopped);
+                }
             }
         }
     }

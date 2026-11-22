@@ -4,7 +4,7 @@ use std::sync::LazyLock;
 use escher_domain::{FundamentalDomain, Orientation};
 use escher_geometry::hyperbolic::{from_disk, side, to_disk};
 use escher_geometry::spherical;
-use escher_group::{Colouring, IndexLimit, Letter, SearchBudget, colourings};
+use escher_group::{Colouring, ColouringSet, IndexLimit, Letter, SearchBudget, colourings};
 use escher_render::fold;
 use glam::{DVec2, DVec3};
 use proptest::prelude::{any, prop_assert, prop_assert_eq, prop_assume, proptest};
@@ -833,8 +833,13 @@ static COLOURED: LazyLock<Vec<ColouredDomain>> = LazyLock::new(|| {
                 .side_presentation()
                 .unwrap_or_else(|error| panic!("{name} has no side presentation: {error}"));
             let limit = IndexLimit::new(colours).unwrap_or_else(|error| panic!("{error}"));
-            let found = colourings(&presentation, limit, SearchBudget::DEFAULT)
-                .unwrap_or_else(|error| panic!("the search of {name} fails: {error}"));
+            let found = colourings(
+                &presentation,
+                ColouringSet::All,
+                limit,
+                SearchBudget::DEFAULT,
+            )
+            .unwrap_or_else(|error| panic!("the search of {name} fails: {error}"));
             assert_eq!(found.complete_to(), colours, "{name}");
             ColouredDomain {
                 name,
