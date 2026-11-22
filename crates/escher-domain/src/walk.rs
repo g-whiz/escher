@@ -536,7 +536,7 @@ mod tests {
         let pi = reference.pi();
         assert!(reference.approximate(&sub(&big(PI), &pi).abs()) < 2.0 * UNIT);
         let mut largest = [(0.0, String::new()), (0.0, String::new())];
-        for order in 2..=1000 {
+        for order in 2..=100 {
             let exact_angle = div(&pi, &int(order));
             let (cos, sin) = cos_sin(double_double_angle(order));
             let exact = [reference.cos(&exact_angle), reference.sin(&exact_angle)];

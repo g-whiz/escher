@@ -1,19 +1,19 @@
 ---
 source: crates/escher-cli/tests/cli/info.rs
-expression: "snapshot(&[\"info\", \"--presentation\", \"2*(501)\"])"
+expression: "snapshot(&[\"info\", \"--presentation\", \"2*(51)\"])"
 ---
 status: Success
 --- stdout
-Signature: 2*(501)
+Signature: 2*(51)
 Geometry: spherical
-Euler characteristic: 1/1002
+Euler characteristic: 1/102
 Compact: yes
-Group order: 2004
-Area: pi/501
-Domain: none, cannot build fundamental domain: order 501 is larger than 500
+Group order: 204
+Area: pi/51
+Domain: none, cannot build fundamental domain: order 51 is larger than 50
 Presentation: 4 generators, 6 relators
 Generators: g1, r1, r2, l1
-Relators: g1^2, r1^2, (r1 r2)^501, r2^2, l1^-1 r1 l1 r2^-1, g1 l1
-Order by coset enumeration: 2004, equal to 2/chi
+Relators: g1^2, r1^2, (r1 r2)^51, r2^2, l1^-1 r1 l1 r2^-1, g1 l1
+Order by coset enumeration: 204, equal to 2/chi
 --- stderr
 --- end

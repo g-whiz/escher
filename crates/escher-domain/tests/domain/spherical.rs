@@ -11,14 +11,14 @@ use crate::common::{
 };
 use crate::reference::{Reference, SphericalPolygon, Worst, error, int};
 
-const VERTEX_BOUND: f64 = 4e-13;
-const NORMAL_BOUND: f64 = 1e-13;
-const LENGTH_BOUND: f64 = 4e-13;
+const VERTEX_BOUND: f64 = 4e-14;
+const NORMAL_BOUND: f64 = 2e-14;
+const LENGTH_BOUND: f64 = 4e-14;
 const CENTRE_BOUND: f64 = 2e-15;
-const ANGLE_BOUND: f64 = 2e-13;
-const AREA_BOUND: f64 = 4e-13;
+const ANGLE_BOUND: f64 = 2e-14;
+const AREA_BOUND: f64 = 4e-14;
 
-const MEASURED_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
+const MEASURED_ORDERS: [u32; 6] = [2, 3, 5, 12, 99, 100];
 
 pub(crate) const MERGE_TOLERANCE: f64 = 1e-9;
 
@@ -30,11 +30,11 @@ const FOLD_TOLERANCE: f64 = 4e-15;
 
 const IMAGE_FLOOR: f64 = 2e-2;
 
-pub(crate) const LIMIT_IMAGE_FLOOR: f64 = 2e-4;
+pub(crate) const LIMIT_IMAGE_FLOOR: f64 = 2e-3;
 
 const DOUBLE_IMAGE_FLOOR: f64 = 4e-2;
 
-const LIMIT_DOUBLE_IMAGE_FLOOR: f64 = 4e-4;
+const LIMIT_DOUBLE_IMAGE_FLOOR: f64 = 4e-3;
 
 const SPELLINGS: [(&str, &str); 9] = [
     ("*323", "*332"),
@@ -463,10 +463,10 @@ fn spherical_groups_have_their_order_and_fold_back_their_images() {
 fn spherical_groups_at_the_limit_have_their_order_and_fold_back_their_images() {
     let (mut reflections, mut doubles) = (Floor::new(), Floor::new());
     let shapes = [
-        Shape::Triangle([1000, 2, 2]),
-        Shape::Lune(1000),
-        Shape::Kite([1000, 2, 2]),
-        Shape::LuneDouble(1000),
+        Shape::Triangle([100, 2, 2]),
+        Shape::Lune(100),
+        Shape::Kite([100, 2, 2]),
+        Shape::LuneDouble(100),
     ];
     certify(&shapes, &mut reflections, &mut doubles);
     assert_floor(&reflections, LIMIT_IMAGE_FLOOR, "certificate at the limit");

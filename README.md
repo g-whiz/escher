@@ -180,8 +180,8 @@ escher render '*532' --rotation 20,35,0 -o ball.png
 | Geometry | Supported | Not supported yet |
 | --- | --- | --- |
 | Euclidean | All 17 wallpaper groups, such as `*632`, `o`, and `22x` | Friezes, which have an infinite order, such as `*22(inf)` |
-| Spherical | Every spherical signature, such as `*532`, `3*2`, `5x`, and `1`, with orders up to 1000, and up to 500 for `2*n` | Orders above these limits |
-| Hyperbolic | Compact reflection triangles `*pqr` and their rotation signatures `pqr`, such as `*732` and `732`, and compact reflection polygons `*p1...pn` with 4 to 8 corners and their rotation signatures `p1...pn`, such as `*3333` and `3333`, with orders up to 1000 | Every other hyperbolic signature, such as `3*4`, signatures with an infinite order, and signatures with more than 8 orders |
+| Spherical | Every spherical signature, such as `*532`, `3*2`, `5x`, and `1`, with orders up to 100, and up to 50 for `2*n` | Orders above these limits |
+| Hyperbolic | Compact reflection triangles `*pqr` and their rotation signatures `pqr`, such as `*732` and `732`, and compact reflection polygons `*p1...pn` with 4 to 8 corners and their rotation signatures `p1...pn`, such as `*3333` and `3333`, with orders up to 100 | Every other hyperbolic signature, such as `3*4`, signatures with an infinite order, and signatures with more than 8 orders |
 
 These signatures take shape parameters through `--set`:
 

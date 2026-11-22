@@ -87,11 +87,11 @@ As of 2026-11-22, the tool `escher` has two commands:
 - `escher info` reports on a signature: its canonical form, geometry, Euler characteristic, and classification, and, for a signature with a fundamental domain, its shape parameters, a summary of the domain, and the count of its colourings. `--colourings` lists the colourings by id, `--presentation` prints the group presentations, and `--check` prints the verification of the domain.
 - `escher render` writes the tiling of a domain to a PNG file: a hyperbolic domain in the Poincare disk, a Euclidean domain in the plane, and a spherical domain as a lit ball. It draws a colouring given by its id, in default or user-given colours, and `--set` sets the shape parameters.
 
-Both commands support these signatures, with corner orders up to 1000:
+Both commands support these signatures, with corner orders up to 100:
 
 - Hyperbolic: the compact reflection triangles `*pqr` and the compact reflection polygons with four to eight corners, such as `*3333`, and the rotation signature of each, such as `732` and `3333`.
 - Euclidean: all 17 groups.
-- Spherical: every spherical signature, which is `*332`, `*432`, `*532`, `*n22`, `*nn`, the rotation signature of each, `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1`, with orders up to 1000, and up to 500 for `n` in `2*n`.
+- Spherical: every spherical signature, which is `*332`, `*432`, `*532`, `*n22`, `*nn`, the rotation signature of each, `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1`, with orders up to 100, and up to 50 for `n` in `2*n`.
 
 `docs/design/cli.md` specifies the commands, and `docs/design/domain.md` lists the supported signatures and their parameters.
 

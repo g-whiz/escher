@@ -13,9 +13,9 @@ use proptest::sample::Index;
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
     Measure, REPLAY_BOUNDS, ROTATION_EUCLIDEAN_REPLAY_BOUNDS, ROTATION_REPLAY_BOUNDS,
-    SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, TOLERANCE, domain, euclidean_band,
-    euclidean_domain, rotation_domain, spherical_domain, spherical_group_bounds, text,
-    wallpaper_bounds,
+    SPHERICAL_BOUNDS, SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, TOLERANCE, domain,
+    euclidean_band, euclidean_domain, rotation_domain, spherical_domain, spherical_group_bounds,
+    text, wallpaper_bounds,
 };
 use crate::golden_images::{
     POLYGON_DOMAINS, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings,
@@ -111,7 +111,7 @@ fn rotation_case(index: usize) -> RotationDomain {
 impl RotationDomain {
     fn may_stop_at_the_cap(&self, result: escher_render::Fold) -> bool {
         self.measure == Measure::Hyperbolic
-            && FOLD_TRIPLES[self.index] == [1000, 1000, 1000]
+            && FOLD_TRIPLES[self.index] == [100, 100, 100]
             && !result.converged()
             && result.steps() == DEFAULT_CAP
     }
@@ -142,7 +142,7 @@ impl RotationDomain {
                 let outer = point.truncate().length().max(image.truncate().length());
                 euclidean_band(outer).map(|band| ROTATION_EUCLIDEAN_REPLAY_BOUNDS[self.index][band])
             }
-            Measure::Spherical => Some(SPHERICAL_PAIRING_BOUNDS[self.index]),
+            Measure::Spherical => Some(SPHERICAL_BOUNDS[self.index].pairing),
         }
     }
 }
@@ -734,21 +734,13 @@ proptest! {
     }
 }
 
-const SPHERICAL_PAIRING_BOUNDS: [f64; 17] = [
-    2e-14, 3e-14, 5e-14, 9e-15, 2e-14, 2e-14, 3e-14, 3e-12, 3e-10, 3e-10, 8e-15, 2e-14, 5e-15,
-    6e-15, 9e-15, 2e-14, 3e-14,
-];
-
 const PAIRING_GRID: u32 = 32;
 
 #[test]
 fn rotation_folds_of_paired_points_on_the_sphere_stay_within_the_pairing_bound() {
     let mut reference = Reference::new();
-    for (index, (&name, &bound)) in SPHERICAL_DOMAINS
-        .iter()
-        .zip(&SPHERICAL_PAIRING_BOUNDS)
-        .enumerate()
-    {
+    for (index, row) in SPHERICAL_BOUNDS.iter().enumerate() {
+        let (name, bound) = (row.signature, row.pairing);
         let case = rotation_case(FOLD_TRIPLES.len() + EUCLIDEAN_DOMAINS.len() + index);
         let sides = case.domain.sides();
         let clearance = num(WALL_CLEARANCE.max(2.0 * bound));

@@ -1,17 +1,17 @@
 ---
 source: crates/escher-cli/tests/cli/info.rs
-expression: "snapshot(&[\"info\", \"--check\", \"*(1001)(1001)\"])"
+expression: "snapshot(&[\"info\", \"--check\", \"*(101)(101)\"])"
 ---
 status: Failure
 --- stdout
-Signature: *(1001)(1001)
+Signature: *(101)(101)
 Geometry: spherical
-Euler characteristic: 1/1001
+Euler characteristic: 1/101
 Compact: yes
-Group order: 2002
-Area: 2pi/1001
-Domain: none, cannot build fundamental domain: order 1001 is larger than 1000
+Group order: 202
+Area: 2pi/101
+Domain: none, cannot build fundamental domain: order 101 is larger than 100
 --- stderr
 error: cannot verify fundamental domain
-  caused by: cannot build fundamental domain: order 1001 is larger than 1000
+  caused by: cannot build fundamental domain: order 101 is larger than 100
 --- end

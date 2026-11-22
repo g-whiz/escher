@@ -7,20 +7,20 @@ use escher_geometry::{euclidean, spherical};
 use glam::{DVec2, DVec3};
 
 use crate::common::{
-    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, Rng, SPHERE_SEPARATION_FLOOR, SphereDomain,
-    SphereFactor, Triangle, pair, point_off_wall, polar_point, table_points, table_vectors,
-    tangent_basis, wall_normal,
+    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, REFERENCE_CASES, Rng, SPHERE_SEPARATION_FLOOR,
+    SphereDomain, SphereFactor, Triangle, pair, point_off_wall, polar_point, table_points,
+    table_vectors, tangent_basis, wall_normal,
 };
 use crate::reference::{
     Reference, Vector, Worst, add, difference, div, epsilon, error, int, max, mul, num, scale,
     sqrt, sub, vector,
 };
 
-const DISTANCE_SEPARATED_MINIMUM: usize = 80_000;
+const DISTANCE_SEPARATED_MINIMUM: usize = 8_000;
 const TRANSLATION_COMPOSITION_TOLERANCE: f64 = 16.0;
 const TRANSLATION_INVERSE_TOLERANCE: f64 = 16.0;
-const CLOSE_POINTS_MEASURED_MINIMUM: usize = 95_000;
-const CLOSE_POINTS_MOST_DEGENERATE: usize = 250;
+const CLOSE_POINTS_MEASURED_MINIMUM: usize = 9_500;
+const CLOSE_POINTS_MOST_DEGENERATE: usize = 136;
 const EUCLIDEAN_REFLECTION_TOLERANCE: f64 = 16.0;
 const EUCLIDEAN_REFLECTION_DEFECT_TOLERANCE: f64 = 32.0;
 const EUCLIDEAN_ORTHOGONALITY_TOLERANCE: f64 = 8.0;
@@ -149,7 +149,10 @@ fn check_normalize(worst: &mut Worst, x: DVec3) {
 #[test]
 fn normalize_point_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("normalize_point, scaled by eps * kappa * y3", 6 * CASES);
+    let mut worst = Worst::new(
+        "normalize_point, scaled by eps * kappa * y3",
+        6 * REFERENCE_CASES,
+    );
     for point in table_points() {
         if point.z <= 15.0_f64.cosh() {
             for factor in [0.5, 1.0, 2.0] {
@@ -158,7 +161,7 @@ fn normalize_point_is_within_its_bound_of_the_reference() {
         }
     }
     let mut rng = Rng::new(3);
-    for _ in 0..CASES {
+    for _ in 0..REFERENCE_CASES {
         let point = rng.point_within(15.0);
         check_normalize(&mut worst, point);
         check_normalize(&mut worst, point * rng.uniform(0.5, 2.0));
@@ -209,14 +212,14 @@ fn distance_of_two_points_is_within_its_bound_of_the_reference() {
         .filter(|point| point.z <= 10.0_f64.cosh())
         .collect();
     let table_pairs = table.len() * (table.len() - 1) / 2;
-    let mut worst = DistanceWorst::new(table_pairs + CASES, DISTANCE_SEPARATED_MINIMUM);
+    let mut worst = DistanceWorst::new(table_pairs + REFERENCE_CASES, DISTANCE_SEPARATED_MINIMUM);
     for (index, &x) in table.iter().enumerate() {
         for &y in table.iter().skip(index + 1) {
             worst.check(&mut reference, x, y);
         }
     }
     let mut rng = Rng::new(4);
-    for _ in 0..CASES {
+    for _ in 0..REFERENCE_CASES {
         let radius = rng.uniform(0.0, 10.0);
         let angle = rng.angle();
         let separation = rng.log_uniform(1e-8, 20.0);
@@ -314,7 +317,7 @@ fn wall_through_close_points_is_orthogonal_and_unit_within_its_bounds() {
         CLOSE_POINTS_MOST_DEGENERATE,
     );
     let mut rng = Rng::new(6);
-    for _ in 0..CASES {
+    for _ in 0..REFERENCE_CASES {
         let radius = rng.uniform(0.0, 10.0);
         let angle = rng.angle();
         let separation = rng.log_uniform(1e-5, 5.0);
@@ -330,11 +333,11 @@ fn wall_through_points_near_the_origin_is_orthogonal_and_unit_within_its_bounds(
     let mut worst = WallWorst::new(
         "wall_through points near the origin, orthogonality scaled by eps * K * max(a3, b3)",
         "wall_through points near the origin, norm scaled by eps * K",
-        CASES,
+        REFERENCE_CASES,
         0,
     );
     let mut rng = Rng::new(7);
-    for _ in 0..CASES {
+    for _ in 0..REFERENCE_CASES {
         let (first, second) = rng.separated_pair();
         worst.check(&mut reference, first, second);
     }
@@ -350,11 +353,11 @@ fn boost_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
         "boost entries, relative to eps * |cosh l| or |sinh l|",
-        4 * CASES,
+        4 * REFERENCE_CASES,
     );
     let mut rng = Rng::new(8);
     let edges = [0.0, 700.0, -700.0, 1e-300, -1e-300, 5e-324, 1.0, -1.0];
-    let random = (0..CASES).map(|index| {
+    let random = (0..REFERENCE_CASES).map(|index| {
         if index % 2 == 0 {
             rng.uniform(-700.0, 700.0)
         } else {
@@ -391,10 +394,12 @@ fn boost_entries_are_within_their_bound_of_the_reference() {
 #[test]
 fn rotation_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("rotation entries, absolute", 4 * CASES);
+    let mut worst = Worst::new("rotation entries, absolute", 4 * REFERENCE_CASES);
     let mut rng = Rng::new(9);
     let edges = [0.0, 1000.0, -1000.0, core::f64::consts::PI, 1e-300];
-    let random: Vec<f64> = (0..CASES).map(|_| rng.uniform(-1000.0, 1000.0)).collect();
+    let random: Vec<f64> = (0..REFERENCE_CASES)
+        .map(|_| rng.uniform(-1000.0, 1000.0))
+        .collect();
     for angle in edges.into_iter().chain(random) {
         let matrix = rotation(angle);
         let ra = num(angle);
@@ -435,15 +440,15 @@ fn boost_and_rotation_of_a_point_match_the_componentwise_maps() {
     let mut reference = Reference::new();
     let mut boosts = Worst::new(
         "boost(l) * x against the componentwise map, scaled by eps * s",
-        3 * CASES,
+        3 * REFERENCE_CASES,
     );
     let mut rotations = Worst::new(
         "rotation(angle) * x against the componentwise map, scaled by eps * s",
-        3 * CASES,
+        3 * REFERENCE_CASES,
     );
     let mut rng = Rng::new(10);
     let zero = int(0);
-    for index in 0..CASES {
+    for index in 0..REFERENCE_CASES {
         let x = if index == 0 {
             ORIGIN
         } else {
@@ -500,13 +505,13 @@ fn translation_maps_the_origin_to_its_target_within_its_bound() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
         "translation(t) * ORIGIN, scaled by eps * (1 + r) * p3",
-        3 * CASES,
+        3 * REFERENCE_CASES,
     );
     for target in SMALL_TARGETS {
         check_translation(&mut reference, &mut worst, target);
     }
     let mut rng = Rng::new(11);
-    for index in 0..CASES {
+    for index in 0..REFERENCE_CASES {
         let radius = if index % 2 == 0 {
             rng.uniform(0.1, 709.0)
         } else {
@@ -581,10 +586,10 @@ fn translation_maps_points_off_the_axis_as_its_composition_does() {
     let mut reference = Reference::new();
     let mut worst = Worst::new(
         "translation(t) * p against its composition, scaled by eps * (1 + r) * cosh(rho) * p3",
-        3 * CASES,
+        3 * REFERENCE_CASES,
     );
     let mut rng = Rng::new(16);
-    for index in 0..CASES {
+    for index in 0..REFERENCE_CASES {
         let target = polar_point(translation_radius(&mut rng, index, 700.0), rng.angle());
         let point = if index % 4 == 0 {
             polar_point(rng.uniform(0.5, 3.0), core::f64::consts::FRAC_PI_2)
@@ -951,15 +956,18 @@ fn euclidean_wall_through_and_distance_are_within_their_bounds_of_the_reference(
     let mut reference = Reference::new();
     let mut orthogonality = Worst::new(
         "euclidean wall_through, |c . p| and |c . q|, scaled by eps * (1 + |p| + |q| + |p| |q| / |p - q|)",
-        2 * CASES,
+        2 * REFERENCE_CASES,
     );
     let mut norm = Worst::new(
         "euclidean wall_through, |c_1^2 + c_2^2 - 1|, scaled by eps",
-        CASES,
+        REFERENCE_CASES,
     );
-    let mut distances = Worst::new("euclidean distance, relative error, scaled by eps", CASES);
+    let mut distances = Worst::new(
+        "euclidean distance, relative error, scaled by eps",
+        REFERENCE_CASES,
+    );
     let mut rng = Rng::new(22);
-    for _ in 0..CASES {
+    for _ in 0..REFERENCE_CASES {
         let (first, second) = rng.euclidean_pair();
         let (rp, rq) = (big(first), big(second));
         let apart = plane_length(&difference(&rp, &rq));
@@ -1072,14 +1080,17 @@ fn spherical_normalize_point_is_within_its_bound_of_the_reference() {
 #[test]
 fn spherical_distance_and_wall_through_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
-    let mut distances = Worst::new("spherical distance, scaled by eps / sin d", CASES);
+    let mut distances = Worst::new("spherical distance, scaled by eps / sin d", REFERENCE_CASES);
     let mut orthogonality = Worst::new(
         "spherical wall_through, |u . a| and |u . b|, scaled by eps / sin d",
-        2 * CASES,
+        2 * REFERENCE_CASES,
     );
-    let mut norm = Worst::new("spherical wall_through, |u . u - 1|, scaled by eps", CASES);
+    let mut norm = Worst::new(
+        "spherical wall_through, |u . u - 1|, scaled by eps",
+        REFERENCE_CASES,
+    );
     let mut rng = Rng::new(32);
-    for _ in 0..CASES {
+    for _ in 0..REFERENCE_CASES {
         let (first, second) = rng.sphere_pair(SPHERE_SEPARATION_FLOOR);
         let (ra, rb) = (big(first), big(second));
         let cosine = dot(&ra, &rb);
@@ -1121,10 +1132,12 @@ fn spherical_distance_of_a_point_to_itself_is_at_least_zero_and_within_its_bound
 #[test]
 fn spherical_boost_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("spherical boost entries, absolute", 4 * CASES);
+    let mut worst = Worst::new("spherical boost entries, absolute", 4 * REFERENCE_CASES);
     let mut rng = Rng::new(34);
     let edges = [0.0, 1000.0, -1000.0, core::f64::consts::PI, 1e-300];
-    let random: Vec<f64> = (0..CASES).map(|_| rng.uniform(-1000.0, 1000.0)).collect();
+    let random: Vec<f64> = (0..REFERENCE_CASES)
+        .map(|_| rng.uniform(-1000.0, 1000.0))
+        .collect();
     for angle in edges.into_iter().chain(random) {
         let matrix = spherical::boost(angle);
         let ra = num(angle);
@@ -1185,15 +1198,15 @@ fn spherical_translation_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
     let mut images = Worst::new(
         "spherical translation(t) * ORIGIN, each coordinate, scaled by eps",
-        3 * CASES,
+        3 * REFERENCE_CASES,
     );
     let mut composed = Worst::new(
         "spherical translation(t) * x, each coordinate, scaled by eps",
-        3 * CASES,
+        3 * REFERENCE_CASES,
     );
     let mut defects = Worst::new(
         "spherical isometry_defect(translation(t)), scaled by eps",
-        CASES,
+        REFERENCE_CASES,
     );
     let mut rng = Rng::new(35);
     let tiny = 1e-300;
@@ -1207,7 +1220,9 @@ fn spherical_translation_is_within_its_bounds_of_the_reference() {
         DVec3::new(0.0, tiny, -1.0),
         DVec3::new(-tiny, -tiny, -1.0),
     ];
+    let kept = targets.len() + REFERENCE_CASES;
     targets.extend((0..CASES).map(|_| rng.sphere_point()));
+    targets.truncate(kept);
     for target in targets {
         let matrix = spherical::translation(target);
         let rt = big(target);

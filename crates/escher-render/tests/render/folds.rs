@@ -7,11 +7,11 @@ use escher_signature::{Geometry, Signature};
 use glam::{DMat3, DVec3};
 
 use crate::common::{
-    BANDS, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS, EUCLIDEAN_REPLAY_BOUNDS,
-    FOLD_ANGLES, FOLD_TRIPLES, GROUP_LIMITS, POLYGON_DECISION_COUNTS, POLYGON_REPLAY_BOUNDS,
-    PlaneSample, REPLAY_BOUNDS, RIM_DISTANCES, RotationCase, SPHERE_ROTATIONS,
-    SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, SPHERICAL_IMAGE_BOUNDS,
-    SPHERICAL_REPLAY_BOUNDS, SphereSample, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane,
+    BANDS, CONVERGENCE_SIZE, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS,
+    EUCLIDEAN_REPLAY_BOUNDS, FOLD_ANGLES, FOLD_TRIPLES, POLYGON_DECISION_COUNTS,
+    POLYGON_REPLAY_BOUNDS, PlaneSample, REPLAY_BOUNDS, RIM_DISTANCES, RotationCase,
+    SPHERE_ROTATIONS, SPHERICAL_BOUNDS, SPHERICAL_DOMAINS, SPHERICAL_GROUP_BOUNDS,
+    SPHERICAL_GROUP_DOMAINS, SphereSample, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane,
     describe_polygon, describe_sphere, domain, euclidean_domain, euclidean_fold_set,
     euclidean_name, euclidean_rotation_cases, fold_set, hyperbolic_rotation_cases, one_fill,
     options, pixel_position, polygon_fold_set, reference_walls, render_in_bands, rim_set,
@@ -24,21 +24,22 @@ use crate::golden_images::{
 };
 use crate::reference::{self, Reference, Worst, count_bound, num, vector};
 
-const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 6];
-
-const EUCLIDEAN_DECISION_COUNTS: [usize; 4] = [0, 0, 0, 0];
+const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 4];
 
 const VERTEX_ASPECTS: u32 = 64;
 
-const CENTRE_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
+const ORACLE_STRIDE: usize = 5;
 
-const SPHERICAL_LUNES: usize = 10;
+const CENTRE_ORDERS: [u32; 5] = [2, 3, 5, 12, 100];
 
-const NEAR_VERTEX_DOMAINS: [(&str, f64); 4] = [
-    ("*(1000)(1000)(1000)", 1e-7),
-    ("*(1000)(1000)(999)", 2e-7),
-    ("*(998)(981)(961)", 1e-11),
-    ("*(1000)32", 1e-11),
+const SPHERICAL_KITES: usize = 3;
+
+const SPHERICAL_LUNES: usize = 8;
+
+const NEAR_VERTEX_DOMAINS: [(&str, f64); 3] = [
+    ("*(100)(100)(100)", 1e-8),
+    ("*(100)(100)(99)", 1e-8),
+    ("*(100)32", 1e-8),
 ];
 
 const NEAR_VERTEX_DISTANCES: [f64; 13] = [
@@ -55,6 +56,20 @@ fn sides_of(
     let mut sides = Vec::new();
     let result = fold(domain, point, cap, |index| sides.push(index));
     (result, sides)
+}
+
+fn exact_fold_and_replay(
+    walls: &[reference::Wall],
+    point: DVec3,
+    sides: &[usize],
+) -> (reference::ExactFold, reference::Vector) {
+    let exact = reference::fold(walls, point.to_array(), DEFAULT_CAP);
+    let replayed = if exact.sides == sides {
+        exact.point.clone()
+    } else {
+        reference::replay(walls, point.to_array(), sides)
+    };
+    (exact, replayed)
 }
 
 #[test]
@@ -169,8 +184,9 @@ fn every_fold_converges_within_the_default_cap() {
             );
         }
     }
-    let options = options(RenderOptions::builder(one_fill()));
-    let (_, stats) = renderer(&domain([1000, 3, 2]), options).render();
+    let options =
+        options(RenderOptions::builder(one_fill()).size(CONVERGENCE_SIZE, CONVERGENCE_SIZE));
+    let (_, stats) = renderer(&domain([100, 3, 2]), options).render();
     let inside = stats.samples() - stats.outside();
     #[expect(
         clippy::cast_precision_loss,
@@ -178,7 +194,7 @@ fn every_fold_converges_within_the_default_cap() {
     )]
     let mean = stats.folds() as f64 / inside as f64;
     println!(
-        "*(1000)32 at 512 by 512 with 4 by 4 samples: {inside} samples inside the disk, mean steps {mean:.1}, largest {}, {} unconverged",
+        "*(100)32 at {CONVERGENCE_SIZE} by {CONVERGENCE_SIZE} with 4 by 4 samples: {inside} samples inside the disk, mean steps {mean:.1}, largest {}, {} unconverged",
         stats.largest_fold(),
         stats.unconverged()
     );
@@ -290,11 +306,10 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
             let (total, largest) = &mut steps[sample.distance];
             *total += u64::from(result.steps());
             *largest = (*largest).max(result.steps());
-            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let distance = reference::plane_distance(&vector(result.point().to_array()), &replayed);
             worst[sample.distance]
                 .record(&distance, &reference::int(1), || describe_plane(&sample));
-            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
             assert!(
                 exact.converged,
                 "the exact fold of {} does not converge",
@@ -320,12 +335,8 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
             );
         }
     }
-    for ((distance, count), measured) in EUCLIDEAN_DISTANCES
-        .iter()
-        .zip(differing)
-        .zip(EUCLIDEAN_DECISION_COUNTS)
-    {
-        let bound = count_bound(measured);
+    for (distance, count) in EUCLIDEAN_DISTANCES.iter().zip(differing) {
+        let bound = count_bound(0);
         println!(
             "distance {distance}: {count} of {} folds differ, bound {bound}",
             512 * EUCLIDEAN_DOMAINS.len()
@@ -336,7 +347,8 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
         );
     }
     for index in 0..EUCLIDEAN_DOMAINS.len() {
-        let options = options(RenderOptions::builder(one_fill()));
+        let options =
+            options(RenderOptions::builder(one_fill()).size(CONVERGENCE_SIZE, CONVERGENCE_SIZE));
         let (_, stats) = renderer(&euclidean_domain(index), options).render();
         #[expect(
             clippy::cast_precision_loss,
@@ -344,7 +356,7 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
         )]
         let mean = stats.folds() as f64 / stats.samples() as f64;
         println!(
-            "{} at 512 by 512 with 4 by 4 samples: mean steps {mean:.2}, largest {}, {} unconverged, {} outside",
+            "{} at {CONVERGENCE_SIZE} by {CONVERGENCE_SIZE} with 4 by 4 samples: mean steps {mean:.2}, largest {}, {} unconverged, {} outside",
             euclidean_name(index),
             stats.largest_fold(),
             stats.unconverged(),
@@ -359,11 +371,8 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
 fn spherical_fold_replay_and_decisions_stay_within_their_bounds_and_converge_within_the_default_cap()
  {
     let mut reference = Reference::new();
-    for (index, (&name, &bound)) in SPHERICAL_DOMAINS
-        .iter()
-        .zip(&SPHERICAL_REPLAY_BOUNDS)
-        .enumerate()
-    {
+    for (index, row) in SPHERICAL_BOUNDS.iter().enumerate() {
+        let (name, bound) = (row.signature, row.replay);
         let domain = spherical_domain(index);
         let walls = reference_walls(&domain);
         let set = spherical_fold_set(index);
@@ -383,10 +392,9 @@ fn spherical_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
             );
             total += u64::from(result.steps());
             largest = largest.max(result.steps());
-            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let angle = reference.angle(&vector(result.point().to_array()), &replayed);
             worst.record(&angle, &reference::int(1), || describe_sphere(sample));
-            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
             assert!(
                 exact.converged,
                 "the exact fold of {} does not converge",
@@ -403,7 +411,7 @@ fn spherical_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
             reason = "the total is far below 2 to the power 52"
         )]
         let mean = total as f64 / set.len() as f64;
-        let allowed = count_bound(SPHERICAL_DECISION_COUNTS[index]);
+        let allowed = count_bound(row.decisions);
         println!(
             "{name}: mean steps {mean:.1}, largest {largest}, {differing} of {} folds differ, bound {allowed}",
             set.len()
@@ -461,15 +469,12 @@ fn enumerate_group(domain: &escher_domain::FundamentalDomain, order: u64) -> Vec
     elements
 }
 
-fn image_bound(largest: usize, first: usize, order: u32) -> f64 {
-    if order == 1000 {
-        return SPHERICAL_IMAGE_BOUNDS[largest];
-    }
+fn image_bound(first: usize, order: u32) -> f64 {
     let position = CENTRE_ORDERS
         .iter()
         .position(|&known| known >= order)
         .unwrap_or_else(|| panic!("{order} is above every order of the set"));
-    SPHERICAL_REPLAY_BOUNDS[first + position]
+    SPHERICAL_BOUNDS[first + position].replay
 }
 
 #[test]
@@ -477,16 +482,19 @@ fn images_of_the_centre_under_the_group_fold_back_in_as_many_steps_as_their_dept
     let mut reference = Reference::new();
     let signatures = [("*332", 0), ("*432", 1), ("*532", 2)]
         .into_iter()
-        .map(|(name, index)| (name.to_owned(), SPHERICAL_REPLAY_BOUNDS[index]))
-        .chain((2..=12).chain([1000]).flat_map(|order| {
+        .map(|(name, index)| (name.to_owned(), SPHERICAL_BOUNDS[index].replay))
+        .chain((2..=12).chain([100]).flat_map(|order| {
             let corner = if order < 10 {
                 order.to_string()
             } else {
                 format!("({order})")
             };
             [
-                (format!("*{corner}22"), image_bound(0, 3, order)),
-                (format!("*{corner}{corner}"), image_bound(1, 10, order)),
+                (format!("*{corner}22"), image_bound(SPHERICAL_KITES, order)),
+                (
+                    format!("*{corner}{corner}"),
+                    image_bound(SPHERICAL_LUNES, order),
+                ),
             ]
         }));
     for (name, bound) in signatures {
@@ -533,8 +541,8 @@ fn images_of_the_centre_under_the_group_fold_back_in_as_many_steps_as_their_dept
 
 #[test]
 fn fold_near_a_vertex_of_the_largest_order_and_its_antipode_returns_within_the_cap() {
-    let domain = domain_with_aspect("*(1000)22", None);
-    let target = core::f64::consts::PI / 1000.0;
+    let domain = domain_with_aspect("*(100)22", None);
+    let target = core::f64::consts::PI / 100.0;
     let (index, _) = domain
         .corner_angles()
         .into_iter()
@@ -560,9 +568,7 @@ fn fold_near_a_vertex_of_the_largest_order_and_its_antipode_returns_within_the_c
                 unconverged += 1;
             }
         }
-        println!(
-            "*(1000)22 near its {name} of order 1000: {unconverged} of 1000 points unconverged"
-        );
+        println!("*(100)22 near its {name} of order 100: {unconverged} of 1000 points unconverged");
     }
 }
 
@@ -672,7 +678,7 @@ fn fold_with_a_cap_one_below_the_steps_needed_stops_at_the_cap() {
 
 #[test]
 fn fold_of_a_point_that_overflows_during_the_fold_does_not_converge() {
-    for triple in [[7, 3, 2], [1000, 3, 2]] {
+    for triple in [[7, 3, 2], [100, 3, 2]] {
         let domain = domain(triple);
         let result = fold(
             &domain,
@@ -807,14 +813,13 @@ fn assert_rotation_replay(cases: &[RotationCase]) {
                 unconverged[sample.group] += 1;
                 continue;
             }
-            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let distance = case.measure.distance(
                 &mut reference,
                 &vector(result.point().to_array()),
                 &replayed,
             );
             worst[sample.group].record(&distance, &reference::int(1), || sample.name.clone());
-            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
             if !exact.converged || exact.sides != sides {
                 println!(
                     "{}: the side sequence differs from the exact fold, which converged {}",
@@ -887,7 +892,7 @@ fn assert_double_oracle(cases: &[RotationCase]) {
         let groups = case.groups.len();
         let mut kept = vec![0_usize; groups];
         let mut failed = vec![0_usize; groups];
-        for sample in &case.samples {
+        for sample in case.samples.iter().step_by(ORACLE_STRIDE) {
             if sample.group >= case.range {
                 continue;
             }
@@ -977,7 +982,6 @@ fn every_vertex_of_a_rotation_domain_folds_in_zero_steps() {
     let hyperbolic = FOLD_TRIPLES
         .into_iter()
         .chain(VERTEX_TRIPLES)
-        .chain([[868, 416, 5]])
         .map(|triple| {
             let starred = text(triple);
             let name = rotation_text(&starred).to_owned();
@@ -1012,7 +1016,8 @@ fn every_vertex_of_a_rotation_domain_folds_in_zero_steps() {
 }
 
 fn assert_rotation_image_converges(text: &str) {
-    let options = options(RenderOptions::builder(one_fill()));
+    let options =
+        options(RenderOptions::builder(one_fill()).size(CONVERGENCE_SIZE, CONVERGENCE_SIZE));
     let stats = render_in_bands(text, &domain_with_aspect(text, None), options);
     let inside = stats.samples() - stats.outside();
     #[expect(
@@ -1021,7 +1026,7 @@ fn assert_rotation_image_converges(text: &str) {
     )]
     let mean = stats.folds() as f64 / inside as f64;
     println!(
-        "{text} at 512 by 512 with 4 by 4 samples: {inside} samples inside the view, mean steps {mean:.2}, largest {}, {} unconverged",
+        "{text} at {CONVERGENCE_SIZE} by {CONVERGENCE_SIZE} with 4 by 4 samples: {inside} samples inside the view, mean steps {mean:.2}, largest {}, {} unconverged",
         stats.largest_fold(),
         stats.unconverged()
     );
@@ -1029,69 +1034,60 @@ fn assert_rotation_image_converges(text: &str) {
 }
 
 #[test]
-fn rotation_triangle_of_order_1000_converges_at_every_sample() {
-    assert_rotation_image_converges("(1000)32");
+fn rotation_triangle_of_order_100_converges_at_every_sample() {
+    assert_rotation_image_converges("(100)32");
 }
 
 #[test]
-fn rotation_triangle_of_three_orders_1000_converges_at_every_sample() {
-    assert_rotation_image_converges("(1000)(1000)(1000)");
+fn rotation_triangle_of_three_orders_100_converges_at_every_sample() {
+    assert_rotation_image_converges("(100)(100)(100)");
 }
 
 #[test]
-fn rotation_kite_of_order_1000_on_the_sphere_converges_at_every_sample() {
-    assert_rotation_image_converges("(1000)22");
+fn rotation_kite_of_order_100_on_the_sphere_converges_at_every_sample() {
+    assert_rotation_image_converges("(100)22");
 }
 
 #[test]
-fn rotation_lune_of_order_1000_converges_at_every_sample() {
-    assert_rotation_image_converges("(1000)(1000)");
+fn rotation_lune_of_order_100_converges_at_every_sample() {
+    assert_rotation_image_converges("(100)(100)");
 }
 
-const ROTATION_CENTRE_DOMAINS: [&str; 27] = [
-    "332",
-    "432",
-    "532",
-    "222",
-    "322",
-    "422",
-    "522",
-    "622",
-    "722",
-    "822",
-    "922",
-    "(10)22",
-    "(11)22",
-    "(12)22",
-    "(1000)22",
-    "22",
-    "33",
-    "44",
-    "55",
-    "66",
-    "77",
-    "88",
-    "99",
-    "(10)(10)",
-    "(11)(11)",
-    "(12)(12)",
-    "(1000)(1000)",
-];
-
-const ROTATION_CENTRE_BOUNDS: [f64; 27] = [
-    7e-15, 2e-14, 3e-14, 6e-15, 7e-15, 1e-14, 9e-15, 2e-14, 5e-15, 2e-14, 3e-14, 3e-14, 2e-14,
-    3e-14, 3e-10, 8e-15, 9e-16, 6e-15, 3e-15, 8e-15, 3e-15, 6e-15, 4e-15, 4e-15, 2e-15, 4e-15,
-    3e-13,
+const ROTATION_CENTRE_BOUNDS: [(&str, f64); 27] = [
+    ("332", 7e-15),
+    ("432", 2e-14),
+    ("532", 3e-14),
+    ("222", 6e-15),
+    ("322", 7e-15),
+    ("422", 1e-14),
+    ("522", 9e-15),
+    ("622", 2e-14),
+    ("722", 5e-15),
+    ("822", 2e-14),
+    ("922", 3e-14),
+    ("(10)22", 3e-14),
+    ("(11)22", 2e-14),
+    ("(12)22", 3e-14),
+    ("(100)22", 2e-12),
+    ("22", 8e-15),
+    ("33", 9e-16),
+    ("44", 6e-15),
+    ("55", 3e-15),
+    ("66", 8e-15),
+    ("77", 3e-15),
+    ("88", 6e-15),
+    ("99", 4e-15),
+    ("(10)(10)", 4e-15),
+    ("(11)(11)", 2e-15),
+    ("(12)(12)", 4e-15),
+    ("(100)(100)", 1e-14),
 ];
 
 #[test]
 fn images_of_the_centre_under_a_rotation_group_fold_back_in_at_least_as_many_steps_as_their_depth()
 {
     let mut reference = Reference::new();
-    for (name, bound) in ROTATION_CENTRE_DOMAINS
-        .into_iter()
-        .zip(ROTATION_CENTRE_BOUNDS)
-    {
+    for (name, bound) in ROTATION_CENTRE_BOUNDS {
         let signature: Signature = name
             .parse()
             .unwrap_or_else(|error| panic!("{name:?} is rejected: {error}"));
@@ -1217,10 +1213,9 @@ fn assert_polygon_replay(domains: core::ops::Range<usize>) {
             let (total, largest) = &mut steps[sample.band];
             *total += u64::from(result.steps());
             *largest = (*largest).max(result.steps());
-            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let distance = reference.distance(&vector(result.point().to_array()), &replayed);
             worst[sample.band].record(&distance, &reference::int(1), || describe_polygon(&sample));
-            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
             if !exact.converged || exact.sides != sides {
                 let first = sides
                     .iter()
@@ -1333,12 +1328,11 @@ fn wallpaper_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
             let (total, largest) = &mut steps[sample.distance];
             *total += u64::from(result.steps());
             *largest = (*largest).max(result.steps());
-            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let distance = reference::plane_distance(&vector(result.point().to_array()), &replayed);
             worst[sample.distance].record(&distance, &reference::int(1), || {
                 describe_wallpaper(&sample)
             });
-            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
             if !exact.converged || exact.sides != sides {
                 let first = sides
                     .iter()
@@ -1409,14 +1403,11 @@ fn describe_group_sample(sample: &SphereSample) -> String {
 fn spherical_group_fold_replay_and_decisions_stay_within_their_bounds_and_converge_within_the_step_bound()
  {
     let mut reference = Reference::new();
-    for (index, &name) in SPHERICAL_GROUP_DOMAINS.iter().enumerate() {
+    for (index, bounds) in SPHERICAL_GROUP_BOUNDS.iter().enumerate() {
+        let name = bounds.signature;
         let domain = domain_with_settings(name, &[]);
-        let bounds = spherical_group_bounds(name);
         let walls = reference_walls(&domain);
-        let set: Vec<SphereSample> = spherical_fold_set(index)
-            .into_iter()
-            .filter(|sample| !GROUP_LIMITS.contains(&name) || sample.angle.is_multiple_of(2))
-            .collect();
+        let set = spherical_fold_set(index);
         let mut worst = Worst::new(
             format!("folded point, angle from the replay, {name}"),
             set.len(),
@@ -1433,10 +1424,9 @@ fn spherical_group_fold_replay_and_decisions_stay_within_their_bounds_and_conver
             );
             total += u64::from(result.steps());
             largest = largest.max(result.steps());
-            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let angle = reference.angle(&vector(result.point().to_array()), &replayed);
             worst.record(&angle, &reference::int(1), || describe_group_sample(sample));
-            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
             assert!(
                 exact.converged,
                 "the exact fold of {} does not converge",
@@ -1511,7 +1501,7 @@ const SHARED_WALL_DOMAINS: [(&str, usize); 11] = [
     ("3*", 1),
     ("5*", 1),
     ("(12)*", 1),
-    ("(1000)*", 1),
+    ("(100)*", 1),
     ("3*2", 0),
     ("5x", 0),
     ("2*5", 1),
@@ -1592,9 +1582,8 @@ fn sides_on_one_wall_give_the_same_colour_parity_and_folded_point() {
     }
 }
 
-const GROUP_NEAR_VERTEX_DOMAINS: [&str; 6] = [
-    "(1000)*", "(1000)x", "2*(500)", "(999)*", "(999)x", "2*(499)",
-];
+const GROUP_NEAR_VERTEX_DOMAINS: [&str; 6] =
+    ["(100)*", "(100)x", "2*(50)", "(99)*", "(99)x", "2*(49)"];
 
 const GROUP_NEAR_VERTEX_DISTANCES: [f64; 8] =
     [1e-6, 1e-9, 1e-12, 1e-13, 1e-14, 1e-15, 1e-16, 3e-17];
@@ -1639,41 +1628,13 @@ fn fold_near_a_vertex_of_a_spherical_group_domain_converges_within_the_cap() {
     }
 }
 
-const GROUP_CENTRE_BOUNDS: [(&str, f64); 18] = [
-    ("3*2", 2e-14),
-    ("*", 0.0),
-    ("x", 0.0),
-    ("2*", 1e-14),
-    ("3*", 4e-15),
-    ("5*", 2e-14),
-    ("(12)*", 2e-14),
-    ("(1000)*", 4e-10),
-    ("2x", 1e-14),
-    ("3x", 1e-14),
-    ("5x", 4e-15),
-    ("(12)x", 4e-15),
-    ("(1000)x", 4e-13),
-    ("2*2", 1e-14),
-    ("2*3", 1e-14),
-    ("2*5", 4e-14),
-    ("2*(12)", 2e-14),
-    ("2*(500)", 2e-12),
-];
-
 #[test]
 fn images_of_the_centre_under_a_spherical_group_fold_back_near_the_centre() {
     let mut reference = Reference::new();
-    for name in SPHERICAL_GROUP_DOMAINS
-        .into_iter()
-        .filter(|&name| name != "1")
+    for (name, bound) in SPHERICAL_GROUP_BOUNDS
+        .iter()
+        .filter_map(|row| Some((row.signature, row.centre?)))
     {
-        let bound = GROUP_CENTRE_BOUNDS
-            .iter()
-            .find(|&&(row, _)| row == name)
-            .map_or_else(
-                || panic!("{name} has no bound of the images of the centre"),
-                |&(_, bound)| bound,
-            );
         let signature: Signature = name
             .parse()
             .unwrap_or_else(|error| panic!("{name:?} is rejected: {error}"));

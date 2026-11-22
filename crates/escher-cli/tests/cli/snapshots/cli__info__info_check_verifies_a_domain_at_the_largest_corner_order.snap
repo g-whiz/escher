@@ -1,20 +1,20 @@
 ---
 source: crates/escher-cli/tests/cli/info.rs
-expression: "snapshot(&[\"info\", \"--check\", \"*(1000)32\"])"
+expression: "snapshot(&[\"info\", \"--check\", \"*(100)32\"])"
 ---
 status: Success
 --- stdout
-Signature: *(1000)32
+Signature: *(100)32
 Geometry: hyperbolic
-Euler characteristic: -497/6000
+Euler characteristic: -47/600
 Compact: yes
-Area: 497pi/3000
+Area: 47pi/300
 Deformation dimension: 0
 Domain: 3 mirror sides
-Corner angles in degrees: 0.180000, 60.000000, 90.000000
-Side lengths: 5.763017, 5.906856, 0.549296
-Domain area: 0.520457
-Colourings: 330, complete to 12 colours
+Corner angles in degrees: 1.800000, 60.000000, 90.000000
+Side lengths: 3.459617, 3.603211, 0.548318
+Domain area: 0.492183
+Colourings: 234, complete to 12 colours
 Colourings with 1 colour: 1
 Colourings with 2 colours: 3
 Colourings with 3 colours: 3
@@ -22,10 +22,10 @@ Colourings with 4 colours: 5
 Colourings with 5 colours: 5
 Colourings with 6 colours: 25
 Colourings with 7 colours: 7
-Colourings with 8 colours: 28
+Colourings with 8 colours: 12
 Colourings with 9 colours: 9
-Colourings with 10 colours: 75
-Colourings with 12 colours: 169
+Colourings with 10 colours: 55
+Colourings with 12 colours: 109
 Check isometries: passed, residual <residual>, tolerance 1.0e-9
 Check pairings: passed, residual <residual>, tolerance 1.0e-9
 Check walls: passed, residual <residual>, tolerance 1.0e-9

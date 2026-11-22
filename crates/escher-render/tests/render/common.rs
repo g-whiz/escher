@@ -10,23 +10,14 @@ use glam::{DMat3, DVec2, DVec3};
 use crate::golden_images::{POLYGON_DOMAINS, PolygonShape, Shape, domain_with_aspect};
 use crate::reference::{self, Reference, Vector, Wall, matrix, vector};
 
-pub(crate) const PLAN_TRIPLES: [[u32; 3]; 6] = [
-    [7, 3, 2],
-    [5, 4, 2],
-    [4, 4, 4],
-    [4, 3, 3],
-    [12, 3, 2],
-    [1000, 3, 2],
-];
-
 pub(crate) const FOLD_TRIPLES: [[u32; 3]; 7] = [
     [7, 3, 2],
     [5, 4, 2],
     [4, 4, 4],
     [4, 3, 3],
     [12, 3, 2],
-    [1000, 3, 2],
-    [1000, 1000, 1000],
+    [100, 3, 2],
+    [100, 100, 100],
 ];
 
 pub(crate) const BANDS: [i32; 6] = [1, 2, 3, 4, 5, 6];
@@ -37,34 +28,16 @@ pub(crate) const RIM_ANGLES: u32 = 64;
 
 pub(crate) const DEFAULT_CAP: u32 = 1500;
 
+pub(crate) const CONVERGENCE_SIZE: u32 = 256;
+
 pub(crate) const TOLERANCE: f64 = 4e-15;
 
-pub(crate) const VERTEX_TRIPLES: [[u32; 3]; 25] = [
+pub(crate) const VERTEX_TRIPLES: [[u32; 3]; 5] = [
     [38, 20, 4],
-    [995, 983, 970],
-    [994, 991, 970],
-    [997, 996, 970],
-    [997, 980, 973],
-    [992, 990, 979],
-    [995, 987, 976],
-    [928, 4, 3],
-    [999, 7, 6],
-    [998, 4, 4],
-    [1000, 4, 4],
-    [1000, 1000, 2],
-    [1000, 1000, 1000],
-    [868, 4, 4],
-    [923, 6, 5],
-    [998, 981, 961],
-    [998, 998, 958],
-    [997, 931, 906],
-    [992, 991, 975],
-    [989, 976, 974],
-    [978, 977, 971],
-    [985, 985, 971],
-    [973, 972, 964],
-    [979, 979, 971],
-    [987, 984, 970],
+    [99, 7, 6],
+    [98, 4, 4],
+    [100, 4, 4],
+    [100, 100, 2],
 ];
 
 pub(crate) const EUCLIDEAN_DOMAINS: [(&str, Option<f64>); 7] = [
@@ -97,43 +70,69 @@ pub(crate) const REPLAY_BOUNDS: [[f64; 6]; 7] = [
     [3e-13, 3e-11, 3e-9, 2e-7, 3e-5, 3e-3],
     [3e-13, 3e-11, 2e-9, 3e-7, 3e-5, 3e-3],
     [3e-13, 3e-11, 4e-9, 4e-7, 3e-5, 4e-3],
-    [2e-11, 2e-10, 5e-8, 3e-6, 4e-4, 3e-2],
-    [5e-13, 9e-11, 8e-9, 2e-6, 2e-4, 2e-2],
+    [1e-12, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2],
+    [4e-13, 1e-10, 1e-8, 2e-6, 1e-4, 1e-2],
 ];
 
-pub(crate) const SPHERICAL_DOMAINS: [&str; 17] = [
-    "*332",
-    "*432",
-    "*532",
-    "*222",
-    "*322",
-    "*522",
-    "*(12)22",
-    "*(100)22",
-    "*(999)22",
-    "*(1000)22",
-    "*22",
-    "*33",
-    "*55",
-    "*(12)(12)",
-    "*(100)(100)",
-    "*(999)(999)",
-    "*(1000)(1000)",
+pub(crate) struct SphericalBounds {
+    pub(crate) signature: &'static str,
+    pub(crate) replay: f64,
+    pub(crate) decisions: usize,
+    pub(crate) rotation_replay: f64,
+    pub(crate) rotation_decisions: usize,
+    pub(crate) rotation_oracle: usize,
+    pub(crate) pairing: f64,
+}
+
+const fn spherical_bounds(
+    signature: &'static str,
+    replay: f64,
+    decisions: usize,
+    rotation_replay: f64,
+    rotation_decisions: usize,
+    rotation_oracle: usize,
+    pairing: f64,
+) -> SphericalBounds {
+    SphericalBounds {
+        signature,
+        replay,
+        decisions,
+        rotation_replay,
+        rotation_decisions,
+        rotation_oracle,
+        pairing,
+    }
+}
+
+pub(crate) const SPHERICAL_BOUNDS: [SphericalBounds; 13] = [
+    spherical_bounds("*332", 3e-15, 0, 3e-15, 0, 0, 2e-14),
+    spherical_bounds("*432", 3e-15, 0, 3e-15, 0, 0, 3e-14),
+    spherical_bounds("*532", 4e-15, 0, 4e-15, 0, 0, 5e-14),
+    spherical_bounds("*222", 3e-15, 0, 2e-15, 0, 0, 9e-15),
+    spherical_bounds("*322", 3e-15, 0, 2e-15, 0, 0, 2e-14),
+    spherical_bounds("*522", 3e-15, 0, 3e-15, 0, 0, 2e-14),
+    spherical_bounds("*(12)22", 4e-15, 0, 3e-15, 0, 0, 3e-14),
+    spherical_bounds("*(100)22", 2e-14, 0, 8e-15, 0, 0, 3e-12),
+    spherical_bounds("*22", 8e-16, 0, 6e-16, 0, 0, 8e-15),
+    spherical_bounds("*33", 2e-15, 2, 1e-15, 1, 0, 2e-14),
+    spherical_bounds("*55", 2e-15, 0, 2e-15, 0, 0, 5e-15),
+    spherical_bounds("*(12)(12)", 3e-15, 0, 3e-15, 0, 0, 6e-15),
+    spherical_bounds("*(100)(100)", 9e-15, 0, 6e-15, 0, 0, 9e-15),
 ];
+
+pub(crate) const SPHERICAL_DOMAINS: [&str; SPHERICAL_BOUNDS.len()] = {
+    let mut names = [""; SPHERICAL_BOUNDS.len()];
+    let mut index = 0;
+    while index < names.len() {
+        names[index] = SPHERICAL_BOUNDS[index].signature;
+        index += 1;
+    }
+    names
+};
 
 pub(crate) const RIM_DISTANCES: [f64; 7] = [120.0, 24.0, 8.0, 4.0, 2.0, 1.0, 0.5];
 
 pub(crate) const SPHERE_ROTATIONS: [[f64; 3]; 2] = [[0.0; 3], [20.0, 35.0, 0.0]];
-
-pub(crate) const SPHERICAL_REPLAY_BOUNDS: [f64; 17] = [
-    3e-15, 3e-15, 4e-15, 3e-15, 3e-15, 3e-15, 4e-15, 2e-14, 4e-14, 5e-14, 8e-16, 2e-15, 2e-15,
-    3e-15, 9e-15, 3e-14, 3e-14,
-];
-
-pub(crate) const SPHERICAL_IMAGE_BOUNDS: [f64; 2] = [9e-13, 3e-13];
-
-pub(crate) const SPHERICAL_DECISION_COUNTS: [usize; 17] =
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0];
 
 pub(crate) fn text(orders: [u32; 3]) -> String {
     let corners: String = orders
@@ -357,19 +356,14 @@ pub(crate) fn wallpaper_bounds(shape: &PolygonShape) -> &'static WallpaperBounds
         .unwrap_or_else(|| panic!("{} has no wallpaper bounds", shape.name()))
 }
 
-pub(crate) const SPHERICAL_GROUP_DOMAINS: [&str; 19] = [
-    "3*2", "*", "x", "1", "2*", "3*", "5*", "(12)*", "(1000)*", "2x", "3x", "5x", "(12)x",
-    "(1000)x", "2*2", "2*3", "2*5", "2*(12)", "2*(500)",
-];
-
-pub(crate) const GROUP_LIMITS: [&str; 3] = ["(1000)*", "(1000)x", "2*(500)"];
-
 pub(crate) struct SphericalGroupBounds {
-    signature: &'static str,
+    pub(crate) signature: &'static str,
     pub(crate) replay: f64,
     pub(crate) decisions: usize,
     pub(crate) steps: u32,
     pub(crate) pairing: f64,
+    pub(crate) centre: Option<f64>,
+    pub(crate) border: Option<[f64; 3]>,
 }
 
 const fn group_bounds(
@@ -378,6 +372,7 @@ const fn group_bounds(
     decisions: usize,
     steps: u32,
     pairing: f64,
+    centre: Option<f64>,
 ) -> SphericalGroupBounds {
     SphericalGroupBounds {
         signature,
@@ -385,30 +380,51 @@ const fn group_bounds(
         decisions,
         steps,
         pairing,
+        centre,
+        border: None,
     }
 }
 
-const SPHERICAL_GROUP_BOUNDS: [SphericalGroupBounds; 19] = [
-    group_bounds("3*2", 4e-15, 0, 7, 4e-14),
-    group_bounds("*", 0.0, 0, 2, 0.0),
-    group_bounds("x", 0.0, 0, 2, 0.0),
-    group_bounds("1", 0.0, 0, 0, 0.0),
-    group_bounds("2*", 2e-15, 0, 3, 2e-14),
-    group_bounds("3*", 4e-15, 0, 3, 1e-14),
-    group_bounds("5*", 4e-15, 0, 4, 2e-14),
-    group_bounds("(12)*", 4e-15, 0, 8, 2e-14),
-    group_bounds("(1000)*", 4e-14, 0, 502, 4e-10),
-    group_bounds("2x", 1e-15, 0, 3, 1e-14),
-    group_bounds("3x", 2e-15, 2, 4, 2e-14),
-    group_bounds("5x", 2e-15, 0, 6, 1e-14),
-    group_bounds("(12)x", 4e-15, 0, 13, 1e-14),
-    group_bounds("(1000)x", 4e-14, 0, 1001, 2e-14),
-    group_bounds("2*2", 4e-15, 0, 4, 4e-14),
-    group_bounds("2*3", 2e-15, 0, 5, 4e-14),
-    group_bounds("2*5", 4e-15, 0, 7, 2e-14),
-    group_bounds("2*(12)", 4e-15, 0, 14, 1e-13),
-    group_bounds("2*(500)", 4e-14, 0, 502, 4e-10),
+impl SphericalGroupBounds {
+    const fn bordered(mut self, degrees: [f64; 3]) -> Self {
+        self.border = Some(degrees);
+        self
+    }
+}
+
+const TURNED: [f64; 3] = [30.0, 50.0, 10.0];
+
+pub(crate) const SPHERICAL_GROUP_BOUNDS: [SphericalGroupBounds; 19] = [
+    group_bounds("3*2", 4e-15, 0, 7, 4e-14, Some(2e-14)).bordered([0.0; 3]),
+    group_bounds("*", 0.0, 0, 2, 0.0, Some(0.0)).bordered(TURNED),
+    group_bounds("x", 0.0, 0, 2, 0.0, Some(0.0)).bordered(TURNED),
+    group_bounds("1", 0.0, 0, 0, 0.0, None),
+    group_bounds("2*", 2e-15, 0, 3, 2e-14, Some(1e-14)),
+    group_bounds("3*", 4e-15, 0, 3, 1e-14, Some(4e-15)),
+    group_bounds("5*", 4e-15, 0, 4, 2e-14, Some(2e-14)).bordered([0.0; 3]),
+    group_bounds("(12)*", 4e-15, 0, 8, 2e-14, Some(2e-14)),
+    group_bounds("(100)*", 1e-14, 0, 52, 4e-12, Some(2e-12)),
+    group_bounds("2x", 1e-15, 0, 3, 1e-14, Some(1e-14)),
+    group_bounds("3x", 2e-15, 2, 4, 2e-14, Some(1e-14)),
+    group_bounds("5x", 2e-15, 0, 6, 1e-14, Some(4e-15)).bordered([0.0; 3]),
+    group_bounds("(12)x", 4e-15, 0, 13, 1e-14, Some(4e-15)),
+    group_bounds("(100)x", 1e-14, 0, 101, 1e-14, Some(1e-14)),
+    group_bounds("2*2", 4e-15, 0, 4, 4e-14, Some(1e-14)),
+    group_bounds("2*3", 2e-15, 0, 5, 4e-14, Some(1e-14)),
+    group_bounds("2*5", 4e-15, 0, 7, 2e-14, Some(4e-14)).bordered([0.0; 3]),
+    group_bounds("2*(12)", 4e-15, 0, 14, 1e-13, Some(2e-14)),
+    group_bounds("2*(50)", 1e-14, 0, 52, 4e-12, Some(1e-13)),
 ];
+
+pub(crate) const SPHERICAL_GROUP_DOMAINS: [&str; SPHERICAL_GROUP_BOUNDS.len()] = {
+    let mut names = [""; SPHERICAL_GROUP_BOUNDS.len()];
+    let mut index = 0;
+    while index < names.len() {
+        names[index] = SPHERICAL_GROUP_BOUNDS[index].signature;
+        index += 1;
+    }
+    names
+};
 
 pub(crate) fn spherical_group_bounds(signature: &str) -> &'static SphericalGroupBounds {
     SPHERICAL_GROUP_BOUNDS
@@ -558,7 +574,7 @@ pub(crate) const POLYGON_REPLAY_BOUNDS: [[f64; 6]; POLYGON_DOMAINS.len()] = [
     [1e-12, 1e-10, 1e-8, 1e-6, 4e-5, 1e-2],
     [4e-12, 2e-10, 4e-8, 4e-6, 4e-4, 4e-2],
     [4e-13, 4e-11, 4e-9, 4e-7, 2e-5, 4e-3],
-    [4e-11, 4e-9, 4e-7, 4e-5, 4e-3, 4e-1],
+    [4e-12, 1e-9, 1e-7, 4e-6, 1e-3, 4e-2],
     [1e-12, 2e-10, 1e-8, 1e-6, 1e-4, 1e-2],
     [4e-11, 4e-9, 2e-7, 4e-5, 2e-3, 2e-1],
     [1e-11, 1e-9, 1e-7, 1e-5, 1e-3, 2e-1],
@@ -581,7 +597,7 @@ pub(crate) const POLYGON_DECISION_COUNTS: [[usize; 6]; POLYGON_DOMAINS.len()] = 
     [0; 6],
     [0; 6],
     [0; 6],
-    [0, 0, 0, 0, 0, 2],
+    [0; 6],
     [0; 6],
     [0, 0, 0, 0, 0, 1],
     [0; 6],
@@ -738,8 +754,8 @@ pub(crate) const ROTATION_REPLAY_BOUNDS: [[f64; 6]; 7] = [
     [5e-13, 6e-11, 7e-9, 8e-7, 6e-5, 5e-3],
     [3e-13, 5e-11, 4e-9, 4e-7, 4e-5, 4e-3],
     [3e-13, 3e-11, 4e-9, 4e-7, 4e-5, 4e-3],
-    [2e-11, 2e-9, 2e-7, 6e-5, 3e-3, 4e-1],
-    [3e-12, 3e-10, 2e-7, 8e-6, 3e-4, 2e-1],
+    [2e-12, 4e-10, 4e-8, 1e-5, 2e-4, 4e-2],
+    [2e-12, 1e-9, 1e-7, 1e-5, 1e-3, 1e-1],
 ];
 
 pub(crate) const ROTATION_EUCLIDEAN_REPLAY_BOUNDS: [[f64; 4]; 7] = [
@@ -752,32 +768,22 @@ pub(crate) const ROTATION_EUCLIDEAN_REPLAY_BOUNDS: [[f64; 4]; 7] = [
     [2e-15, 2e-14, 9e-14, 2e-12],
 ];
 
-pub(crate) const ROTATION_SPHERICAL_REPLAY_BOUNDS: [f64; 17] = [
-    3e-15, 3e-15, 4e-15, 2e-15, 2e-15, 3e-15, 3e-15, 8e-15, 3e-14, 3e-14, 6e-16, 1e-15, 2e-15,
-    3e-15, 6e-15, 2e-14, 3e-14,
-];
-
 pub(crate) const ROTATION_DECISION_COUNTS: [[usize; 6]; 7] = [
     [0; 6],
     [0, 0, 0, 0, 0, 1],
     [0; 6],
     [0; 6],
     [0; 6],
-    [0, 0, 0, 0, 0, 2],
+    [0; 6],
     [0; 6],
 ];
 
 pub(crate) const ROTATION_EUCLIDEAN_DECISION_COUNTS: [[usize; 4]; 7] =
     [[1, 0, 0, 0], [0; 4], [0; 4], [0; 4], [0; 4], [0; 4], [0; 4]];
 
-pub(crate) const ROTATION_SPHERICAL_DECISION_COUNTS: [usize; 17] =
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0];
-
 pub(crate) const ROTATION_ORACLE_COUNTS: [[usize; 6]; 7] = [[0; 6]; 7];
 
 pub(crate) const ROTATION_EUCLIDEAN_ORACLE_COUNTS: [[usize; 4]; 7] = [[0; 4]; 7];
-
-pub(crate) const ROTATION_SPHERICAL_ORACLE_COUNTS: [usize; 17] = [0; 17];
 
 pub(crate) const ROTATION_RANGES: [usize; 7] = [6; 7];
 
@@ -865,7 +871,8 @@ pub(crate) fn spherical_rotation_cases(
     indices
         .into_iter()
         .map(|index| {
-            let starred = SPHERICAL_DOMAINS[index];
+            let bounds = &SPHERICAL_BOUNDS[index];
+            let starred = bounds.signature;
             let name = rotation_text(starred).to_owned();
             let samples = spherical_fold_set(index)
                 .into_iter()
@@ -885,10 +892,10 @@ pub(crate) fn spherical_rotation_cases(
                 reflection: spherical_domain(index),
                 measure: Measure::Spherical,
                 groups: vec!["all positions".to_owned()],
-                bounds: vec![ROTATION_SPHERICAL_REPLAY_BOUNDS[index]],
-                reflection_bounds: vec![SPHERICAL_REPLAY_BOUNDS[index]],
-                decisions: vec![ROTATION_SPHERICAL_DECISION_COUNTS[index]],
-                oracle: vec![ROTATION_SPHERICAL_ORACLE_COUNTS[index]],
+                bounds: vec![bounds.rotation_replay],
+                reflection_bounds: vec![bounds.replay],
+                decisions: vec![bounds.rotation_decisions],
+                oracle: vec![bounds.rotation_oracle],
                 range: 1,
                 samples,
                 name,

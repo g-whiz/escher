@@ -294,6 +294,8 @@ pub(crate) fn domain_with_settings(text: &str, settings: &[(&str, f64)]) -> Fund
         .unwrap_or_else(|error| panic!("{text} with {settings:?} has no domain: {error}"))
 }
 
+pub(crate) const PLAN_TRIPLES: [&str; 6] = ["*732", "*542", "*444", "*433", "*(12)32", "*(100)32"];
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Shape {
     Default,
@@ -328,7 +330,7 @@ pub(crate) const POLYGON_DOMAINS: [PolygonShape; 20] = [
     polygon("*5432", Shape::Named(&[("slice1.length", 0.5)])),
     polygon("*5432", Shape::Named(&[("slice1.length", 3.5)])),
     polygon("*3222", Shape::Default),
-    polygon("*(1000)2222", Shape::Default),
+    polygon("*(100)2222", Shape::Default),
     polygon("*22222222", Shape::Default),
     polygon("*22222222", Shape::Every(0.5)),
     polygon("*22222222", Shape::Every(3.5)),

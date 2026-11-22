@@ -138,11 +138,11 @@ impl Fold {
 /// converged. For a spherical
 /// domain, it is accurate for every vector whose largest absolute coordinate is
 /// at least `1e-300` and whose fold converges.
-/// A point very close to a vertex of very high order, such as a point within
-/// `1e-14` radians of the vertex of order 1000 of `*(1000)22`, can still lie
-/// outside a side after the default cap of 1500 steps, and its fold then does
-/// not converge. Beyond those limits the function still returns, but its
-/// result carries no accuracy guarantee.
+/// A point very close to a vertex of high order can still lie outside a side
+/// after the default cap of 1500 steps, and its fold then does not converge. A
+/// measurement found no such point within `1e-14` radians of the vertex of
+/// order 100 of `*(100)22`. Beyond those limits the function still returns,
+/// but its result carries no accuracy guarantee.
 ///
 /// A domain whose side pairings are rotations and translations, such as the
 /// domain of `732`, folds by the same steps. Each pairing of a double is a
@@ -155,14 +155,12 @@ impl Fold {
 /// keep the rotations of the kites of `442` and `632` and have two mirror
 /// sides.
 /// For a hyperbolic domain
-/// whose corner orders are all near 1000, such as the domain of
-/// `(1000)(1000)(1000)` or `(1000)(1000)(999)`, a point within a hyperbolic
-/// distance of `1e-6` of a vertex of order near 1000 other than vertex 0 may
-/// still lie outside a side after the default cap, and its fold then does not
-/// converge. A measurement found such folds at vertices 1, 2, and 3 of the
-/// domain of `(1000)(1000)(1000)`, up to a distance of `3e-8`, and at vertices
-/// 1 and 3 of the domain of `(1000)(1000)(999)`, up to a distance of `1e-7`. It
-/// found none for the domains of `(998)(981)(961)` and `(1000)32`.
+/// whose corner orders are all near 100, such as the domain of
+/// `(100)(100)(100)` or `(100)(100)(99)`, a point very close to a vertex of
+/// order 100 may still lie outside a side after the default cap, and its fold
+/// then does not converge. Measurements on two machines found such folds at
+/// vertices of both domains up to a hyperbolic distance of `1e-10`, and which
+/// points fail depends on the platform mathematics library.
 ///
 /// A domain with no reversing side counts no reversal, and the step counts of
 /// a point and of its image under a pairing need not differ by one.

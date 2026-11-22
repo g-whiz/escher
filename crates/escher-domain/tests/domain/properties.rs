@@ -19,19 +19,8 @@ const CHECK_AGREEMENT_TOLERANCE: f64 = 1e-9;
 const FRAME_AGREEMENT_TOLERANCE: f64 = 2.0;
 const NAMED_TRIPLES: usize = 30;
 
-#[derive(Clone, Copy)]
-enum FrameBound {
-    Above(f64),
-    Below(f64),
-}
-
-const FRAME_CASES: [([u32; 3], FrameBound, f64); 2] = [
-    ([998, 981, 961], FrameBound::Above(2e-6), 2e-6),
-    ([1000, 3, 2], FrameBound::Below(1e-10), 1e-12),
-];
-
 fn hyperbolic_triple() -> impl Strategy<Value = [u32; 3]> {
-    prop_oneof![uniform3(2_u32..=1000), uniform3(900_u32..=1000)]
+    prop_oneof![uniform3(2_u32..=100), uniform3(90_u32..=100)]
         .prop_filter("the triangle is hyperbolic", |orders| {
             is_hyperbolic(*orders)
         })
@@ -40,8 +29,8 @@ fn hyperbolic_triple() -> impl Strategy<Value = [u32; 3]> {
 fn order() -> impl Strategy<Value = String> {
     prop_oneof![
         4 => (2_u32..=9).prop_map(order_text),
-        2 => (10_u32..=1100).prop_map(order_text),
-        1 => Just("(inf)".to_owned()),
+        2 => (10_u32..=110).prop_map(order_text),
+                1 => Just("(inf)".to_owned()),
     ]
 }
 
@@ -187,49 +176,4 @@ fn relator_check_agrees_with_the_exact_powers_in_both_frames() {
     }
     check_agreement.assert_at_most(&mut reference, CHECK_AGREEMENT_TOLERANCE);
     frame_agreement.assert_at_most(&mut reference, FRAME_AGREEMENT_TOLERANCE);
-}
-
-fn largest_in_each_frame(orders: [u32; 3]) -> (BigFloat, BigFloat, f64) {
-    let built = domain(orders);
-    let mut largest = (int(0), int(0));
-    for frames in exact_frames(&built, orders) {
-        largest = (
-            max(&largest.0, &frames.domain),
-            max(&largest.1, &frames.corner),
-        );
-    }
-    (largest.0, largest.1, built.verify().relators().tolerance())
-}
-
-#[test]
-fn relators_in_the_domain_frame_exceed_the_tolerance_only_at_the_largest_orders() {
-    let mut reference = Reference::new();
-    for (orders, domain_bound, corner_bound) in FRAME_CASES {
-        let (domain_frame, corner_frame, tolerance) = largest_in_each_frame(orders);
-        let (domain_value, corner_value) = (
-            reference.approximate(&domain_frame),
-            reference.approximate(&corner_frame),
-        );
-        println!(
-            "{}: exact relator residual in the domain frame {domain_value:.3e}, in the corner frame {corner_value:.3e}, tolerance {tolerance:e}",
-            text(orders)
-        );
-        assert!(
-            corner_frame <= num(corner_bound),
-            "{}: corner frame {corner_value:e} exceeds {corner_bound:e}",
-            text(orders)
-        );
-        match domain_bound {
-            FrameBound::Above(bound) => assert!(
-                domain_frame >= num(bound),
-                "{}: domain frame {domain_value:e} is below {bound:e}",
-                text(orders)
-            ),
-            FrameBound::Below(bound) => assert!(
-                domain_frame <= num(bound),
-                "{}: domain frame {domain_value:e} exceeds {bound:e}",
-                text(orders)
-            ),
-        }
-    }
 }

@@ -230,8 +230,8 @@ impl FundamentalDomain {
     /// parameters that the settings give.
     ///
     /// The signature must be `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`,
-    /// `4*2`, `3*3`, `3*2`, `2*n` with `n` from 2 to 500, `n*` or `nx` with `n`
-    /// from 2 to 1000, `*`, `x`, or `1`, or have no handle or crosscap and
+    /// `4*2`, `3*3`, `3*2`, `2*n` with `n` from 2 to 50, `n*` or `nx` with `n`
+    /// from 2 to 100, `*`, `x`, or `1`, or have no handle or crosscap and
     /// either one mirror boundary with finite corner orders and no cone point,
     /// or finite cone orders and no boundary. With a boundary, it must be one
     /// of these:
@@ -246,7 +246,7 @@ impl FundamentalDomain {
     /// - A spherical triangle, which is `*332`, `*432`, `*532`, or `*n22`.
     /// - A lune `*nn`.
     ///
-    /// Each corner order must be at most 1000. Without a boundary, its cone
+    /// Each corner order must be at most 100. Without a boundary, its cone
     /// orders must be the corner orders of one of these, such as `732`,
     /// `2222`, `nn`, or `3333`, and its domain is the double of the domain of
     /// that signature, which is the domain together with its mirror image
@@ -381,8 +381,8 @@ impl FundamentalDomain {
     /// 2. An error of kind
     ///    [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) for a
     ///    signature with more than eight corner or cone orders, and then for a
-    ///    corner or cone order above 1000, or for an order `n` of `2*n` above
-    ///    500.
+    ///    corner or cone order above 100, or for an order `n` of `2*n` above
+    ///    50.
     /// 3. An error of kind
     ///    [`ErrorKind::UnknownParameter`](crate::ErrorKind::UnknownParameter)
     ///    when a setting names no parameter of the signature.
@@ -744,7 +744,7 @@ impl FundamentalDomain {
     /// use escher_domain::FundamentalDomain;
     /// use escher_signature::Signature;
     ///
-    /// let signature: Signature = "*(1000)32".parse()?;
+    /// let signature: Signature = "*(100)32".parse()?;
     /// let verification = FundamentalDomain::build(&signature)?.verify();
     /// assert!(verification.relators().residual() <= verification.relators().tolerance());
     /// assert!(verification.passed());
@@ -1178,7 +1178,7 @@ mod tests {
         );
         assert_eq!(
             error.map(|error| error.to_string()).as_deref(),
-            Some("cannot build fundamental domain: order 501 is larger than 500")
+            Some("cannot build fundamental domain: order 51 is larger than 50")
         );
     }
 

@@ -4,10 +4,12 @@ use escher_render::{Colour, Fill, RenderOptions, Shading, fold};
 use glam::{DVec2, DVec3};
 
 use crate::common::{
-    DEFAULT_CAP, EUCLIDEAN_DOMAINS, PLAN_TRIPLES, domain, euclidean_domain, euclidean_name,
-    options, text, viewing_matrix,
+    DEFAULT_CAP, EUCLIDEAN_DOMAINS, SPHERICAL_GROUP_BOUNDS, euclidean_domain, euclidean_name,
+    options, viewing_matrix,
 };
-use crate::golden_images::{WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings, renderer};
+use crate::golden_images::{
+    PLAN_TRIPLES, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings, renderer,
+};
 use crate::reference::count_bound;
 
 const SIZE: u32 = 192;
@@ -23,8 +25,6 @@ const GRID_SIZE: u32 = 512;
 const GRID_ASPECTS: [f64; 6] = [1.0, 4.0, 1.618, 0.125, 8.0, 0.3];
 
 const GRID_HALF_WIDTHS: [f64; 3] = [0.5, 0.75, 1.5];
-
-const GRID_MEASURED: [[usize; 3]; 6] = [[0; 3]; 6];
 
 fn position(column: u32, row: u32) -> DVec2 {
     let pixel = 2.0 / (15.0 / 16.0 * f64::from(SIZE));
@@ -143,8 +143,8 @@ fn compare_with_tiles(
 
 #[test]
 fn border_pixels_lie_where_the_tile_of_a_sample_changes() {
-    for orders in PLAN_TRIPLES {
-        assert_borders_where_the_tile_changes(&text(orders), &domain(orders));
+    for text in PLAN_TRIPLES {
+        assert_borders_where_the_tile_changes(text, &domain_with_settings(text, &[]));
     }
 }
 
@@ -248,11 +248,11 @@ fn rectangle_borders_and_parities_match_the_grid_of_the_rectangle() {
     let even = Colour::from_srgb8(245, 222, 179);
     let odd = Colour::from_srgb8(70, 130, 180);
     let pixel = 8.0 / f64::from(GRID_SIZE);
-    for (aspect, measured) in GRID_ASPECTS.into_iter().zip(GRID_MEASURED) {
+    for aspect in GRID_ASPECTS {
         let domain = domain_with_aspect("*2222", Some(aspect));
         let lengths = domain.side_lengths();
         let (width, height) = (lengths[0], lengths[1]);
-        for (half_width, measured) in GRID_HALF_WIDTHS.into_iter().zip(measured) {
+        for half_width in GRID_HALF_WIDTHS {
             let options = options(
                 RenderOptions::builder(Fill::Parity([even, odd]))
                     .size(GRID_SIZE, GRID_SIZE)
@@ -281,7 +281,7 @@ fn rectangle_borders_and_parities_match_the_grid_of_the_rectangle() {
                     differing += 1;
                 }
             }
-            let bound = count_bound(measured);
+            let bound = count_bound(0);
             println!(
                 "*2222 aspect {aspect}, border width {}: {differing} pixels differ from the grid oracle, bound {bound}, {borders} border pixels in the oracle",
                 2.0 * half_width
@@ -333,30 +333,28 @@ fn spherical_border_pixels_lie_where_the_tile_of_a_sample_changes() {
     }
 }
 
-const SPHERICAL_GROUP_BORDER_CASES: [(&str, [f64; 3]); 6] = [
-    ("3*2", [0.0; 3]),
-    ("5*", [0.0; 3]),
-    ("5x", [0.0; 3]),
-    ("2*5", [0.0; 3]),
-    ("*", [30.0, 50.0, 10.0]),
-    ("x", [30.0, 50.0, 10.0]),
-];
-
 #[test]
 fn spherical_group_border_pixels_lie_where_the_tile_of_a_sample_changes() {
-    for (text, degrees) in SPHERICAL_GROUP_BORDER_CASES {
-        assert_ball_borders_where_the_tile_changes(text, &domain_with_settings(text, &[]), degrees);
+    for row in &SPHERICAL_GROUP_BOUNDS {
+        if let Some(degrees) = row.border {
+            let text = row.signature;
+            assert_ball_borders_where_the_tile_changes(
+                text,
+                &domain_with_settings(text, &[]),
+                degrees,
+            );
+        }
     }
 }
 
-const BORDER_SUBSET_DOMAINS: [(&str, Option<f64>); 32] = [
+const BORDER_SUBSET_DOMAINS: [(&str, Option<f64>); 28] = [
     ("*732", None),
     ("*542", None),
     ("*444", None),
     ("*433", None),
     ("*(12)32", None),
-    ("*(1000)32", None),
-    ("*(1000)(1000)(1000)", None),
+    ("*(100)32", None),
+    ("*(100)(100)(100)", None),
     ("*632", None),
     ("*442", None),
     ("*333", None),
@@ -373,18 +371,12 @@ const BORDER_SUBSET_DOMAINS: [(&str, Option<f64>); 32] = [
     ("*522", None),
     ("*(12)22", None),
     ("*(100)22", None),
-    ("*(999)22", None),
-    ("*(1000)22", None),
     ("*22", None),
     ("*33", None),
     ("*55", None),
     ("*(12)(12)", None),
     ("*(100)(100)", None),
-    ("*(999)(999)", None),
-    ("*(1000)(1000)", None),
 ];
-
-const BORDER_SUBSET_MEASURED: [usize; 32] = [0; 32];
 
 fn fill_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool> {
     let fill = Colour::from_srgb8(70, 130, 180);
@@ -405,10 +397,7 @@ fn fill_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool> 
 
 #[test]
 fn every_border_pixel_of_a_rotation_domain_is_a_border_pixel_of_its_reflection_domain() {
-    for ((starred, aspect), measured) in BORDER_SUBSET_DOMAINS
-        .into_iter()
-        .zip(BORDER_SUBSET_MEASURED)
-    {
+    for (starred, aspect) in BORDER_SUBSET_DOMAINS {
         let reflection = domain_with_aspect(starred, aspect);
         let rotation = domain_with_aspect(&starred[1..], aspect);
         let euclidean = reflection.geometry() == escher_signature::Geometry::Euclidean;
@@ -433,7 +422,7 @@ fn every_border_pixel_of_a_rotation_domain_is_a_border_pixel_of_its_reflection_d
             outside_subset += usize::from(rotated && !reflected);
         }
         let name = format!("{} aspect {aspect:?}", &starred[1..]);
-        let bound = count_bound(measured);
+        let bound = count_bound(0);
         println!(
             "{name}: {rotation_borders} border pixels, {reflection_borders} of {starred}, {outside_subset} not border pixels of {starred}, bound {bound}"
         );

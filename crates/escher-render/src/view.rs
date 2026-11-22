@@ -207,14 +207,12 @@ mod tests {
     use super::{Model, View, lift, tangents, viewing_matrix};
     use crate::colour::{Colour, Fill};
     use crate::golden_images::{
-        ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_SIZE, TRANSLATION_TOLERANCE, compare,
+        ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_SIZE, PLAN_TRIPLES, TRANSLATION_TOLERANCE, compare,
         domain_with_aspect, linear_table, renderer, shifted_pairs, translation,
     };
     use crate::options::RenderOptions;
     use crate::options::Shading;
     use crate::reference::{Reference, Worst, difference, largest_magnitude, vector};
-
-    const PLAN_TRIPLES: [&str; 6] = ["*732", "*542", "*444", "*433", "*(12)32", "*(1000)32"];
 
     fn domain(text: &str) -> FundamentalDomain {
         let signature: Signature = match text.parse() {

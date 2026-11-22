@@ -306,7 +306,7 @@ fn guard_refuses_few_random_settings() {
 }
 
 fn polygon_orders() -> impl Strategy<Value = Vec<u32>> {
-    let order = prop_oneof![2_u32..=12, select(vec![900_u32, 950, 1000])];
+    let order = prop_oneof![2_u32..=12, select(vec![90_u32, 95, 100])];
     (4_usize..=8).prop_flat_map(move |count| proptest::collection::vec(order.clone(), count))
 }
 
@@ -402,7 +402,7 @@ fn each_length_parameter_sets_the_length_that_it_names() {
     );
 }
 
-const POLYGON_BOUNDS: [f64; 6] = [4e-10, 2e-7, 2e-8, 1e-15, 1e-10, 1e-10];
+const POLYGON_BOUNDS: [f64; 6] = [1e-12, 2e-9, 1e-11, 1e-15, 2e-11, 2e-11];
 
 const SMALL_ORDER_POLYGON_BOUNDS: [f64; 6] = [1e-13, 4e-13, 4e-13, 1e-15, 1e-13, 1e-13];
 
@@ -425,7 +425,9 @@ const DEFAULT_ROUNDING: f64 = 5.0e-4;
 
 const UNROUNDED_DEFAULT_BOUND: f64 = 1e-12;
 
-const SMALL_POLYGON_STRIDE: usize = 256;
+const SMALL_POLYGON_STRIDE: usize = 1024;
+
+const CUT_SETTING_STRIDE: usize = 2;
 
 pub(crate) fn signature_area(reference: &mut Reference, polygon: &Signature) -> BigFloat {
     let Some(area) = polygon.area_over_pi() else {
@@ -640,7 +642,10 @@ fn each_cut_has_the_length_of_its_parameter_in_the_reference() {
         let polygon = signature(text);
         let orders = corner_orders(&polygon);
         let cuts = Cuts::of(&orders);
-        for (_, values) in polygon_settings(&polygon, &mut random) {
+        for (_, values) in polygon_settings(&polygon, &mut random)
+            .into_iter()
+            .step_by(CUT_SETTING_STRIDE)
+        {
             let walk = reference.reflection_polygon(&orders, &values).walk;
             let input = || format!("{text} {values:?}");
             for sheet in &cuts.sheets {

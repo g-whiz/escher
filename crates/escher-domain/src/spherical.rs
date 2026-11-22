@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn rotary_lune_keeps_the_lune_and_pairs_by_the_half_turn_of_each_reflection() {
         let mut largest = (0.0_f64, String::new());
-        for order in (2..=12).chain([1000]) {
+        for order in (2..=12).chain([100]) {
             let text = format!("{}x", order_text(order));
             let rotary = built(&text);
             let lune = built(&format!("*{0}{0}", order_text(order)));

@@ -24,12 +24,12 @@
 //! The reflection domains are these. A signature `*pqr` with three finite
 //! corner orders has a triangle whose corners have the angles `pi / p`,
 //! `pi / q`, and `pi / r`. The signature is hyperbolic when the reciprocals of
-//! the orders sum to less than 1, and no order may exceed 1000. It is
+//! the orders sum to less than 1, and no order may exceed 100. It is
 //! Euclidean for `*632`, `*442`, and `*333`, and spherical for `*332`, `*432`,
-//! `*532`, and `*n22`, with `n` from 2 to 1000. The signature `*2222` has a
+//! `*532`, and `*n22`, with `n` from 2 to 100. The signature `*2222` has a
 //! rectangle, and its shape parameter `aspect`, which
 //! [`parameters`](parameters()) lists, sets the ratio of its sides. The
-//! signature `*nn`, with `n` from 2 to 1000, has a lune, the region of the
+//! signature `*nn`, with `n` from 2 to 100, has a lune, the region of the
 //! sphere between two half great circles that meet at two antipodal vertices
 //! at the angle `pi / n`. A hyperbolic signature with four to eight corners,
 //! such as `*3333` or `*5432`, has a polygon of the hyperbolic plane with
@@ -70,7 +70,7 @@
 //!
 //! The fourth kind is one of the remaining spherical signatures. A signature
 //! with a cone point beside a mirror boundary, `3*2`, `2*n` with `n` from 2 to
-//! 500, or `n*` with `n` from 2 to 1000, which includes `2*`, has the kite of the double of a spherical
+//! 50, or `n*` with `n` from 2 to 100, which includes `2*`, has the kite of the double of a spherical
 //! triangle with one pair of its sides turned into mirrors, with no shape
 //! parameter. The kite of `432` is the domain of `3*2`, and the kite of
 //! `(2n)22` is the domain of `2*n`, each with its sides 0 and 1 as mirrors and
@@ -78,7 +78,7 @@
 //! is the domain of `n*`, with its sides 2 and 3 as mirrors and its sides 0
 //! and 1 paired by the rotation through `2 pi / n` about vertex 0. The crate
 //! returns such a domain only when it passes its checks. The signature `nx`,
-//! with `n` from 2 to 1000, has the lune of `*nn`, whose two sides are paired
+//! with `n` from 2 to 100, has the lune of `*nn`, whose two sides are paired
 //! by rotary reflections, each the reflection in the wall of its side
 //! followed by the half-turn about the axis through the centre of the lune.
 //! The signatures `*` and `x` have the lune of order 1, a hemisphere whose two
@@ -90,8 +90,8 @@
 //! limits.
 //!
 //! Every other signature gives an [`Error`]. The causes are an unsupported
-//! signature, more than eight corner or cone orders, an order above 1000, or
-//! above 500 for `2*n`, and a polygon, a double of a polygon, a wallpaper
+//! signature, more than eight corner or cone orders, an order above 100, or
+//! above 50 for `2*n`, and a polygon, a double of a polygon, a wallpaper
 //! domain, or a domain of `3*2`, `2*n`, `n*`, `nx`, `x`, or `1` that fails its
 //! checks.
 //! [`FundamentalDomain::verify`] checks a domain numerically, and

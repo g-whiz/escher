@@ -71,7 +71,7 @@ impl Parameter {
 /// rectangles as they are.
 ///
 /// A hyperbolic polygon `*p1...pn` with four to eight corners, each of order
-/// at most 1000, has `n - 3` parameters, each a hyperbolic length from 0.5 to
+/// at most 100, has `n - 3` parameters, each a hyperbolic length from 0.5 to
 /// 3.5 at the curvature -1. Two consecutive corners of order 2 form a corner
 /// pair. The pairs are numbered from 1 as the corners are scanned from corner
 /// 0 without wrapping around. The parameter `cornerpair<k>.length` is the length of the side
@@ -89,7 +89,7 @@ impl Parameter {
 /// `n22`, the rotation signature of a
 /// polygon, such as `3333`, whose domain doubles the polygon with every length
 /// at its default, and a signature for which the crate builds no domain, such
-/// as a polygon with a corner of order above 1000.
+/// as a polygon with a corner of order above 100.
 ///
 /// # Examples
 ///

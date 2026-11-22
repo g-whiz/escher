@@ -1,5 +1,5 @@
 use astro_float_num::BigFloat;
-use escher_domain::{Check, ErrorKind, FundamentalDomain, Verification};
+use escher_domain::{Check, FundamentalDomain, Verification};
 use glam::DVec3;
 
 use crate::reference::{Vector, vector};
@@ -12,39 +12,39 @@ pub(crate) const EXAMPLE_TRIPLES: [[u32; 3]; 6] = [
     [4, 4, 4],
     [4, 3, 3],
     [12, 3, 2],
-    [1000, 3, 2],
+    [100, 3, 2],
 ];
 
 pub(crate) const WORST_TRIPLES: [[u32; 3]; 24] = [
-    [995, 983, 970],
-    [994, 991, 970],
-    [997, 996, 970],
-    [997, 980, 973],
-    [992, 990, 979],
-    [995, 987, 976],
-    [928, 4, 3],
-    [999, 7, 6],
-    [998, 4, 4],
-    [1000, 4, 4],
-    [1000, 1000, 2],
-    [1000, 1000, 1000],
-    [868, 4, 4],
-    [923, 6, 5],
-    [998, 981, 961],
-    [998, 998, 958],
-    [997, 931, 906],
-    [992, 991, 975],
-    [989, 976, 974],
-    [978, 977, 971],
-    [985, 985, 971],
-    [973, 972, 964],
-    [979, 979, 971],
-    [987, 984, 970],
+    [98, 95, 88],
+    [100, 89, 87],
+    [100, 98, 95],
+    [99, 98, 87],
+    [94, 94, 91],
+    [100, 99, 95],
+    [99, 97, 93],
+    [100, 96, 95],
+    [90, 85, 82],
+    [95, 93, 84],
+    [94, 6, 4],
+    [98, 7, 3],
+    [99, 4, 4],
+    [100, 4, 3],
+    [100, 4, 4],
+    [71, 4, 4],
+    [100, 6, 2],
+    [87, 6, 4],
+    [91, 7, 4],
+    [99, 6, 4],
+    [100, 100, 2],
+    [100, 100, 100],
+    [100, 7, 6],
+    [92, 6, 5],
 ];
 
 pub(crate) const SMALL_ORDER: u32 = 12;
 
-pub(crate) const LIMIT_ORDER: u32 = 1000;
+pub(crate) const LIMIT_ORDER: u32 = 100;
 
 pub(crate) const TWO_MIRROR_LIMIT_ORDER: u32 = LIMIT_ORDER / 2;
 
@@ -242,37 +242,10 @@ pub(crate) fn starred(rotation: &str) -> String {
     format!("*{rotation}")
 }
 
-pub(crate) const LIMIT_ROTATION_POLYGONS: [&str; 1] =
-    ["(1000)(1000)(1000)(1000)(1000)(1000)(1000)(1000)"];
-
-pub(crate) const REFUSED_DOUBLE_TEXT: &str = "cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough";
-
-pub(crate) fn built_or_refused_at_the_limit(text: &str) -> Option<FundamentalDomain> {
-    assert!(LIMIT_ROTATION_POLYGONS.contains(&text), "{text}");
-    match FundamentalDomain::build(&signature(text)) {
-        Ok(domain) => Some(domain),
-        Err(error) => {
-            assert_eq!(
-                (error.kind(), error.to_string()),
-                (ErrorKind::Numerical, REFUSED_DOUBLE_TEXT.to_owned()),
-                "{text}"
-            );
-            None
-        }
-    }
-}
-
 pub(crate) fn named_rotation_polygons() -> Vec<String> {
     NAMED_POLYGONS
         .iter()
         .map(|text| text.trim_start_matches('*').to_owned())
-        .collect()
-}
-
-pub(crate) fn clear_rotation_polygons() -> Vec<String> {
-    named_rotation_polygons()
-        .into_iter()
-        .filter(|text| !LIMIT_ROTATION_POLYGONS.contains(&text.as_str()))
         .collect()
 }
 

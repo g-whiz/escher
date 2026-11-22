@@ -5,7 +5,7 @@ use escher_render::{
 };
 
 use crate::common::{
-    DEFAULT_CAP, GROUP_LIMITS, SPHERICAL_GROUP_DOMAINS, decode_png, domain, one_fill, options,
+    CONVERGENCE_SIZE, DEFAULT_CAP, SPHERICAL_GROUP_DOMAINS, decode_png, domain, one_fill, options,
     render_image_in_bands, render_in_bands, spherical_group_bounds,
 };
 use crate::golden_images::{
@@ -394,7 +394,8 @@ fn assert_folds_within_the_group_order(text: &str) {
     let Some(order) = signature.group_order() else {
         panic!("{text} has no group order");
     };
-    let options = options(RenderOptions::builder(one_fill()));
+    let options =
+        options(RenderOptions::builder(one_fill()).size(CONVERGENCE_SIZE, CONVERGENCE_SIZE));
     let (_, stats) = renderer(&domain_with_aspect(text, None), options).render();
     let inside = stats.samples() - stats.outside();
     #[expect(
@@ -403,7 +404,7 @@ fn assert_folds_within_the_group_order(text: &str) {
     )]
     let mean = stats.folds() as f64 / inside as f64;
     println!(
-        "{text} at 512 by 512 with 4 by 4 samples: {inside} samples inside the ball, mean steps {mean:.2}, largest {}, group order {order}, {} unconverged",
+        "{text} at {CONVERGENCE_SIZE} by {CONVERGENCE_SIZE} with 4 by 4 samples: {inside} samples inside the ball, mean steps {mean:.2}, largest {}, group order {order}, {} unconverged",
         stats.largest_fold(),
         stats.unconverged()
     );
@@ -432,13 +433,13 @@ fn spherical_golden_domains_fold_every_sample_within_the_group_order() {
 }
 
 #[test]
-fn triangle_of_order_1000_folds_every_sample_within_the_group_order() {
-    assert_folds_within_the_group_order("*(1000)22");
+fn triangle_of_order_100_folds_every_sample_within_the_group_order() {
+    assert_folds_within_the_group_order("*(100)22");
 }
 
 #[test]
-fn lune_of_order_1000_folds_every_sample_within_the_group_order() {
-    assert_folds_within_the_group_order("*(1000)(1000)");
+fn lune_of_order_100_folds_every_sample_within_the_group_order() {
+    assert_folds_within_the_group_order("*(100)(100)");
 }
 
 #[test]
@@ -530,13 +531,12 @@ fn coset_fill_render_equals_render_rows_over_any_split_into_bands() {
     }
 }
 
-const POLYGON_UNCONVERGED: [usize; POLYGON_DOMAINS.len()] = [0; POLYGON_DOMAINS.len()];
-
 #[test]
 fn polygon_images_fold_every_sample_within_the_cap() {
-    for (shape, measured) in POLYGON_DOMAINS.iter().zip(POLYGON_UNCONVERGED) {
+    for shape in &POLYGON_DOMAINS {
         let name = shape.name();
-        let options = options(RenderOptions::builder(one_fill()));
+        let options =
+            options(RenderOptions::builder(one_fill()).size(CONVERGENCE_SIZE, CONVERGENCE_SIZE));
         let stats = render_in_bands(&name, &shape.domain(), options);
         let inside = stats.samples() - stats.outside();
         #[expect(
@@ -544,9 +544,9 @@ fn polygon_images_fold_every_sample_within_the_cap() {
             reason = "the counts are far below 2 to the power 52"
         )]
         let mean = stats.folds() as f64 / inside as f64;
-        let allowed = crate::reference::count_bound(measured);
+        let allowed = crate::reference::count_bound(0);
         println!(
-            "{name} at 512 by 512 with 4 by 4 samples: {inside} samples inside the disk, mean steps {mean:.2}, largest {}, {} unconverged, bound {allowed}",
+            "{name} at {CONVERGENCE_SIZE} by {CONVERGENCE_SIZE} with 4 by 4 samples: {inside} samples inside the disk, mean steps {mean:.2}, largest {}, {} unconverged, bound {allowed}",
             stats.largest_fold(),
             stats.unconverged()
         );
@@ -589,7 +589,8 @@ fn coset_golden_colouring_of_the_pentagon_fixes_the_numbering_of_its_sides() {
 fn assert_wallpaper_images_converge(domains: core::ops::Range<usize>) {
     for shape in &WALLPAPER_DOMAINS[domains] {
         let name = shape.name();
-        let options = options(RenderOptions::builder(one_fill()));
+        let options =
+            options(RenderOptions::builder(one_fill()).size(CONVERGENCE_SIZE, CONVERGENCE_SIZE));
         let stats = render_in_bands(&name, &shape.domain(), options);
         #[expect(
             clippy::cast_precision_loss,
@@ -597,7 +598,7 @@ fn assert_wallpaper_images_converge(domains: core::ops::Range<usize>) {
         )]
         let mean = stats.folds() as f64 / stats.samples() as f64;
         println!(
-            "{name} at 512 by 512 with 4 by 4 samples: mean steps {mean:.2}, largest {}, {} unconverged, {} outside",
+            "{name} at {CONVERGENCE_SIZE} by {CONVERGENCE_SIZE} with 4 by 4 samples: mean steps {mean:.2}, largest {}, {} unconverged, {} outside",
             stats.largest_fold(),
             stats.unconverged(),
             stats.outside()
@@ -977,7 +978,6 @@ fn group_order(text: &str) -> u64 {
 fn spherical_group_images_fold_every_sample_within_the_step_bound_and_the_group_order() {
     let cases = SPHERICAL_GROUP_DOMAINS
         .into_iter()
-        .filter(|text| !GROUP_LIMITS.contains(text))
         .map(|text| (text, [0.0; 3]))
         .chain(DEGENERATE.map(|text| (text, TURNED)));
     for (text, degrees) in cases {
@@ -1074,15 +1074,15 @@ fn spherical_groups_share_the_pictures_of_the_groups_whose_tiles_and_borders_the
             format!("({n})")
         }
     };
-    let mut parity_pairs: Vec<(String, String)> = [2, 3, 5, 12, 1000]
+    let mut parity_pairs: Vec<(String, String)> = [2, 3, 5, 12, 100]
         .map(|n| (format!("{}x", order(n)), format!("*{0}{0}", order(n))))
         .to_vec();
     parity_pairs.push(("x".to_owned(), "*".to_owned()));
     let mut one_pairs: Vec<(String, String)> = vec![("x".to_owned(), "*".to_owned())];
     one_pairs
-        .extend([2, 3, 5, 12, 1000].map(|n| (format!("{}*", order(n)), format!("{}22", order(n)))));
+        .extend([2, 3, 5, 12, 100].map(|n| (format!("{}*", order(n)), format!("{}22", order(n)))));
     one_pairs.extend(
-        [2, 3, 5, 12, 500].map(|n| (format!("2*{}", order(n)), format!("{}22", order(2 * n)))),
+        [2, 3, 5, 12, 50].map(|n| (format!("2*{}", order(n)), format!("{}22", order(2 * n)))),
     );
     one_pairs.push(("3*2".to_owned(), "432".to_owned()));
     for degrees in SHARED_VIEWS {
@@ -1131,7 +1131,6 @@ fn spherical_group_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the
     let mut reversing = 0;
     let cases = SPHERICAL_GROUP_DOMAINS
         .into_iter()
-        .filter(|text| !GROUP_LIMITS.contains(text))
         .map(|text| (text, [0.0; 3]))
         .chain(DEGENERATE.map(|text| (text, TURNED)));
     for (text, degrees) in cases {
@@ -1170,7 +1169,7 @@ fn spherical_group_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the
             "{text}, rotation {degrees:?}: 1a equals the one fill, and the parity colouring {id} the parity fill"
         );
     }
-    assert_eq!(reversing, 15 + 2);
+    assert_eq!(reversing, 18 + 2);
 }
 
 #[test]

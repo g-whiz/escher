@@ -1,17 +1,15 @@
 use std::collections::BTreeSet;
-use std::time::Instant;
 
 use escher_domain::{FundamentalDomain, Verification};
 use escher_geometry::hyperbolic::ORIGIN;
 
 use crate::common::{
-    LIMIT_ROTATION_POLYGONS, LargestResiduals, SMALL_ORDER, all_triangles, big, built,
-    built_or_refused_at_the_limit, cone_text, domain, is_small, kite, largest_coordinate_error,
-    order_text, signature, small_triangles, text,
+    LargestResiduals, all_triangles, big, built, cone_text, domain, is_small, kite,
+    largest_coordinate_error, order_text, signature, small_triangles, text,
 };
 use crate::reference::{Reference, Triangle, Worst, error, int, largest_magnitude, sub};
 use crate::rotation::two_vertex_cycle_residual;
-use crate::shared::{NAMED_POLYGONS, corner_orders, small_polygons};
+use crate::shared::{NAMED_POLYGONS, small_polygons};
 
 const QUANTITIES: [&str; 6] = [
     "vertex, largest coordinate error over the largest coordinate",
@@ -23,12 +21,12 @@ const QUANTITIES: [&str; 6] = [
 ];
 
 const SMALL_ORDERS_BOUNDS: [f64; 6] = [1e-13, 1e-13, 1e-13, 1e-13, 1e-9, 1e-9];
-const LIMIT_TRIPLE_BOUNDS: [f64; 6] = [1e-11, 1e-11, 1e-11, 1e-11, 1e-9, 1e-9];
+const LIMIT_TRIPLE_BOUNDS: [f64; 6] = [1e-14, 4e-15, 2e-14, 1e-14, 2e-14, 1e-14];
 const SUPPORTED_BOUNDS: [f64; 6] = [1e-8, 1e-8, 1e-8, 1e-9, 1e-9, 1e-9];
 
 const SAMPLES_PER_TRIPLE: [usize; 6] = [3, 3, 3, 1, 3, 1];
 
-const LIMIT_TRIPLE: [u32; 3] = [1000, 3, 2];
+const LIMIT_TRIPLE: [u32; 3] = [100, 3, 2];
 
 const CHECKED_MINIMUM: usize = 294;
 
@@ -95,7 +93,7 @@ fn triangles_are_within_their_bounds_of_the_reference() {
     let (small, all) = (small_triangles(), all_triangles());
     let mut columns = [
         Column::new("orders up to 12", SMALL_ORDERS_BOUNDS, small.len()),
-        Column::new("(1000, 3, 2)", LIMIT_TRIPLE_BOUNDS, 1),
+        Column::new("(100, 3, 2)", LIMIT_TRIPLE_BOUNDS, 1),
         Column::new("every supported triple", SUPPORTED_BOUNDS, all.len()),
     ];
     for orders in all {
@@ -180,9 +178,7 @@ const POLYGON_SIGNATURES: usize = 4430;
 
 const CLAIMED_MARGIN: f64 = 8.0;
 
-const TIMED_POLYGON: &str = "*(1000)(1000)(1000)(1000)(1000)(1000)(1000)(1000)";
-
-const SWEPT_ORDERS: [u32; 4] = [2, 3, 7, 1000];
+const SWEPT_ORDERS: [u32; 4] = [2, 3, 7, 100];
 
 const SWEPT_CORNERS: [usize; 3] = [4, 5, 6];
 
@@ -203,8 +199,6 @@ fn smallest_margin(verification: &Verification) -> f64 {
 struct Margins {
     label: String,
     smallest: (f64, String),
-    claimed: (f64, String),
-    below: Vec<(String, f64)>,
     samples: usize,
 }
 
@@ -213,23 +207,14 @@ impl Margins {
         Self {
             label: label.into(),
             smallest: (f64::INFINITY, String::new()),
-            claimed: (f64::INFINITY, String::new()),
-            below: Vec::new(),
             samples: 0,
         }
     }
 
-    fn record(&mut self, verification: &Verification, text: &str, claimed: bool) {
+    fn record(&mut self, verification: &Verification, text: &str) {
         let margin = smallest_margin(verification);
         self.samples += 1;
-        if claimed {
-            assert!(margin >= CLAIMED_MARGIN, "{text}: smallest margin {margin}");
-            if margin < self.claimed.0 {
-                self.claimed = (margin, text.to_owned());
-            }
-        } else if margin < CLAIMED_MARGIN {
-            self.below.push((text.to_owned(), margin));
-        }
+        assert!(margin >= CLAIMED_MARGIN, "{text}: smallest margin {margin}");
         if margin < self.smallest.0 {
             self.smallest = (margin, text.to_owned());
         }
@@ -237,21 +222,10 @@ impl Margins {
 
     fn print(&self) {
         println!(
-            "{}: {} domains, smallest margin {:.3} at {}, inside the claim {:.3} at {}, outside the claim below {CLAIMED_MARGIN}: {:?}",
-            self.label,
-            self.samples,
-            self.smallest.0,
-            self.smallest.1,
-            self.claimed.0,
-            self.claimed.1,
-            self.below
+            "{}: {} domains, smallest margin {:.3} at {}",
+            self.label, self.samples, self.smallest.0, self.smallest.1
         );
     }
-}
-
-fn is_claimed_polygon(orders: &[u32]) -> bool {
-    let largest = orders.iter().copied().max().unwrap_or(0);
-    largest <= SMALL_ORDER || (orders.len() <= 6 && orders.contains(&1000))
 }
 
 #[test]
@@ -269,51 +243,27 @@ fn checks_pass_at_the_default_shapes_of_the_polygons_and_their_doubles() {
     let mut polygon_margins = Margins::new("polygons");
     let mut double_margins = Margins::new("doubles");
     for text in &texts {
-        let orders = corner_orders(&signature(text));
         let verification = built(text).verify();
         polygons.record_verification(&verification, text);
-        polygon_margins.record(&verification, text, is_claimed_polygon(&orders));
+        polygon_margins.record(&verification, text);
         let rotation = text.trim_start_matches('*');
-        let double = if LIMIT_ROTATION_POLYGONS.contains(&rotation) {
-            match built_or_refused_at_the_limit(rotation) {
-                Some(double) => {
-                    let verification = double.verify();
-                    println!("{rotation} built: {verification:?}");
-                    double_margins.record(&verification, rotation, false);
-                }
-                None => println!("{rotation} refused by the guard"),
-            }
-            continue;
-        } else {
-            built(rotation)
-        };
-        let verification = double.verify();
+        let verification = built(rotation).verify();
         doubles.record_verification(&verification, rotation);
-        let claimed = orders.iter().all(|&order| order <= SMALL_ORDER);
-        double_margins.record(&verification, rotation, claimed);
+        double_margins.record(&verification, rotation);
     }
     println!("polygons at their default shapes:");
     polygons.print_and_assert_samples(POLYGON_SIGNATURES);
-    println!("doubles of the polygons, without the double at the limit:");
-    doubles.print_and_assert_samples(POLYGON_SIGNATURES - LIMIT_ROTATION_POLYGONS.len());
+    println!("doubles of the polygons:");
+    doubles.print_and_assert_samples(POLYGON_SIGNATURES);
     polygon_margins.print();
     double_margins.print();
-    for text in [TIMED_POLYGON, TIMED_POLYGON.trim_start_matches('*')] {
-        let started = Instant::now();
-        let result = FundamentalDomain::build(&signature(text));
-        println!(
-            "one build of {text} with its guard in this build of the tests: {:.3} ms, {}",
-            started.elapsed().as_secs_f64() * 1000.0,
-            if result.is_ok() { "built" } else { "refused" }
-        );
-    }
 }
 
-fn polygons_with_a_corner_of_order_1000(corners: usize) -> BTreeSet<String> {
+fn polygons_with_a_corner_of_order_100(corners: usize) -> BTreeSet<String> {
     let mut found = BTreeSet::new();
     let mut digits = vec![0; corners - 1];
     loop {
-        let orders: String = core::iter::once(1000)
+        let orders: String = core::iter::once(100)
             .chain(digits.iter().map(|&digit| SWEPT_ORDERS[digit]))
             .map(order_text)
             .collect();
@@ -333,15 +283,15 @@ fn polygons_with_a_corner_of_order_1000(corners: usize) -> BTreeSet<String> {
 }
 
 #[test]
-fn polygons_of_four_to_six_corners_with_a_corner_of_order_1000_keep_their_claimed_margin() {
+fn polygons_of_four_to_six_corners_with_a_corner_of_order_100_keep_their_claimed_margin() {
     for corners in SWEPT_CORNERS {
         let mut margins = Margins::new(format!(
-            "{corners} corners, at least one of order 1000, the others from {SWEPT_ORDERS:?}"
+            "{corners} corners, at least one of order 100, the others from {SWEPT_ORDERS:?}"
         ));
-        for text in polygons_with_a_corner_of_order_1000(corners) {
+        for text in polygons_with_a_corner_of_order_100(corners) {
             let verification = built(&text).verify();
             assert!(verification.passed(), "{text}: {verification:?}");
-            margins.record(&verification, &text, true);
+            margins.record(&verification, &text);
         }
         margins.print();
     }

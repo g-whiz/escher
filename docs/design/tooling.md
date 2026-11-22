@@ -220,7 +220,7 @@ Every nextest command of Section 4.8 of the coding standard therefore passes `--
 
 nextest does not run doctests, so `check-doctest` runs them, as Section 4.8 of the coding standard states.
 
-The root `Cargo.toml` sets the optimization levels of the `dev` profile, from which the `test` profile of Cargo inherits. The crates of the workspace build with `opt-level = 1`, because the tests render whole images. In one measurement in the development container, `just check` took 71.8 s at that level and 292.2 s at `opt-level = 0`. Every dependency builds with `opt-level = 0`, which keeps a clean build short. The exception is the dev-dependency `astro-float-num`, at `opt-level = 3` for the reason that Section 11 of `docs/design/geometry.md` states.
+The root `Cargo.toml` sets the optimization levels of the `dev` profile, from which the `test` profile of Cargo inherits. The crates of the workspace build with `opt-level = 1`, because the tests render whole images, which is slow without optimization. Every dependency builds with `opt-level = 0`, which keeps a clean build short. The exception is the dev-dependency `astro-float-num`, at `opt-level = 3` for the reason that Section 11 of `docs/design/geometry.md` states.
 
 ## 5. Git Hooks
 

@@ -18,7 +18,7 @@ const UNSUPPORTED: [&str; 15] = [
     "*732*",
     "7*32",
     "x732",
-    "(1001)*32",
+    "(101)*32",
 ];
 
 fn error_of(text: &str) -> Option<(ErrorKind, String)> {
@@ -88,22 +88,22 @@ fn build_gives_a_domain_of_every_spherical_type() {
 #[test]
 fn build_rejects_an_order_above_the_limit() {
     for text in [
-        "*(1001)32",
-        "*(1001)22",
-        "*(1001)(1001)",
-        "*(1001)222",
-        "*(1001)(1001)(1001)(1001)",
-        "(1001)32",
-        "(1001)22",
-        "(1001)(1001)",
-        "(1001)222",
-        "(1001)(1001)(1001)(1001)",
+        "*(101)32",
+        "*(101)22",
+        "*(101)(101)",
+        "*(101)222",
+        "*(101)(101)(101)(101)",
+        "(101)32",
+        "(101)22",
+        "(101)(101)",
+        "(101)222",
+        "(101)(101)(101)(101)",
     ] {
         assert_eq!(
             error_of(text),
             Some((
                 ErrorKind::LimitExceeded,
-                "cannot build fundamental domain: order 1001 is larger than 1000".to_owned()
+                "cannot build fundamental domain: order 101 is larger than 100".to_owned()
             )),
             "{text}"
         );
@@ -113,10 +113,10 @@ fn build_rejects_an_order_above_the_limit() {
 #[test]
 fn build_rejects_an_order_of_a_spherical_kite_above_its_limit() {
     for (text, expected) in [
-        ("(1001)*", "order 1001 is larger than 1000"),
-        ("(1001)x", "order 1001 is larger than 1000"),
-        ("2*(501)", "order 501 is larger than 500"),
-        ("2*(1001)", "order 1001 is larger than 500"),
+        ("(101)*", "order 101 is larger than 100"),
+        ("(101)x", "order 101 is larger than 100"),
+        ("2*(51)", "order 51 is larger than 50"),
+        ("2*(101)", "order 101 is larger than 50"),
     ] {
         assert_eq!(
             error_of(text),
@@ -131,12 +131,7 @@ fn build_rejects_an_order_of_a_spherical_kite_above_its_limit() {
 
 #[test]
 fn build_rejects_more_than_eight_orders_before_the_order_limit() {
-    for text in [
-        "*222222222",
-        "*(1001)22222222",
-        "222222222",
-        "(1001)22222222",
-    ] {
+    for text in ["*222222222", "*(101)22222222", "222222222", "(101)22222222"] {
         assert_eq!(
             error_of(text),
             Some((
@@ -152,15 +147,15 @@ fn build_rejects_more_than_eight_orders_before_the_order_limit() {
 #[test]
 fn build_accepts_the_order_at_the_limit() {
     for text in [
-        "*(1000)32",
-        "*(1000)22",
-        "*(1000)(1000)",
-        "*(1000)222",
+        "*(100)32",
+        "*(100)22",
+        "*(100)(100)",
+        "*(100)222",
         "*22222222",
-        "(1000)32",
-        "(1000)22",
-        "(1000)(1000)",
-        "(1000)222",
+        "(100)32",
+        "(100)22",
+        "(100)(100)",
+        "(100)222",
         "22222222",
         "3222",
         "22222",
@@ -181,10 +176,10 @@ fn build_accepts_the_order_at_the_limit() {
         "2*",
         "2*3",
         "3*",
-        "(1000)*",
-        "2*(500)",
+        "(100)*",
+        "2*(50)",
         "3x",
-        "(1000)x",
+        "(100)x",
         "x",
         "*",
         "1",

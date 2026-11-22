@@ -1,7 +1,7 @@
 use core::f64::consts::PI;
 
 use astro_float_num::BigFloat;
-use escher_domain::{ErrorKind, FundamentalDomain, Orientation, PairingKind, parameters};
+use escher_domain::{FundamentalDomain, Orientation, PairingKind, parameters};
 use escher_geometry::hyperbolic::{inverse, translation};
 use escher_geometry::{euclidean, hyperbolic, spherical};
 use escher_signature::Geometry;
@@ -9,10 +9,9 @@ use glam::{DMat3, DVec3};
 use proptest::prelude::{prop_assert, proptest};
 
 use crate::common::{
-    EUCLIDEAN_TRIANGLES, EXAMPLE_TRIPLES, LIMIT_ROTATION_POLYGONS, LargestResiduals,
-    REFUSED_DOUBLE_TEXT, all_triangles, aspects, assert_same_domain, built,
-    built_or_refused_at_the_limit, clear_rotation_polygons, cone_text, domain, kite,
-    largest_coordinate_error, order_text, signature, starred, triangles, with_aspect,
+    EUCLIDEAN_TRIANGLES, EXAMPLE_TRIPLES, LargestResiduals, all_triangles, aspects,
+    assert_same_domain, built, cone_text, domain, kite, largest_coordinate_error,
+    named_rotation_polygons, order_text, signature, starred, triangles, with_aspect,
 };
 use crate::polygons::signature_area;
 use crate::reference::{
@@ -43,14 +42,14 @@ struct Bounds {
 }
 
 const HYPERBOLIC_BOUNDS: Bounds = Bounds {
-    image_vertex: 4e-9,
-    image_wall: 1e-8,
-    pairing: 2e-13,
-    isometry: 2e-10,
-    length: 2e-9,
-    angle: 1e-11,
+    image_vertex: 2e-11,
+    image_wall: 4e-11,
+    pairing: 2e-14,
+    isometry: 2e-12,
+    length: 1e-11,
+    angle: 1e-12,
     flat: None,
-    area: 2e-11,
+    area: 1e-12,
 };
 
 const EUCLIDEAN_BOUNDS: Bounds = Bounds {
@@ -65,14 +64,14 @@ const EUCLIDEAN_BOUNDS: Bounds = Bounds {
 };
 
 const SPHERICAL_BOUNDS: Bounds = Bounds {
-    image_vertex: 4e-13,
-    image_wall: 2e-13,
+    image_vertex: 4e-14,
+    image_wall: 2e-14,
     pairing: 1e-15,
     isometry: 2e-14,
-    length: 4e-13,
-    angle: 1e-12,
-    flat: Some(1e-12),
-    area: 4e-13,
+    length: 4e-14,
+    angle: 1e-13,
+    flat: Some(1e-13),
+    area: 4e-14,
 };
 
 const HYPERBOLIC_SAMPLES: Samples = Samples {
@@ -92,14 +91,14 @@ const EUCLIDEAN_SAMPLES: Samples = Samples {
 };
 
 const SPHERICAL_SAMPLES: Samples = Samples {
-    domains: 18,
-    image_vertices: 11,
-    image_walls: 29,
-    sides: 58,
-    flats: 12,
+    domains: 16,
+    image_vertices: 10,
+    image_walls: 26,
+    sides: 52,
+    flats: 11,
 };
 
-const MEASURED_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
+const MEASURED_ORDERS: [u32; 6] = [2, 3, 5, 12, 99, 100];
 
 const CHECK_AGREEMENT_TOLERANCE: f64 = 1e-9;
 
@@ -984,25 +983,9 @@ fn small_rotation_polygons_build_their_doubles_with_the_table_of_pairs() {
 
 #[test]
 fn named_rotation_polygons_build_their_doubles() {
-    for text in clear_rotation_polygons() {
+    for text in named_rotation_polygons() {
         assert_rotation_polygon(&text);
     }
-    for text in LIMIT_ROTATION_POLYGONS {
-        if built_or_refused_at_the_limit(text).is_some() {
-            assert_rotation_polygon(text);
-        }
-    }
-}
-
-#[test]
-fn a_refused_double_names_its_side_pairings() {
-    let text = "(967)(967)(967)(967)(967)(967)(967)(967)";
-    assert!(FundamentalDomain::build(&signature(&starred(text))).is_ok());
-    let error = FundamentalDomain::build(&signature(text)).err();
-    assert_eq!(
-        error.map(|error| (error.kind(), error.to_string())),
-        Some((ErrorKind::Numerical, REFUSED_DOUBLE_TEXT.to_owned()))
-    );
 }
 
 #[test]
@@ -1010,7 +993,7 @@ fn pairings_of_rotation_polygons_are_accurately_rounded_products() {
     let mut entries = 0;
     let mut misrounded: Vec<String> = Vec::new();
     let mut largest = int(0);
-    for text in clear_rotation_polygons() {
+    for text in named_rotation_polygons() {
         let double = built(&text);
         let generating = built(&starred(&text));
         let reflections: Vec<DMat3> = generating
@@ -1054,7 +1037,7 @@ fn pairings_of_rotation_polygons_are_accurately_rounded_products() {
     assert!(largest <= MISROUNDED_ENTRY_BOUND, "{largest:e}");
 }
 
-const ROTATION_POLYGON_BOUNDS: [f64; 7] = [2e-13, 1e-11, 4e-12, 1e-15, 4e-12, 4e-13, 1e-11];
+const ROTATION_POLYGON_BOUNDS: [f64; 7] = [4e-13, 1e-11, 1e-11, 1e-15, 4e-12, 1e-13, 1e-11];
 
 const ROTATION_POLYGON_QUANTITIES: [&str; 7] = [
     "doubled polygon vertex, largest coordinate error over the largest coordinate",
@@ -1132,22 +1115,11 @@ fn rotation_quantities(label: &str) -> Vec<Worst> {
 #[test]
 fn rotation_polygons_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = rotation_quantities("named doubles without the double at the limit");
-    for text in clear_rotation_polygons() {
+    let mut worst = rotation_quantities("named doubles");
+    for text in named_rotation_polygons() {
         record_rotation_polygon(&mut reference, &mut worst, &text, &built(&text));
     }
     for (quantity, bound) in worst.iter().zip(ROTATION_POLYGON_BOUNDS) {
         quantity.assert_at_most(&mut reference, bound);
-    }
-    for text in LIMIT_ROTATION_POLYGONS {
-        let Some(double) = built_or_refused_at_the_limit(text) else {
-            println!("{text} refused by the guard");
-            continue;
-        };
-        let mut limit = rotation_quantities(text);
-        record_rotation_polygon(&mut reference, &mut limit, text, &double);
-        for quantity in &limit {
-            quantity.print(&mut reference);
-        }
     }
 }

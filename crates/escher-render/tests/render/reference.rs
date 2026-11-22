@@ -157,6 +157,7 @@ pub(crate) struct Wall {
 pub(crate) struct ExactFold {
     pub(crate) sides: Vec<usize>,
     pub(crate) converged: bool,
+    pub(crate) point: Vector,
 }
 
 pub(crate) fn fold(walls: &[Wall], point: [f64; 3], cap: u32) -> ExactFold {
@@ -170,12 +171,14 @@ pub(crate) fn fold(walls: &[Wall], point: [f64; 3], cap: u32) -> ExactFold {
             return ExactFold {
                 sides,
                 converged: true,
+                point: x,
             };
         };
         if sides.len() == usize::try_from(cap).unwrap_or(usize::MAX) {
             return ExactFold {
                 sides,
                 converged: false,
+                point: x,
             };
         }
         x = apply(&walls[index].pairing, &x);

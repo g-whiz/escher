@@ -1472,14 +1472,6 @@ impl Worst {
         self.count
     }
 
-    pub(crate) fn print(&self, reference: &mut Reference) {
-        let ratio = reference.approximate(&self.ratio);
-        println!(
-            "{}: largest error {ratio:.3e}, {} samples, at {}",
-            self.name, self.count, self.input
-        );
-    }
-
     pub(crate) fn assert_at_most(&self, reference: &mut Reference, bound: f64) {
         let ratio = reference.approximate(&self.ratio);
         println!(

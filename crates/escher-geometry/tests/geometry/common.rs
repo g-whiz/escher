@@ -9,6 +9,8 @@ use glam::{DMat3, DVec3};
 
 pub(crate) const CASES: usize = 100_000;
 
+pub(crate) const REFERENCE_CASES: usize = 10_000;
+
 pub(crate) const EUCLIDEAN_RADIUS: f64 = 64.0;
 
 const LINE_ANGLES: u32 = 64;
@@ -21,19 +23,19 @@ const ATTEMPTS: usize = 1000;
 
 pub(crate) const SPHERE_SEPARATION_FLOOR: f64 = 1e-3;
 
-pub(crate) const SPHERE_DOMAIN_ORDERS: [u32; 7] = [2, 3, 5, 12, 100, 999, 1000];
+pub(crate) const SPHERE_DOMAIN_ORDERS: [u32; 5] = [2, 3, 5, 12, 100];
 
 pub(crate) const DOMAIN_TRIPLES: [[u32; 3]; 10] = [
     [7, 3, 2],
-    [1000, 3, 2],
-    [1000, 1000, 1000],
-    [995, 987, 976],
-    [994, 991, 970],
-    [995, 983, 970],
-    [997, 996, 970],
-    [998, 4, 4],
-    [928, 4, 3],
-    [999, 7, 6],
+    [100, 3, 2],
+    [100, 100, 100],
+    [98, 95, 88],
+    [100, 89, 87],
+    [100, 98, 95],
+    [99, 98, 87],
+    [99, 4, 4],
+    [93, 4, 3],
+    [100, 7, 6],
 ];
 
 pub(crate) struct Rng {

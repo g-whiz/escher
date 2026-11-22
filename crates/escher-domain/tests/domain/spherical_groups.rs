@@ -20,21 +20,21 @@ use crate::reference::{
 };
 use crate::spherical::{FOLD_BACK_TOLERANCE, Group, LIMIT_IMAGE_FLOOR, fold, sphere_sample};
 
-const VERTEX_BOUND: f64 = 4e-13;
-const NORMAL_BOUND: f64 = 2e-13;
-const PAIRING_BOUND: f64 = 4e-13;
-const LENGTH_BOUND: f64 = 4e-13;
-const CYCLE_BOUND: f64 = 2e-12;
-const FLAT_BOUND: f64 = 1e-12;
-const AREA_BOUND: f64 = 4e-14;
+const VERTEX_BOUND: f64 = 4e-14;
+const NORMAL_BOUND: f64 = 2e-14;
+const PAIRING_BOUND: f64 = 4e-14;
+const LENGTH_BOUND: f64 = 4e-14;
+const CYCLE_BOUND: f64 = 2e-13;
+const FLAT_BOUND: f64 = 1e-13;
+const AREA_BOUND: f64 = 2e-14;
 
 const LUNE_VERTEX_BOUND: f64 = 0.0;
 const LUNE_NORMAL_BOUND: f64 = 1e-15;
 const LUNE_PAIRING_BOUND: f64 = 2e-15;
 const LUNE_LENGTH_BOUND: f64 = 1e-15;
-const LUNE_CYCLE_BOUND: f64 = 4e-13;
+const LUNE_CYCLE_BOUND: f64 = 4e-14;
 const LUNE_FLAT_BOUND: f64 = 1e-15;
-const LUNE_AREA_BOUND: f64 = 4e-13;
+const LUNE_AREA_BOUND: f64 = 4e-14;
 
 const KITE_IMAGE_FLOOR: f64 = 1e-2;
 
@@ -797,22 +797,15 @@ fn tabled_census(text: &str) -> Option<Census> {
         "2x" => row(4, 2, 2, 0, false, &[axes(2, 1, 0)]),
         "3x" => row(6, 3, 3, 0, true, &[axes(3, 1, 0)]),
         "4x" => row(8, 4, 4, 0, false, &[axes(4, 1, 0)]),
-        "(1000)x" => row(2000, 1000, 1000, 0, false, &[axes(1000, 1, 0)]),
+        "(100)x" => row(200, 100, 100, 0, false, &[axes(100, 1, 0)]),
         "2*" => row(4, 2, 2, 1, true, &[axes(2, 1, 0)]),
         "3*" => row(6, 3, 3, 1, false, &[axes(3, 1, 0)]),
         "4*" => row(8, 4, 4, 1, true, &[axes(4, 1, 0)]),
         "2*2" => row(8, 4, 4, 2, false, &[axes(2, 3, 1)]),
         "2*3" => row(12, 6, 6, 3, true, &[axes(3, 1, 1), axes(2, 3, 0)]),
         "3*2" => row(24, 12, 12, 3, true, &[axes(3, 4, 0), axes(2, 3, 3)]),
-        "(1000)*" => row(2000, 1000, 1000, 1, true, &[axes(1000, 1, 0)]),
-        "2*(500)" => row(
-            2000,
-            1000,
-            1000,
-            500,
-            false,
-            &[axes(500, 1, 1), axes(2, 500, 0)],
-        ),
+        "(100)*" => row(200, 100, 100, 1, true, &[axes(100, 1, 0)]),
+        "2*(50)" => row(200, 100, 100, 50, false, &[axes(50, 1, 1), axes(2, 50, 0)]),
         _ => return None,
     })
 }

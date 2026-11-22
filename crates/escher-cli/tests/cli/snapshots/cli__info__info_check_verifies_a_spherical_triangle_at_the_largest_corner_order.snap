@@ -1,25 +1,25 @@
 ---
 source: crates/escher-cli/tests/cli/info.rs
-expression: "snapshot(&[\"info\", \"--check\", \"*(1000)22\"])"
+expression: "snapshot(&[\"info\", \"--check\", \"*(100)22\"])"
 ---
 status: Success
 --- stdout
-Signature: *(1000)22
+Signature: *(100)22
 Geometry: spherical
-Euler characteristic: 1/2000
+Euler characteristic: 1/200
 Compact: yes
-Group order: 4000
-Area: pi/1000
+Group order: 400
+Area: pi/100
 Domain: 3 mirror sides
-Corner angles in degrees: 0.180000, 90.000000, 90.000000
-Side lengths: 1.570796, 1.570796, 0.003142
-Domain area: 0.003142
-Colourings: 86, complete to 12 colours
+Corner angles in degrees: 1.800000, 90.000000, 90.000000
+Side lengths: 1.570796, 1.570796, 0.031416
+Domain area: 0.031416
+Colourings: 70, complete to 12 colours
 Colourings with 1 colour: 1
 Colourings with 2 colours: 7
 Colourings with 4 colours: 15
 Colourings with 5 colours: 5
-Colourings with 8 colours: 27
+Colourings with 8 colours: 11
 Colourings with 10 colours: 31
 Check isometries: passed, residual <residual>, tolerance 1.0e-9
 Check pairings: passed, residual <residual>, tolerance 1.0e-9

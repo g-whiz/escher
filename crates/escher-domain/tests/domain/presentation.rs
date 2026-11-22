@@ -11,7 +11,7 @@ use glam::{DMat3, DVec3};
 
 use crate::common::{
     EXAMPLE_TRIPLES, Kite, LIMIT_ORDER, LuneGroup, SMALL_ORDER, TWO_MIRROR_LIMIT_ORDER, built,
-    clear_rotation_polygons, cone_text, lune_test_set, order_text, signature, small_kites,
+    cone_text, lune_test_set, named_rotation_polygons, order_text, signature, small_kites,
     small_lune_groups, starred, test_set, text, triangles,
 };
 use crate::reference::{
@@ -421,7 +421,7 @@ fn side_relators_evaluate_to_the_identity() {
     texts.extend(spherical_signatures());
     texts.extend(limit_signatures());
     texts.extend(NAMED_POLYGONS.map(str::to_owned));
-    texts.extend(clear_rotation_polygons());
+    texts.extend(named_rotation_polygons());
     texts.extend(spherical_groups());
     let mut reference = Reference::new();
     let empty = || {

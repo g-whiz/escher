@@ -465,7 +465,7 @@ GRP-16. The enumeration MUST count every coset that it defines against the limit
 
 SymPy compares its limit with the length of its table, which counts every row defined, dead rows included, by the research's own reading of the code. The DEFINE of [HOLT2005] counts the same way, because it aborts when the largest number used so far reaches the limit and always takes the next number (pp. 151, 153, and 167, Section 7.16 of the colouring reference). A table of index $n$ has $n$ rows, each defined once, so with coset 0 counted, a limit below $n$ always returns `CosetLimitReached`. `escher-cli` relies on this when it skips the enumeration of a group whose order is above the limit (CLI-39 of Section 5.7 of `docs/design/cli.md`).
 
-The proposed default is 16384 and the proposed maximum 1048576 (`DEC-33`). The largest group order of a domain that `escher-domain` builds is 4000, for `*(1000)22`, so the default leaves a margin of 4 when the enumeration defines the group order and no more. In measurements of the crate and of a prototype outside the repository, every Conway and side presentation of a spherical domain defined exactly its group order of cosets, and a full index of $2^{20}$ at the maximum finished in under 2 s in a release build within the memory bound of Section 15. `CosetLimit::new` returns `LimitExceeded` for 0 or a value above `MAX`.
+The proposed default is 16384 and the proposed maximum 1048576 (`DEC-33`). The largest group order of a domain that `escher-domain` builds is 400, for `*(100)22`, so the default leaves a margin of 40 when the enumeration defines the group order and no more. The default is sized for corner orders up to 1000, at which `*(1000)22` has the group order 4000 and the margin is 4, and the owner kept it under the lower limit (`DEC-33` and `DEC-69`). In measurements of the crate and of a prototype outside the repository, every Conway and side presentation of a spherical domain defined exactly its group order of cosets, and a full index of $2^{20}$ at the maximum finished in under 2 s in a release build within the memory bound of Section 15. `CosetLimit::new` returns `LimitExceeded` for 0 or a value above `MAX`.
 
 ## 7. Coset Enumeration
 
@@ -632,7 +632,7 @@ The values are these:
 | Limit | Default | Maximum | Reason |
 | --- | --- | --- | --- |
 | `IndexLimit` | 12 | 64 | The default is the owner's (Section 10.1 of the architecture). The maximum keeps an id within 2 digits and the table of a run within $64 \cdot 512$ entries |
-| `SearchBudget` | $2^{28}$ steps | $2^{36}$ steps | In a release build of the crate, $2^{28}$ steps took 0.25 to 0.56 s on the side presentations measured, and a call takes at most twice the budget (GRP-35), about 1.2 s on the triangles whose corner orders are all near 1000. $2^{36}$ steps are 256 times the default |
+| `SearchBudget` | $2^{28}$ steps | $2^{36}$ steps | In a release build of the crate, $2^{28}$ steps took 0.25 to 0.56 s on the side presentations measured, and a call takes at most twice the budget (GRP-35). $2^{36}$ steps are 256 times the default |
 | Colourings stored by one call | 65536 | Not configurable | GRP-36 |
 | Table entries stored by one call | $2^{22}$ | Not configurable | GRP-36, which bounds the stored tables at 16 MiB |
 
@@ -664,7 +664,7 @@ An error text, a documentation comment, or a document of this crate MUST NOT sta
 
 On the side presentations measured in the crate, the runs by index cost about 2 to 23 times the steps of one run at the limits 12 and 24, so a call pays for them only when the one run cannot end. Both phases count steps, so a call takes at most twice the budget, plus the overshoot of GRP-29 in each phase and the uncounted sort of Section 15.
 
-With the default budget, the search stops early for the triangle groups whose corner orders are all near 1000. In a release build of the crate, a call with the default limit and budget on such a side presentation, such as that of `*(1000)(1000)(1000)`, is complete to only 7 to 10 colours after about 1.2 s. Each scan of a long power relator reads up to 2000 entries. A split of the relators helps little there. Scanning a power relator $w^e$ by the cycle of $w$ at the coset, with at most $N$ repetitions and a test that the length of the cycle divides $e$, would read at most $2N$ entries for such a relator. That idea is unmeasured and is not part of this design (item 6 of Section 14.3).
+With the default limit and budget, the search on the side presentation of a triangle group whose corner orders are all near 100, such as `*(100)(100)(100)`, stops at the budget before the default index limit of 12. Each scan of a long power relator reads up to 200 entries. A split of the relators helps little there. Scanning a power relator $w^e$ by the cycle of $w$ at the coset, with at most $N$ repetitions and a test that the length of the cycle divides $e$, would read at most $2N$ entries for such a relator. That idea is unmeasured and is not part of this design (item 6 of Section 14.3).
 
 ### 7.15. Colouring Ids
 
@@ -691,8 +691,8 @@ The parity table of a reflection domain, whose row 0 is all ones, has the last i
 | Id | Signatures |
 | --- | --- |
 | `2a` | `*732`, `*532`, `*333`, and `*332` |
-| `2c` | `*632`, `*832`, `*542`, `*432`, `*66`, `*22`, and `*(1000)32` |
-| `2g` | `*642`, `*442`, `*664`, and `*(1000)22` |
+| `2c` | `*632`, `*832`, `*542`, `*432`, `*66`, `*22`, and `*(100)32` |
+| `2g` | `*642`, `*442`, `*664`, and `*(100)22` |
 | `2o` | `*2222` |
 
 CLI-48 of `docs/design/cli.md` states the aliases `one` and `parity`.
@@ -942,11 +942,11 @@ Every choice in this table is a proposed default. No other document dictates it,
 None of these blocks the crate. Each states what the design does until the owner decides:
 
 1. Time of an enumeration. No limit of the crate bounds the time of a run, and `escher-cli` cannot reach a slow input (Section 15). The design accepts this residual risk and recommends that a caller that takes untrusted input keep the default limit. The alternative is a limit on time or on work, such as a work budget in letter steps with its own error kind.
-2. Strategy and limits. The design proposes Felsch with a default limit of 16384 and a maximum of 1048576 (`DEC-33`). The alternative is other values, or HLT as a second strategy.
+2. Strategy and maximum limit. The design proposes Felsch with a maximum limit of 1048576 (`DEC-33`). The alternative is another maximum, or HLT as a second strategy. The default limit of 16384 is the owner's decision (`DEC-69` of the architecture).
 3. Cosets. The tables use right cosets, as every source does, while Section 5.10 of the architecture picks left cosets for colourings (`DEC-36`). The alternative is tables of left cosets, which no enumeration source supports.
 4. Names. The design proposes ASCII names numbered by kind (`DEC-34`). The alternative is the letters of [CH], such as `P`, `Q`, and `lambda`, with indexes.
-5. Search budget. The design proposes $2^{28}$ steps (`DEC-42`, Section 7.12). The alternative is $2^{29}$ steps, which completes more colour counts for the triangles with orders near 1000.
-6. Long power relators. The search at the default limit stops early for triangle groups whose corner orders are all near 1000, at 7 to 10 colours (Section 7.14). The design accepts this. The recorded idea is the scan of a power relator by the cycle of its base, which Section 7.14 describes. It is unmeasured and would need its own design and tests.
+5. Search budget. The design proposes $2^{28}$ steps (`DEC-42`, Section 7.12). The alternative is $2^{29}$ steps, which completes more colour counts for the triangles with orders near 100.
+6. Long power relators. The search at the default limit stops early for triangle groups whose corner orders are all near 100 (Section 7.14). The design accepts this. The recorded idea is the scan of a power relator by the cycle of its base, which Section 7.14 describes. It is unmeasured and would need its own design and tests.
 7. Reference counts. The tests compare the search with printed counts only, because no GAP, Sage, or SymPy is available in the container. The alternative is fixtures generated offline with GAP or `low_index` and committed as data with their provenance, which would cover the Euclidean groups that no printed table covers.
 8. A higher limit can complete fewer colour counts. When the one run at the limit $N$ stops, the runs by index share one budget (GRP-35), so a call with a higher limit can complete fewer colour counts than a call with a lower limit whose one run ends (Section 7.14). The design accepts this.
 9. Tests kept for a reason that does not apply. TQ-11 of `docs/design/tooling.md` puts them to the owner, including the single cases of Section 10.1.
@@ -967,7 +967,7 @@ GRP-19. The crate MUST enforce the limits of this table, return `LimitExceeded` 
 | Generator name | 1 to 32 bytes, `[A-Za-z][A-Za-z0-9]*`, unique | Printable ASCII, so a caller can print a name without escaping it |
 | Subgroup generators | 256 | A choice of this design |
 | Letters in a subgroup generator | 4096 | The same bound as a relator base |
-| Expanded relator letters, summed over the relators, checked by `enumerate` | 65536 | Above the expanded length of the Conway presentation of every signature whose domain `escher-domain` builds, whose corner and cone orders are at most 1000, such as the 2023 letters of `*(1000)32` |
+| Expanded relator letters, summed over the relators, checked by `enumerate` | 65536 | Above the expanded length of the Conway presentation of every signature whose domain `escher-domain` builds, whose corner and cone orders are at most 100. The limit is sized for orders up to 1000, such as the 2023 letters of `*(1000)32` |
 | Cosets | `CosetLimit::MAX`, 1048576 | Section 6.3 |
 | Table entries, limit times columns | $2^{24}$ | Bounds the table at 64 MiB and its relabelled copy at as much |
 | Index of a search | `IndexLimit::MAX`, 64 | Section 7.12. The table of a run then has at most $64 \cdot 512 = 2^{15}$ entries |

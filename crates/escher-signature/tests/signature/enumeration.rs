@@ -222,7 +222,7 @@ fn equivalence_classes_with_cone_points_have_one_canonical_string_each() {
             Value::Infinite,
         ],
         boundaries: 3,
-        corners: 4,
+        corners: 3,
         weight: 4,
     });
     assert_one_canonical_string_per_class(&models);

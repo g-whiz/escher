@@ -972,7 +972,7 @@ mod tests {
     use crate::triangle::{Shape, Supported, construct, supported};
     use crate::wallpaper::half_turn;
 
-    const BASES: [[u32; 3]; 3] = [[7, 3, 2], [4, 4, 4], [1000, 3, 2]];
+    const BASES: [[u32; 3]; 3] = [[7, 3, 2], [4, 4, 4], [100, 3, 2]];
 
     const NAMES: [&str; 6] = [
         "isometries",
@@ -1165,9 +1165,9 @@ mod tests {
     #[test]
     fn verify_fails_on_the_next_order_above_the_limit_labelled_as_the_limit() {
         assert_failed(
-            &labelled([1001, 3, 2], [1000, 3, 2]),
+            &labelled([101, 3, 2], [100, 3, 2]),
             &["relators", "angles", "area"],
-            "(1001, 3, 2) labelled *(1000)32",
+            "(101, 3, 2) labelled *(100)32",
         );
     }
 
@@ -1894,7 +1894,7 @@ mod tests {
 
     const REGULAR_CORNERS: [u32; 4] = [5, 6, 7, 8];
 
-    const REGULAR_ORDERS: [u32; 6] = [2, 3, 4, 7, 12, 1000];
+    const REGULAR_ORDERS: [u32; 6] = [2, 3, 4, 7, 12, 100];
 
     const POLYGON_ANGLE_BOUND: f64 = 1e-14;
 
@@ -2115,17 +2115,7 @@ mod tests {
                 );
                 let verification = domain.verify();
                 let failures = failed(&verification);
-                if order == 1000 {
-                    assert!(
-                        failures.iter().all(|check| *check == "relators"),
-                        "double of {name}: {verification:?}"
-                    );
-                    if !failures.is_empty() {
-                        println!("double of {name} fails: {verification:?}");
-                    }
-                } else {
-                    assert!(failures.is_empty(), "double of {name}: {verification:?}");
-                }
+                assert!(failures.is_empty(), "double of {name}: {verification:?}");
                 check_5.record(&num(verification.angles().residual()), &int(1), || {
                     format!("double of {name}")
                 });
@@ -2877,13 +2867,13 @@ mod tests {
         let cases = [
             ("3*2", low_kite_cycles(2, 3), 1.0 / 12.0),
             ("2*3", low_kite_cycles(3, 2), 1.0 / 6.0),
-            ("2*(500)", low_kite_cycles(500, 2), 1.0 / 1000.0),
+            ("2*(50)", low_kite_cycles(50, 2), 1.0 / 100.0),
             ("3*", cone_mirror_cycles(3), 1.0 / 3.0),
             ("2*", cone_mirror_cycles(2), 1.0 / 2.0),
-            ("(1000)*", cone_mirror_cycles(1000), 1.0 / 1000.0),
+            ("(100)*", cone_mirror_cycles(100), 1.0 / 100.0),
             ("3x", rotary_lune_cycles(3), 1.0 / 3.0),
             ("x", rotary_lune_cycles(1), 1.0),
-            ("(1000)x", rotary_lune_cycles(1000), 1.0 / 1000.0),
+            ("(100)x", rotary_lune_cycles(100), 1.0 / 100.0),
         ];
         for (text, expected, characteristic) in cases {
             let domain = built(text);

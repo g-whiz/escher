@@ -210,7 +210,7 @@ fn parameters_of_every_named_polygon_list_the_corner_pairs_then_the_slices() {
             .collect();
         assert_eq!(listed, expected, "{text}");
     }
-    for text in ["3333", "3222", "22222", "*222222222", "*(1001)222"] {
+    for text in ["3333", "3222", "22222", "*222222222", "*(101)222"] {
         assert!(parameters(&signature(text)).is_empty(), "{text}");
     }
 }

@@ -184,7 +184,7 @@ impl core::error::Error for Error {
 /// use escher_domain::{ErrorKind, FundamentalDomain};
 /// use escher_signature::Signature;
 ///
-/// let signature: Signature = "*(1001)32".parse()?;
+/// let signature: Signature = "*(101)32".parse()?;
 /// let kind = FundamentalDomain::build(&signature).map_err(|error| error.kind());
 /// assert_eq!(kind.err(), Some(ErrorKind::LimitExceeded));
 /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -237,11 +237,11 @@ pub enum ErrorKind {
     /// signature with an infinite order give this kind.
     UnsupportedSignature,
     /// The signature has more than eight corner or cone orders, a corner or
-    /// cone order above 1000, or is `2*n` with `n` above 500, beyond which the
+    /// cone order above 100, or is `2*n` with `n` above 50, beyond which the
     /// accuracy of the domain is not established.
     ///
     /// The text names the order and the limit that it exceeds, such as
-    /// `order 501 is larger than 500` for `2*(501)`.
+    /// `order 51 is larger than 50` for `2*(51)`.
     LimitExceeded,
     /// Rounding made the construction degenerate, such as a sum of vertices
     /// that is not a point of the hyperbolic plane or of the sphere, a wall
@@ -254,12 +254,10 @@ pub enum ErrorKind {
     /// A hyperbolic polygon gives it when its shape parameters are too
     /// extreme for the construction to meet the tolerances of the checks. The
     /// rotation signature of a polygon gives it when the double of the polygon
-    /// at its default shape fails a check, which happens for some signatures
-    /// with eight cone orders of which several are large, such as
-    /// `(967)(967)(967)(967)(967)(967)(967)(967)`, because the side pairings
-    /// of the double, stored as `f64` matrices, are too inexact for the check
-    /// of its vertex cycles. The text of the error then names the side
-    /// pairings. No other rotation signature is known to give it. The domain
+    /// at its default shape fails a check, because the side pairings of the
+    /// double, stored as `f64` matrices, are too inexact for the check of its
+    /// vertex cycles. The text of the error then names the side pairings. No
+    /// rotation signature within the order limit is known to give it. The domain
     /// of `o`, `**`, `xx`, `*x`, `22x`, `22*`, `2*22`, `4*2`, `3*3`, or `2222`
     /// gives it when it fails a check, which no setting in the ranges of its parameters is
     /// known to cause, and its text then names the verification. The domain
@@ -366,7 +364,7 @@ mod tests {
     fn errors() -> [Error; 15] {
         [
             Error::unsupported(&signature("4*3")),
-            Error::limit_exceeded(1001, 1000),
+            Error::limit_exceeded(101, 100),
             Error::numerical(Some(geometry_error())),
             Error::numerical(None),
             Error::unknown_parameter(&signature("*236")),
@@ -378,7 +376,7 @@ mod tests {
             Error::refused_double(),
             Error::refused_wallpaper(),
             Error::parameter_out_of_range(Parameter::Skew),
-            Error::limit_exceeded(501, 500),
+            Error::limit_exceeded(51, 50),
             Error::refused_spherical(),
         ]
     }
@@ -415,7 +413,7 @@ mod tests {
             texts,
             [
                 "cannot build fundamental domain: the signature 4*3 is not supported",
-                "cannot build fundamental domain: order 1001 is larger than 1000",
+                "cannot build fundamental domain: order 101 is larger than 100",
                 "cannot build fundamental domain: the construction is numerically degenerate",
                 "cannot build fundamental domain: the construction is numerically degenerate",
                 "cannot build fundamental domain: the signature *632 has no shape parameter with one of the given names",
@@ -427,7 +425,7 @@ mod tests {
                 "cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough",
                 "cannot build fundamental domain: the wallpaper domain fails its verification",
                 "cannot build fundamental domain: the parameter skew is outside its range of -0.5 to 0.5",
-                "cannot build fundamental domain: order 501 is larger than 500",
+                "cannot build fundamental domain: order 51 is larger than 50",
                 "cannot build fundamental domain: the spherical domain fails its verification",
             ],
         );

@@ -18,7 +18,7 @@ fn info_prints_a_spherical_signature_with_its_group_order() {
 
 #[test]
 fn info_prints_a_spherical_signature_without_a_domain() {
-    insta::assert_snapshot!(snapshot(&["info", "2*(501)"]));
+    insta::assert_snapshot!(snapshot(&["info", "2*(51)"]));
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn info_prints_the_domain_summary_of_a_triangle_with_two_equal_corners() {
 
 #[test]
 fn info_prints_no_domain_for_a_corner_order_over_the_limit() {
-    insta::assert_snapshot!(snapshot(&["info", "*(1001)32"]));
+    insta::assert_snapshot!(snapshot(&["info", "*(101)32"]));
 }
 
 #[test]
@@ -369,7 +369,7 @@ fn info_check_prints_each_check_of_the_rectangle() {
 
 #[test]
 fn info_check_verifies_a_domain_at_the_largest_corner_order() {
-    insta::assert_snapshot!(snapshot(&["info", "--check", "*(1000)32"]));
+    insta::assert_snapshot!(snapshot(&["info", "--check", "*(100)32"]));
 }
 
 #[test]
@@ -428,12 +428,12 @@ fn info_check_prints_each_check_of_a_lune() {
 
 #[test]
 fn info_check_verifies_a_spherical_triangle_at_the_largest_corner_order() {
-    insta::assert_snapshot!(snapshot(&["info", "--check", "*(1000)22"]));
+    insta::assert_snapshot!(snapshot(&["info", "--check", "*(100)22"]));
 }
 
 #[test]
 fn info_check_prints_a_diagnostic_for_a_lune_over_the_limit() {
-    insta::assert_snapshot!(snapshot(&["info", "--check", "*(1001)(1001)"]));
+    insta::assert_snapshot!(snapshot(&["info", "--check", "*(101)(101)"]));
 }
 
 #[test]
@@ -561,7 +561,7 @@ fn info_presentation_prints_the_presentations_of_a_hyperbolic_triangle() {
 
 #[test]
 fn info_presentation_prints_the_presentations_of_a_spherical_signature_without_a_domain() {
-    insta::assert_snapshot!(snapshot(&["info", "--presentation", "2*(501)"]));
+    insta::assert_snapshot!(snapshot(&["info", "--presentation", "2*(51)"]));
 }
 
 #[test]
@@ -675,13 +675,13 @@ fn info_presentation_confirms_the_order_of_the_doubled_hemisphere() {
 
 #[test]
 fn info_presentation_confirms_the_order_of_signatures_without_a_domain() {
-    let outcome = run_args(&["info", "--presentation", "2*(501)"]);
+    let outcome = run_args(&["info", "--presentation", "2*(51)"]);
     assert_eq!(outcome.status, Status::Success);
     assert_eq!(outcome.stderr, "");
     assert!(
         outcome
             .stdout
-            .ends_with("\nOrder by coset enumeration: 2004, equal to 2/chi\n"),
+            .ends_with("\nOrder by coset enumeration: 204, equal to 2/chi\n"),
         "{}",
         outcome.stdout
     );

@@ -31,7 +31,7 @@ fn render_diagnostic_says_a_non_compact_signature_is_not_supported() {
 
 #[test]
 fn render_diagnostic_gives_the_cause_of_an_order_over_the_limit() {
-    insta::assert_snapshot!(render_snapshot("order_limit", &["*(1001)32"]));
+    insta::assert_snapshot!(render_snapshot("order_limit", &["*(101)32"]));
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn render_diagnostic_gives_the_cause_of_a_skew_on_the_annulus() {
 
 #[test]
 fn render_diagnostic_gives_the_cause_of_a_two_mirror_order_over_its_limit() {
-    insta::assert_snapshot!(render_snapshot("two_mirror_limit", &["2*(501)"]));
+    insta::assert_snapshot!(render_snapshot("two_mirror_limit", &["2*(51)"]));
 }
 
 #[test]
@@ -329,14 +329,6 @@ fn render_diagnostic_gives_the_cause_of_a_parameter_of_a_doubled_polygon() {
 #[test]
 fn render_diagnostic_says_a_polygon_shape_is_too_extreme() {
     insta::assert_snapshot!(render_snapshot("refused_shape", REFUSED_SHAPE));
-}
-
-#[test]
-fn render_diagnostic_says_the_pairings_of_a_double_cannot_be_stored() {
-    insta::assert_snapshot!(render_snapshot(
-        "refused_double",
-        &["(967)(967)(967)(967)(967)(967)(967)(967)"]
-    ));
 }
 
 #[test]
@@ -872,7 +864,7 @@ fn render_with_parity_on_the_whole_sphere_changes_no_file() {
 
 #[test]
 fn render_of_a_two_mirror_order_over_its_limit_changes_no_file() {
-    assert_no_file_changes("two_mirror_limit_file", &["2*(501)"]);
+    assert_no_file_changes("two_mirror_limit_file", &["2*(51)"]);
 }
 
 #[test]
@@ -1188,8 +1180,8 @@ fn render_without_a_domain_returns_failure() {
 #[test]
 fn render_of_a_two_mirror_order_over_its_limit_returns_failure() {
     assert_eq!(
-        first_error_line(&["2*(501)"]),
-        (Status::Failure, "error: cannot render 2*(501)".to_owned())
+        first_error_line(&["2*(51)"]),
+        (Status::Failure, "error: cannot render 2*(51)".to_owned())
     );
 }
 

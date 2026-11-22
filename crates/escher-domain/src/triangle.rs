@@ -11,7 +11,7 @@ use crate::domain::{Orientation, PairingKind, Side};
 use crate::error::Error;
 use crate::sheets::Cuts;
 
-pub(crate) const LARGEST_ORDER: u32 = 1000;
+pub(crate) const LARGEST_ORDER: u32 = 100;
 
 pub(crate) const LARGEST_TWO_MIRROR_ORDER: u32 = LARGEST_ORDER / 2;
 
@@ -556,11 +556,11 @@ mod tests {
     fn admitted_admits_the_spherical_group_signatures_within_their_limits() {
         let kind = |text: &str| admitted(&signature(text)).map_err(|error| error.kind());
         for text in [
-            "3*2", "2*", "3*", "(1000)*", "2*3", "2*(500)", "3x", "(1000)x", "x", "*", "1",
+            "3*2", "2*", "3*", "(100)*", "2*3", "2*(50)", "3x", "(100)x", "x", "*", "1",
         ] {
             assert!(kind(text).is_ok(), "{text}");
         }
-        for text in ["(1001)*", "2*(501)", "(1001)x"] {
+        for text in ["(101)*", "2*(51)", "(101)x"] {
             assert_eq!(kind(text).err(), Some(ErrorKind::LimitExceeded), "{text}");
         }
     }
