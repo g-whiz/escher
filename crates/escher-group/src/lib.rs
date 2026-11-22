@@ -25,8 +25,8 @@
 //! [`ColouringCounts`]. [`colourings`] lists them in a [`Colourings`], and
 //! [`colourings_of_index`] lists those of one colour count in a
 //! [`ColouringsOfIndex`]. Each takes a [`ColouringSet`], which returns every
-//! colouring or only the valid ones, in which no generator lies in the
-//! subgroup. Each colouring has a [`ColouringId`], such as `3a`, that does
+//! colouring, only the valid ones, in which no generator lies in the
+//! subgroup, or one valid colouring for each conjugacy class that has one. Each colouring has a [`ColouringId`], such as `3a`, that does
 //! not depend on the limits of the search.
 //! [`Colouring::colour_of`] gives the colour of a tile from the sides that
 //! its fold crossed. A search that reaches its [`SearchBudget`] returns a

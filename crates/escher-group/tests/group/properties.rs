@@ -569,12 +569,7 @@ fn valid_laws(presentation: &Presentation, limit: u32, steps: u64) -> Result<u32
                 "the valid tables of {colours} colours are not the filtered ones"
             ));
         }
-        for (rank, colouring) in listed.iter().enumerate() {
-            let ordinal = u32::try_from(rank + 1).map_err(|error| error.to_string())?;
-            if colouring.id().colours() != colours || colouring.id().ordinal() != ordinal {
-                return Err(format!("{} is not ranked {ordinal}", colouring.id()));
-            }
-        }
+        ranked_from_a(&listed, colours)?;
         if valid.count(colours) != u64::try_from(listed.len()).ok() {
             return Err(format!(
                 "the count of {colours} colours differs from the list"
@@ -614,6 +609,90 @@ fn valid_laws(presentation: &Presentation, limit: u32, steps: u64) -> Result<u32
     Ok(checked)
 }
 
+fn ranked_from_a(listed: &[Colouring], colours: u32) -> Result<(), String> {
+    for (rank, colouring) in listed.iter().enumerate() {
+        let ordinal = u32::try_from(rank + 1).map_err(|error| error.to_string())?;
+        if colouring.id().colours() != colours || colouring.id().ordinal() != ordinal {
+            return Err(format!("{} is not ranked {ordinal}", colouring.id()));
+        }
+    }
+    Ok(())
+}
+
+fn valid_class_laws(presentation: &Presentation, limit: u32, steps: u64) -> Result<u32, String> {
+    let valid = search_set(presentation, ColouringSet::Valid, limit, steps);
+    let classes = search_set(presentation, ColouringSet::ValidClasses, limit, steps);
+    let counts = count_colourings(
+        presentation,
+        ColouringSet::ValidClasses,
+        index_limit(limit),
+        budget(steps),
+    )
+    .map_err(|error| error.to_string())?;
+    if classes
+        .list()
+        .iter()
+        .any(|colouring| colouring.colours() > classes.complete_to())
+    {
+        return Err("a class colouring lies above complete_to()".to_owned());
+    }
+    let checked = valid.complete_to().min(classes.complete_to());
+    for colours in 1..=checked {
+        let listed = of_count(&classes, colours);
+        let named: Vec<CosetTable> = of_count(&valid, colours)
+            .into_iter()
+            .filter(|colouring| colouring.class() == colouring.id())
+            .map(|colouring| colouring.table().clone())
+            .collect();
+        let tables: Vec<CosetTable> = listed
+            .iter()
+            .map(|colouring| colouring.table().clone())
+            .collect();
+        if tables != named {
+            return Err(format!(
+                "the class tables of {colours} colours are not those that name a valid class"
+            ));
+        }
+        ranked_from_a(&listed, colours)?;
+        if let Some(colouring) = listed
+            .iter()
+            .find(|colouring| colouring.class() != colouring.id())
+        {
+            return Err(format!(
+                "{} has the class {}",
+                colouring.id(),
+                colouring.class()
+            ));
+        }
+        let total = u64::try_from(listed.len()).ok();
+        if classes.count(colours) != total {
+            return Err(format!(
+                "the count of {colours} colours differs from the list"
+            ));
+        }
+        if colours <= counts.complete_to()
+            && (counts.colourings(colours) != total || counts.classes(colours) != total)
+        {
+            return Err(format!(
+                "the counts of {colours} colours differ from the list"
+            ));
+        }
+        let single = colourings_of_index(
+            presentation,
+            ColouringSet::ValidClasses,
+            index_limit(colours),
+            budget(steps),
+        )
+        .map_err(|error| error.to_string())?;
+        if single.is_complete() && single.list() != listed.as_slice() {
+            return Err(format!(
+                "the single search of {colours} colours differs from the list"
+            ));
+        }
+    }
+    Ok(checked)
+}
+
 fn valid_two_colourings(presentation: &Presentation) -> Result<usize, String> {
     let found = colourings_of_index(
         presentation,
@@ -636,6 +715,12 @@ proptest! {
     }
 
     #[test]
+    fn valid_classes_keep_the_colouring_that_names_each_valid_class((presentation, limit) in small_presentation()) {
+        let checked = valid_class_laws(&presentation, limit, SEARCH_BUDGET);
+        prop_assert!(checked.is_ok(), "{:?}", checked);
+    }
+
+    #[test]
     fn a_presentation_has_at_most_one_valid_two_colouring((presentation, _) in small_presentation()) {
         let count = valid_two_colourings(&presentation);
         prop_assert!(count.as_ref().is_ok_and(|&count| count <= 1), "{:?}", count);
@@ -647,6 +732,17 @@ fn the_published_presentations_filter_their_valid_colourings() {
     for (label, presentation) in published_presentations() {
         assert_eq!(
             valid_laws(&presentation, 10, SearchBudget::DEFAULT.get()),
+            Ok(10),
+            "{label}"
+        );
+    }
+}
+
+#[test]
+fn the_published_presentations_keep_one_colouring_for_each_valid_class() {
+    for (label, presentation) in published_presentations() {
+        assert_eq!(
+            valid_class_laws(&presentation, 10, SearchBudget::DEFAULT.get()),
             Ok(10),
             "{label}"
         );

@@ -184,7 +184,9 @@ impl Colouring {
     /// be left out, and the class then names a valid colouring of the class
     /// that the call does return. Either way the colouring that the class
     /// names is the one member of the class whose `class()` equals its
-    /// `id()`.
+    /// `id()`. With
+    /// [`ColouringSet::ValidClasses`](crate::ColouringSet::ValidClasses) the
+    /// call returns only that member, so `class()` equals `id()`.
     #[must_use]
     pub fn class(&self) -> ColouringId {
         self.class
@@ -692,23 +694,31 @@ mod tests {
     #[test]
     fn one_colour_is_valid_only_without_generators() {
         let trivial = Presentation::new(Vec::new(), Vec::new()).expect("it is valid");
-        let found = search_of(&trivial, ColouringSet::Valid, 2);
-        let ids: Vec<String> = found
-            .list()
-            .iter()
-            .map(|colouring| colouring.id().to_string())
-            .collect();
-        assert_eq!(ids, ["1a"]);
-        assert_eq!(
-            found.list().first().map(Colouring::contained_generator),
-            Some(None)
-        );
+        for set in [ColouringSet::Valid, ColouringSet::ValidClasses] {
+            let found = search_of(&trivial, set, 2);
+            let ids: Vec<String> = found
+                .list()
+                .iter()
+                .map(|colouring| colouring.id().to_string())
+                .collect();
+            assert_eq!(ids, ["1a"], "{set:?}");
+            assert_eq!(
+                found.list().first().map(Colouring::contained_generator),
+                Some(None)
+            );
+        }
         for presentation in [conway("532"), coxeter(6, 4, 2), conway("x")] {
             let all = search_of(&presentation, ColouringSet::All, 1);
             let whole = all.list().first().expect("the whole group");
             assert_eq!(whole.contained_generator(), Some(0));
-            let valid = search_of(&presentation, ColouringSet::Valid, 1);
-            assert_eq!((valid.list().len(), valid.count(1)), (0, Some(0)));
+            for set in [ColouringSet::Valid, ColouringSet::ValidClasses] {
+                let valid = search_of(&presentation, set, 1);
+                assert_eq!(
+                    (valid.list().len(), valid.count(1)),
+                    (0, Some(0)),
+                    "{set:?}"
+                );
+            }
         }
     }
 
