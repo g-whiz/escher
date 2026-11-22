@@ -104,7 +104,7 @@ Both commands support these signatures, with corner orders up to 1000:
 | `escher-domain` | Builds and verifies a fundamental domain with its side pairings and side presentation | `docs/design/domain.md` |
 | `escher-render` | Renders the tiling of a domain per pixel and encodes it as PNG | `docs/design/render.md` |
 
-Milestones `M1` to `M11` of `docs/design/poc-plan.md` are complete, and no other milestone has started.
+Milestones `M1` to `M11` of `docs/design/poc-plan.md` are complete, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
 
 What does not exist yet:
 
@@ -196,7 +196,7 @@ The owner's decisions for the product, of which only those on the user interface
 - Until live rendering exists, the engine renders to PNG files on disk.
 - Slint provides the user interface of the GUI application.
 - Live rendering uses Slang, through the crates `slango` and `slang-slint` of the sibling project slang-rust, once those crates are published.
-- The proof of concept fills polygons with solid colours only.
+- The proof of concept fills polygons with solid colours, except for the image fills of milestone `M22` of `docs/design/poc-plan.md`.
 - All rendering is raster and per pixel. Escher has no vector output and no forward rendering path.
 - Aperiodic tilings are out of scope for now.
 

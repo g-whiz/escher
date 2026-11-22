@@ -3,12 +3,12 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-18 |
+| Date | 2026-11-22 |
 | Applies to | The development of Escher after the proof of concept: its phases, workstreams, research, and the closing of unverified statements |
 
 ## Abstract
 
-This document orders the development of Escher after the proof of concept. It lists the phases, from live rendering through motif authoring, tile reshaping, truncated tilings, animation, and video to releases on five platforms, and it marks which parts of the order the owner set and which are proposals. For each phase and each smaller workstream it states what the work depends on and which research it starts from. It defines the deep-research items that turn a surveyed topic into a subject-matter reference before its design starts, and the order in which sources and a Lean development close the unverified statements. It designs none of this work.
+This document orders the development of Escher after the proof of concept. It lists the phases, from live rendering through motif authoring, tile reshaping, truncated tilings, animation, and video to releases on five platforms, and it marks which parts of the order the owner set and which are proposals. For each phase and each smaller workstream, including the milestones that the owner moved out of the proof of concept and the Wythoff constructions, it states what the work depends on and which research it starts from. It defines the deep-research items that turn a surveyed topic into a subject-matter reference before its design starts, and the order in which sources and a Lean development close the unverified statements. It designs none of this work.
 
 ## 1. Introduction
 
@@ -26,7 +26,7 @@ These topics are out of scope, by the owner's decision:
 - Tilings without a symmetry group, such as aperiodic tilings, for now, because in the owner's words they "don't fit with the orbifold idea".
 - Research on integrations with external tools (Section 3.3).
 
-`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the proposed defaults `DEC-1` to `DEC-31` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones `M1` to `M19`, the research prerequisites `RP-1` to `RP-5`, and the unverified statements `UNV-1` to `UNV-28`. This document cites those labels and does not restate them. It records the owner's decisions for the phases after the proof of concept.
+`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-68` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M22`, the research prerequisites `RP-1` to `RP-5`, and the unverified statements `UNV-1` to `UNV-35`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
 
 Research documents are cited by file name, and each is in `docs/research/`.
 
@@ -74,6 +74,8 @@ These points are open for the owner:
 - Where the first release sits relative to phases 3 to 5. The table lists it after them, and its only dependency is phase 2.
 - What "truncated versions of tilings" means (Section 3.5).
 - The order of the media of a motif (Section 3.3).
+- Where the deferred milestones of Section 4.1 sit relative to the phases. The owner has not ordered them.
+- Where the Wythoff constructions of Section 4.2 sit. The owner placed them much later in the roadmap.
 
 ### 3.1. Live Rendering
 
@@ -96,7 +98,7 @@ Slint is offered under `GPL-3.0-only` among other licences. Section 16.2 of `rus
 
 ### 3.3. Motif Authoring
 
-This phase lets the user draw a motif on one or more fundamental domains, depending on the chosen subgroup, and see it replicated live. That is the owner's decision. The owner abstracts the motif as a colour sampler. The planning proposes that the renderer folds each pixel into the fundamental domain and that the sampler gives the colour from the folded point and the coset of the tile. The proof of concept uses a solid colour for each coset instead, so that the mathematical and geometric foundations are settled first (Section 10.1 of `docs/design/architecture.md`).
+This phase lets the user draw a motif on one or more fundamental domains, depending on the chosen subgroup, and see it replicated live. That is the owner's decision. The owner abstracts the motif as a colour sampler. The planning proposes that the renderer folds each pixel into the fundamental domain and that the sampler gives the colour from the folded point and the coset of the tile. The proof of concept uses a solid colour for each coset instead, so that the mathematical and geometric foundations are settled first, and adds image fills painted over polygon masks in its milestone `M22` (`DEC-66` of `docs/design/architecture.md`). The planning proposes that these image fills are the first form of the image medium of this phase.
 
 The owner listed seven media that a sampler takes its colours from: hand-drawn raster, vector graphics, images, videos, procedural graphics, AI-generated graphics or style transfer, and a composite of these. Each arrives at its own stage, and the owner set no order among them. How each medium integrates into Escher is still to be explored. Gap 1 of Section 14 of `prior-art.md` records that no desktop tool lets the user paint a motif for an arbitrary orbifold signature. Section 10 of `rendering.md` surveys pattern fills, such as SymmHub's sampling of an image in a pattern box and Farris's wave functions.
 
@@ -114,7 +116,7 @@ Section 10 of `orbifold-notation.md` gives the dimension of the space of deforma
 
 This phase lets the user make "truncated versions of tilings" with adjustable parameters, in the owner's words. The owner did not define "truncated".
 
-The planning proposes to read it as the Wythoff construction with a movable generator point. In a reflection triangle, the position of the generator point selects the regular, truncated, rectified, and other uniform forms of the family (Sections 10.1 to 10.3 of `colourings.md`), and the adjustable parameter is that position. The owner confirms or replaces this reading before the design of the phase starts.
+The planning proposes to read it as the Wythoff construction with a movable generator point. In a reflection triangle, the position of the generator point selects the regular, truncated, rectified, and other uniform forms of the family (Sections 10.1 to 10.3 of `colourings.md`), and the adjustable parameter is that position. The owner confirms or replaces this reading before the design of the phase starts. The owner placed the Wythoff constructions much later in the roadmap (Section 4.2), and whether they are this phase is open.
 
 On this reading, the phase starts from Section 10 of `colourings.md`. Its Section 10.7 records that most of the construction rests on secondary sources only, and that no source gives the faces that each position produces or a per-pixel classification of the faces (items 10 and 11 of Section 14.1). Item 12 of that section records the construction beyond triangles as open.
 
@@ -152,11 +154,42 @@ These items are not tied to one phase. Each is a proposal of the planning unless
 | The Gans and hemisphere models, after the three above | Item 16 of Section 13.1 of `rendering.md`, and item 6 of Section 15.1 of `geometry-models.md` | As above | Proposal |
 | View control: rotation, shift, and zoom | None named | The command line, then phase 2 | Owner for the item, which is outside the proof of concept |
 | Colourings of the faces of truncated tilings, for which a source covers only the perfect colourings of the regular and Laves tilings (Frettloh's lemmas) | Sections 5.2 to 5.5 and 10.7 of `colourings.md`, and item 5 of its Section 14.1 | Phase 5 | Proposal |
-| Further colourings: larger colour counts and classification of two-colourings. Conjugate subgroups are colourings of their own from `M8` (`DEC-37`) | Items 8, 9, and 6 of Section 14.1 of `colourings.md` | `M8` | Proposal |
+| Further colourings: larger colour counts and classification of two-colourings. Conjugate subgroups are colourings of their own from `M8` (`DEC-37`), and only the valid colourings remain from `M20` (`DEC-65`) | Items 8, 9, and 6 of Section 14.1 of `colourings.md` | `M8` | Proposal |
 | Names of each group in other notations | Item 11 of Section 12 of `orbifold-notation.md`, which records the names that "The Symmetries of Things" by Conway, Burgiel, and Goodman-Strauss makes primary and the parts that stay open | A primary source for the open parts of item 11, such as the names of the friezes. `DEC-20` governs which names `info` shows | Proposal |
+| Selecting a tiling by another notation than the orbifold signature, such as a Schlafli symbol | None named | The Schlafli symbols of `M21` of `docs/design/poc-plan.md` | Owner for the item, as one to consider |
 | A machine-readable form of the info output | `DEC-23` | None | Proposal |
-| Rendering of the general non-compact signatures, which Section 2.1 of `docs/design/architecture.md` defines | The deep-research item of Section 5. Section 5.18 of `docs/design/poc-plan.md` records why the research knows no construction | `M18` | Owner for the item, which is outside the proof of concept (`DEC-19`) |
+| The milestones `M14` to `M18`, moved out of the proof of concept | Section 4.1 | Section 4.1 | Owner for the move (`DEC-64`), proposal for their order |
+| Wythoff constructions | Section 4.2 | Section 4.2 | Owner for the item and its first version (`DEC-68`) |
+| Rendering of the general non-compact signatures, which Section 2.1 of `docs/design/architecture.md` defines | The deep-research item of Section 5. Section 4.1 records why the research knows no construction | `M18` | Owner for the item, which is outside the proof of concept (`DEC-19`) |
 | Procedural textures from PDE simulation, built with the features of the application and not a core feature | Sections 4 and 10.2 of `pdes-on-orbifolds.md`, and Section 10 of `rendering.md`, which records SymmHub's reaction-diffusion simulation | Phase 3 with procedural graphics as a medium, and the PDE reference of Section 5 | Owner for the item and that it is not a core feature, proposal for the dependencies |
+
+### 4.1. Milestones Moved Out of the Proof of Concept
+
+The owner moved these milestones out of the proof of concept on 2026-11-22 (`DEC-64` of `docs/design/architecture.md`). They keep their labels, and Sections 5.14 to 5.18 of `docs/design/poc-plan.md` point here. The `UNV-n` labels in the table are rows of Section 7 of that plan, and the `RP-n` labels are its research prerequisites.
+
+The owner has not ordered these items among themselves or among the phases of Section 3. The planning proposes that `M15`, `M16`, and `M17` run in that order, because each builds on the one before, that `M18` follows `M16`, and that `M14` depends on none of the others.
+
+| Label | Goal | What it needs | Research prerequisite |
+| --- | --- | --- | --- |
+| `M14` | Analytic border antialiasing: one sample per pixel with analytic border coverage, through `--antialias analytic`, compared with supersampling in each geometry and model | A coverage ramp one pixel wide on the screen-distance estimate, in SymmHub's form (`rendering.md` 6.1, `symmhub.md` 11.1), a policy where tiles are smaller than a pixel (`rendering.md` 7.4), and the model maps of `M12`. It rests on `UNV-15` | None |
+| `M15` | General hyperbolic signatures I: the SymmHub pipeline for genus 0 with one boundary, with cone points and mirrors, such as `4*3`, `2*23`, and `23*2`. It replaces the domains of the rotation signatures `p1...pn`, renumbers their sides, and so changes their colouring ids (`DEC-50`) | A port of SymmHub's normalization, atomization, unfolding, assembly, and generators (`fundamental-domains.md` 8, `symmhub.md` 6 and 8.1), with the layout and generators rebuilt from linear isometries, and the MIT notice of `DEC-18`. It rests on `UNV-2`, `UNV-6`, `UNV-7`, `UNV-9`, `UNV-11`, `UNV-24`, and `UNV-26` | `RP-3`, apart from its sheet and slice part |
+| `M16` | General hyperbolic signatures II: handles, crosscaps, and several boundaries, such as `o2`, `oo`, `xxx`, `23x`, `2*x`, `**2`, and `o*` | Handle pairs with length and twist, caps as glide reflections, and bands (`fundamental-domains.md` 8.4 and 8.11, `symmhub.md` 6.7), after `M15`. It rests on `UNV-2`, `UNV-6` to `UNV-9`, and gap G15 of `fundamental-domains.md` | As `M15` |
+| `M17` | Robust reduction for general domains: every sample of a corpus of signatures, such as the catalogue of signatures in SymmHub's tutorials (`symmhub.md` 3.5), converges or is reported | An audit of the convexity and convergence of the domains of `M15` and `M16`, and if needed walls (`symmhub.md` 9.4) or reduction against a Dirichlet domain by Algorithm 4.3 of Voight, whose termination is sourced for Fuchsian groups only (`fundamental-domains.md` 10.1 to 10.3, `DEC-11`). It rests on `UNV-2`, and merges into `M15` and `M16` if the audit finds their domains convex | None |
+| `M18` | Infinite-order points: the 7 friezes, and the triangle groups with ideal corners and their rotation subgroups, such as `*22(inf)` and `*23(inf)` | Maskit's triangles with ideal corners (`fundamental-domains.md` 4.4 and 7.6), SymmHub's ideal triangle (`geometry-models.md` 7.6.5), the polygon theorems for polygons with ideal vertices (`fundamental-domains.md` 4.7), and the frieze list (`orbifold-notation.md` 8.3), after `M10` and `M16`. It rests on `UNV-5`, `UNV-21`, `UNV-23`, and `UNV-26` | `RP-4` |
+
+The general non-compact signatures stay outside `M18` (`DEC-19`). The research records no implementation for them, because SymmHub's orbifold parser has no infinite order (`symmhub.md` 4.2). The sourced material is Maskit's cusps for orientable signatures (`fundamental-domains.md` 7) and the worked examples and the polygon for orientation-preserving groups of `fundamental-domains.md` 9.8, which records that no source read constructs a polygon for a signature that mixes cusps with mirrors or crosscaps.
+
+### 4.2. Wythoff Constructions
+
+The owner decided on 2026-11-22 that Wythoff constructions come much later in the roadmap (`DEC-68` of `docs/design/architecture.md`). The first version has this scope:
+
+- The triangle groups `*pqr`.
+- On or off marks on the mirrors.
+- One colour or one image fill for each face type, so up to three fills.
+
+Group colourings of the faces are not part of the first version.
+
+The planning proposes that the work starts from the deep-research item on truncated tilings of Section 5, and that its image fills reuse the masks and image fills of `M22` of `docs/design/poc-plan.md`, which that plan proposes to define over a general region with a frame. Whether this work is the phase of truncated tilings of Section 3.5 is open for the owner.
 
 ## 5. Deep Research
 
@@ -177,7 +210,7 @@ The planning proposes this rule, and the last two columns of the table are propo
 | Orbifold deformations, for phase 4 | Proposal | Section 10 of `orbifold-notation.md`, Section 6 of `fundamental-domains.md`, and Section 4.2 of `export-and-animation.md` | The deformations of the Euclidean signatures and whether their counts include the scale (item 7 of Section 12 of `orbifold-notation.md`), and the twists, which Deaton's thesis states, with a caveat on its numbering of the cuts (Section 6.3 and gap G4 of `fundamental-domains.md`) |
 | Truncated tilings, on the reading of Section 3.5, for phase 5 | Proposal | Section 10 of `colourings.md` | Primary sources for the construction, the faces that each position of the generator point produces, per-pixel classification of the faces, and the construction beyond triangles (Section 10.7 and items 10 to 12 of Section 14.1) |
 
-This roadmap uses Sections 4 and 5 of `export-and-animation.md`, on animation and shader export. It does not use Section 3 of that survey on vector export, and it does not use `aperiodic-tilings.md`.
+This roadmap uses Sections 4 and 5 of `export-and-animation.md`, on animation and shader export, and does not use its Section 3 on vector export.
 
 ## 6. Closing Unverified Statements
 
