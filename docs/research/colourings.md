@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-18 |
+| Date | 2026-11-22 |
 | Applies to | The choice of the polygons that the Escher renderer colours, and the computation of their colours and of the available numbers of colours |
 
 ## Abstract
@@ -1242,6 +1242,8 @@ Each item below is a candidate statement that needs a source or a machine-checke
 25. Group orders and indices of the worked examples that no source states: mostly closed. The handbook states the order 24 of $\langle x, y \mid x^2, y^3, (xy)^4 \rangle$ of the SymPy low-index doctest [HOLT2005, p. 194], the indices and orders of the groups of SymPy's Examples 5.1 to 5.4 [HOLT2005, pp. 150, 154, 156, 160, and 172], and the index 5 of Holt's last example for the same presentation and subgroup [HOLT2005, p. 177] (Section 7.20). These remain open: the index of ACE's Appendix B.3, whose group Sims's Exercise 2.3 poses without an answer [SIMS1994, p. 232], and that GAP's example of Section 47.10-1 uses the group of Section 47.5. Would close it: the ACE manual read directly, or a computation by an independent implementation recorded as such.
 26. Lemma III.26 of [HULPKE2010] for the lenlex standard: stated, without a stand-alone proof. Hulpke states the bijection between subgroups of index $n$ and standardized tables for his definition, which ignores the inverse columns. The handbook states it for its standard, which uses all columns, as Proposition 5.6, and justifies it by the prose before it [HOLT2005, p. 189]. Sims states it in one sentence for his lenlex standard, which GAP follows [SIMS1994, p. 252], and proves or leaves as exercises the results it rests on (Section 7.17). Neither book gives a stand-alone proof. Would close it: a source with a stand-alone proof, or Lean.
 27. The count of `low_index` for the free group of rank 3: a summarizing tool reported 653 results for the README example at index 4, and the number does not appear in the text that the tool quoted (Section 7.3). Neither book addresses it. Sims's Proposition 9.3 counts complete standard tables, which are subgroups and not classes, for another group only [SIMS1994, p. 207]. Would close it: the README read directly, or a run of the package.
+28. Valid colourings and side generators: whether, in the coset colouring of a fundamental-domain tiling by a subgroup $S$, two tiles that share a side have the same colour exactly when the generator of that side lies in $S$, so that no two tiles that share a side have the same colour exactly when $S$ contains no side generator, which in a coset table is no side generator that fixes the coset of $S$. The closest sourced statement is that "c(fF) = c(f'F) is equivalent to f and f' being in the same left coset", proved for $T_{p,q}$ under $G_{p,q}$ only [FRETTLOH2008, p. 3] (Sections 4.1 and 4.2). No source read states the criterion in terms of the side generators, or for the groups beyond the scope of Lemma 2.1. The project records it as `UNV-35` of `docs/design/poc-plan.md` and checks it on samples. Would close it: a source that states it, or Lean.
+29. One valid colouring with 2 colours: whether a fundamental-domain tiling has at most one coset colouring with 2 colours in which no two tiles that share a side have the same colour. No source read states it. The project records it as `UNV-36` of `docs/design/poc-plan.md` and checks it by a test. Would close it: a source that states it, or Lean.
 
 ### 14.2. Claims Resting on Secondary Sources or Inference
 

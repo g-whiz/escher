@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the crate `escher-group`, which holds finitely presented groups, Todd-Coxeter coset enumeration with a bound on the number of cosets, and the low-index subgroup search that gives the colourings of a tiling. It defines letters, words, relators with an exponent, and presentations with named generators, the text form of each, and the presentation that Conway's rules read from an orbifold signature. It specifies the coset table that an enumeration returns, the Felsch strategy as numbered steps with the source of each step, the rule for relators of one letter, the closing pass that makes a returned table rest on sourced statements, the limit on cosets and what reaching it shows, and the standard form that makes equal subgroups give equal tables. For the search, it specifies the steps of a run, the first-in-class test, the check of every complete table, the expansion of each conjugacy class into its subgroups, the work budget and the limits on what a call stores, what a call returns when it stops at a limit, the colouring ids, and the rule that turns the sides of a fold into a colour. It also states the error type, the limits on untrusted input with their memory bound and the residual risk on time, the layers of the tests with their worked examples, the dependencies, the unverified statements that the code relies on, and the choices that no other document dictates.
+This document specifies the crate `escher-group`, which holds finitely presented groups, Todd-Coxeter coset enumeration with a bound on the number of cosets, and the low-index subgroup search that gives the colourings of a tiling. It defines letters, words, relators with an exponent, and presentations with named generators, the text form of each, and the presentation that Conway's rules read from an orbifold signature. It specifies the coset table that an enumeration returns, the Felsch strategy as numbered steps with the source of each step, the rule for relators of one letter, the closing pass that makes a returned table rest on sourced statements, the limit on cosets and what reaching it shows, and the standard form that makes equal subgroups give equal tables. For the search, it specifies the steps of a run, the first-in-class test, the check of every complete table, the expansion of each conjugacy class into its subgroups, the work budget and the limits on what a call stores, what a call returns when it stops at a limit, the valid colourings and the set of colourings that a call returns, the colouring ids, and the rule that turns the sides of a fold into a colour. It also states the error type, the limits on untrusted input with their memory bound and the residual risk on time, the layers of the tests with their worked examples, the dependencies, the unverified statements that the code relies on, and the choices that no other document dictates.
 
 ## 1. Introduction
 
@@ -28,7 +28,7 @@ The primary readers are the agent that implements the crate and the reviewer who
 
 ### 1.4. Scope
 
-This document covers the public surface of the crate, words, relators, presentations and their text, the Conway presentation, the coset table and its standard form, the enumeration algorithm with its limit, the low-index search with its budget and limits, the colourings with their ids and the colour of a sample, the error type, the limits on untrusted input, the tests, and the dependencies of the crate.
+This document covers the public surface of the crate, words, relators, presentations and their text, the Conway presentation, the coset table and its standard form, the enumeration algorithm with its limit, the low-index search with its budget and limits, the colourings with their validity, their ids, and the colour of a sample, the error type, the limits on untrusted input, the tests, and the dependencies of the crate.
 
 ### 1.5. Non-Goals
 
@@ -101,6 +101,8 @@ It adds these terms:
 - base coset: The coset that a relabelling numbers 0.
 - colouring: One subgroup of finite index, with its standard table, read as the colouring of the tiles by its cosets (Section 5.4 of the architecture).
 - colour count: The index of the subgroup of a colouring.
+- valid colouring: A colouring whose subgroup contains no generator of the presentation, tested on its table as GRP-42 states. The owner's criterion of `DEC-65` defines validity by adjacent tiles, and `UNV-35` records that the two agree.
+- colouring set: The colourings that a call of the search returns, all of them or only the valid ones, which `ColouringSet` selects (Section 7.18).
 - colouring id: The text `<colour count><letters>` that names one colouring (GRP-37).
 - step: One read of a table entry by the search (GRP-29).
 - search budget: The largest number of steps that one run, or one set of runs by index, may take.
@@ -212,9 +214,15 @@ impl SearchBudget {
 }
 impl Default for SearchBudget {}
 
-pub fn count_colourings(presentation: &Presentation, limit: IndexLimit, budget: SearchBudget) -> Result<ColouringCounts>;
-pub fn colourings(presentation: &Presentation, limit: IndexLimit, budget: SearchBudget) -> Result<Colourings>;
-pub fn colourings_of_index(presentation: &Presentation, colours: IndexLimit, budget: SearchBudget) -> Result<ColouringsOfIndex>;
+pub enum ColouringSet {
+    All,
+    Valid,
+}
+// derives Clone, Copy, Debug, PartialEq, Eq, Hash
+
+pub fn count_colourings(presentation: &Presentation, set: ColouringSet, limit: IndexLimit, budget: SearchBudget) -> Result<ColouringCounts>;
+pub fn colourings(presentation: &Presentation, set: ColouringSet, limit: IndexLimit, budget: SearchBudget) -> Result<Colourings>;
+pub fn colourings_of_index(presentation: &Presentation, set: ColouringSet, colours: IndexLimit, budget: SearchBudget) -> Result<ColouringsOfIndex>;
 
 pub struct ColouringCounts { /* private */ }
 // derives Clone, Debug, PartialEq, Eq
@@ -252,6 +260,7 @@ impl Colouring {
     #[must_use] pub fn colours(&self) -> u32;
     #[must_use] pub fn table(&self) -> &CosetTable;
     #[must_use] pub fn colour_of(&self, sides: &[u8]) -> Option<u32>;
+    #[must_use] pub fn contained_generator(&self) -> Option<u8>;
 }
 
 pub struct ColouringId { /* private */ }
@@ -306,9 +315,10 @@ Each item guarantees its invariant by construction, so no caller checks it:
 | `permutation` | The column of a letter as a list | Element $c$ is $c^x$. It is a permutation of $0, \ldots, n - 1$ |
 | `IndexLimit` | A limit on the colour count of a search | $1 \leq$ value $\leq$ `MAX`. `DEFAULT` is 12 and `MAX` is 64 (Section 7.12) |
 | `SearchBudget` | A limit on the steps of a search | $1 \leq$ value $\leq$ `MAX`. `DEFAULT` is $2^{28}$ and `MAX` is $2^{36}$ (Section 7.12) |
-| `count_colourings` | The number of colourings and of classes of each colour count up to the limit | Stores no table beyond the class that it expands (Section 7.13). Never an error for a reached budget (GRP-35) |
-| `colourings` | Every colouring of every colour count up to the limit | Ordered by colour count, then by id. Never an error for a reached limit of Section 7.12 (GRP-35) |
-| `colourings_of_index` | Every colouring of one colour count, in a `ColouringsOfIndex` | One run of that bound only (GRP-35) |
+| `ColouringSet` | The colourings that a call returns: `All`, every subgroup of finite index, or `Valid`, the valid colourings only | `Valid` returns exactly the colourings of `All` whose `contained_generator()` is `None`, in the same order, with ids numbered again from `a` (GRP-37, GRP-43) |
+| `count_colourings` | The number of colourings and of classes of each colour count of the set up to the limit | Stores no table beyond the class that it expands (Section 7.13). Never an error for a reached budget (GRP-35) |
+| `colourings` | Every colouring of the set of every colour count up to the limit | Ordered by colour count, then by id. Never an error for a reached limit of Section 7.12 (GRP-35) |
+| `colourings_of_index` | Every colouring of the set of one colour count, in a `ColouringsOfIndex` | One run of that bound only (GRP-35) |
 | `requested`, `complete_to` | The index limit of `count_colourings` or `colourings`, and how far the call is complete | $0 \leq$ `complete_to()` $\leq$ `requested()` |
 | `ColouringCounts::colourings`, `classes` | The counts of one colour count | `None` for 0 and above `complete_to()`. `Some(0)` for a colour count without a colouring |
 | `Colourings::count` | The number of colourings of one colour count in the list, which the search counted in the same call | `None` for 0 and above `complete_to()`. `Some(0)` for a colour count without a colouring. Equal to the number of colourings of that colour count in `list()` |
@@ -316,8 +326,9 @@ Each item guarantees its invariant by construction, so no caller checks it:
 | `ColouringsOfIndex` | The colourings of the one colour count `colours()` | Ordered by id. When `is_complete()` is false, the run stopped at a limit, the list is empty, and the result claims nothing. It never claims anything about another colour count |
 | `ColouringsOfIndex::find` | The colouring with an id | `None` when the list holds no colouring with that id. That shows the id does not exist only when `is_complete()` is true and the id has `colours()` colours |
 | `Colouring` | One subgroup of finite index | Its table is complete, compressed, and standard. Coset 0 is the subgroup |
-| `Colouring::class` | The id of the table that the search kept for its class | Equal to `id()` for that table, and the least id of the class when the first-in-class test is right (Section 7.13) |
+| `Colouring::class` | The id of the colouring of its class that the relabelling from the least base coset kept (GRP-43) | With `All`, equal to `id()` of the class table, and the least id of the class when the first-in-class test is right (Section 7.13). With `Valid`, an id of the set |
 | `colour_of` | The colour of a tile from the sides of its fold | The rule of GRP-38. `None` when a side has no generator in the table |
+| `contained_generator` | The least generator that lies in the subgroup | `None` exactly for a valid colouring (GRP-42) |
 | `ColouringId` | A colouring id | Colour count from 1 to 64 and ordinal from 1 to 475254. `Ord` orders by colour count, then by ordinal |
 | `Error` | Why an operation failed | Carries the operation and a private detail (Section 8) |
 | `ErrorKind` | What a caller matches on | `Copy` and `#[non_exhaustive]` (ERR-1 of the coding standard) |
@@ -335,8 +346,8 @@ The crate has these private modules, each a file named after the module:
 - `src/conway.rs`: `conway_presentation`.
 - `src/table.rs`: `CosetTable`, `CosetLimit`, the relabelling of Section 6.2, and the crate-private constructor of a table from its entries and the read of its entries, which the search uses.
 - `src/enumerate.rs`: `enumerate`, the steps of Sections 7.1 to 7.9, the check of the expanded relator letters and the preparation of the relators and conjugate lists that the search shares, and the crate-private run statistics.
-- `src/search.rs`: `IndexLimit`, `SearchBudget`, `count_colourings`, `colourings`, `colourings_of_index`, the steps of Sections 7.10 to 7.14, the crate-private settings, which hold the budget, the stored limits, and a switch of the first-in-class test (every node, complete tables only, or off), and the crate-private search statistics and capacities.
-- `src/colouring.rs`: `ColouringCounts`, `Colourings`, `ColouringsOfIndex`, `Colouring`, `ColouringId`, the ids of Section 7.15, and `colour_of`.
+- `src/search.rs`: `IndexLimit`, `SearchBudget`, `ColouringSet`, `count_colourings`, `colourings`, `colourings_of_index`, the steps of Sections 7.10 to 7.14, the crate-private settings, which hold the budget, the stored limits, and a switch of the first-in-class test (every node, complete tables only, or off), and the crate-private search statistics and capacities.
+- `src/colouring.rs`: `ColouringCounts`, `Colourings`, `ColouringsOfIndex`, `Colouring`, `ColouringId`, the ids of Section 7.15, `colour_of`, and the validity test of Section 7.18.
 
 The integration tests form one binary, `tests/group/main.rs`, with the modules `common`, `examples`, `spherical`, `properties`, `limits`, and `search` (TEST-10 of the coding standard). `main.rs` declares each module under `#[cfg(test)]`, as the integration tests of `escher-domain` do, so that the Clippy options for test code cover the panics of their helpers (TEST-10 of the coding standard). `common` holds the named input sets of Section 10 and the helpers that build names, words, presentations, and limits. `search` also holds the helpers that read, relabel, and select the tables of a listing, which `properties` uses. Each helper exists once, and no test module defines its own copy.
 
@@ -582,7 +593,7 @@ The sources give these two facts about cost, and no other (Section 7.2 gives the
 
 ### 7.10. Low-Index Search
 
-GRP-30. `count_colourings`, `colourings`, and `colourings_of_index` MUST find one class table for each class by the runs of Sections 7.11 and 7.14, and MUST then expand each class table into the standard tables of all the subgroups of its class as Section 7.13 states, because the owner decided that every subgroup of finite index is its own colouring (`DEC-37`), and searching by class keeps the search tree small through the first-in-class test.
+GRP-30. `count_colourings`, `colourings`, and `colourings_of_index` MUST find one class table for each class by the runs of Sections 7.11 and 7.14, and MUST then expand each class table into the standard tables of all the subgroups of its class as Section 7.13 states, keeping only those of the requested set (GRP-43), because the owner decided that every subgroup of finite index is its own colouring (`DEC-37`), and searching by class keeps the search tree small through the first-in-class test.
 
 The search runs through a tree of partial coset tables, as Sims's method does, "a backtrack search over incomplete coset tables rather than over forced coincidences" ([HOLT2005] p. 189, Section 7.17 of the colouring reference). It follows the LOWINDEXSUBGROUPS, DESCENDANTSUBGROUPS, TRYDESCENDANT, and FIRSTINCLASS of [HOLT2005] pp. 191-194, whose FIRSTINCLASS is the FIRST_CONJ of [SIMS1994] pp. 208-209. It departs from them in five ways, each a code-only part under `UNV-19`:
 
@@ -625,7 +636,7 @@ The handbook states that the leaf tables already satisfy the short relators, wit
 
 ### 7.12. Limits of a Call
 
-GRP-29. The search MUST count one step for each read of a table entry, with no read left out: in the search for the first undefined entry of step 3 of Section 7.11, in the test of a candidate's entry $d^{x^{-1}}$ of step 5, in the read of $b = a^x$ before the scans at $b$, in a scan, in the first-in-class test, in the leaf check, and in the relabellings of Section 7.13. It MUST also count two steps for each entry that the expansion compares when it removes repeated relabellings. It MUST compare the count with the budget at each read and stop the run at the first read beyond the budget, because a count of reads bounds the time of every call and gives the same result on every machine, which a clock does not. The expansion counts its comparisons after each compared table, so a run can pass the budget by at most $2kc$ reads for a class table of $k$ rows and $c$ columns before it stops.
+GRP-29. The search MUST count one step for each read of a table entry, with no read left out: in the search for the first undefined entry of step 3 of Section 7.11, in the test of a candidate's entry $d^{x^{-1}}$ of step 5, in the read of $b = a^x$ before the scans at $b$, in a scan, in the first-in-class test, in the leaf check, in the relabellings of Section 7.13, and in the validity test of GRP-42. It MUST also count two steps for each entry that the expansion compares when it removes repeated relabellings. It MUST compare the count with the budget at each read and stop the run at the first read beyond the budget, because a count of reads bounds the time of every call and gives the same result on every machine, which a clock does not. The expansion counts its comparisons after each compared table, so a run can pass the budget by at most $2kc$ reads for a class table of $k$ rows and $c$ columns before it stops.
 
 The values are these:
 
@@ -640,7 +651,7 @@ The values are these:
 
 GRP-36. `colourings` and `colourings_of_index` MUST stop a run when storing the next colouring would make the call hold more than 65536 colourings or more than $2^{22}$ table entries, and MUST treat that stop as a stop at the budget (GRP-35), because the number of subgroups grows fast with the index and the class sizes multiply it, and an unbounded list exhausts memory before the budget ends the run. `count_colourings` stores no colouring, so only the budget stops it.
 
-Because the stored limits stop only `colourings` and `colourings_of_index`, `colourings` can be complete to fewer colour counts than `count_colourings` on the same input. For example, with the default limit and budget, the side presentation of `*664` lists to 11 and counts to 12.
+Because the stored limits stop only `colourings` and `colourings_of_index`, `colourings` can be complete to fewer colour counts than `count_colourings` on the same input. For example, with `ColouringSet::All` and the default limit and budget, the side presentation of `*664` lists to 11 and counts to 12. The stored limits count only the colourings that the call stores, so with `ColouringSet::Valid` the colourings that the filter drops count toward neither.
 
 A caller cannot tell from the result whether the budget or a stored limit stopped a call, because both give the same result. Every text that reports such a stop, in the crate and in its callers, says that the search stopped at a limit, which covers both (CLI-47 of `docs/design/cli.md`).
 
@@ -653,6 +664,14 @@ The handbook states that "the conjugates of H are just the stabilizers G_alpha o
 The expansion removes repeated relabellings by comparing each new relabelling with the distinct ones kept so far, entry by entry with an exit at the first difference, and counts the reads in steps (GRP-29). Its scratch buffer holds only distinct tables, at most $k$. Each distinct table is represented by its first base coset, so the relabelling from base 0, which is $T$ itself, is always kept. A sort of the $k$ relabellings was 2 to 5 times slower for each counted step on classes with large normalizers, and its comparisons were not counted. `count_colourings` counts the distinct tables and discards them. The other two functions store them.
 
 $T$ is the least of its results, because it passed the first-in-class test as a complete table, and the test "Least in class" checks it. `Colouring::class` is the id of $T$, the table that the search kept for the class, and not the least id of the class computed after the expansion. The two are equal when the first-in-class test is right. Computing the least id directly would hide a defect of that test, such as swapped comparisons, which would then change no output (Section 10.3).
+
+GRP-43. With `ColouringSet::Valid`, the expansion of GRP-34 MUST test each relabelling by GRP-42 and MUST drop one that is not valid before it stores or counts it, and the runs of Sections 7.11 and 7.14, the first-in-class test, and the leaf check MUST stay as they are for `ColouringSet::All`, because validity belongs to one subgroup and not to its class: a class table that is not valid can have valid conjugates, so a filter on the class tables would lose valid colourings, and a filter in the caller would let the colourings that it discards count toward the stored limits of GRP-36.
+
+A relabelling and a repeat of it are the same table, so the test can run before or after the comparison of GRP-34. The filter MUST also meet these requirements:
+
+- A class with no valid subgroup gives no colouring, adds nothing to `ColouringCounts::classes`, and takes no id.
+- The class of a kept colouring is the id of the kept colouring of its class with the least base coset. With `All`, that base coset is 0 and the colouring is $T$. With `Valid`, $T$ may be dropped, and the class then names a kept colouring, never a table that the call does not return.
+- A check that compares counts, in the crate or in its tests, takes both sides from the same set. `Colourings::count` equals the number of colourings of its colour count in `list()` of the same call, and the counts of the three functions are compared only between calls with the same `ColouringSet`.
 
 ### 7.14. One Run, Then Runs by Index
 
@@ -668,11 +687,11 @@ With the default limit and budget, the search on the side presentation of a tria
 
 ### 7.15. Colouring Ids
 
-GRP-37. The colourings of one colour count MUST be ordered by the lexicographic order of their standard tables, compared entry by entry in row-major order over all columns, and the id of a colouring MUST be the colour count in decimal, from 1 to 64 without a leading zero, followed by the rank of the colouring in that order, from 1, written in lower-case bijective base 26 with 1 to 4 letters. An id MUST be assigned only within a colour count that the call is complete to. This makes the id a function of the presentation alone, independent of the limit, the budget, the order in which a run finds the tables, and the thread schedule of the caller.
+GRP-37. The colourings of one colour count of the set MUST be ordered by the lexicographic order of their standard tables, compared entry by entry in row-major order over all columns, and the id of a colouring MUST be the colour count in decimal, from 1 to 64 without a leading zero, followed by the rank of the colouring in that order among the colourings of that colour count in the set, from 1, written in lower-case bijective base 26 with 1 to 4 letters. An id MUST be assigned only within a colour count that the call is complete to. This makes the id a function of the presentation and the set alone, independent of the limit, the budget, the order in which a run finds the tables, and the thread schedule of the caller.
 
-The ranks run over all the subgroups of the colour count, every conjugate included, and not over the classes (`DEC-37`). Proposition 8.7 of [SIMS1994] proves that, for the lenlex ordering, one automaton precedes another exactly when its transition matrix comes first in the lexicographic order of the entries read row by row (p. 136, Section 7.14 of the colouring reference), and the handbook orders its tables in the same way ([HOLT2005] p. 193). The generator order of the columns is that of the presentation, which for a side presentation is `s0` upward (DOM-32 of `docs/design/domain.md`).
+With `All`, the ranks run over all the subgroups of the colour count, every conjugate included, and not over the classes (`DEC-37`). With `Valid`, they run over the valid colourings only, with no gap, as the owner decided (`DEC-71`). The two sets keep the same order, so the valid colourings take the ids `a`, `b`, and so on in the order of their ids under `All`. An id therefore names a colouring of one set, and the same text can name another colouring, or none, in the other set. The command line uses `Valid` (Section 5.8 of `docs/design/cli.md`), and the tests use `All` where a source counts every subgroup (Section 10.1). Proposition 8.7 of [SIMS1994] proves that, for the lenlex ordering, one automaton precedes another exactly when its transition matrix comes first in the lexicographic order of the entries read row by row (p. 136, Section 7.14 of the colouring reference), and the handbook orders its tables in the same way ([HOLT2005] p. 193). The generator order of the columns is that of the presentation, which for a side presentation is `s0` upward (DOM-32 of `docs/design/domain.md`).
 
-Bijective base 26 writes the ranks 1 to 26 as `a` to `z`, 27 as `aa`, 702 as `zz`, 703 as `aaa`, and 475254 as `zzzz`, the largest rank that 4 letters write. GRP-36 bounds a stored list at 65536 colourings, so every rank that a call assigns has 4 letters or fewer. The colour count 1 has exactly one table, so its one colouring is `1a`.
+Bijective base 26 writes the ranks 1 to 26 as `a` to `z`, 27 as `aa`, 702 as `zz`, 703 as `aaa`, and 475254 as `zzzz`, the largest rank that 4 letters write. GRP-36 bounds a stored list at 65536 colourings, so every rank that a call assigns has 4 letters or fewer. The colour count 1 has exactly one table, so its one colouring is `1a` under `All`. That colouring is valid only for a presentation with no generator (Section 7.18).
 
 `ColouringId` writes and reads this text, which this grammar in the notation of [RFC5234] defines:
 
@@ -686,7 +705,7 @@ letter       = %x61-7A             ; a to z
 
 The id depends on the order of the generators, and so for a side presentation on the numbering of the sides of the domain. On a prototype outside the repository, with ids ranked among the class tables, swapping `s0` and `s1` renamed ids, while reordering or rewriting the relators, adding a redundant relator, changing the limit or the budget, and changing the parameter `aspect` of `*2222` did not. A change of `escher-domain` that renumbers the sides of a domain would therefore rename its ids without an error, which is why the side numbering of a built domain is part of the contract of `escher-domain` (DOM-37 of `docs/design/domain.md`). That the id does not depend on how the relators are written rests on Proposition 5.6 of [HOLT2005], under `UNV-19`.
 
-The parity table of a reflection domain, whose row 0 is all ones, has the last id of the colour count 2. In the crate, under the ids of GRP-37, it is:
+The parity table of a reflection domain, whose row 0 is all ones, has the last id of the colour count 2 under `All`. In the crate, under the ids of GRP-37 with `All`, it is:
 
 | Id | Signatures |
 | --- | --- |
@@ -695,7 +714,7 @@ The parity table of a reflection domain, whose row 0 is all ones, has the last i
 | `2g` | `*642`, `*442`, `*664`, and `*(100)22` |
 | `2o` | `*2222` |
 
-CLI-48 of `docs/design/cli.md` states the aliases `one` and `parity`.
+The parity table moves every generator off coset 0, so it is valid (GRP-42), and under `Valid` it is `2a` of every reflection domain while `UNV-36` holds (Section 7.18).
 
 ### 7.16. Colour of a Sample
 
@@ -711,9 +730,19 @@ Because the first letter of $g$ acts last, a caller cannot carry one coset forwa
 
 ### 7.17. Determinism of the Search
 
-GRP-39. The result of `count_colourings`, `colourings`, and `colourings_of_index` MUST be a function of the presentation, the limit, and the budget alone, and the colourings of each colour count up to `complete_to()` MUST NOT depend on the limit or the budget, because `escher info` lists the ids that `escher render` later resolves in another call with another limit (CLI-43 of `docs/design/cli.md`).
+GRP-39. The result of `count_colourings`, `colourings`, and `colourings_of_index` MUST be a function of the presentation, the set, the limit, and the budget alone, and the colourings of each colour count up to `complete_to()` MUST NOT depend on the limit or the budget, because `escher info` lists the ids that `escher render` later resolves in another call with another limit (CLI-43 of `docs/design/cli.md`).
 
 The search iterates no hash map, uses no randomness, starts no thread, and measures no time. Within one run, the class tables of one colour count appeared in lexicographic order in every signature run of the prototype of Section 7.10. The design does not rely on it, because GRP-37 sorts the colourings of each colour count after the expansion. Whether a call is complete to a colour count can depend on the order and the spelling of the relators, as Section 6.2 states for whether an enumeration finishes within its limit.
+
+### 7.18. Valid Colourings
+
+GRP-42. A colouring MUST count as valid exactly when, for every generator $j$ of its presentation, the image of coset 0 under generator $j$ in its standard table is not coset 0, and `Colouring::contained_generator` MUST return the least generator $j$ whose image of coset 0 is coset 0, or `None` when no generator has one, because the owner's criterion of `DEC-65` speaks of adjacent tiles, which this crate cannot see, and this condition on row 0 of the table is the form of that criterion that `UNV-35` records. The test reads one entry for each generator.
+
+No source read states that this condition on the side generators holds exactly when no two tiles that share a side have the same colour. `UNV-35` records it (Section 13), with its reading that a generator lies in the subgroup when it fixes coset 0, and the test "Valid neighbours" of `escher-render` checks it on samples (Section 8.1 of `docs/design/render.md`).
+
+The colouring with one colour is the whole group, so it contains every generator and is valid only for a presentation with no generator, such as the side presentation of the domain of `1`, whose one tile has no neighbour. For every other presentation, `Valid` gives no colouring of the colour count 1. The owner keeps the colouring with one colour available as an exception (`DEC-65`), and the command line provides it without this crate (Section 4.6 of `docs/design/cli.md`).
+
+Whether a domain has at most one valid colouring with 2 colours is not established by any source read (`UNV-36`). The command line relies on it to name that colouring `parity` (Section 4.6 of `docs/design/cli.md`), and the test "One valid 2-colouring" checks it (Section 10.1).
 
 ## 8. Errors
 
@@ -778,8 +807,11 @@ The tests form these layers:
 | Limits | Each limit of Section 15 at its value and one above it, the limit on table entries at `CosetLimit::MAX` with 8 and 9 generators, `532` at the limits 60 and 59, Sims's presentation at the number of cosets that it defines and one less, and the infinite groups of "Infinite groups", `*632`, `2222`, `o`, and `*732`, at a limit of 1000. Long subgroup generators of 4096 letters give their index at a limit equal to it. Unit tests pin the capacities of the table, the representatives, the queue, the relabelling, and the run of a search, and the sizes of a stored and a pending colouring | A count of live cosets against the limit, a limit off by one, deductions not processed in scan-and-fill, and a vector that doubles beyond the memory bound |
 | Search fixtures and published counts | "Search examples" compares the search fixtures of Section 10.2. "First in class" runs the test of GRP-32 on the partial tables of Sims's Example 9.3 and of SymPy's doctest. "Frettloh Table 1", "Frettloh Table 2", and the cube compare the classes with a fixed coset with the tables of [FRETTLOH2008], exactly up to the last printed value or the limit of the test. Other tests compare the counts of 2 colours with [SINGERMAN2014] and check that a colouring exists for each count of the captions of [BULATOV2010]. "Search agrees with enumeration" gives the Schreier generators of each colouring to `enumerate` and compares the tables | A lost class, a class table that is not the least, and a wrong count |
 | Search properties | Property tests over the random presentations at limits up to 5. "Least in class" asserts that each class table is the least of its class and that a class is the distinct relabellings of its class table. "Pruning" compares the first-in-class test on every node with the test on complete tables only and with no test. "Leaf statistics" asserts that the leaf check discards no table. Other property tests assert equal ids under a rewriting of the relators, ids that no limit or budget changes, and equal counts from the three functions. Unit tests on the Coxeter presentation of `*642` check the completeness of the runs by index and of a stop at a stored limit | A pruning that loses a class, a step whose fault only the leaf check hides, an id that depends on the run, and a wrong `complete_to()` |
+| Valid colourings | Property tests over the random presentations at limits up to 5 and over the published presentations of the search. "Valid filter" asserts that each function with `Valid` returns exactly the colourings of the same call with `All` whose `contained_generator()` is `None`, with equal tables in the same order and ids numbered again from `a` with no gap in each colour count, and that each count and class count with `Valid` equals the count of that filtered list. "One valid 2-colouring" asserts that `colourings_of_index` with `Valid` and the colour count 2 lists at most one colouring. Unit tests assert that `contained_generator()` is the least generator that fixes coset 0, that `1a` is valid only for the presentation with no generator, and that a class whose class table is not valid keeps its valid conjugates and takes its class id from a kept colouring | A filter on the class tables, a filter that skips a relabelling, an id ranked among all subgroups under `Valid`, a class id of a dropped table, and a count taken from the other set |
 | Colour rule | "Colour rule" asserts, for the colourings of the Conway presentation of `532` up to 6, that `colour_of` of a side $i$ followed by a sequence $u$ is the image of `colour_of(u)` under `Letter::inverse_of(i)`. "Word invariance" asserts that inserting a relator into a sequence of sides leaves its colour unchanged | A `colour_of` that does not follow GRP-38 |
 | Failure paths and text | Every error kind and text of Section 8.2, each rule of the text form of Section 4.4, the colouring id text in both directions, the infinite orders of Section 5.3, the presentation with no generator, the auto traits of Section 3.2, and the doctests | A missing check, a wrong order of checks, and a changed text |
+
+The tests that compare the search with a source, the search fixtures, the tests of the first-in-class test, and the other layers above the row "Valid colourings" call the search with `ColouringSet::All`, because their sources count or print every subgroup.
 
 "Colour rule" checks only that the code follows GRP-38, and "Word invariance" holds for the forward trace too, because a relator acts trivially on the cosets either way. Neither checks that GRP-38 is the right rule. Only the assertion of GRP-41 on samples of a rendering checks that, and it belongs to `escher-render`, which has the fold.
 
@@ -877,7 +909,9 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | Label | What the code relies on | Relied on in | What the code does |
 | --- | --- | --- | --- |
 | `UNV-19` | The steps that only this design, SymPy, or SymmHub states, which the columns "Code-only part" of Sections 7.3 and 7.11 list, while [HOLT2005] and [SIMS1994] state the other steps (item 23 of Section 14.1 of the colouring reference). It also covers four statements that the sources make without a proof for this crate's code: that the coincidence processing keeps (R1), that the code terminates for a finite index, the bijection between subgroups and lenlex standard tables (item 26), and that pruning a partial table by the first-in-class test loses no class (item 22). It covers the indices of the worked examples that no source states (item 25) | 6.2, 7.1 to 7.7, 7.10 to 7.15, 10.2 | Ends every run of `enumerate` with the closing pass of GRP-14, and passes on a table of the search only after the leaf check of GRP-33, so a returned table rests on the closed-table statements of [HULPKE2010] p. 75 and of Theorem 5.2 of [HOLT2005]. Keeps the two branches of Section 7.7, and bounds every run by a limit, so termination of a run never depends on the statement. The worked examples and "Closing pass idle" check the steps of the enumeration (GRP-24), and the tests of GRP-41 those of the search. "Invariance", "Pruning", and "Least in class" check the bijection and the pruning on their inputs. The worked examples assert only the rows and indices that the sources print |
-| `UNV-17` | The rule of GRP-38: that the product of the generators of a fold's sides in fold order maps the domain onto the tile of the sample, that the right coset $S g^{-1}$ numbers the left coset $gS$ of Section 5.4 of the architecture, and that the coset colouring is perfect for a group that Lemma 2.1 of [FRETTLOH2008] does not cover. Also how conjugate subgroups relate to colourings (Section 3.4 and items 1 to 3 of Section 14.1 of the colouring reference) | 6.1, 7.10, 7.16 | Implements the rule once, in `colour_of`. "Colour rule" pins the code to the rule, and the assertion of GRP-41 on the samples of `escher-render` checks the rule on rotation domains. Lists every subgroup of finite index as its own colouring (`DEC-37`), so the listing holds every coset colouring up to the limit, whatever the relation of the conjugates |
+| `UNV-17` | The rule of GRP-38: that the product of the generators of a fold's sides in fold order maps the domain onto the tile of the sample, that the right coset $S g^{-1}$ numbers the left coset $gS$ of Section 5.4 of the architecture, and that the coset colouring is perfect for a group that Lemma 2.1 of [FRETTLOH2008] does not cover. Also how conjugate subgroups relate to colourings (Section 3.4 and items 1 to 3 of Section 14.1 of the colouring reference) | 6.1, 7.10, 7.16 | Implements the rule once, in `colour_of`. "Colour rule" pins the code to the rule, and the assertion of GRP-41 on the samples of `escher-render` checks the rule on rotation domains. With `All`, lists every subgroup of finite index as its own colouring (`DEC-37`), so the listing holds every coset colouring up to the limit, whatever the relation of the conjugates, and with `Valid` every valid one |
+| `UNV-35` | That a colouring is valid under the owner's criterion of `DEC-65` exactly when no side generator fixes coset 0 of its table | 7.13, 7.18 | Tests the condition of GRP-42 on row 0 of each table, in `contained_generator` only. "Valid neighbours" of `escher-render` checks the equivalence on samples |
+| `UNV-36` | That a domain has at most one valid colouring with 2 colours | 7.15, 7.18 | No code of the crate depends on it. The command line names that colouring `parity`, and "One valid 2-colouring" checks the statement on its inputs |
 | `UNV-22` | The Conway presentation of a boundary without corners in general | 5.2 | Implements the reading of GRP-7. The test "Spherical orders" checks `n*` and `2*n` against $2/\chi$, and "Order two" checks `*` |
 
 The crate does not rely on `UNV-32`, which concerns the side presentation of `escher-domain` (Section 7 of the plan). Its colourings of a domain are those of the side presentation that it receives, so a wrong letter order of a cycle relator would give the colourings of another presentation without an error.
@@ -936,6 +970,10 @@ Every choice in this table is a proposed default. No other document dictates it,
 | A run holds its tables as pending colourings and builds each `Colouring` once, with its final id and class | `Colouring` values built with placeholder ids and classes and patched after the ranking | 7.15, 15 |
 | `Colouring::class` as the id of the class table that the search kept | No class data, a class size, which a caller can count from the list, or the least id of the class computed after the expansion, which hides a defect of the first-in-class test | 3.1, 7.13 |
 | Subgroup words scanned as given, without reduction | Freely reducing them first | 7.3 |
+| The set as a parameter `ColouringSet` of each of the three functions, with `All` kept for the tests against the sources | Separate functions for the valid colourings, or a filter in each caller, which counts dropped colourings toward the stored limits | 3.1, 7.13 |
+| The filter in the expansion of each class, on every relabelling | A filter on the class tables, which loses the valid conjugates of a class table that is not valid | 7.13 |
+| The class of a kept colouring from the kept colouring of the least base coset | The least id of the kept colourings computed after the ranking, which with `All` would hide a defect of the first-in-class test | 7.13 |
+| `contained_generator` returns the least generator in the subgroup | A `bool`, which tells a test nothing about which side two neighbouring tiles of one colour share | 3.1, 7.18 |
 
 ### 14.3. Points for the Owner
 
@@ -950,6 +988,7 @@ None of these blocks the crate. Each states what the design does until the owner
 7. Reference counts. The tests compare the search with printed counts only, because no GAP, Sage, or SymPy is available in the container. The alternative is fixtures generated offline with GAP or `low_index` and committed as data with their provenance, which would cover the Euclidean groups that no printed table covers.
 8. A higher limit can complete fewer colour counts. When the one run at the limit $N$ stops, the runs by index share one budget (GRP-35), so a call with a higher limit can complete fewer colour counts than a call with a lower limit whose one run ends (Section 7.14). The design accepts this.
 9. Tests kept for a reason that does not apply. TQ-11 of `docs/design/tooling.md` puts them to the owner, including the single cases of Section 10.1.
+10. A shorter list of valid colourings. `Valid` lists every valid subgroup as its own colouring (`DEC-37`). The owner may reduce the list further, for example to one colouring for each conjugacy class, or for each class up to a symmetry of the domain. This design specifies no such reduction. Section 7.10 records what a prototype found about the pictures of different subgroups.
 
 ## 15. Security Considerations
 
@@ -1129,3 +1168,5 @@ The tags of the mathematical and software sources resolve to the reference secti
 | GRP-39 | The result of a search depends on the presentation, the limit, and the budget alone, and its ids on neither limit nor budget | 7.17 |
 | GRP-40 | The memory of a search call stays within the stated bound | 15 |
 | GRP-41 | The tests of the search and of the colour rule stay while `UNV-19` or `UNV-17` is open | 10.1 |
+| GRP-42 | A colouring is valid exactly when no generator fixes coset 0 of its table, and `contained_generator` returns the least one that does (`UNV-35`) | 7.18 |
+| GRP-43 | With `Valid`, the expansion drops each relabelling that is not valid before it stores or counts it, the runs stay unchanged, a class id names a kept colouring, and counts are compared within one set | 7.13 |

@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the shape parameters, the summary of the fundamental domain, the number of colourings for each colour count with the options `--max-colours` and `--colourings`, the result of each check of the option `--check`, and the presentations and the group order by coset enumeration of the option `--presentation`, the options of the command `render`, including the settings of shape parameters, the colouring by an id with its default colours, the PNG file that it writes and the statistics that it prints, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
+This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the shape parameters, the summary of the fundamental domain, the number of valid colourings for each colour count with the options `--max-colours` and `--colourings`, the result of each check of the option `--check`, and the presentations and the group order by coset enumeration of the option `--presentation`, the options of the command `render`, including the settings of shape parameters, the colouring by an id with its default colours, the PNG file that it writes and the statistics that it prints, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
 
 ## 1. Introduction
 
@@ -26,9 +26,9 @@ The primary readers are the coding agents that implement or extend `escher-cli`.
 
 ### 1.4. Scope
 
-This document covers the command `info` with its argument and its options `--check`, `--presentation`, `--colourings`, and `--max-colours`, the command `render` with its argument and its options, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. It prints the shape parameters of the signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, the number of its colourings for each colour count, with `--colourings` every colouring with its id, and with `--check` the result of each check of its verification. With `--presentation`, it prints the Conway presentation of the signature and the side presentation of its domain, and for a spherical signature the group order that coset enumeration finds for each.
+This document covers the command `info` with its argument and its options `--check`, `--presentation`, `--colourings`, and `--max-colours`, the command `render` with its argument and its options, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. It prints the shape parameters of the signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, the number of its valid colourings for each colour count, with `--colourings` every valid colouring with its id, and with `--check` the result of each check of its verification. With `--presentation`, it prints the Conway presentation of the signature and the side presentation of its domain, and for a spherical signature the group order that coset enumeration finds for each.
 
-`render` draws, with `escher-render`, the tiling of a signature that `escher-domain` constructs with the shape parameters that the option `--set` gives, in one colour, in two colours by parity, or in the colouring that an id names. It draws the tiling in the Poincare disk for a hyperbolic domain, in the Euclidean plane for a Euclidean one, and as a lit ball for a spherical one, with the viewing rotation, the light, and the shading of its options, and writes it to a PNG file. With `--stats`, it also prints statistics of the rendering.
+`render` draws, with `escher-render`, the tiling of a signature that `escher-domain` constructs with the shape parameters that the option `--set` gives, in one colour, in its valid colouring with two colours, or in the colouring that an id names. It draws the tiling in the Poincare disk for a hyperbolic domain, in the Euclidean plane for a Euclidean one, and as a lit ball for a spherical one, with the viewing rotation, the light, and the shading of its options, and writes it to a PNG file. With `--stats`, it also prints statistics of the rendering.
 
 ### 1.5. Non-Goals
 
@@ -66,12 +66,14 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md` a
 - domain summary: The lines of the information text that describe the domain, rows 11 to 16 of Section 5.1 (Section 5.5).
 - check: One numeric condition that `verify()` of `escher-domain` evaluates, with a residual and a tolerance (Section 2.1 of `docs/design/domain.md`).
 - colouring: A colouring of the side presentation of the domain, as `escher-group` finds it: one subgroup of finite index $k$ with its coset table, whose $k$ cosets give the $k$ colours of the tiles (Section 5.12 of `docs/design/render.md`). Every subgroup has a colouring of its own, conjugate subgroups included.
+- valid colouring: A colouring in which no two tiles that share a side have the same colour (`DEC-65`), which `escher-group` tests as GRP-42 of `docs/design/group.md` states. This crate calls the search with `ColouringSet::Valid` only, so every colouring that it counts, lists, or resolves by id is valid.
 - colour count: The number $k$ of colours of a colouring, the index of its subgroup.
-- colouring id: The name of a colouring, its colour count in decimal followed by lower-case letters, such as `3a`, which GRP-37 of `docs/design/group.md` defines with the order of the ids.
+- colouring id: The name of a valid colouring, its colour count in decimal followed by lower-case letters, such as `3a`, which GRP-37 of `docs/design/group.md` defines with the order of the ids under `ColouringSet::Valid`.
 - colour limit: The largest colour count $N$ that `info` searches, set by `--max-colours` (Section 5.8).
 - search limit: A limit of the search of `escher-group` other than the colour limit, which is the step budget or the limit on the colourings that one call stores (GRP-35 and GRP-36 of `docs/design/group.md`).
 - colouring lines: The lines of the information text that describe the colourings, rows 17 to 19 of Section 5.1 (Section 5.8).
-- parity colouring: The colouring with 2 colours in which the generator of side $i$ moves coset 0 exactly when side $i$ is a reversing side. It exists exactly when the domain has a reversing side (Section 4.6).
+- parity colouring: The valid colouring with 2 colours of the domain, `2a`, which some domains lack. A domain has at most one (`UNV-36`). Section 4.6 states how `render` draws it.
+- all-reversing domain: A domain with at least one side, every side of which is a reversing side. The domain of `1` has no side and is not one.
 - default colours: The table of 12 colours of CLI-44, from which a colouring takes its fill colours when `--colours` is absent.
 - presentation lines: The lines of the information text that `--presentation` adds, rows 20 to 27 of Section 5.1 (Section 5.7).
 - verification lines: The lines of the information text that `--check` adds, rows 28 to 34 of Section 5.1 (Section 5.6).
@@ -79,7 +81,7 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md` a
 - side presentation: The presentation that `side_presentation()` of `escher-domain` reads from the sides of the domain (Section 5.4 of `docs/design/domain.md`).
 - order line: Row 23 or row 27 of Section 5.1, which reports the number of cosets of the trivial subgroup that coset enumeration finds for a presentation (Section 5.7).
 - coset limit: `CosetLimit::DEFAULT` of `escher-group`, the largest number of cosets that one enumeration of `info` defines, written $L$.
-- reversing side: A side of the domain whose `orientation()` is `Orientation::Reversing`. A domain has a reversing side exactly when its `reverses_orientation()` is true, which is the one call that `info` and `render` make to decide (Sections 3.1 and 3.2 of `docs/design/domain.md`).
+- reversing side: A side of the domain whose `orientation()` is `Orientation::Reversing`. `render` reads `orientation()` of every side to decide whether a domain is all-reversing (Sections 3.1 and 3.2 of `docs/design/domain.md`).
 - reflection domain: A domain whose every side has the kind `Mirror`, as Section 2.1 of `docs/design/render.md` defines it.
 - rotation domain: A domain with no side of the kind `Mirror`, which `escher-domain` builds for a signature without reflections, such as `732`, as Section 2.1 of `docs/design/render.md` defines it.
 - output file: The file that the option `--output` of `render` names (Section 4.7).
@@ -213,12 +215,12 @@ The help text has these summaries, the long help of `--set` below the table, and
 | `SIGNATURE` | `The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'` |
 | `--check` | `Verify the fundamental domain of the signature and print the result of each check` |
 | `--presentation` | `Print the generators and relators of the signature and of its fundamental domain, and for a spherical signature the group order by coset enumeration` |
-| `--colourings` | `Print every colouring of the fundamental domain with its id, up to the largest number of colours` |
-| `--max-colours` | `The largest number of colours of the colourings to count and list, from 1 to 64` |
+| `--colourings` | `Print every valid colouring of the fundamental domain, in which no two neighbouring tiles share a colour, with its id, up to the largest number of colours` |
+| `--max-colours` | `The largest number of colours of the valid colourings to count and list, from 1 to 64` |
 | `render` | `Render the tiling of a signature in orbifold notation and write it to a PNG file` |
 | `--output` | `The PNG file to write. An existing file is replaced` |
 | `--size` | `The image size in pixels, as WIDTHxHEIGHT` |
-| `--colouring` | `One colour for every tile, two colours by parity, or the id of a colouring that the command info --colourings lists, such as 3a. The default is parity when a side pairing of the domain reverses orientation, and one otherwise` |
+| `--colouring` | `One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise` |
 | `--colours` | `The fill colours, separated by commas, each as #rgb or #rrggbb, one for each colour of the colouring. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'` |
 | `--border-width` | `The border width in pixels. 0 draws no border` |
 | `--border-colour` | `The border colour, as #rgb or #rrggbb` |
@@ -265,7 +267,7 @@ On success, `info` writes the information text of Section 5 to standard output. 
 
 `info` takes no setting. It builds the domain with `FundamentalDomain::build`, which gives each shape parameter its default, so the domain summary and the verification lines describe the default shape.
 
-When a domain is built, `info` always reads its side presentation and searches its colourings up to the colour limit, and adds the colouring lines of Section 5.8 after the domain summary. With `--colourings`, those lines also name every colouring.
+When a domain is built, `info` always reads its side presentation and searches its valid colourings up to the colour limit, and adds the colouring lines of Section 5.8 after the domain summary. With `--colourings`, those lines also name every colouring.
 
 With `--presentation`, `info` also reads the Conway presentation of the signature and the side presentation of its domain, enumerates the cosets of each for a spherical signature within the coset limit, adds the presentation lines of Section 5.7 to the information text, and writes the diagnostic of Section 6.9 when an enumeration finds an order other than the group order.
 
@@ -297,22 +299,22 @@ This command writes an image of `*2222` whose rectangle has the aspect 1.618 in 
 escher render '*2222' --set aspect=1.618 -o rectangle.png
 ```
 
-This command writes an image of `*642` in its colouring `3a`, which has 3 colours, with three colours of its own:
+This command writes an image of `*642` in its colouring `4a`, which has 4 colours, with four colours of its own:
 
 ```sh
-escher render '*642' --colouring 3a --colours '#dc143c,#ffd700,#000080' -o three.png
+escher render '*642' --colouring 4a --colours '#dc143c,#ffd700,#000080,#2e8b57' -o four.png
 ```
 
-Several Euclidean signatures share their default picture, because their tiles and borders coincide and the parity colouring sees only the orientation-preserving subgroup (Section 5.14 of `docs/design/render.md`, `DEC-55`). With the default colouring, `**` and `22*` give the same image, and `*x`, `22x`, and `*2222` give the same image, at the same `aspect`. With `--colouring one`, the six signatures `**`, `xx`, `*x`, `22*`, `22x`, and `2*22` give the image of `*2222`, `4*2` that of `442`, and `3*3` that of `632`. These signatures differ in their colourings, so a user tells them apart with `--colouring` and an id that `escher info --colourings` lists.
+Several Euclidean signatures share a picture, because their tiles and borders coincide (Section 5.14 of `docs/design/render.md`, `DEC-55`). With `--colouring one`, the six signatures `**`, `xx`, `*x`, `22*`, `22x`, and `2*22` give the image of `*2222`, `4*2` that of `442`, and `3*3` that of `632`. These signatures differ in their colourings, so a user tells them apart with `--colouring` and an id that `escher info --colourings` lists.
 
 `render` runs these steps in this order. It stops at the first step that fails and writes the diagnostic of Section 6.8, except at step 1, whose diagnostic is that of Section 6.1:
 
 1. Parse the signature with the `FromStr` implementation of `Signature` (CLI-5).
 2. Read the border colour and the background colour (Section 4.6).
 3. Put the settings into a `ShapeParameters` of `escher-domain` in the order given, and stop at the first setting whose name an earlier setting already gave. Build the domain with `FundamentalDomain::build_with` and those settings, which checks each name and value. When `build_with` returns `UnknownParameter` or `ParameterOutOfRange`, find the first rejected setting with `parameters` and `ParameterSpec` of `escher-domain`, as CLI-29 states, and stop with the diagnostic of Section 6.8 that names it.
-4. Choose the colouring: the value of `--colouring`, or the default of CLI-34. Stop when the colouring is `parity` and the domain has no reversing side (CLI-35). Then read the fill colours for that colouring, or take the default colours (Section 4.6). The number of colours comes from the colouring alone, so this step runs no search, also for a colouring id.
+4. Choose the colouring: the value of `--colouring`, or the default of CLI-34. Then read the fill colours for that colouring, or take the default colours (Section 4.6). The number of colours comes from the colouring alone, so this step runs no search, also for a colouring id, except for the default colouring of a domain that is not all-reversing, which needs the search of CLI-34 to know whether it has 1 or 2 colours.
 5. Check the render options: build the render options of `escher-render` from the size, the sample grid, a placeholder fill of one colour, the border colour, the border width, the background colour, the fold cap, the viewing rotation in radians, the light direction, and the shading, and drop the result. `escher-render` checks every value, for every geometry.
-6. Build the fill: `Fill::One` for `one` and `Fill::Parity` for `parity`, with the colours of step 4. For a colouring id, resolve the id as CLI-43 states, then build the coset fill of `escher-render` from the domain, the colouring, and the colours. Then build the render options again with this fill and the same values, which gives no error once step 5 has passed.
+6. Build the fill: `Fill::One` for `one` and for the id `1a`, and `Fill::Parity` for `parity` on an all-reversing domain, with the colours of step 4. For `parity` on any other domain, and for any other colouring id, resolve the colouring as CLI-43 states, `parity` as the id `2a`, then build the coset fill of `escher-render` from the domain, the colouring, and the colours. Then build the render options again with this fill and the same values, which gives no error once step 5 has passed.
 7. Build a thread pool with the number of threads of `--threads`, or with the default of Section 4.6, which this step computes.
 8. Build the renderer, then render the image on the thread pool, in bands of one row, each with the band operation of `escher-render`, and merge the statistics of the bands. The time of the rendering is the time of the statistics lines.
 9. Encode the image as PNG with `escher-render`.
@@ -321,22 +323,22 @@ Several Euclidean signatures share their default picture, because their tiles an
 
 Section 3 of `docs/design/render.md` names the operations of steps 5, 6, 8, and 9 and the statistics that step 8 merges.
 
-The colouring depends on the domain, so step 4 comes after the domain is built in step 3. Steps 4 and 5 check every input that needs no search before step 6 resolves a colouring id. Such an input error is certain, while a search can take seconds and can stop at a limit, and the diagnostic of that limit claims nothing about the input. So a command with a colouring id and a bad colour, a wrong number of colours, more than 12 colours without `--colours`, or a bad option reports that error at once. It never waits for the search, and the diagnostic of a search that stopped at a limit never takes its place. A command with a bad value of `--colours` and a bad setting reports the setting, and a command with a bad `--border-colour` and a bad setting reports the colour.
+The colouring depends on the domain, so step 4 comes after the domain is built in step 3. Steps 4 and 5 check every input that needs no search before step 6 resolves a colouring id. Such an input error is certain, while a search can take seconds and can stop at a limit, and the diagnostic of that limit claims nothing about the input. So a command with a colouring id and a bad colour, a wrong number of colours, more than 12 colours without `--colours`, or a bad option reports that error at once. It never waits for the search, and the diagnostic of a search that stopped at a limit never takes its place. The one exception is a command without `--colouring` on a domain that is not all-reversing, whose number of colours is known only after the search of CLI-34. A command with a bad value of `--colours` and a bad setting reports the setting, and a command with a bad `--border-colour` and a bad setting reports the colour.
 
-CLI-35. When the colouring is `parity` and the domain has no reversing side, `render` MUST stop at step 4 with the diagnostic of Section 6.8 and write no file, because every element of the group of such a domain preserves orientation, so the parity of the reversals has one class only and no parity colouring exists for it (Section 5.7 of `docs/design/architecture.md`), and an image in one colour would hide that the requested colouring was not drawn (`DEC-32`).
+CLI-35. When the colouring is `parity` and the domain has no valid colouring with 2 colours, `render` MUST stop at step 6 with the diagnostic of Section 6.8 and write no file, because an image in one colour would hide that the requested colouring was not drawn (`DEC-32`). `parity` exists on every all-reversing domain. On any other domain only the search of 2 colours tells whether it exists, so the stop comes at step 6 with that search, and a search that stops at a limit gives the diagnostic of that limit and claims nothing about the colouring (CLI-43).
 
-To resolve a colouring id with the colour count $k$, step 6 calls `side_presentation()` on the domain. A render with a colouring id builds the side presentation three times: here, in `CosetFill::new`, and in `Renderer::new`, whose two calls Section 5.12 of `docs/design/render.md` states. Step 6 then calls `colourings_of_index` of `escher-group` with $k$ as its `IndexLimit` and the search budget, which searches only the colourings with exactly $k$ colours (GRP-35 of `docs/design/group.md`), and calls `find` with the id on the resulting `ColouringsOfIndex`. A private function takes the budget as a parameter. `render` passes `SearchBudget::DEFAULT` to it, so that a unit test can resolve an id with a small budget (Section 8.1). The outcomes are:
+To resolve a colouring id with the colour count $k$, step 6 calls `side_presentation()` on the domain. A render with a colouring id builds the side presentation three times: here, in `CosetFill::new`, and in `Renderer::new`, whose two calls Section 5.12 of `docs/design/render.md` states. Step 6 then calls `colourings_of_index` of `escher-group` with `ColouringSet::Valid`, $k$ as its `IndexLimit`, and the search budget, which searches only the colourings with exactly $k$ colours (GRP-35 of `docs/design/group.md`), and calls `find` with the id on the resulting `ColouringsOfIndex`. A private function takes the budget as a parameter. `render` passes `SearchBudget::DEFAULT` to it, so that a unit test can resolve an id with a small budget (Section 8.1). The outcomes are:
 
 | Outcome | Result |
 | --- | --- |
 | `find` returns the colouring | Step 6 goes on with it |
-| `is_complete()` is true, and `find` returns none | Stop, with the diagnostic of Section 6.8 that the colouring does not exist, which gives `list().len()`, the number of colourings with $k$ colours |
+| `is_complete()` is true, and `find` returns none | Stop, with the diagnostic of Section 6.8 that the colouring does not exist, which gives `list().len()`, the number of valid colourings with $k$ colours |
 | `is_complete()` is false, because the search stopped at a limit | Stop, with the diagnostic of Section 6.8 that the search stopped at a limit, which claims nothing about the existence of the id |
 | `side_presentation()` or `colourings_of_index` returns an error | Stop, with `error: cannot render <signature>` and a `caused by` line with the `Display` text of the error |
 
 This resolution is the proposed default `DEC-44` of `docs/design/architecture.md`.
 
-CLI-43. `render` MUST resolve a colouring id through the side presentation of the domain that it renders and `colourings_of_index` of its colour count, MUST run no search of another colour count, MUST stop at step 6 with a diagnostic and write no file when the colouring does not exist or the search reaches a search limit, and MUST NOT claim that an id does not exist when the search stopped at a limit, because a search of the lower colour counts costs time that the image does not need and can reach a limit before it reaches the id, the colours of the image come from the coset table of the domain that is drawn, and a statement that an id does not exist is true only of a search that finished.
+CLI-43. `render` MUST resolve a colouring id other than `1a`, and `parity` on a domain that is not all-reversing, through the side presentation of the domain that it renders and `colourings_of_index` of its colour count with `ColouringSet::Valid`, MUST run no search of another colour count, MUST stop at step 6 with a diagnostic and write no file when the colouring does not exist or the search reaches a search limit, and MUST NOT claim that an id does not exist when the search stopped at a limit, because a search of the lower colour counts costs time that the image does not need and can reach a limit before it reaches the id, the colours of the image come from the coset table of the domain that is drawn, a statement that an id does not exist is true only of a search that finished, and the ids that `info` lists are those of the valid colourings (`DEC-71`).
 
 The side presentation and the colouring belong to the domain that step 3 built with the settings of `--set`. The shape parameter of `*2222` does not change its side presentation, so its ids are the same for every value of `aspect`, and the same holds for the parameters of a reflection polygon and for `aspect` and `skew` of the wallpaper domains (Section 11.1).
 
@@ -364,7 +366,7 @@ The `clap` argument struct holds `--stats` as a `bool`, which `render` converts 
 | --- | --- | --- |
 | `-o`, `--output <FILE>` | Any path | None. The option is required (`DEC-7`) |
 | `--size <WIDTHxHEIGHT>` | Two decimal integers joined by a lower-case `x`, such as `1024x768`. Each integer has only the digits `0` to `9` and fits a `u32` | `512x512` |
-| `--colouring <COLOURING>` | `one`, `parity`, or a colouring id (CLI-42) | `parity` when the domain has a reversing side, and `one` otherwise (CLI-34, `DEC-7`) |
+| `--colouring <COLOURING>` | `one`, `parity`, or a colouring id (CLI-42) | `parity` when the domain has a valid colouring with 2 colours, and `one` otherwise (CLI-34, `DEC-72`) |
 | `--colours <COLOURS>` | Colours separated by commas, as many as the colouring needs: one for `one`, two for `parity`, and $k$ for a colouring id with the colour count $k$ (`DEC-29`) | The first default colours that the colouring needs (CLI-44): `#e9c46a` for `one`, `#e9c46a,#2a9d8f` for `parity` (`DEC-7`), and the first $k$ default colours for an id with $k$ at most 12 |
 | `--border-width <PIXELS>` | A number in a form that the `FromStr` implementation of `f64` reads, such as `1.5`. The value `0` draws no border | `1` (`DEC-7`) |
 | `--border-colour <COLOUR>` | One colour | `#000000` (`DEC-7`) |
@@ -394,17 +396,17 @@ Step 2 reads `--border-colour` and then `--background`. Step 4 splits the value 
 
 The `clap` argument struct holds `--colouring` as an `Option`, with no default of `clap`, and step 4 chooses the colouring when the option is absent.
 
-A private value parser in `args` reads `--colouring` into a private enum with the variants one, parity, and an id. It accepts exactly `one` and `parity`, and otherwise reads the value with the `FromStr` implementation of `ColouringId` of `escher-group`, which accepts a colour count from 1 to `IndexLimit::MAX` in decimal with no leading zero, followed by 1 to 4 lower-case letters (GRP-37). No id equals `one` or `parity`, because an id starts with a digit. For any other value, such as `three`, `3`, `03a`, `3A`, or `65a`, the parser returns the message `expected one, parity, or a colouring id such as 3a`, which `clap` puts into its usage error.
+A private value parser in `args` reads `--colouring` into a private enum with the variants one, parity, and an id. It accepts exactly `one` and `parity`, and otherwise reads the value with the `FromStr` implementation of `ColouringId` of `escher-group`, which accepts a colour count from 1 to `IndexLimit::MAX` in decimal with no leading zero, followed by 1 to 4 lower-case letters (GRP-37). No id equals `one` or `parity`, because an id starts with a digit. For any other value, such as `three`, `3`, `03a`, `3A`, or `65a`, the parser returns the message `expected one, parity, or a colouring id such as 4a`, which `clap` puts into its usage error.
 
 CLI-42. `render` MUST accept as the value of `--colouring` exactly `one`, `parity`, and the text that the `FromStr` implementation of `ColouringId` accepts, MUST read an id through that implementation only, and MUST give a usage error with the message above for every other value, because a second reading of the id grammar in this crate could accept an id that `escher-group` does not, or the reverse, and an id that does not parse names no colouring of any signature.
 
-A colouring id that parses can still name no colouring of the domain, such as `3d` of `*642`, which has 3 colourings with 3 colours. That is a render error of step 6 with the status `Failure` (CLI-43), and not a usage error, because whether it exists depends on the signature.
+A colouring id that parses can still name no colouring of the domain, such as `3a` of `*642`, which has no valid colouring with 3 colours. That is a render error of step 6 with the status `Failure` (CLI-43), and not a usage error, because whether it exists depends on the signature.
 
-The aliases `one` and `parity` keep the fills `Fill::One` and `Fill::Parity` of `escher-render`, so the default colouring of CLI-34 runs no search. The ids `1a` and the id of the parity colouring name the same colourings by cosets:
+The colouring with one colour is valid only for the domain of `1`, so the search lists it for no other domain, and the owner keeps it available as an exception (`DEC-65`). `render` therefore reads both `one` and `1a` as `Fill::One`, for every domain, with no search.
 
-CLI-48. `render` MUST draw `one` and `parity` with `Fill::One` and `Fill::Parity`, and with the same colours `--colouring 1a` MUST give the bytes of `--colouring one`, and the id of the parity colouring the bytes of `--colouring parity`, because a user who copies an id from the lines of `info` expects the picture of its alias, and `info` names the aliases in its `Colouring` lines (Section 5.8). The parity colouring is the colouring with 2 colours in which the generator of side $i$ moves coset 0 exactly when side $i$ is a reversing side (`UNV-18`).
+The alias `parity` names the parity colouring, which has the id `2a` because a domain has at most one (`UNV-36`). On an all-reversing domain, `parity` keeps `Fill::Parity`, which colours by the parity of the reversals, so the default colouring of such a domain runs no search. Section 5.12 of `docs/design/render.md` states why that fill is valid there, so it is `2a`. On any other domain, `parity` is the coset fill of `2a` when the search finds it.
 
-Under the ids of GRP-37, the parity colouring is the last colouring with 2 colours of each reflection domain, and Section 7.15 of `docs/design/group.md` gives its id for each signature, such as `2g` for `*642`.
+CLI-48. `render` MUST draw `one` and `1a` with `Fill::One`, `parity` on an all-reversing domain with `Fill::Parity`, and `parity` on any other domain with the coset fill of the id `2a`, and with the same colours `--colouring 2a` MUST give the bytes of `--colouring parity` on every domain, because a user who copies an id from the lines of `info` expects the picture of its alias, and `info` names the aliases in its `Colouring` lines (Section 5.8). That `Fill::Parity` colours by the cosets of the orientation-preserving subgroup is `UNV-18`, and that `2a` is the only valid colouring with 2 colours is `UNV-36`.
 
 The default colours are a table of 12 colours in the module `render`, with no colour crate, as the owner decided (`DEC-29` and `DEC-39`):
 
@@ -419,13 +421,13 @@ The default colours are a table of 12 colours in the module `render`, with no co
 
 Entries 1 and 2 are the default fill colours of `DEC-7`. Entries 3 to 12 are values that this design proposes within `DEC-39`. They are chosen in the OKLCH colour space with a golden-angle step after the two fixed entries. The entries are not checked for colour-vision deficiency.
 
-CLI-44. Without `--colours`, `render` MUST take the first $k$ entries of the table of default colours for a colouring with $k$ colours, and for a colouring with more than 12 colours MUST stop at step 4 with the diagnostic of Section 6.8 that asks for $k$ colours with `--colours`, and write no file, because the first two entries keep the images of `one` and `parity` as they are, and a table that cycles or a generated colour would give two cosets colours that a viewer cannot tell apart, while a prototype outside the repository found no 64 colours that are distinct in practice.
+CLI-44. Without `--colours`, `render` MUST take the first $k$ entries of the table of default colours for a colouring with $k$ colours, and for a colouring with more than 12 colours MUST stop at step 4 with the diagnostic of Section 6.8 that asks for $k$ colours with `--colours`, and write no file, because the first two entries keep the images of `one` and of `parity` on an all-reversing domain as they are, and a table that cycles or a generated colour would give two cosets colours that a viewer cannot tell apart, while a prototype outside the repository found no 64 colours that are distinct in practice.
 
-With `--colours`, `render` takes exactly as many colours as the colouring has, for every colour count, in the hexadecimal forms of `DEC-29`. A wrong number gives the diagnostic of the wrong number of colours with the id of the colouring, such as `the colouring 3a needs 3 colours, and 2 were given`.
+With `--colours`, `render` takes exactly as many colours as the colouring has, for every colour count, in the hexadecimal forms of `DEC-29`. A wrong number gives the diagnostic of the wrong number of colours with the id of the colouring, such as `the colouring 4a needs 4 colours, and 2 were given`.
 
-CLI-34. Without `--colouring`, `render` MUST use the colouring `parity` when the domain has a reversing side, and `one` otherwise, because `DEC-7` and `DEC-44` make the parity colouring the default when one exists, and the default then runs no search, and the parity colouring exists only when some pairing reverses orientation (Section 5.7 of `docs/design/architecture.md`).
+CLI-34. Without `--colouring`, `render` MUST use the colouring `parity` on an all-reversing domain, with no search. On any other domain, it MUST call `colourings_of_index` with `ColouringSet::Valid`, the colour count 2, and `SearchBudget::DEFAULT` at step 4, and MUST use `parity` when the list holds a colouring, `one` when the search is complete and the list is empty, and MUST stop with the diagnostic of Section 6.8 of a search that stopped at a limit, naming `parity`, and write no file when the search is not complete. The owner decided that the default is the valid colouring with 2 colours when the domain has one, and one colour otherwise (`DEC-72`), and an image in one colour after a stopped search would claim that the domain has no such colouring.
 
-So `escher render 732 -o rot.png` draws every tile in `#e9c46a`, and `escher render '*732' -o tiling.png` draws two colours. The number of fill colours follows the colouring, so `escher render 732 --colours '#e9c46a,#2a9d8f' -o rot.png` fails at step 4, because the default colouring of `732` is `one`, which needs 1 colour.
+So `escher render '*732' -o tiling.png` draws two colours with no search. A domain whose default is `one`, such as that of `1`, which has no colouring with 2 colours, draws every tile in `#e9c46a`, and `escher render 1 --colours '#e9c46a,#2a9d8f' -o one.png` fails at step 4, because the default colouring of `1` is `one`, which needs 1 colour.
 
 `escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, and returns an error kind for a value outside its limits, such as a width of 0, a grid of 0, a border width that is negative or not finite, a rotation angle that is not finite, or a light direction that is zero or not finite. Section 4.1 of `docs/design/render.md` states each limit and the error kind for a value outside it. `render` reports such an error as Section 6.8 states.
 
@@ -487,13 +489,13 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 | 10 | `Parameter` | Once for each item that `parameters` returns for the signature, in its order | The name, `, range `, the minimum, ` to `, the maximum, `, default `, and the default value, with the numbers in the form of Section 5.2, such as `aspect, range 0.125 to 8, default 1` |
 | 11 | `Domain` | Always | `no sides` when the domain has no side, `<n> mirror sides` when every side is a mirror, `<n> sides in <k> pairs` when no side is, with `pair` when $k = 1$, as in `2 sides in 1 pair`, `<n> sides, <m> mirror sides and <k> pairs` when the domain has both, and `none, ` followed by the `Display` text of the error when no domain is built (Section 5.5, CLI-51, CLI-53) |
 | 12 | `Mirror sides`, then `Side pairs` | A domain with a paired side is built. The `Mirror sides` line appears only when that domain also has a mirror side | Two lines in this order. `Mirror sides` lists the mirror sides, such as `2 and 5`, and `Side pairs` each pair of partner sides once, such as `0 and 1 by rotation, 2 and 3 by rotation`, in the forms of Section 5.5 |
-| 13 | `Parity colouring` | A domain is built and it has no reversing side | `none, every side pairing preserves orientation` |
+| 13 | Withdrawn on 2026-11-22 | Never | None. Rows 18 and 19 show whether the parity colouring exists |
 | 14 | `Corner angles in degrees` | A domain with at least one side is built (CLI-53) | Each value of `corner_angles()` in degrees, in corner order, in the form of Section 5.2 |
 | 15 | `Side lengths` | As row 14 | Each value of `side_lengths()`, in side order, in the form of Section 5.2 |
 | 16 | `Domain area` | A domain is built | `area()`, in the form of Section 5.2 |
-| 17 | `Colourings` | A domain is built | The number of colourings and the colour count to which the list is complete, or `none, ` followed by the `Display` text of the error, in the form of Section 5.8 |
-| 18 | `Colourings with <k> colours` | Row 17 has a number, once for each colour count $k$ up to the colour count of row 17 that has at least one colouring, in increasing order | The number of colourings with $k$ colours, in the form of Section 5.8 |
-| 19 | `Colouring` | `--colourings` is given and row 17 has a number, once for each colouring that row 18 counts, in the order of the ids | The id, the colour count, and an alias, in the form of Section 5.8 |
+| 17 | `Colourings` | A domain is built | The number of valid colourings and the colour count to which the list is complete, or `none, ` followed by the `Display` text of the error, in the form of Section 5.8 |
+| 18 | `Colourings with <k> colours` | Row 17 has a number, once for each colour count $k$ up to the colour count of row 17 that has at least one valid colouring, in increasing order | The number of valid colourings with $k$ colours, in the form of Section 5.8 |
+| 19 | `Colouring` | `--colourings` is given and row 17 has a number, once for each valid colouring that row 18 counts, in the order of the ids | The id, the colour count, and an alias, in the form of Section 5.8 |
 | 20 | `Presentation` | `--presentation` is given | The size of the Conway presentation, or `none, ` followed by the `Display` text of the error, in the form of Section 5.7 |
 | 21 | `Generators` | `--presentation` is given and the Conway presentation exists | Its generator names, in the form of Section 5.7 |
 | 22 | `Relators` | As row 21 | Its relators, in the form of Section 5.7 |
@@ -510,7 +512,7 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 | 33 | `Check area` | As row 28 | The result of `area()` of `Verification` |
 | 34 | `Verification` | As row 28 | `passed` when `Verification::passed()` is true, and otherwise `failed` |
 
-Row 12 holds two labels, so that the numbers of the other rows stay those that other sections cite.
+Row 12 holds two labels, and row 13 stays withdrawn, so that the numbers of the other rows stay those that other sections cite.
 
 CLI-6. `info` MUST print exactly the lines of this table, in this order and under these conditions, with the colouring lines for every built domain, the `Colouring` lines only with `--colourings`, the presentation lines only with `--presentation`, and the verification lines only with `--check`, because the snapshots of Section 8 and every reader of the text rely on one layout, and an extra or missing line changes what a reader concludes about the signature. The table has no name of the group in another notation, such as an IUC or Schoenflies name, because `DEC-20` omits them until a primary source is read.
 
@@ -545,7 +547,7 @@ Rows 14 and 15 separate the values with a comma and one space. Angles are in deg
 
 ### 5.3. Examples
 
-The snapshot files under `crates/escher-cli/tests/cli/snapshots/` fix the information text of every tested input, so this section shows only enough examples to show each kind of line. The examples follow the canonical form that `docs/design/signature.md` defines. The domain summary and the `Domain` line follow Section 5.5, the colouring lines Section 5.8, and the verification lines Section 5.6. Sections 5.7 and 5.8 show examples of the presentation lines and of the `Colouring` lines.
+The snapshot files under `crates/escher-cli/tests/cli/snapshots/` fix the information text of every tested input, so this section shows only enough examples to show each kind of line. The examples follow the canonical form that `docs/design/signature.md` defines. The domain summary and the `Domain` line follow Section 5.5, the colouring lines Section 5.8, and the verification lines Section 5.6. Sections 5.7 and 5.8 show examples of the presentation lines and of the `Colouring` lines. In the colouring lines of these examples, `<n>` stands for a number of valid colourings and `...` for the lines of further colour counts, which the snapshots fix.
 
 The option `--check` adds the verification lines after the domain summary and the colouring lines. This example shows a compact hyperbolic signature with a domain, with `<residual>` in place of each residual, because Section 8.1 replaces the residuals of these lines in the snapshot:
 
@@ -564,11 +566,9 @@ Domain: 3 mirror sides
 Corner angles in degrees: 25.714286, 60.000000, 90.000000
 Side lengths: 0.545275, 0.620672, 0.283128
 Domain area: 0.074800
-Colourings: 19, complete to 12 colours
-Colourings with 1 colour: 1
+Colourings: <n>, complete to 12 colours
 Colourings with 2 colours: 1
-Colourings with 8 colours: 8
-Colourings with 9 colours: 9
+...
 Check isometries: passed, residual <residual>, tolerance 1.0e-9
 Check pairings: passed, residual <residual>, tolerance 1.0e-9
 Check walls: passed, residual <residual>, tolerance 1.0e-9
@@ -599,19 +599,13 @@ Side pairs: 2 and 3 by rotation
 Corner angles in degrees: 90.000000, 90.000000, 120.000000, 90.000000
 Side lengths: 0.785398, 0.785398, 0.615480, 0.615480
 Domain area: 0.523599
-Colourings: 25, complete to 12 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 1
-Colourings with 3 colours: 1
-Colourings with 4 colours: 4
-Colourings with 6 colours: 7
-Colourings with 8 colours: 4
-Colourings with 12 colours: 7
+Colourings: <n>, complete to 12 colours
+...
 ```
 
 The table of ON 8.2 gives the order 24, and the Euler characteristic $2/24 = 1/12$ and the area come from ON 7.3. A spherical signature has no `Deformation dimension` line.
 
-This example shows a Euclidean signature with two shape parameters and no reversing side pairing, in which `...` stands for the lines with 5 to 12 colours:
+This example shows a Euclidean signature with two shape parameters and no reversing side pairing:
 
 ```sh
 escher info o
@@ -626,15 +620,10 @@ Parameter: aspect, range 0.125 to 8, default 1
 Parameter: skew, range -0.5 to 0.5, default 0
 Domain: 4 sides in 2 pairs
 Side pairs: 0 and 2 by translation, 1 and 3 by translation
-Parity colouring: none, every side pairing preserves orientation
 Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000
 Side lengths: 1.000000, 1.000000, 1.000000, 1.000000
 Domain area: 1.000000
-Colourings: 127, complete to 12 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 3
-Colourings with 3 colours: 4
-Colourings with 4 colours: 7
+Colourings: <n>, complete to 12 colours
 ...
 ```
 
@@ -694,11 +683,11 @@ The information text is not a stable interface, and a machine-readable form is a
 
 CLI-7. A change that alters the information text MUST update its snapshots in the same change, because the snapshot test fails otherwise, and the snapshot diff is how a reviewer sees each change to the text (`DEC-23`, rule TEST-2 of `docs/rust-coding-standards.md`).
 
-`info` prints presentations only with `--presentation` (Section 5.7). It prints the colouring lines for every built domain, and names the colourings only with `--colourings` (Section 5.8). The owner's goal that `info` reports how many polygons the representative set has, and so which colour counts are possible, is met by the `Colourings with <k> colours` lines: each colour count $k$ that they list is a number of colours that `render` can draw with an id. `info` prints no colour and no name of a colouring other than its id and its alias. The domain summary covers exactly the signatures that `escher-domain` constructs (Section 4 of `docs/design/domain.md`).
+`info` prints presentations only with `--presentation` (Section 5.7). It prints the colouring lines for every built domain, and names the colourings only with `--colourings` (Section 5.8). The owner's goal that `info` reports how many polygons the representative set has, and so which colour counts are possible, is met by the `Colourings with <k> colours` lines: each colour count $k$ that they list is a number of colours that `render` can draw with an id in a valid colouring. One colour is always available through `one` and is listed only for `1` (`DEC-73`). `info` prints no colour and no name of a colouring other than its id and its alias. The domain summary covers exactly the signatures that `escher-domain` constructs (Section 4 of `docs/design/domain.md`).
 
 ### 5.5. Domain Summary
 
-For every valid signature, `info` calls `parameters` once and prints the parameter lines of row 10, then calls `FundamentalDomain::build` once and prints the `Domain` line of row 11. Rows 12 to 16 follow only when a domain is built, rows 12 and 13 only under their conditions.
+For every valid signature, `info` calls `parameters` once and prints the parameter lines of row 10, then calls `FundamentalDomain::build` once and prints the `Domain` line of row 11. Rows 12 and 14 to 16 follow only when a domain is built, rows 12, 14, and 15 only under their conditions.
 
 When a domain is built, `info` counts its sides and its sides of kind `PairingKind::Mirror`, and the value of the `Domain` line takes one of four forms. The numbers are in decimal, and the number of pairs is the number of sides that are not mirrors, divided by 2, because every such side has a partner other than itself:
 
@@ -713,17 +702,13 @@ CLI-51. `info` MUST choose the form of the `Domain` line from the number of side
 
 CLI-53. For a domain with no side, `info` MUST print `Domain: no sides` and MUST NOT print the `Corner angles in degrees` and `Side lengths` lines, because with the forms of CLI-51 the line would read `0 mirror sides`, which suggests mirrors that do not exist, and the two lists would be empty lines with a trailing space, which the snapshots of Section 8.1 would hold as text that no reader can use. For a side of kind `PairingKind::RotaryReflection`, the `Side pairs` line MUST name the kind `rotary reflection`, because the word `another isometry` tells a reader nothing about the pairing, and a rotary reflection, which reverses orientation, is what tells `nx` from `nn` (`DEC-54`, `DEC-57`).
 
-The domain of `1` has no reversing side, so CLI-33 prints its `Parity colouring` line with the existing text `none, every side pairing preserves orientation`, and `render 1 --colouring parity` gives the diagnostic of CLI-35, which ends `because no side pairing reverses orientation`. Both texts are true of a domain with no side pairing, although they say nothing about it in particular. This design keeps both texts unchanged, which is the simplest true wording: it needs no branch for a domain with no side and changes no other text. Point 37 of Section 11.3 puts the alternative to the owner.
-
 The value of the `Mirror sides` line lists the indices of the mirror sides in increasing order, in decimal: one index alone, two joined by ` and `, and three or more separated by a comma and one space, with `, and ` before the last, such as `2 and 5` for `22*` and `2, 3, and 4` for `2*22`.
 
 CLI-32. For a domain with a paired side, `info` MUST print the `Domain` line with the number of pairs, and one `Side pairs` line that names each pair of partner sides once, because a reader of `<n> mirror sides` for such a domain would take its sides for mirrors, and the pairs and their kinds are what tell a group from another with the same tiles, such as a rotation subgroup from its reflection group, or `22*` from `**`.
 
 The value of the `Side pairs` line lists one item for each side $i$ whose `partner()` $j$ is larger than $i$, in increasing order of $i$, separated by a comma and one space. An item is $i$ in decimal, ` and `, $j$ in decimal, ` by `, and the word for `kind()` of side $i$: `rotation` for `PairingKind::Rotation`, `translation` for `PairingKind::Translation`, `glide reflection` for `PairingKind::GlideReflection`, and `rotary reflection` for `PairingKind::RotaryReflection`, the kinds that Sections 3.1 and 3.2 of `docs/design/domain.md` define (DOM-27, DOM-61). For `732` the value is `0 and 1 by rotation, 2 and 3 by rotation`, for `2222` it is `0 and 1 by rotation, 2 and 5 by translation, 3 and 4 by rotation`, for `xx` it is `0 and 2 by glide reflection, 1 and 3 by translation`, and for `5x` and `x` it is `0 and 1 by rotary reflection`. The antipodal map of `x` has the kind `PairingKind::RotaryReflection` (`DEC-57`). A half-turn has the kind `PairingKind::Rotation`. `PairingKind` is `#[non_exhaustive]`, so the word is `reflection` for `PairingKind::Mirror` and `another isometry` for any later kind. No domain that `escher-domain` builds reaches either word, because a mirror is its own partner and appears in the `Mirror sides` line only.
 
-`info` decides whether to print the `Parity colouring` line by `reverses_orientation()` of `FundamentalDomain` (Section 3.2 of `docs/design/domain.md`). Of the ten domains of Section 6.13 of `docs/design/domain.md`, only those of `o` and of `2222` print it. Of the spherical group domains of Section 6.16 of that document, only that of `1` prints it.
-
-CLI-33. `info` MUST print the line `Parity colouring: none, every side pairing preserves orientation` exactly when a domain is built and it has no reversing side, because the parity colouring is the default of `render` whenever it exists (CLI-34), so a reader needs to learn from `info` when it does not exist, and printing the line only then leaves the text of every reflection domain unchanged.
+CLI-33. Withdrawn on 2026-11-22.
 
 When `build` returns an error, the value is `none, ` followed by the `Display` text of that error, for every error kind. The `Display` text starts with `cannot build fundamental domain: ` (Section 10.2 of `docs/design/domain.md`), so the line reads, for example, `Domain: none, cannot build fundamental domain: the signature 4*3 is not supported`. The line holds only the `Display` text of the top error and no text of its source. The text holds the canonical signature or a number, both in printable ASCII, so it needs no replacement of characters.
 
@@ -826,10 +811,10 @@ Order by coset enumeration: not run, the group order 18000 is above the limit of
 
 ### 5.8. Colouring Lines
 
-When a domain is built, `info` prints the colouring lines after the domain summary, with or without any flag, as the owner decided (`DEC-38`). Every subgroup of finite index is a colouring of its own, conjugates included (`DEC-37`). `info` takes these steps:
+When a domain is built, `info` prints the colouring lines after the domain summary, with or without any flag, as the owner decided (`DEC-38`). The lines count and list only the valid colourings (`DEC-73`), each valid subgroup as a colouring of its own (`DEC-37`). `info` takes these steps:
 
 1. Call `side_presentation()` on the domain once. Section 5.7 reuses the result.
-2. When it returns a presentation, call the search of `escher-group` on it once, with the colour limit $N$ of `--max-colours` as its `IndexLimit` and `SearchBudget::DEFAULT`, which no option changes (the rules of the search in `docs/design/group.md`). Without `--colourings` the call is `count_colourings`, which counts the colourings and stores none of them. With `--colourings` it is `colourings`, which returns them in the order of the ids. Either result is complete to a colour count $m$, its `complete_to()`, which is $N$ unless the search stopped at a search limit.
+2. When it returns a presentation, call the search of `escher-group` on it once, with `ColouringSet::Valid`, the colour limit $N$ of `--max-colours` as its `IndexLimit`, and `SearchBudget::DEFAULT`, which no option changes (the rules of the search in `docs/design/group.md`). Without `--colourings` the call is `count_colourings`, which counts the colourings and stores none of them. With `--colourings` it is `colourings`, which returns them in the order of the ids. Either result is complete to a colour count $m$, its `complete_to()`, which is $N$ unless the search stopped at a search limit.
 3. Print row 17. When it has a number, print one row 18 for each colour count from 1 to $m$ that has at least one colouring, and with `--colourings` one row 19 for each colouring of the list, in its order, which is the order of the ids of GRP-37 of `docs/design/group.md`.
 
 The value of row 17 is chosen in this order:
@@ -840,13 +825,13 @@ The value of row 17 is chosen in this order:
 | The search completed every colour count up to $N$ | `<n>, complete to <N> colours` |
 | The search reached a search limit after it completed the colour count $m < N$ | `<n>, complete to <m> colours, the search stopped at a limit before <m + 1> colours` |
 
-$n$ is the number of colourings with at most $m$ colours, and $m = N$ in the second row. Each number is in decimal, and the word is `colour` for the number 1, as in `complete to 1 colour` and `before 1 colour`. The third row also covers $m = 0$, which gives `0, complete to 0 colours, the search stopped at a limit before 1 colour`. One wording covers every search limit, the step budget and the limit on the stored colourings alike (GRP-35 and GRP-36 of `docs/design/group.md`), because the text claims only what the search completed.
+$n$ is the number of valid colourings with at most $m$ colours, and $m = N$ in the second row. Each number is in decimal, and the word is `colour` for the number 1, as in `complete to 1 colour` and `before 1 colour`. The third row also covers $m = 0$, which gives `0, complete to 0 colours, the search stopped at a limit before 1 colour`. One wording covers every search limit, the step budget and the limit on the stored colourings alike (GRP-35 and GRP-36 of `docs/design/group.md`), because the text claims only what the search completed.
 
-The label of row 18 is `Colourings with `, the colour count $k$ in decimal, and ` colours`, with ` colour` for $k = 1$, such as `Colourings with 1 colour` and `Colourings with 8 colours`. Its value is the number of colourings with $k$ colours in decimal. A colour count without a colouring has no line, so the lines of row 18 together with row 17 state every colour count up to $m$.
+The label of row 18 is `Colourings with `, the colour count $k$ in decimal, and ` colours`, with ` colour` for $k = 1$, such as `Colourings with 1 colour` and `Colourings with 8 colours`. Its value is the number of valid colourings with $k$ colours in decimal. A colour count without a valid colouring has no line, which for every domain other than that of `1` includes the colour count 1, so the lines of row 18 together with row 17 state every colour count up to $m$.
 
-The value of row 19 is the id, `, `, the colour count in decimal, and ` colours`, with ` colour` for 1, then `, alias one` for the colouring `1a` and `, alias parity` for the parity colouring of Section 4.6, such as `1a, 1 colour, alias one`, `2g, 2 colours, alias parity`, or `3a, 3 colours`. An id holds only a decimal number and lower-case letters (GRP-37), so the lines need no replacement of characters.
+The value of row 19 is the id, `, `, the colour count in decimal, and ` colours`, with ` colour` for 1, then `, alias one` for the colouring `1a`, which only the domain of `1` lists, and `, alias parity` for the colouring `2a`, the parity colouring of Section 4.6, such as `1a, 1 colour, alias one`, `2a, 2 colours, alias parity`, or `4a, 4 colours`. An id holds only a decimal number and lower-case letters (GRP-37), so the lines need no replacement of characters.
 
-CLI-45. For every built domain, `info` MUST print row 17 and the rows 18 in the forms of this section, and with `--colourings` the rows 19, MUST take every count, id, and order of the ids from `escher-group` unchanged, and MUST mark exactly the colouring `1a` with `alias one` and exactly the parity colouring with `alias parity`, because the counts are the colour counts that `render` can draw, the ids are what a user passes to `render --colouring`, and a count or an order computed again in this crate could differ from the one that names the colouring in `render`.
+CLI-45. For every built domain, `info` MUST print row 17 and the rows 18 in the forms of this section, and with `--colourings` the rows 19, MUST take every count, id, and order of the ids from `escher-group` unchanged, and MUST mark exactly the colouring `1a` with `alias one` and exactly the colouring `2a` with `alias parity`, because the counts are the colour counts of the valid colourings that `render` can draw, the ids are what a user passes to `render --colouring`, and a count or an order computed again in this crate could differ from the one that names the colouring in `render`.
 
 CLI-46. `--max-colours` MUST set the colour limit of rows 17 to 19 together, with the default 12 and the range of Section 4.3, and with `--colourings` rows 17 and 18 MUST come from the same call as the rows 19, because the counts and the list then describe one search, and a count that came from another call could disagree with the list beside it. The colour limit changes no id: an id with $k$ colours is the same for every limit of at least $k$ (GRP-37, GRP-39).
 
@@ -860,31 +845,22 @@ The colouring lines therefore never give `Failure`, and they write no diagnostic
 
 The ids depend on the numbering of the sides of the domain, because the columns of a coset table follow the generators of the side presentation. DOM-37 of `docs/design/domain.md` makes that numbering part of the contract of `escher-domain`.
 
-This example lists the colourings of `*642` up to 3 colours. The lines of Section 5.3 come first, up to `Domain area`:
+This example lists the valid colourings of `*642` up to 4 colours, with `<n>` and `...` as in Section 5.3. The lines of Section 5.3 come first, up to `Domain area`:
 
 ```sh
-escher info --colourings --max-colours 3 '*642'
+escher info --colourings --max-colours 4 '*642'
 ```
 
 ```text
-Colourings: 11, complete to 3 colours
-Colourings with 1 colour: 1
-Colourings with 2 colours: 7
-Colourings with 3 colours: 3
-Colouring: 1a, 1 colour, alias one
-Colouring: 2a, 2 colours
-Colouring: 2b, 2 colours
-Colouring: 2c, 2 colours
-Colouring: 2d, 2 colours
-Colouring: 2e, 2 colours
-Colouring: 2f, 2 colours
-Colouring: 2g, 2 colours, alias parity
-Colouring: 3a, 3 colours
-Colouring: 3b, 3 colours
-Colouring: 3c, 3 colours
+Colourings: <n>, complete to 4 colours
+Colourings with 2 colours: 1
+Colourings with 4 colours: <n>
+Colouring: 2a, 2 colours, alias parity
+Colouring: 4a, 4 colours
+...
 ```
 
-Singerman's seven colourings with 2 colours of `*642` (Section 6 of `docs/research/colourings.md`) and Bulatov's colouring with 3 colours (Section 4.4 of that document) appear here. Without `--colourings`, the same command prints only the lines up to the last `Colourings with` line.
+Of Singerman's seven colourings with 2 colours of `*642` (Section 6 of `docs/research/colourings.md`), only the parity colouring is listed, and `*642` has no valid colouring with 3 colours, so Bulatov's colouring with 3 colours (Section 4.4 of that document) is not listed. Without `--colourings`, the same command prints only the lines up to the last `Colourings with` line.
 
 A search that stops at a limit prints the third form of row 17:
 
@@ -892,7 +868,7 @@ A search that stops at a limit prints the third form of row 17:
 Colourings: <n>, complete to <m> colours, the search stopped at a limit before <m + 1> colours
 ```
 
-The status stays as it is without the colouring lines (CLI-47). Up to 12 colours, such a stop happens for signatures with high corner orders, such as `*666` with `--colourings`, which reaches the limit on the stored colourings, and `*(100)(100)(100)`, which reaches the step budget. The reflection polygons have more sides, so their side presentations have more generators, and their searches reach the step budget at lower colour counts.
+The status stays as it is without the colouring lines (CLI-47). Up to 12 colours, such a stop happens for signatures with high corner orders, such as `*(100)(100)(100)`, which reaches the step budget. The reflection polygons have more sides, so their side presentations have more generators, and their searches reach the step budget at lower colour counts.
 
 ## 6. Diagnostics
 
@@ -1015,14 +991,14 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 | `build_with` returns `UnknownParameter` (CLI-29) | 3 | `error: cannot render *2222: the signature has no shape parameter foo, and its parameter is aspect`, with the name of the first setting that names no parameter of the signature, echoed as CLI-26 states. The end names the parameters of the signature in the order that `parameters` gives: `and its parameter is aspect` for one, `and its parameters are aspect and skew` for two, `and its parameters are cornerpair1.length, cornerpair2.length, cornerpair3.length, cornerpair4.length, and slice1.length` for more than two, and `nor any other` for a signature without shape parameters |
 | `build_with` returns `ParameterOutOfRange` (CLI-29) | 3 | `error: cannot render *2222: the value 9 of the parameter aspect is outside its range of 0.125 to 8`, with the value of the first setting outside its range, printed from the parsed number, the name of its parameter, and the lower and upper ends of the range |
 | `build_with` returns any other error kind, such as a shape of a reflection polygon that fails verification | 3 | `error: cannot render *(101)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
-| The colouring is `parity` and the domain has no reversing side (CLI-35) | 4 | `error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation` |
+| The colouring is `parity` and the domain has no valid colouring with 2 colours (CLI-35) | 6 | `error: cannot render 1: the colouring parity does not exist, because the signature has no colouring with 2 colours` |
 | A colouring id with more than 12 colours and no `--colours` (CLI-44) | 4 | `error: cannot render *732: the colouring 15a needs 15 colours, more than the 12 default colours, so give 15 colours with --colours`, with the id and, twice, its colour count |
 | `--colours` has the wrong number of items | 4 | `error: cannot render *732: the colouring parity needs 2 colours, and 3 were given`, with the colouring, which is `one`, `parity`, or the id, the number it needs, and the number of items. The words are `1 colour` and `1 was given` for the number 1 |
 | An item of `--colours` is not a colour | 4 | `error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb`, with the position of the first such item, counted from 1 |
 | `escher-render` rejects an option, including a rotation angle or a light direction | 5 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render` |
 | `side_presentation()` returns an error for a colouring id | 6 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
-| The colouring id names no colouring of the domain (CLI-43) | 6 | `error: cannot render *642: the colouring 3d does not exist, because the signature has 3 colourings with 3 colours`, with the id, the number of colourings with its colour count, and that count. The words are `1 colouring with` and `no colouring with` for the numbers 1 and 0, and `1 colour` for the colour count 1 |
-| The search for a colouring id reaches a search limit before it finds the id (CLI-43) | 6 | `error: cannot render *666: the search for the colouring 12a stopped at a limit before it found it`, with the id |
+| The colouring id names no colouring of the domain (CLI-43) | 6 | `error: cannot render *642: the colouring 3a does not exist, because the signature has no colouring with 3 colours`, with the id, the number of valid colourings with its colour count, and that count. The words are `1 colouring with` and `no colouring with` for the numbers 1 and 0, and `1 colour` for the colour count 1 |
+| The search for a colouring id, or for `parity` or the default colouring on a domain that is not all-reversing, reaches a search limit before it finds the colouring (CLI-34, CLI-43) | 4 for the default colouring, 6 otherwise | `error: cannot render *666: the search for the colouring 12a stopped at a limit before it found it`, with the id, or `parity` for `parity` and for the default colouring |
 | `colourings_of_index` returns an error | 6 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-group` |
 | `escher-render` rejects the coset fill of a colouring id | 6 | `error: cannot render *732`, then `  caused by: ` and the `Display` text of the error of `escher-render`. No input reaches this row, because step 6 takes the colouring from the side presentation of the same domain, and step 4 checks the number of colours first |
 | The thread pool cannot be built | 7 | `error: cannot render *732`, then `  caused by: cannot start the thread pool`, then `  caused by: ` and the `Display` text of the error of `rayon`. That text appears once, because the diagnostic takes it without the source of the error |
@@ -1056,14 +1032,14 @@ error: cannot render 4*3: rendering this signature is not supported
   caused by: cannot build fundamental domain: the signature 4*3 is not supported
 ```
 
-This example shows the colouring `parity` for a signature whose domain has no reversing side:
+This example shows the colouring `parity` for a signature whose domain has no valid colouring with 2 colours:
 
 ```sh
-escher render 732 --colouring parity -o rot.png
+escher render 1 --colouring parity -o one.png
 ```
 
 ```text
-error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation
+error: cannot render 1: the colouring parity does not exist, because the signature has no colouring with 2 colours
 ```
 
 This example shows a setting of a signature without shape parameters. Every such signature, such as a spherical signature or the rotation signature of a reflection polygon (`DEC-50`), gives the same form:
@@ -1096,14 +1072,14 @@ escher render '*2222' --set aspect=9 -o tiling.png
 error: cannot render *2222: the value 9 of the parameter aspect is outside its range of 0.125 to 8
 ```
 
-This example shows a colouring id that names no colouring of the signature. `*642` has 3 colourings with 3 colours, `3a` to `3c`:
+This example shows a colouring id that names no colouring of the signature. `*642` has no valid colouring with 3 colours:
 
 ```sh
-escher render '*642' --colouring 3d -o tiling.png
+escher render '*642' --colouring 3a -o tiling.png
 ```
 
 ```text
-error: cannot render *642: the colouring 3d does not exist, because the signature has 3 colourings with 3 colours
+error: cannot render *642: the colouring 3a does not exist, because the signature has no colouring with 3 colours
 ```
 
 A malformed id, such as `--colouring 3A`, is a usage error with the message of Section 4.6 and the status `Usage`.
@@ -1186,7 +1162,9 @@ The argument that is not UTF-8 is built with `std::os::unix::ffi::OsStringExt`, 
 
 No known input makes a check fail, so the failed-check path is tested through private functions, as Section 12.1 of `docs/design/signature.md` does for its `Overflow` texts. The unit tests cover the formatter of one check, the check lines, the `Verification` line, and the count of failed checks built from the rows, the writing of the text before the verdict is returned, and the diagnostic function.
 
-The colouring lines of a search that stops at a limit are tested by unit tests with a small `SearchBudget` and not with a snapshot, because a search that reaches the default step budget is slow even in a release build, and a search that stops only with `--colourings` can print thousands of `Colouring` lines. The diagnostic of `render` for a search that stops at a limit has a snapshot only on an input whose search stops early at the limit on the stored colourings. No snapshot uses a search that stops at the step budget, which can take seconds, and a unit test with a small budget covers that branch of the resolution.
+The colouring lines of a search that stops at a limit are tested by unit tests with a small `SearchBudget` and not with a snapshot, because a search that reaches the default step budget is slow even in a release build, and a search that stops only with `--colourings` can print thousands of `Colouring` lines. The diagnostic of `render` for a search that stops at a limit has a snapshot only on an input whose search stops early at the limit on the stored colourings, which counts only the valid colourings that the search stores. No snapshot uses a search that stops at the step budget, which can take seconds, and a unit test with a small budget covers that branch of the resolution.
+
+The plain tests of the colourings cover these cases: the default colouring and `parity` on an all-reversing domain, which give the bytes of `2a`, on a domain that is not all-reversing and has a valid colouring with 2 colours, on a domain without one, such as that of `1`, and with a search for 2 colours that stops at a limit, through the private function with a small budget. They also cover `1a` on a domain other than that of `1`, which gives the bytes of `one`, and an id that exists under `ColouringSet::All` but not under `ColouringSet::Valid`, which gives the diagnostic of CLI-43. The snapshots of `info` hold the counts and listings of the valid colourings, and every snapshot that held the colourings of `ColouringSet::All` is regenerated.
 
 A snapshot holds the status, the standard output, and the standard error of one `run` call, in this form, which a helper in the module `common` builds (rule TEST-12 of `docs/rust-coding-standards.md`):
 
@@ -1318,7 +1296,7 @@ Section 10.1 of `docs/design/architecture.md` records, under `DEC-21`, that Miri
 
 ## 10. Unverified Statements
 
-This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-6`, `UNV-7`, `UNV-10`, `UNV-11`, `UNV-22`, `UNV-26`, `UNV-27`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, `UNV-32`, `UNV-33`, and `UNV-34` through `escher-domain`, on `UNV-17`, `UNV-19`, and `UNV-22` through `escher-group`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, `UNV-17`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
+This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-6`, `UNV-7`, `UNV-10`, `UNV-11`, `UNV-22`, `UNV-26`, `UNV-27`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, `UNV-32`, `UNV-33`, and `UNV-34` through `escher-domain`, on `UNV-17`, `UNV-19`, `UNV-22`, `UNV-35`, and `UNV-36` through `escher-group`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-15`, `UNV-16`, `UNV-17`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
 
 | Id | How this crate relies on it |
 | --- | --- |
@@ -1342,7 +1320,9 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 | `UNV-3` | A sample on or next to a wall can take either neighbouring tile, which is why CLI-28 masks the fold counts |
 | `UNV-4` | The default fold cap of `DEC-7` rests on fold counts measured on a prototype, and no source bounds them |
 | `UNV-15` | The border that `render` draws comes from the gradient form of the border estimate (`DEC-28`) |
-| `UNV-18` | The default colouring `parity` of a domain with a reversing side, which includes a domain whose sides are paired by glide reflections, colours the tiles by the parity of the fold, and the line `Parity colouring: none` and the diagnostic of CLI-35 rest on the reading that no parity colouring exists when every pairing preserves orientation. The alias `parity` of a `Colouring` line names the colouring with 2 colours that reads the same parity (CLI-48) |
+| `UNV-18` | The colouring `parity` of an all-reversing domain, which includes a domain whose sides are paired by glide reflections or rotary reflections, colours the tiles by the parity of the fold with `Fill::Parity`, and gives the bytes of the coset fill of `2a` (CLI-48) |
+| `UNV-35` | `info` counts and lists, and `render` resolves, only the colourings that `escher-group` finds valid by the condition on the side generators of GRP-42 of `docs/design/group.md`, so a colouring in which two tiles that share a side have the same colour reaches the user only if that condition is wrong |
+| `UNV-36` | The alias `parity` names `2a`, as the only valid colouring with 2 colours. If a domain had two, `parity` would name the first of them, and the second would keep its own id |
 
 ## 11. Assumptions, Choices, and Open Questions
 
@@ -1367,7 +1347,7 @@ These choices are made here, and no other document dictates them. Each one is ea
 2. Snapshots live only in this crate, with one snapshot for each `run` call, so `escher-signature` needs no `insta` dependency (Section 8.1). No recipe wraps `cargo insta`, because a reviewer accepts a changed snapshot by hand (Section 8.2).
 3. `info` returns its errors as a list, and `run` writes one diagnostic for each, in order, so `info --check --presentation` can report an order diagnostic and then a verification diagnostic (Section 3.2).
 4. `clap` checks only the syntax of an option value, and `escher-render` checks its range, so a size of `0x0` gives `Failure` and not `Usage` (Section 4.6, CLI-24).
-5. `render` reads the border colour and the background colour before it builds the domain, and reads the fill colours and checks the render options before it resolves a colouring id, so a certain input error never waits for a search or gives way to the diagnostic of a search that stopped at a limit (Section 4.5).
+5. `render` reads the border colour and the background colour before it builds the domain, and reads the fill colours and checks the render options before it resolves a colouring id, so a certain input error never waits for a search or gives way to the diagnostic of a search that stopped at a limit, except with the default colouring of a domain that is not all-reversing (Section 4.5).
 6. The render options are checked before the search with a placeholder fill of one colour, which is the border colour, and built a second time with the real fill, because the builder of `escher-render` takes the fill first and the coset fill exists only after the search (Section 4.5).
 7. `render` clones the colouring that `find` returns, because `ColouringsOfIndex` only lends it and `CosetFill::new` takes it by value (Section 4.5).
 8. The private function that resolves an id takes the step budget as a parameter, and `render` passes `SearchBudget::DEFAULT`, so a unit test can reach the diagnostic of a search that stops at a limit with a small budget (Sections 4.5 and 8.1).
@@ -1375,6 +1355,9 @@ These choices are made here, and no other document dictates them. Each one is ea
 10. `render` refuses no domain for its geometry or for the kinds of its sides, because `escher-render` has a view for every geometry (RND-23 of `docs/design/render.md`) and renders a rotation domain within the bounds of Section 6.8 of that document (RND-35).
 11. The tests read the PNG header by hand, so the crate has no `png` dev-dependency (Section 8.1).
 12. The examples and snapshots that need a signature without a domain use `4*3`, and those that need a spherical signature without a domain use `2*(51)`, which is over the limit of `2*n`, so that `info` prints its group order (Sections 5.3 and 8.1).
+13. `parity` names the valid colouring with 2 colours, `2a`, and is refused where the domain has none, so the alias and the default of `DEC-72` name one colouring. The alternative keeps `parity` for the reversal parity colouring of Section 5.12 of `docs/design/render.md`, which is not valid on every domain, so `info` would have to list it apart from the valid colourings (Section 4.6).
+14. `1a` stays accepted on every domain as the colouring with one colour, although `info` lists it only for `1`, so that command lines with `1a` keep working (Section 4.6). The alternative accepts only `one`.
+15. The line `Parity colouring` is withdrawn, because rows 18 and 19 show whether `parity` exists (row 13 of Section 5.1). The alternative keeps it with a new condition, which needs the search of 2 colours on every domain that is not all-reversing.
 
 ### 11.3. Points for the Owner
 
@@ -1397,26 +1380,26 @@ None of these blocks the implementation. Points 1, 3, 4, 5, 8, and 36 belong to 
 15. The value forms of the options of the ball: the yaw, the pitch, and the roll in degrees for `--rotation`, `X,Y,Z` for `--light`, and `phong` or `none` for `--shading`, with the defaults of `DEC-16`. The alternative is other forms, such as one option per angle.
 16. A value that starts with `-` for `--rotation` and `--light` (CLI-31), so an option name directly after either option is read as its value. The alternative accepts only the form with `=`, such as `--light=-1,1,2`.
 17. The options of the ball on a hyperbolic or Euclidean signature are checked and have no effect (Section 4.6). The alternative is an error.
-18. The `Parity colouring` line only for a domain with no reversing side (CLI-33). The alternative prints the line for every built domain, which changes the snapshot of every reflection domain.
-19. `--colouring parity` for a domain without a reversing side is an error and writes no file (CLI-35, `DEC-32`). The alternative draws the image in the first colour, as `escher-render` does (RND-33 of `docs/design/render.md`).
-20. The fill colours follow the colouring that the domain gives, so `escher render 732 --colours '#e9c46a,#2a9d8f'` fails, because the default colouring of `732` is `one`. The alternative chooses the colouring from the number of colours given.
+18. Withdrawn on 2026-11-22.
+19. `--colouring parity` for a domain without a valid colouring with 2 colours is an error and writes no file (CLI-35, `DEC-32`). The alternative draws the image in the first colour.
+20. The fill colours follow the colouring that the domain gives, so `escher render 1 --colours '#e9c46a,#2a9d8f'` fails, because the default colouring of `1` is `one`. The alternative chooses the colouring from the number of colours given.
 21. Both presentations with `--presentation` (`DEC-35` of `docs/design/architecture.md`), so the two independent readings of the group can be compared. The alternative prints the Conway presentation only, which drops the check of the domain.
 22. No order line outside the sphere (CLI-39). The alternative prints a line that says that the enumeration was not run, which changes the text of every Euclidean and hyperbolic signature.
 23. No option for the coset limit (CLI-41). The alternative is an option such as `--max-cosets`.
 24. The gate of the enumeration at a group order of 16384, near which `escher info --presentation` takes seconds. The largest group order of a domain that `escher-domain` builds is 400, of `*(100)22`, so the alternative is a lower gate, such as 4096, which keeps every built domain and prints `not run` for the larger orders.
 25. Exit status 0 for an enumeration that reaches the coset limit (CLI-40), because no source guarantees that an enumeration finishes within the group order (Section 7.15 of `docs/research/colourings.md`). Such a run within the gate may indicate a defect, such as a dropped relator, so the alternative is exit status 1.
-26. Long colouring listings (Section 5.8). `--colourings` prints one line for each subgroup, conjugates included, and some listings up to 12 colours exceed a thousand lines. The alternative marks the class of each colouring in its `Colouring` line from `Colouring::class` of `escher-group`, such as `3b, 3 colours, class 3a`, so a reader can skip the conjugates.
+26. Long colouring listings (Section 5.8). `--colourings` prints one line for each valid subgroup, and some listings up to 12 colours exceed a thousand lines. The alternative marks the class of each colouring in its `Colouring` line from `Colouring::class` of `escher-group`, such as `3b, 3 colours, class 3a`, so a reader can skip the conjugates. Item 10 of Section 14.3 of `docs/design/group.md` holds the point on a shorter list.
 27. The default colours (CLI-44). Entries 3 to 12 were not checked for colour-vision deficiency, and a colouring with more than 12 colours needs `--colours`. The alternative is other or more entries after such a check.
 28. No option for the step budget of the colouring search, so a search near the top of the range of `--max-colours` can stop at the budget for signatures with corner orders near 100. The alternative is an option for the budget, which adds an input whose cost is not bounded.
 29. A search that stops at a limit leaves the status of `info` unchanged (CLI-47), while `render` with an id gives `Failure`. The alternative for `info` is a status of its own, which a script would have to tell from a failed check.
-30. `--colouring parity` keeps `Fill::Parity`, so the default colouring runs no search (CLI-48). The alternative draws `parity` through its id, which runs a search for every default image of a reflection domain.
+30. `--colouring parity` keeps `Fill::Parity` on an all-reversing domain, so its default colouring runs no search (CLI-48). The alternative draws `parity` through its id `2a` on every domain, which runs a search for every default image.
 31. A higher colour limit can complete fewer colour counts (Section 5.8). When the one run at the limit exhausts the budget, the runs by index share one budget (Section 7.14 of `docs/design/group.md`, GRP-35), so a call with a higher limit can complete fewer colour counts than a call with a lower limit whose one run ends, as for `*666` at the limits 13 and 14. This is a known behaviour of the default design, and every line still claims only what its search completed (CLI-47). The alternative that would remove it is left to the owner.
 32. The default colour limit of 12 also on the reflection polygons and their doubles, whose default search takes several tenths of a second or more in a release build. The alternative is a default colour limit that falls with the number of generators of the side presentation, which makes the default text depend on the domain.
 33. The colouring ids of the doubles of the reflection polygons (`DEC-50` of `docs/design/architecture.md`) hold only until the roadmap item `M15`, which builds the general hyperbolic signatures (Section 4.1 of `docs/design/roadmap.md`), renumbers the sides of their domains, and no line marks them as provisional. The alternative marks them in the `Domain` line or refuses an id for such a signature.
 34. Shared default pictures (`DEC-55` of `docs/design/architecture.md`), as Section 4.5 states, which a user tells apart by a colouring id. Point 40 of Section 12.3 of `docs/design/render.md` holds the alternative, which draws mirror sides differently from paired sides.
 35. The third form of the `Domain` line with a `Mirror sides` line (CLI-51). The alternative lists the kind of every side in one line, which changes the text of every reflection domain and rotation domain.
 36. Tests kept for a reason that does not apply belong to TQ-11 of `docs/design/tooling.md`, which puts them to the owner.
-37. The parity texts of `1` (Section 5.5) stay unchanged, which needs no branch. The alternative is a text of its own, such as `Parity colouring: none, the domain has no side`, which adds a branch to CLI-33 and CLI-35.
+37. Withdrawn on 2026-11-22.
 38. The pictures of the spherical groups (`DEC-61` of `docs/design/architecture.md`). With the default colouring, `5x` renders the image of `*55` and `x` that of `*`, and with `--colouring one`, `3*2` renders the image of `432`. For the orders that Section 5.15 of `docs/design/render.md` treats, no picture of a colouring id tells `n*` from `n22` or `nx` from `*nn`. The default images of `*`, `x`, and `1` differ only in a thin rim, so a user who renders `*` sees no mirror until `--rotation` turns the ball. Points 42 and 43 of Section 12.3 of `docs/design/render.md` hold the alternatives.
 
 ## 12. Security Considerations
@@ -1462,7 +1445,7 @@ The supported platform is Linux. The minimum supported Rust version is the one t
 | `render` gets a signature without a domain | The diagnostic of Section 6.8, with `Failure` | Use a signature that `escher-domain` constructs, which `escher info` shows in its `Domain` line |
 | `render` gets an unknown parameter name, a value outside the range of its parameter, or a parameter set twice | The diagnostic of Section 6.8, with `Failure` | Use a name that the diagnostic names, each name once, and a value within the range that the diagnostic or `escher info` gives. `escher render --help` lists every parameter |
 | `render` gets a bad colour or the wrong number of colours | The diagnostic of Section 6.8, with `Failure` | Give each colour as `#rgb` or `#rrggbb`, quoted, as many as the colouring needs |
-| `render` gets `--colouring parity` for a domain without a reversing side | The diagnostic of Section 6.8, with `Failure` | Leave out `--colouring`, or give `--colouring one`. The line `Parity colouring` of `escher info` shows such a domain |
+| `render` gets `--colouring parity` for a domain without a valid colouring with 2 colours | The diagnostic of Section 6.8, with `Failure` | Leave out `--colouring`, or give `--colouring one`. `escher info` prints no line `Colourings with 2 colours` for such a domain |
 | `render` gets a colouring id that names no colouring of the domain | The diagnostic of Section 6.8, with `Failure` | Use an id that `escher info --colourings` lists for the signature |
 | The search for a colouring id stops at a limit | The diagnostic of Section 6.8, with `Failure` | None in `render`, which has no option for the budget. Choose a colouring with fewer colours |
 | `render` gets a colouring id with more than 12 colours and no `--colours` | The diagnostic of Section 6.8, with `Failure` | Give as many colours with `--colours` as the colouring has |
@@ -1523,9 +1506,9 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-30 | 4.5 | Withdrawn on 2026-11-17. |
 | CLI-31 | 4.6 | `--rotation` and `--light` accept a value that starts with `-`. |
 | CLI-32 | 5.5 | `info` prints the number of pairs in the `Domain` line of a domain with a paired side, and one `Side pairs` line with the words `rotation`, `translation`, and `glide reflection`. |
-| CLI-33 | 5.5 | `info` prints `Parity colouring: none, every side pairing preserves orientation` exactly when a domain is built and has no reversing side. |
-| CLI-34 | 4.6 | Without `--colouring`, `render` uses `parity` when the domain has a reversing side, and `one` otherwise. |
-| CLI-35 | 4.5 | `render --colouring parity` for a domain without a reversing side fails at step 4 with its diagnostic and writes no file. |
+| CLI-33 | 5.5 | Withdrawn on 2026-11-22. |
+| CLI-34 | 4.6 | Without `--colouring`, `render` uses `parity` on an all-reversing domain, and elsewhere `parity` or `one` as the search of 2 colours finds, failing with no file when that search stops at a limit. |
+| CLI-35 | 4.5 | `render --colouring parity` for a domain without a valid colouring with 2 colours fails at step 6 with its diagnostic and writes no file. |
 | CLI-36 | 4.5 | Withdrawn on 2026-11-17. |
 | CLI-37 | 5.7 | `--presentation` adds rows 20 to 27 under their conditions and in their forms, and nothing appears without the flag. |
 | CLI-38 | 5.7 | The generator names and relator texts are those of `escher-group`, unchanged. |
@@ -1533,12 +1516,12 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-40 | 6.9 | An index other than the group order gives the diagnostic and `Failure`, and every other outcome leaves the status unchanged, including a run that an input limit refuses, whose order line reads `not run, ` and the error text. |
 | CLI-41 | 5.7 | `info` enumerates with `CosetLimit::DEFAULT` and has no option for the limit. |
 | CLI-42 | 4.6 | `--colouring` accepts exactly `one`, `parity`, and what `ColouringId` parses, and gives a usage error for every other value. |
-| CLI-43 | 4.5 | `render` resolves an id through the side presentation of its domain and the lookup of its colour count only, and fails with a diagnostic and no file when the id does not exist or the search stops at a limit. |
+| CLI-43 | 4.5 | `render` resolves an id other than `1a`, and `parity` off an all-reversing domain, through the side presentation of its domain and the lookup of the valid colourings of its colour count only, and fails with a diagnostic and no file when the id does not exist or the search stops at a limit. |
 | CLI-44 | 4.6 | Without `--colours`, a colouring takes the first entries of the 12 default colours, and a colouring with more than 12 colours fails with a diagnostic that asks for `--colours`. |
-| CLI-45 | 5.8 | `info` prints the colouring lines for every built domain, with counts, ids, and their order from `escher-group` unchanged, and the aliases `one` and `parity` on exactly their colourings. |
+| CLI-45 | 5.8 | `info` prints the colouring lines of the valid colourings for every built domain, with counts, ids, and their order from `escher-group` unchanged, and the aliases `one` and `parity` on exactly `1a` and `2a`. |
 | CLI-46 | 5.8 | `--max-colours` sets the colour limit of every colouring line, and with `--colourings` the counts and the list come from one call. |
 | CLI-47 | 5.8 | A search that stops at a limit gives the text of the last complete colour count and no line above it, and no outcome of the colouring lines changes the status. |
-| CLI-48 | 4.6 | `one` and `parity` keep their fills, and `1a` and the id of the parity colouring give the same bytes. |
+| CLI-48 | 4.6 | `one` and `1a` draw `Fill::One`, `parity` draws `Fill::Parity` on an all-reversing domain and the coset fill of `2a` elsewhere, and `2a` gives the bytes of `parity`. |
 | CLI-49 | 6.8 | A diagnostic names a colouring id only by the `Display` text of its parsed value. |
 | CLI-50 | 8.1 | A snapshot of `info` on a reflection polygon or its double sets `--max-colours` to at most 4, to at most 3 for a polygon with 7 or 8 corners or the double of a polygon with 6 or more corners, and to at most 2 with `--check` or `--presentation`. It prints only the default shape or values that meet the rounding condition of CLI-20. |
 | CLI-51 | 5.5 | `info` chooses the form of the `Domain` line from the number of mirror sides, not from `reverses_orientation()`, and prints the `Mirror sides` line before the `Side pairs` line for a domain with both kinds of side. |
