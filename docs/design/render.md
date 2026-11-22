@@ -38,7 +38,7 @@ These topics are owned elsewhere or come later:
 - The bilinear form, the side test, the isometries, and the disk map, with their formulas and accuracy, belong to `escher-geometry` and are specified in the geometry design. This document calls those functions by name and restates none of their formulas.
 - The construction, placement, and verification of the domain belong to `escher-domain` and are specified in the domain design.
 - Models other than the Poincare disk, a public `View`, and borders of intrinsic width come with the milestones of Sections 5.12 and 5.13 of the plan.
-- Analytic antialiasing and the fade of tiles smaller than a pixel come with the milestone of Section 5.14 of the plan.
+- Analytic antialiasing and the fade of tiles smaller than a pixel come with the roadmap item `M14` (Section 4.1 of `docs/design/roadmap.md`).
 - The search of the colourings, their ids, their limits, and `colour_of`, the map from a side sequence to a colour, belong to `escher-group` and are specified in the group design (GRP-29 to GRP-39). The resolution of a colouring id and the default fill colours belong to the command line (Section 4.6 of the command-line design). This crate takes a `Colouring` and its colours and parses no id.
 - A generated palette and names of colours are outside this design.
 - The shape parameters of a domain, their names, ranges, and defaults, belong to `escher-domain` and are specified in the domain design.
@@ -446,7 +446,7 @@ The colour of a pixel is the mean of the colours of its $n^2$ samples in linear 
 
 RND-11. The crate MUST implement the sRGB transfer function as Section 7.5 of the rendering reference states it, in both directions, and MUST NOT take a constant of the function from any other place, because a constant that differs from the source shifts every colour of every image without any test that a human would notice.
 
-Averaging in linear light is a choice that no research source supports (Section 5.3 of the plan, Section 4.1 of the architecture).
+Averaging in linear light is a choice that no research source supports (Section 4.1 of the architecture).
 
 The buffer holds the pixels row by row, from the top row, each pixel as red, green, and blue bytes. `encode_png` writes it with `png::Encoder`, the colour type RGB, the bit depth 8, and the sRGB chunk through `set_source_srgb` (Section 4 of the ecosystem survey), with the perceptual rendering intent. As a choice of this design, `encode_png` writes the sRGB chunk and no gAMA or cHRM chunk, although the PNG specification recommends that an encoder that writes the sRGB chunk also write gAMA, and optionally cHRM (Section 7.5 of the rendering reference). `encode_png` returns the bytes of the file and touches no file system.
 
@@ -469,7 +469,7 @@ RND-12. `encode_png` MUST write an RGB image of bit depth 8 with the sRGB chunk 
 | 5.5 | The parity colouring | Section 4.6 of the rendering reference | `UNV-18` |
 | 5.5 | The coset fill | Section 5.12 | `UNV-17` |
 | 5.6 | The sRGB transfer function | Section 7.5 of the rendering reference | Sourced through secondary sources. The rounding of an encoder is item 23 of Section 13.1 of the rendering reference |
-| 5.6 | Averaging in linear light | None | A choice of the plan |
+| 5.6 | Averaging in linear light | None | A choice of the architecture |
 | 5.6 | The sRGB chunk through `set_source_srgb` | Section 4 of the ecosystem survey | The API of `png` |
 
 ### 5.8. Euclidean Domains
@@ -739,7 +739,7 @@ The tiles of several groups and their borders coincide, and a parity fill sees o
 - With `Fill::Parity`, `**` and `22*` give the same image, and `*x`, `22x`, and `*2222` give the same image, at the same `aspect`.
 - With `Fill::One`, the six rectangular groups give the image of `*2222` at the same `aspect`, `4*2` gives the image of `442`, and `3*3` the image of `632`.
 
-The tests of the command-line design assert these equalities through the command line at the default `aspect` (Section 8.1 of the command-line design), except the one-colour images of the six rectangular groups. No test of the crates asserts that the one-colour image of a rectangular group equals the image of `*2222`, so that equality rests on a measurement outside the repository. Of the six rectangular groups, only `xx` and `2*22` have parity images of their own. This has two consequences:
+The tests of `escher-cli` assert these equalities through the command line at the default `aspect`, except the one-colour images of the six rectangular groups. No test of the crates asserts that the one-colour image of a rectangular group equals the image of `*2222`, so that equality rests on a measurement outside the repository. Of the six rectangular groups, only `xx` and `2*22` have parity images of their own. This has two consequences:
 
 1. A user tells these signatures apart by their colourings by id, and later by a motif, and not by the default picture (Section 4.5 of the command-line design).
 2. A golden image of the parity fill cannot tell these groups apart, and a test that every border pixel of one of the six rectangular groups is a border pixel of `*2222` asserts an equality that holds for any of them. A domain built for the wrong group of the same class, such as `22x` with the pairings of `*x`, would pass both. So each of the nine groups has a golden image of a colouring whose picture no other of them gives (Section 8.4), a test asserts that the nine pictures differ, and the border-subset test of the wallpaper domains keeps only the inclusions of the kites, which are proper.
@@ -812,7 +812,7 @@ The tiles of several groups and their borders coincide, so several groups share 
 - With `Fill::Parity`, `nx` gives the image of `*nn`, and `x` the image of `*`.
 - With `Fill::One`, `n*` gives the image of `n22`, `2*n` the image of `(2n)22`, and `3*2` the image of `432`.
 
-The tests find every such pair equal byte for byte in the canonical view and in two rotated views. A measurement outside the repository tried the orders 2, 3, and 5 for `n*` and 1, 3, and 5 for `nx`. For these orders, every colouring of `n*` gave the picture of a colouring of `n22`, and every colouring of `nx` the picture of a colouring of `*nn`. The measurement tried no other order, so the design states this finding for these orders only. Colourings that no related group gives exist for `2*n` and `3*2`, such as `5a` of `2*5` and `4c` of `3*2` (Section 8.4). This has two consequences:
+The tests find every such pair equal byte for byte in the canonical view and in two rotated views. A measurement outside the repository tried the orders 2, 3, and 5 for `n*` and 1, 3, and 5 for `nx`. For these orders, every colouring of `n*` gave the picture of a colouring of `n22`, and every colouring of `nx` the picture of a colouring of `*nn`. The measurement tried no other order, so the design states this finding for these orders only. Colourings that no related group gives exist for `2*n` and `3*2`, such as the colourings of `2*5` and `3*2` that the coset golden images of Section 8.4 fix. This has two consequences:
 
 1. For these orders, a user cannot tell `n*` from `n22`, or `nx` from `*nn`, by any picture of the proof of concept, only later by a motif. `3*2` and `2*n` differ from their related groups by a colouring id.
 2. No golden image or test of this crate can catch a domain of `n*` or `nx` built for the wrong group of the same order. The certificate of DOM-64 of the domain design, with its census of the reversing elements and the reflections, carries that burden, and the golden images cover `3*2` and `2*5` only (Section 8.4).
@@ -1102,8 +1102,7 @@ The texts of `build coset fill` and `build renderer` hold no id of a colouring, 
 
 ### 8.1. Tests
 
-The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-render/tests/render/main.rs`, with the modules `common`, `reference`, `golden_images`, `folds`, `properties`, `borders`, `images`, and `encoding` (TEST-10). Its root has a `//!` line. The snapshot tests of the command and the process-level smoke test live in `escher-cli`, and Section 8.1 of the command-line design specifies them. Each test names the item of the field "Tests and acceptance" of the plan that it serves.
-
+The unit tests sit beside the code (TEST-1 of the coding standard). The integration tests form one binary, `crates/escher-render/tests/render/main.rs`, with the modules `common`, `reference`, `golden_images`, `folds`, `properties`, `borders`, `images`, and `encoding` (TEST-10). Its root has a `//!` line. The snapshot tests of the command and the process-level smoke test live in `escher-cli`, and Section 8.1 of the command-line design specifies them.
 The tests that read private items, such as the screen tangents, the linear value of a `Colour`, and the walls inside the renderer, are unit tests. `src/lib.rs` loads `tests/render/reference.rs` and `tests/render/golden_images.rs` under `#[cfg(test)]` through `#[path]`, so the unit tests and the integration tests use the same reference module, which shares no code with the crate (RND-19), and the same golden configuration, allowance, and comparison. The module `reference` carries `#![expect(dead_code, reason = "the unit tests of the crate and the integration tests each use a different part of this module")]`, because each test binary uses a different part of it, and its self-check runs in both binaries. It also defines the count bound once, for both binaries.
 
 The named input sets live in two modules:
@@ -1203,7 +1202,7 @@ RND-20. The golden-image test MUST decode the committed file with `png`, convert
 
 The allowed number of pixels is 16 for each image, a choice of this design and part of the contract of the golden-image test. The reasons for it:
 
-- The perturbation of Section 8.1, which is the size of a difference in the platform mathematics library that the plan names as a risk, changes no pixel of any golden image without a colouring on the measured platform.
+- The perturbation of Section 8.1, which is the size of a difference in the platform mathematics library, changes no pixel of any golden image without a colouring on the measured platform.
 - A rotation of the view of $10^{-6}$ changed a handful of pixels, by at most one sample each, so 16 pixels admit a difference between platforms of that size.
 - Every deliberate defect tried that changes an image changes hundreds or thousands of pixels of it, so 16 pixels hide none of them.
 
@@ -1231,7 +1230,7 @@ RND-22. The crate MUST declare only the dependencies of this section, each from 
 | `proptest` | Dev | The workspace entry | The property tests |
 | `astro-float-num` | Dev | The workspace entry | The reference arithmetic (Section 8.3) |
 
-The newest resolution of `png` brings two versions of `miniz_oxide`, which fails the ban on duplicates of `cargo deny`. This design holds `flate2` at version 1.1.9 in the lock file, as Section 5.3 of the plan states, so that one version of `miniz_oxide` resolves. With that pin, `cargo tree -d` finds no duplicate and `check-deny` passes with no change to `deny.toml`. A plain `cargo update` resolves `flate2` to a newer version and brings the duplicate back. Section 8 of the tooling design gives the command that restores the pin. Section 12.3 keeps the alternative, a `skip` entry in `deny.toml`, as a point for the owner.
+The newest resolution of `png` brings two versions of `miniz_oxide`, which fails the ban on duplicates of `cargo deny`. This design holds `flate2` at version 1.1.9 in the lock file, as Section 8 of `docs/design/tooling.md` states, so that one version of `miniz_oxide` resolves. With that pin, `cargo tree -d` finds no duplicate and `check-deny` passes with no change to `deny.toml`. A plain `cargo update` resolves `flate2` to a newer version and brings the duplicate back. Section 8 of the tooling design gives the command that restores the pin. Section 12.3 keeps the alternative, a `skip` entry in `deny.toml`, as a point for the owner.
 
 `palette` and `csscolorparser` are not dependencies of this crate, because `DEC-29` adds no colour crate in the first image milestone. The crate implements the sRGB transfer function itself (RND-11), and colour text belongs to the command line (RND-5). Section 3.1 of the architecture lists `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` as internal dependencies of the crate. `escher-signature` is a normal dependency, not a dev-dependency, because the `match` of RND-23 names `Geometry`, a choice of this design.
 
@@ -1279,7 +1278,7 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | Rendering reference | The constants of the sRGB transfer function, which rest on secondary sources until the standard is read (items 22 and 25 of Section 13.1 of the rendering reference) | 5.6 | Takes them from Section 7.5 of the rendering reference only (RND-11). The tests compare the crate with the reference transfer function |
 | Rendering reference | Rounding to the nearest integer, after clamping to the range 0 to 1, when encoding an 8-bit sample (item 23 of Section 13.1 of the rendering reference) | 5.6 | Rounds as Section 5.6 states. The tests check the round trip of every byte |
 
-Averaging in linear light is a choice of the plan that no source supports (item 24 of Section 13.1 of the rendering reference). It states no fact, so it is a choice rather than an unverified statement. The same holds for the point size of the sphere, the viewing matrix, the shading constants, and the form of the specular term.
+Averaging in linear light is a choice of the architecture that no source supports (item 24 of Section 13.1 of the rendering reference). It states no fact, so it is a choice rather than an unverified statement. The same holds for the point size of the sphere, the viewing matrix, the shading constants, and the form of the specular term.
 
 ## 11. Evidence Behind the Choices
 

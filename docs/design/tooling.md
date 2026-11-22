@@ -715,7 +715,7 @@ Each row is a question that this document leaves open. The design document in th
 | --- | --- | --- |
 | TQ-4 | How is a release carried out: which recipe publishes, in which order the crates are published, and where the crates.io token is kept outside the repository? | This document |
 | TQ-6 | How does each published crate carry the text of its licence, which the GPL requires to accompany the work, given that Cargo does not package the root `LICENSE` when a manifest sets only the `license` field (Section 9)? | This document |
-| TQ-11 | Some tests are split or use small inputs for a reason that does not apply, because the owner withdrew `DEC-5` of `docs/design/architecture.md`. They are the single cases of Section 10.1 of `docs/design/group.md`, the row "Side order of `22`" of Section 12.1 of `docs/design/domain.md`, and the tests "of its own" of Section 8.1 of `docs/design/cli.md`. They stay because they cost nothing. Should they be merged into their table tests? Also, the helper `proptest_config()` of each crate returns the default `proptest` configuration, and no rule requires it since the withdrawal of TEST-11 of the coding standard. Should the helpers be removed, or kept as the one place to change the number of cases? | `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/cli.md` for the tests, and the design document of each crate for its helper |
+| TQ-11 | Some tests are split or use small inputs for a reason that does not apply, because the owner withdrew `DEC-5` of `docs/design/architecture.md`. They are the single cases of Section 10.1 of `docs/design/group.md`, the integration test of `escher-domain` that checks the side order of `22` alone, one case of its test of the side orders of the spherical domains, and the integration tests of `escher-cli` that run one signature or one argument order of a table test on their own. They stay because they cost nothing. Should they be merged into their table tests? Also, the helper `proptest_config()` of each crate returns the default `proptest` configuration, and no rule requires it since the withdrawal of TEST-11 of the coding standard. Should the helpers be removed, or kept as the one place to change the number of cases? | `docs/design/group.md`, `docs/design/domain.md`, and `docs/design/cli.md` for the tests, and the design document of each crate for its helper |
 
 An identifier is never reused, so the next question takes TQ-12.
 
@@ -789,7 +789,7 @@ This table lists every environment variable that the recipes, the hooks, or the 
 | `INSTA_WORKSPACE_ROOT` | `insta` | `insta` finds the workspace root with `cargo metadata`, through the `cargo` that `CARGO` names. |
 | `ESCHER_UPDATE_GOLDEN` | The golden image tests of `escher-render`, in the runs of `test`, `coverage`, and `update-golden` | Unset. A golden image test compares its rendering with the committed file. The recipe `update-golden` sets it to `1`, and the test then writes its rendering over the committed file (Section 14.9). No other recipe, hook, or workflow sets it. |
 
-Section 8.2 of `docs/design/cli.md` gives the behaviour of the variables of `insta` in full, including those that this table leaves out, such as `TF_BUILD`, `INSTA_OUTPUT`, and `NEXTEST_RUN_ID`.
+Section 8.2 of `docs/design/cli.md` gives the behaviour of the variables of `insta` that the snapshot tests depend on, including two that this table leaves out: `INSTA_REQUIRE_FULL_MATCH`, and `TF_BUILD`, which `insta` reads when `CI` is unset.
 
 ### 14.3. Platforms and Minimum Supported Rust Version
 
