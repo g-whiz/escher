@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"unknown_setting\", &[\"*2222\", \"--set\", \"foo=1\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *2222: the signature has no shape parameter foo, and its parameter is aspect
+--- end

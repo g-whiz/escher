@@ -185,7 +185,18 @@ fn usage_error_keeps_usage_when_standard_error_fails() {
 
 #[test]
 fn render_help_option_prints_the_help_of_render() {
-    insta::assert_snapshot!(snapshot(&["render", "--help"]));
+    let text = snapshot(&["render", "--help"]);
+    let mut trimmed = String::new();
+    for line in text.lines() {
+        trimmed.push_str(line.trim_end());
+        trimmed.push('\n');
+    }
+    insta::assert_snapshot!(trimmed);
+}
+
+#[test]
+fn render_short_help_option_prints_the_summary_of_render() {
+    insta::assert_snapshot!(snapshot(&["render", "-h"]));
 }
 
 #[test]

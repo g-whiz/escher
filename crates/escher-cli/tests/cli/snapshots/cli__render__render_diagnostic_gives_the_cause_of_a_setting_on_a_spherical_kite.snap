@@ -5,6 +5,5 @@ expression: "render_snapshot(\"spherical_kite_setting\", &[\"3*2\", \"--set\", \
 status: Failure
 --- stdout
 --- stderr
-error: cannot render 3*2
-  caused by: cannot build fundamental domain: the signature 3*2 has no shape parameter with one of the given names
+error: cannot render 3*2: the signature has no shape parameter aspect, nor any other
 --- end

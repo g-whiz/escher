@@ -5,6 +5,5 @@ expression: "render_snapshot(\"doubled_polygon_parameter\",\n&[\"3333\", \"--set
 status: Failure
 --- stdout
 --- stderr
-error: cannot render 3333
-  caused by: cannot build fundamental domain: the signature 3333 has no shape parameter with one of the given names
+error: cannot render 3333: the signature has no shape parameter slice1.length, nor any other
 --- end

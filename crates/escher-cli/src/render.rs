@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use escher_domain::{FundamentalDomain, ShapeParameters};
+use escher_domain::{FundamentalDomain, ParameterSpec, ShapeParameters, parameters};
 use escher_group::{ColouringId, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index};
 use escher_render::{
     Colour, CosetFill, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png,
@@ -16,7 +16,7 @@ use rayon::slice::ParallelSliceMut as _;
 
 use crate::args::{Colouring, RenderArgs, Setting, ShadingChoice};
 use crate::count_of_colours;
-use crate::diagnostic::SignatureError;
+use crate::diagnostic::{SignatureError, echoed};
 
 const MAX_THREADS: usize = 256;
 
@@ -68,6 +68,14 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
     let parameters =
         shape_parameters(&args.set).map_err(|detail| cannot_render(&signature, detail))?;
     let domain = FundamentalDomain::build_with(&signature, &parameters).map_err(|error| {
+        if matches!(
+            error.kind(),
+            escher_domain::ErrorKind::UnknownParameter
+                | escher_domain::ErrorKind::ParameterOutOfRange
+        ) && let Some(detail) = setting_text(&signature, &args.set)
+        {
+            return cannot_render(&signature, detail);
+        }
         let context = if error.kind() == escher_domain::ErrorKind::UnsupportedSignature {
             format!("cannot render {signature}: rendering this signature is not supported")
         } else {
@@ -198,6 +206,41 @@ fn thread_pool_error(signature: &Signature, error: &dyn Display) -> anyhow::Erro
     anyhow::anyhow!("{error}")
         .context("cannot start the thread pool")
         .context(format!("cannot render {signature}"))
+}
+
+fn setting_text(signature: &Signature, settings: &[Setting]) -> Option<String> {
+    let specs = parameters(signature);
+    let names: Vec<&str> = specs.iter().map(ParameterSpec::name).collect();
+    if let Some(unknown) = settings
+        .iter()
+        .find(|setting| !names.contains(&setting.name.as_str()))
+    {
+        let name: String = unknown.name.chars().map(echoed).collect();
+        let taken = match names.as_slice() {
+            [] => "nor any other".to_owned(),
+            [only] => format!("and its parameter is {only}"),
+            [first, second] => format!("and its parameters are {first} and {second}"),
+            [first @ .., last] => {
+                format!("and its parameters are {}, and {last}", first.join(", "))
+            }
+        };
+        return Some(format!(
+            "the signature has no shape parameter {name}, {taken}"
+        ));
+    }
+    settings.iter().find_map(|setting| {
+        let spec = specs.iter().find(|spec| spec.name() == setting.name)?;
+        let range = spec.minimum()..=spec.maximum();
+        (!range.contains(&setting.value)).then(|| {
+            format!(
+                "the value {} of the parameter {} is outside its range of {} to {}",
+                setting.value,
+                spec.name(),
+                spec.minimum(),
+                spec.maximum()
+            )
+        })
+    })
 }
 
 fn cannot_render(signature: &Signature, detail: impl Display) -> anyhow::Error {
@@ -402,8 +445,8 @@ mod tests {
     use escher_signature::Signature;
 
     use super::{
-        DEFAULT_COLOURS, fill_colours, missing_text, parse_colour, resolve, shape_parameters,
-        statistics_text, thread_pool_error,
+        DEFAULT_COLOURS, fill_colours, missing_text, parse_colour, resolve, setting_text,
+        shape_parameters, statistics_text, thread_pool_error,
     };
     use crate::Status;
     use crate::args::{Colouring, Setting};
@@ -674,5 +717,91 @@ mod tests {
         expected.set("aspect", 2.0);
         expected.set("other", 1.0);
         assert_eq!(parameters, expected);
+    }
+
+    fn text_of(signature: &str, settings: &[Setting]) -> Option<String> {
+        let Ok(signature) = signature.parse::<Signature>() else {
+            panic!("{signature} is a valid signature");
+        };
+        setting_text(&signature, settings)
+    }
+
+    #[test]
+    fn setting_text_names_the_first_unknown_setting_and_the_parameters() {
+        let cases = [
+            (
+                "*2222",
+                vec![setting("aspect", 9.0), setting("foo", 1.0)],
+                "the signature has no shape parameter foo, and its parameter is aspect",
+            ),
+            (
+                "*2222",
+                vec![setting("skew", 0.1)],
+                "the signature has no shape parameter skew, and its parameter is aspect",
+            ),
+            (
+                "*632",
+                vec![setting("aspect", 1.0)],
+                "the signature has no shape parameter aspect, nor any other",
+            ),
+            (
+                "o",
+                vec![setting("skew", 0.0), setting("Aspect", 1.0)],
+                "the signature has no shape parameter Aspect, and its parameters are aspect and skew",
+            ),
+            (
+                "*22222222",
+                vec![setting("slice2.length", 1.0)],
+                "the signature has no shape parameter slice2.length, and its parameters are \
+                 cornerpair1.length, cornerpair2.length, cornerpair3.length, cornerpair4.length, \
+                 and slice1.length",
+            ),
+            (
+                "*2222",
+                vec![setting("a\u{1b}[31m\u{e9}", 1.0)],
+                "the signature has no shape parameter a?[31m?, and its parameter is aspect",
+            ),
+        ];
+        for (signature, settings, expected) in cases {
+            assert_eq!(
+                text_of(signature, &settings),
+                Some(expected.to_owned()),
+                "{signature}"
+            );
+        }
+    }
+
+    #[test]
+    fn setting_text_names_the_value_and_range_of_the_first_setting_out_of_range() {
+        let cases = [
+            (
+                "*2222",
+                vec![setting("aspect", 9.0)],
+                "the value 9 of the parameter aspect is outside its range of 0.125 to 8",
+            ),
+            (
+                "o",
+                vec![setting("skew", f64::NAN), setting("aspect", 0.0)],
+                "the value NaN of the parameter skew is outside its range of -0.5 to 0.5",
+            ),
+            (
+                "*3333",
+                vec![setting("slice1.length", f64::INFINITY)],
+                "the value inf of the parameter slice1.length is outside its range of 0.5 to 3.5",
+            ),
+        ];
+        for (signature, settings, expected) in cases {
+            assert_eq!(
+                text_of(signature, &settings),
+                Some(expected.to_owned()),
+                "{signature}"
+            );
+        }
+    }
+
+    #[test]
+    fn setting_text_is_none_for_settings_that_escher_domain_accepts() {
+        assert_eq!(text_of("*2222", &[setting("aspect", 8.0)]), None);
+        assert_eq!(text_of("o", &[]), None);
     }
 }

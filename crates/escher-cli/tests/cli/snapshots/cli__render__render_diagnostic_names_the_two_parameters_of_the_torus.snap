@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"unknown_setting_on_torus\",\n&[\"o\", \"--set\", \"skew=0.1\", \"--set\", \"Aspect=2\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render o: the signature has no shape parameter Aspect, and its parameters are aspect and skew
+--- end

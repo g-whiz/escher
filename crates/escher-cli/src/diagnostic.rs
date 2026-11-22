@@ -105,7 +105,7 @@ fn location(text: &str, error: &escher_signature::Error) -> String {
     }
 }
 
-fn echoed(character: char) -> char {
+pub(crate) fn echoed(character: char) -> char {
     if matches!(character, ' '..='~' | '\u{221E}') {
         character
     } else {

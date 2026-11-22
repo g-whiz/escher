@@ -5,6 +5,5 @@ expression: "render_snapshot(\"skew_range\", &[\"o\", \"--set\", \"skew=0.6\"])"
 status: Failure
 --- stdout
 --- stderr
-error: cannot render o
-  caused by: cannot build fundamental domain: the parameter skew is outside its range of -0.5 to 0.5
+error: cannot render o: the value 0.6 of the parameter skew is outside its range of -0.5 to 0.5
 --- end

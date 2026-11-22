@@ -236,6 +236,30 @@ fn render_diagnostic_gives_the_cause_of_an_unknown_parameter() {
 }
 
 #[test]
+fn render_diagnostic_names_an_unknown_setting_and_the_parameter_of_the_signature() {
+    insta::assert_snapshot!(render_snapshot(
+        "unknown_setting",
+        &["*2222", "--set", "foo=1"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_names_a_parameter_of_another_signature() {
+    insta::assert_snapshot!(render_snapshot(
+        "skew_on_rectangle",
+        &["*2222", "--set", "skew=0.1"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_names_the_two_parameters_of_the_torus() {
+    insta::assert_snapshot!(render_snapshot(
+        "unknown_setting_on_torus",
+        &["o", "--set", "skew=0.1", "--set", "Aspect=2"]
+    ));
+}
+
+#[test]
 fn render_diagnostic_gives_the_cause_of_a_parameter_outside_its_range() {
     insta::assert_snapshot!(render_snapshot(
         "parameter_range",
@@ -1185,7 +1209,11 @@ fn render_with_parity_on_the_whole_sphere_returns_failure() {
 fn render_of_a_rotary_lune_with_a_setting_returns_failure() {
     assert_eq!(
         first_error_line(&["5x", "--set", "aspect=2"]),
-        (Status::Failure, "error: cannot render 5x".to_owned())
+        (
+            Status::Failure,
+            "error: cannot render 5x: the signature has no shape parameter aspect, nor any other"
+                .to_owned()
+        )
     );
 }
 
@@ -1193,7 +1221,11 @@ fn render_of_a_rotary_lune_with_a_setting_returns_failure() {
 fn render_of_a_spherical_kite_with_a_setting_returns_failure() {
     assert_eq!(
         first_error_line(&["3*2", "--set", "aspect=2"]),
-        (Status::Failure, "error: cannot render 3*2".to_owned())
+        (
+            Status::Failure,
+            "error: cannot render 3*2: the signature has no shape parameter aspect, nor any other"
+                .to_owned()
+        )
     );
 }
 
@@ -1225,7 +1257,11 @@ fn render_with_parity_for_the_torus_returns_failure() {
 fn render_with_a_skew_outside_its_range_returns_failure() {
     assert_eq!(
         first_error_line(&["o", "--set", "skew=0.6"]),
-        (Status::Failure, "error: cannot render o".to_owned())
+        (
+            Status::Failure,
+            "error: cannot render o: the value 0.6 of the parameter skew is outside its range of -0.5 to 0.5"
+                .to_owned()
+        )
     );
 }
 

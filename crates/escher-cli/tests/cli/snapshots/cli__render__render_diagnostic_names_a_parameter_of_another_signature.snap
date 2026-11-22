@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"skew_on_rectangle\", &[\"*2222\", \"--set\", \"skew=0.1\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *2222: the signature has no shape parameter skew, and its parameter is aspect
+--- end

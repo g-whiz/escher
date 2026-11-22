@@ -5,6 +5,5 @@ expression: "render_snapshot(\"parameter_range\", &[\"*2222\", \"--set\", \"aspe
 status: Failure
 --- stdout
 --- stderr
-error: cannot render *2222
-  caused by: cannot build fundamental domain: the parameter aspect is outside its range of 0.125 to 8
+error: cannot render *2222: the value 9 of the parameter aspect is outside its range of 0.125 to 8
 --- end

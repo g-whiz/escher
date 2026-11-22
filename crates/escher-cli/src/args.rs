@@ -7,6 +7,36 @@ use escher_group::{ColouringId, IndexLimit};
 
 const SIGNATURE_HELP: &str = "The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'";
 
+const SET_HELP: &str = "Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature";
+
+const SET_LONG_HELP: &str = "Set a shape parameter, as NAME=VALUE, such as aspect=1.5.
+
+A shape parameter is a number that changes the shape of the tiles without
+changing their symmetry. Which parameters exist depends on the signature:
+
+  aspect
+      The ratio of the sides of the rectangle or the parallelogram, for
+      *2222, 2222, o, **, xx, *x, 22*, 22x, and 2*22.
+  skew
+      The shear of the parallelogram of o and of the two rectangles of 2222.
+  cornerpair<k>.length
+      For a hyperbolic reflection polygon *p1...pn with 4 to 8 corners, the
+      length of the side between the two right angles of its k-th pair of
+      adjacent corners of order 2.
+  slice<i>.length
+      For the same polygons, the length of the i-th cut across the polygon,
+      a common perpendicular of two of its sides. A polygon with n corners
+      has n - 3 lengths, corner pairs first.
+
+Every other signature has no shape parameter. escher info <SIGNATURE>
+prints one Parameter line for each parameter of the signature, with its
+range and default.
+
+Give the option once for each parameter, as in:
+
+  escher render o --set aspect=2 --set skew=0.25 -o /tmp/torus.png
+  escher render '*3333' --set slice1.length=2 -o /tmp/square.png";
+
 #[derive(Debug, Parser)]
 #[command(
     bin_name = "escher",
@@ -138,7 +168,8 @@ pub(crate) struct RenderArgs {
         value_name = "NAME=VALUE",
         value_parser = parse_setting,
         action = ArgAction::Append,
-        help = "Set a shape parameter, as NAME=VALUE, such as aspect=1.5. The command info lists the parameters of a signature. The option can be given once for each parameter"
+        help = SET_HELP,
+        long_help = SET_LONG_HELP
     )]
     pub(crate) set: Vec<Setting>,
     #[arg(
@@ -281,9 +312,113 @@ fn decimal(text: &str) -> Option<u32> {
 mod tests {
     use escher_group::IndexLimit;
 
+    use std::collections::BTreeSet;
+
+    use escher_domain::parameters;
+    use escher_signature::Signature;
+
     use super::{
-        Colouring, Setting, parse_colouring, parse_max_colours, parse_setting, parse_triple,
+        Colouring, SET_LONG_HELP, Setting, parse_colouring, parse_max_colours, parse_setting,
+        parse_triple,
     };
+
+    const EUCLIDEAN: [&str; 17] = [
+        "*632", "*442", "*333", "*2222", "632", "442", "333", "2222", "o", "**", "xx", "*x", "22*",
+        "22x", "2*22", "4*2", "3*3",
+    ];
+
+    const OTHERS: [&str; 34] = [
+        "*332",
+        "*432",
+        "*532",
+        "*522",
+        "*55",
+        "332",
+        "432",
+        "532",
+        "522",
+        "55",
+        "3*2",
+        "2*3",
+        "3*",
+        "3x",
+        "*",
+        "x",
+        "1",
+        "*732",
+        "732",
+        "*3333",
+        "*3222",
+        "*22222",
+        "*5432",
+        "*222222",
+        "*2222222",
+        "*22222222",
+        "*33333333",
+        "*(1000)432",
+        "3333",
+        "22222",
+        "*(1001)32",
+        "*222222222",
+        "3*(inf)",
+        "4*3",
+    ];
+
+    fn names_of(text: &str) -> Vec<String> {
+        let Ok(signature) = text.parse::<Signature>() else {
+            panic!("{text} is a valid signature");
+        };
+        parameters(&signature)
+            .iter()
+            .map(|spec| spec.name().to_owned())
+            .collect()
+    }
+
+    fn headers() -> BTreeSet<String> {
+        SET_LONG_HELP
+            .lines()
+            .filter_map(|line| line.strip_prefix("  "))
+            .filter(|rest| !rest.starts_with(' ') && !rest.contains(' '))
+            .map(|header| header.replace("<k>", "").replace("<i>", ""))
+            .collect()
+    }
+
+    fn block(header: &str) -> Vec<&'static str> {
+        SET_LONG_HELP
+            .lines()
+            .skip_while(|line| *line != format!("  {header}"))
+            .skip(1)
+            .take_while(|line| line.starts_with("      "))
+            .flat_map(str::split_whitespace)
+            .map(|word| word.trim_end_matches([',', '.']))
+            .collect()
+    }
+
+    #[test]
+    fn set_long_help_names_exactly_the_parameters_that_escher_domain_lists() {
+        let listed: BTreeSet<String> = EUCLIDEAN
+            .iter()
+            .chain(&OTHERS)
+            .flat_map(|text| names_of(text))
+            .map(|name| name.replace(|character: char| character.is_ascii_digit(), ""))
+            .collect();
+        assert_eq!(headers(), listed);
+    }
+
+    #[test]
+    fn set_long_help_lists_the_euclidean_signatures_of_aspect_and_skew() {
+        for name in ["aspect", "skew"] {
+            let words = block(name);
+            assert!(!words.is_empty(), "{name}");
+            for text in EUCLIDEAN {
+                assert_eq!(
+                    words.contains(&text),
+                    names_of(text).iter().any(|listed| listed == name),
+                    "{name} on {text}"
+                );
+            }
+        }
+    }
 
     fn id(text: &str) -> Colouring {
         Colouring::Id(crate::colouring_id(text))

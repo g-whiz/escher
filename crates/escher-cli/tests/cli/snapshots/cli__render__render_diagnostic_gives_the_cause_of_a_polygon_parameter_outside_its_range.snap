@@ -5,6 +5,5 @@ expression: "render_snapshot(\"polygon_parameter_range\",\n&[\"*3333\", \"--set\
 status: Failure
 --- stdout
 --- stderr
-error: cannot render *3333
-  caused by: cannot build fundamental domain: the parameter slice1.length is outside its range of 0.5 to 3.5
+error: cannot render *3333: the value 4 of the parameter slice1.length is outside its range of 0.5 to 3.5
 --- end

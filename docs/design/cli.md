@@ -204,7 +204,7 @@ These settings differ from the defaults of `clap`:
 
 The command name stays the package name, `escher-cli`, so that `--version` prints the package name.
 
-The help text has these summaries, and no other text beyond what `clap` generates:
+The help text has these summaries, the long help of `--set` below the table, and no other text beyond what `clap` generates:
 
 | Item | Summary |
 | --- | --- |
@@ -227,12 +227,23 @@ The help text has these summaries, and no other text beyond what `clap` generate
 | `--background` | `The colour outside the disk of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb` |
 | `--threads` | `The number of threads, from 1 to 256. The default is the available parallelism, at most 256` |
 | `--stats` | `Print statistics of the rendering to standard output` |
-| `--set` | `Set a shape parameter, as NAME=VALUE, such as aspect=1.5. The command info lists the parameters of a signature. The option can be given once for each parameter` |
+| `--set` | `Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature` |
 | `--rotation` | `The rotation of the ball of a spherical tiling, as three angles in degrees. YAW turns the front of the ball to the right, PITCH turns it up, and ROLL turns the image counterclockwise, in this order` |
 | `--light` | `The direction from the ball of a spherical tiling to the light, as X,Y,Z, with X to the right, Y up, and Z toward the viewer. The length is ignored` |
 | `--shading` | `Phong shading of the ball of a spherical tiling, or none` |
 
 The help of `render` uses the summary of `SIGNATURE` above. It also shows `[default: <value>]` for each option with a fixed default in the table of Section 4.6, which excludes `--colouring` and `--colours`, whose defaults depend on the domain, and `[possible values: phong, none]` for `--shading`, which `clap` generates (Section 11.1). `--colouring` shows no possible values, because its private value parser accepts ids (CLI-42). The help of `info` shows `[default: 12]` for `--max-colours`. The argument struct declares `--rotation`, `--light`, and `--shading` after `--set`, so they come last in the help.
+
+`--set` is the one option with a long help, the constant `SET_LONG_HELP` in `args`. It lists each shape parameter of `escher-domain` with the signatures that take it: `aspect`, `skew`, `cornerpair<k>.length`, and `slice<i>.length`. It then says that every other signature has no shape parameter, that `escher info <SIGNATURE>` prints one `Parameter` line for each parameter with its range and default (Section 5.1), and gives these example commands:
+
+```sh
+escher render o --set aspect=2 --set skew=0.25 -o /tmp/torus.png
+escher render '*3333' --set slice1.length=2 -o /tmp/square.png
+```
+
+Unit tests in `args` check the parameter names and the signatures of `aspect` and `skew` in the long help against `parameters` of `escher-domain`.
+
+Because one option has a long help, `clap` prints the help of `render` in two layouts. `escher render --help` puts each option on its own line, its help on the lines below, and the long help of `--set`. `escher render -h` puts each option on one line, with the short help of `--set` from the table above.
 
 CLI-4. `escher --version` and `escher -V` MUST write the package name, one space, the package version, and a newline to standard output, which is `escher-cli 0.1.0` for version 0.1.0, and return `Success`, because Section 5.1 of `docs/design/poc-plan.md` keeps this output, and a script may read it.
 
@@ -298,7 +309,7 @@ Several Euclidean signatures share their default picture, because their tiles an
 
 1. Parse the signature with the `FromStr` implementation of `Signature` (CLI-5).
 2. Read the border colour and the background colour (Section 4.6).
-3. Put the settings into a `ShapeParameters` of `escher-domain` in the order given, and stop at the first setting whose name an earlier setting already gave. Build the domain with `FundamentalDomain::build_with` and those settings, which checks each name and value.
+3. Put the settings into a `ShapeParameters` of `escher-domain` in the order given, and stop at the first setting whose name an earlier setting already gave. Build the domain with `FundamentalDomain::build_with` and those settings, which checks each name and value. When `build_with` returns `UnknownParameter` or `ParameterOutOfRange`, find the first rejected setting with `parameters` and `ParameterSpec` of `escher-domain`, as CLI-29 states, and stop with the diagnostic of Section 6.8 that names it.
 4. Choose the colouring: the value of `--colouring`, or the default of CLI-34. Stop when the colouring is `parity` and the domain has no reversing side (CLI-35). Then read the fill colours for that colouring, or take the default colours (Section 4.6). The number of colours comes from the colouring alone, so this step runs no search, also for a colouring id.
 5. Check the render options: build the render options of `escher-render` from the size, the sample grid, a placeholder fill of one colour, the border colour, the border width, the background colour, the fold cap, the viewing rotation in radians, the light direction, and the shading, and drop the result. `escher-render` checks every value, for every geometry.
 6. Build the fill: `Fill::One` for `one` and `Fill::Parity` for `parity`, with the colours of step 4. For a colouring id, resolve the id as CLI-43 states, then build the coset fill of `escher-render` from the domain, the colouring, and the colours. Then build the render options again with this fill and the same values, which gives no error once step 5 has passed.
@@ -335,7 +346,9 @@ CLI-22. `render` MUST build its own thread pool for each call, with exactly the 
 
 CLI-23. The bytes of the output file MUST NOT depend on the number of threads, because a user who changes `--threads` for speed expects the same image, and a difference reveals a defect in the split into bands. Section 3.2 of `docs/design/render.md` states that a band renders the same bytes as the same rows of the whole image.
 
-CLI-29. `render` MUST pass every setting to `escher-domain` through `FundamentalDomain::build_with`, and MUST NOT check a parameter name or a value against the parameters of the signature itself, except that it reports a name that two settings give, because a second check in this crate can differ from the specifications that `docs/design/domain.md` states, and a setting would then pass one check and fail the other.
+CLI-29. `render` MUST pass every setting to `escher-domain` through `FundamentalDomain::build_with`, and MUST let only `build_with` decide whether the settings are accepted. It checks a name against another setting before the call, to report a name that two settings give. After `build_with` returns `UnknownParameter` or `ParameterOutOfRange`, it reads the names and ranges that `parameters` and `ParameterSpec` give, only to find the setting to name in the diagnostic. A second check that decided acceptance could differ from the specifications that `docs/design/domain.md` states, and a setting would then pass one check and fail the other.
+
+The search for the rejected setting takes the settings in the order given. It first looks for a name that is not a parameter of the signature, and only when every name is one does it look for a value outside its range, so an unknown name is reported before a value outside its range. When it finds no such setting, which no known input reaches, `render` writes the diagnostic of `build_with` with its `Display` text, as for any other error kind.
 
 CLI-30. Withdrawn on 2026-11-17.
 
@@ -999,7 +1012,9 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 | `--background` is not a colour | 2 | `error: cannot render *732: --background is not of the form #rgb or #rrggbb` |
 | Two settings give the same name | 3 | `error: cannot render *2222: setting 2 of --set names the same parameter as setting 1`, with the position of the first setting whose name an earlier setting gave, and the position of that earlier setting, counted from 1 |
 | `build_with` returns `UnsupportedSignature` | 3 | `error: cannot render 4*3: rendering this signature is not supported`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
-| `build_with` returns any other error kind, such as an unknown parameter name, a value outside the range of its parameter, or a shape of a reflection polygon that fails verification | 3 | `error: cannot render *(1001)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
+| `build_with` returns `UnknownParameter` (CLI-29) | 3 | `error: cannot render *2222: the signature has no shape parameter foo, and its parameter is aspect`, with the name of the first setting that names no parameter of the signature, echoed as CLI-26 states. The end names the parameters of the signature in the order that `parameters` gives: `and its parameter is aspect` for one, `and its parameters are aspect and skew` for two, `and its parameters are cornerpair1.length, cornerpair2.length, cornerpair3.length, cornerpair4.length, and slice1.length` for more than two, and `nor any other` for a signature without shape parameters |
+| `build_with` returns `ParameterOutOfRange` (CLI-29) | 3 | `error: cannot render *2222: the value 9 of the parameter aspect is outside its range of 0.125 to 8`, with the value of the first setting outside its range, printed from the parsed number, the name of its parameter, and the lower and upper ends of the range |
+| `build_with` returns any other error kind, such as a shape of a reflection polygon that fails verification | 3 | `error: cannot render *(1001)32`, then `  caused by: ` and the `Display` text of the error of `escher-domain` |
 | The colouring is `parity` and the domain has no reversing side (CLI-35) | 4 | `error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation` |
 | A colouring id with more than 12 colours and no `--colours` (CLI-44) | 4 | `error: cannot render *732: the colouring 15a needs 15 colours, more than the 12 default colours, so give 15 colours with --colours`, with the id and, twice, its colour count |
 | `--colours` has the wrong number of items | 4 | `error: cannot render *732: the colouring parity needs 2 colours, and 3 were given`, with the colouring, which is `one`, `parity`, or the id, the number it needs, and the number of items. The words are `1 colour` and `1 was given` for the number 1 |
@@ -1016,11 +1031,17 @@ A signature error of `render` gives the diagnostic of Sections 6.1 to 6.3, which
 
 Section 7.2 of `docs/design/render.md` fixes the `Display` text of each error of `escher-render`, and Section 10.2 of `docs/design/domain.md` that of `escher-domain`. No render error has an echo line or a caret line.
 
-The row of `UnsupportedSignature` meets the requirement of Section 5.8 of `docs/design/architecture.md` that `render` names the signature and says that rendering it is not supported. It applies to every valid signature without a domain, including every general non-compact signature (`DEC-19`). The row of any other error kind covers a corner order over the limit of `escher-domain`, a signature with more than eight orders (DOM-38), a numerically degenerate construction, a polygon or a double of a polygon that fails `verify()` (DOM-44), a wallpaper domain that fails `verify()` (DOM-54), a spherical group domain that fails `verify()` (DOM-60), the limit of 500 of `2*n` (DOM-63), an unknown parameter name, and a value outside the range of its parameter, which are not a lack of support. `escher-domain` checks the support of the signature before the settings, so a setting of a signature without a domain gives the row of `UnsupportedSignature` (DOM-18 in Section 6.6 of `docs/design/domain.md`).
+The row of `UnsupportedSignature` meets the requirement of Section 5.8 of `docs/design/architecture.md` that `render` names the signature and says that rendering it is not supported. It applies to every valid signature without a domain, including every general non-compact signature (`DEC-19`). The row of any other error kind covers a corner order over the limit of `escher-domain`, a signature with more than eight orders (DOM-38), a numerically degenerate construction, a polygon or a double of a polygon that fails `verify()` (DOM-44), a wallpaper domain that fails `verify()` (DOM-54), a spherical group domain that fails `verify()` (DOM-60), and the limit of 500 of `2*n` (DOM-63), which are not a lack of support. `escher-domain` checks the support of the signature before the settings, so a setting of a signature without a domain gives the row of `UnsupportedSignature` (DOM-18 in Section 6.6 of `docs/design/domain.md`), and not the row of `UnknownParameter`.
 
-A domain that `build_with` refuses with the error kind `Numerical` gives the row of any other error kind, with the `caused by` line of Section 10.2 of `docs/design/domain.md`: `cannot build fundamental domain: the shape is too extreme to build accurately` for a shape of a reflection polygon, `cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough` for a double of a polygon, `cannot build fundamental domain: the wallpaper domain fails its verification` for a wallpaper domain, and `cannot build fundamental domain: the spherical domain fails its verification` for a spherical group domain. This crate adds no text of its own for these refusals, for `skew`, or for the limit of `2*n`.
+The rows of `UnknownParameter` and `ParameterOutOfRange` have texts of this crate, and not the `Display` text of the error of `escher-domain`, because that text names neither the rejected setting nor the parameters that the signature takes. A user who mistypes a name, or sets a parameter of another signature, sees what to type instead. The value is printed with the `Display` text of `f64`, so the value `9.0` prints as `9`, and a NaN or infinite value as `NaN`, `inf`, or `-inf`. The ends of the range are printed in the same way.
 
-CLI-26. A diagnostic of `render` MUST NOT repeat the value of an option or the output path, because both are untrusted and may hold control characters, while the canonical signature, the option names, and the numbers that the diagnostics hold are printable ASCII. A bad colour is therefore named by its option and its position, and a failed write by the words `the output file`. The one exception is a colouring id, which CLI-49 governs.
+A domain that `build_with` refuses with the error kind `Numerical` gives the row of any other error kind, with the `caused by` line of Section 10.2 of `docs/design/domain.md`: `cannot build fundamental domain: the shape is too extreme to build accurately` for a shape of a reflection polygon, `cannot build fundamental domain: the side pairings of the domain cannot be stored accurately enough` for a double of a polygon, `cannot build fundamental domain: the wallpaper domain fails its verification` for a wallpaper domain, and `cannot build fundamental domain: the spherical domain fails its verification` for a spherical group domain. This crate adds no text of its own for these refusals or for the limit of `2*n`.
+
+CLI-26. A diagnostic of `render` MUST NOT repeat the value of an option or the output path, because both are untrusted and may hold control characters, while the canonical signature, the option names, and the numbers that the diagnostics hold are printable ASCII. A bad colour is therefore named by its option and its position, and a failed write by the words `the output file`. There are three exceptions:
+
+- A colouring id, which CLI-49 governs.
+- The name of a setting that names no parameter of the signature (CLI-29). The diagnostic echoes it with every character outside printable ASCII, other than the infinity sign, replaced with `?`, as the echo line does (CLI-9). No echoed character is a control character, so the name cannot send an escape sequence to the terminal.
+- The value of a setting outside the range of its parameter. The diagnostic prints the parsed `f64` with its `Display` text and never the text that the user gave. That text holds only digits, `-`, `.`, `NaN`, and `inf`, so it holds no character that a terminal interprets.
 
 CLI-49. A diagnostic of `render` MUST name a colouring only by `one`, `parity`, or the `Display` text of the parsed `ColouringId`, and MUST NOT copy the text of `--colouring` as the user gave it, because the `Display` text of an id is a decimal number and lower-case letters that `escher-group` writes from its parsed value (GRP-37), so it holds no character that a terminal interprets, whatever the user typed. A value that does not parse is a usage error, whose text `clap` writes with the replacement of CLI-15. Every diagnostic of a colouring id therefore holds only the canonical signature, fixed words, numbers, and that `Display` text.
 
@@ -1045,15 +1066,24 @@ escher render 732 --colouring parity -o rot.png
 error: cannot render 732: the colouring parity does not exist, because no side pairing reverses orientation
 ```
 
-This example shows a name that is not a parameter of the signature. Every setting of a signature without shape parameters, such as a spherical signature or the rotation signature of a reflection polygon (`DEC-50`), and a setting of `skew` for a signature without it, such as `**`, give the same text:
+This example shows a setting of a signature without shape parameters. Every such signature, such as a spherical signature or the rotation signature of a reflection polygon (`DEC-50`), gives the same form:
 
 ```sh
 escher render '*632' --set aspect=2 -o tiling.png
 ```
 
 ```text
-error: cannot render *632
-  caused by: cannot build fundamental domain: the signature *632 has no shape parameter with one of the given names
+error: cannot render *632: the signature has no shape parameter aspect, nor any other
+```
+
+This example shows a name that is not a parameter of a signature with two parameters. The names are compared exactly, so `Aspect` is not `aspect`:
+
+```sh
+escher render o --set Aspect=2 -o tiling.png
+```
+
+```text
+error: cannot render o: the signature has no shape parameter Aspect, and its parameters are aspect and skew
 ```
 
 This example shows a value outside the range of its parameter:
@@ -1063,8 +1093,7 @@ escher render '*2222' --set aspect=9 -o tiling.png
 ```
 
 ```text
-error: cannot render *2222
-  caused by: cannot build fundamental domain: the parameter aspect is outside its range of 0.125 to 8
+error: cannot render *2222: the value 9 of the parameter aspect is outside its range of 0.125 to 8
 ```
 
 This example shows a colouring id that names no colouring of the signature. `*642` has 3 colourings with 3 colours, `3a` to `3c`:
@@ -1201,7 +1230,7 @@ A snapshot of `render` holds no path, because no diagnostic and no statistics li
 
 When a change adds a snapshot, it adds one snapshot for each `run` call. The input meets the condition on rounding boundaries of CLI-20, the colour limit follows CLI-50, CLI-52, or CLI-54 for its kind of domain, and an input that needs a signature without a domain takes `4*3`, or `2*(501)` for a spherical one (Section 11.2, choice 12). A path that no known input reaches is tested through private functions and not by a snapshot. A change to an existing text updates its snapshot in the same change (CLI-7).
 
-Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency. Likewise, the snapshots of the `Domain` line cover the `UnsupportedSignature` and `LimitExceeded` texts of `escher-domain`, including the text of the limit of `2*n`, and the render diagnostic snapshots cover its texts of an unknown parameter name, of a value outside the range of its parameter, of a refused polygon shape and of a refused double, which are texts of the kind `Numerical`, and of more than 8 orders. The render diagnostic snapshots cover the texts of the error kinds of `escher-render` that an option produces.
+Every display text of `escher-signature` that a known input produces passes through a diagnostic snapshot, so `escher-signature` needs no `insta` dependency. Likewise, the snapshots of the `Domain` line cover the `UnsupportedSignature` and `LimitExceeded` texts of `escher-domain`, including the text of the limit of `2*n`, and the render diagnostic snapshots cover its texts of a refused polygon shape and of a refused double, which are texts of the kind `Numerical`, and of more than 8 orders. No known input reaches the texts of `UnknownParameter` and `ParameterOutOfRange` through `render`, which writes its own diagnostic for them (CLI-29). The render diagnostic snapshots cover the texts of the error kinds of `escher-render` that an option produces.
 
 The smoke test is the one test of this crate that starts the binary, as layer 9 of Section 7.1 of `docs/design/architecture.md`. It checks only that the binary runs `run` and turns its status into the exit status, because every other behaviour is tested in the test process.
 
@@ -1257,7 +1286,7 @@ rayon = "1.12.0"
 | Dependency | Kind | Features | Reason |
 | --- | --- | --- | --- |
 | `escher-signature` | Normal | None | Parses and classifies the signature. The path dependency carries a version (TOOL-25) |
-| `escher-domain` | Normal | None | Lists the shape parameters for the parameter lines, builds and verifies the fundamental domain for the domain summary and `--check`, and builds the domain that `render` draws with the settings. The path dependency carries a version (TOOL-25) |
+| `escher-domain` | Normal | None | Lists the shape parameters for the parameter lines, builds and verifies the fundamental domain for the domain summary and `--check`, builds the domain that `render` draws with the settings, and gives the names and ranges that the diagnostic of a rejected setting uses. The path dependency carries a version (TOOL-25) |
 | `escher-group` | Normal | None | Derives the Conway presentation, gives the text of the relators, and enumerates the cosets of both presentations for `--presentation`, searches the colourings for the colouring lines, and parses and looks up a colouring id for `render`. The path dependency carries a version (TOOL-25) |
 | `escher-render` | Normal | None | Renders the image, with the coset fill for a colouring id, counts its statistics, and encodes it as PNG for `render`. The path dependency carries a version (TOOL-25) |
 | `rayon` | Normal | Default | The thread pool of `render` (`DEC-21`, Section 3.5 of `docs/design/architecture.md`) |
@@ -1394,9 +1423,9 @@ None of these blocks the implementation. Points 1, 3, 4, 5, 8, and 36 belong to 
 
 The threat model is a user who passes a signature, option values, or an output path from an untrusted party to `escher info` or `escher render`. The attacker can choose any argument within the limits of the command line, including invalid UTF-8, control characters, and very long text. The attacker cannot change the binary, its dependencies, or the files of the repository.
 
-The attacks in scope are exhaustion of memory or time through the signature or the options of `render`, injection of terminal escape sequences through the diagnostic, and the choice of the file that `render` overwrites. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states. `escher-domain` limits the largest corner order of a domain, which bounds the cost of `verify()` and of every fold step, as Section 16 of `docs/design/domain.md` states. `escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, which bound the memory of the image and the work of each sample, as Section 13 of `docs/design/render.md` states. `escher-group` limits the size of a presentation and the cosets of an enumeration (Section 15 of `docs/design/group.md`, GRP-19 and GRP-20). The coset limit bounds the memory of an enumeration and not its time, so `--presentation` runs an enumeration only for a spherical signature with a group order of at most the limit (CLI-39), whose relators the signature bounds. `escher-group` bounds the colouring search by its index limit, its step budget, and its limit on the number of colourings (the rules of the search in `docs/design/group.md`), so `--max-colours` and a colouring id bound its time and memory, and a search that reaches a limit gives a text or a diagnostic, never a run without end. This crate adds one limit of its own, 256 threads (Section 4.6). `escher-domain` limits the value of each shape parameter to its range. The settings need no limit on their number or length, because each name is only compared, and a repeated or unknown name fails.
+The attacks in scope are exhaustion of memory or time through the signature or the options of `render`, injection of terminal escape sequences through the diagnostic, and the choice of the file that `render` overwrites. `escher-signature` sets the limits on the length of the signature, the number of features, and the size of an order, as Section 16 of `docs/design/signature.md` states. `escher-domain` limits the largest corner order of a domain, which bounds the cost of `verify()` and of every fold step, as Section 16 of `docs/design/domain.md` states. `escher-render` limits the image size, the number of pixels, the sample grid, the border width, and the fold cap, which bound the memory of the image and the work of each sample, as Section 13 of `docs/design/render.md` states. `escher-group` limits the size of a presentation and the cosets of an enumeration (Section 15 of `docs/design/group.md`, GRP-19 and GRP-20). The coset limit bounds the memory of an enumeration and not its time, so `--presentation` runs an enumeration only for a spherical signature with a group order of at most the limit (CLI-39), whose relators the signature bounds. `escher-group` bounds the colouring search by its index limit, its step budget, and its limit on the number of colourings (the rules of the search in `docs/design/group.md`), so `--max-colours` and a colouring id bound its time and memory, and a search that reaches a limit gives a text or a diagnostic, never a run without end. This crate adds one limit of its own, 256 threads (Section 4.6). `escher-domain` limits the value of each shape parameter to its range. The settings need no limit on their number or length, because each name is only compared, and a repeated or unknown name fails. The diagnostic of an unknown name echoes the whole name, with no cap like that of the echo line, so its length is bounded only by the command line.
 
-The diagnostics of `render` repeat no option value and no path (CLI-26), and name a colouring id only by the `Display` text of its parsed value (CLI-49). The colouring lines hold only ids, fixed words, and numbers. The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`. The `Domain` line and the diagnostics of Section 6.7 hold only fixed text, numbers, and the canonical signature, which is printable ASCII. The help, version, and usage text that `clap` produces has every control character other than the line feed replaced with `?` (CLI-15).
+The diagnostics of `render` repeat no path and no option value, except the three cases of CLI-26. The colouring lines hold only ids, fixed words, and numbers. The echo line repeats at most 120 characters and replaces every character outside printable ASCII and the infinity sign (CLI-9). The caret line holds only spaces and `^`. The `Domain` line and the diagnostics of Section 6.7 hold only fixed text, numbers, and the canonical signature, which is printable ASCII. The help, version, and usage text that `clap` produces has every control character other than the line feed replaced with `?` (CLI-15).
 
 The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
@@ -1431,7 +1460,7 @@ The supported platform is Linux. The minimum supported Rust version is the one t
 | A write to standard output fails | The diagnostic of Section 6.6, with `Failure` | Fix the output destination |
 | The reader of standard output closes the pipe | No diagnostic, with `Failure` | None needed |
 | `render` gets a signature without a domain | The diagnostic of Section 6.8, with `Failure` | Use a signature that `escher-domain` constructs, which `escher info` shows in its `Domain` line |
-| `render` gets an unknown parameter name, a value outside the range of its parameter, or a parameter set twice | The diagnostic of Section 6.8, with `Failure` | Use the names and ranges that `escher info` lists, each name once |
+| `render` gets an unknown parameter name, a value outside the range of its parameter, or a parameter set twice | The diagnostic of Section 6.8, with `Failure` | Use a name that the diagnostic names, each name once, and a value within the range that the diagnostic or `escher info` gives. `escher render --help` lists every parameter |
 | `render` gets a bad colour or the wrong number of colours | The diagnostic of Section 6.8, with `Failure` | Give each colour as `#rgb` or `#rrggbb`, quoted, as many as the colouring needs |
 | `render` gets `--colouring parity` for a domain without a reversing side | The diagnostic of Section 6.8, with `Failure` | Leave out `--colouring`, or give `--colouring one`. The line `Parity colouring` of `escher info` shows such a domain |
 | `render` gets a colouring id that names no colouring of the domain | The diagnostic of Section 6.8, with `Failure` | Use an id that `escher info --colourings` lists for the signature |
@@ -1487,10 +1516,10 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-23 | 4.5 | The bytes of the output file do not depend on the number of threads. |
 | CLI-24 | 4.6 | `render` passes the size, grid, border width, fold cap, light direction, and rotation in radians to `escher-render` unchanged and checks no limit of them itself. |
 | CLI-25 | 4.7 | `render` writes to standard output only the statistics lines, with `--stats`, after the output file is written. |
-| CLI-26 | 6.8 | No diagnostic of `render` repeats an option value or the output path, except a colouring id under CLI-49. |
+| CLI-26 | 6.8 | No diagnostic of `render` repeats an option value or the output path, except a colouring id under CLI-49, the echoed name of a setting that names no parameter, and the parsed value of a setting outside its range. |
 | CLI-27 | 8.1 | Withdrawn on 2026-11-19. |
 | CLI-28 | 8.1 | No snapshot holds the value of a statistics line other than `Samples`. |
-| CLI-29 | 4.5 | `render` passes every setting to `escher-domain` and checks no name or value itself, except a name that two settings give. |
+| CLI-29 | 4.5 | `render` passes every setting to `escher-domain`, which alone decides whether the settings are accepted, and reads the parameters of the signature only to name a rejected setting. |
 | CLI-30 | 4.5 | Withdrawn on 2026-11-17. |
 | CLI-31 | 4.6 | `--rotation` and `--light` accept a value that starts with `-`. |
 | CLI-32 | 5.5 | `info` prints the number of pairs in the `Domain` line of a domain with a paired side, and one `Side pairs` line with the words `rotation`, `translation`, and `glide reflection`. |
