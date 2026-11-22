@@ -12,6 +12,7 @@ readme.workspace = true
 
 [dependencies]
 glam.workspace = true
+num-complex.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

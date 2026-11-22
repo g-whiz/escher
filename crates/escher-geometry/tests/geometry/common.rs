@@ -1,11 +1,17 @@
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use escher_geometry::hyperbolic::{
-    ORIGIN, boost, covector, distance, inverse, normalize_point, reflection, rotation, side,
-    translation, wall_through,
+    ORIGIN, boost, covector, disk_from_band, disk_from_half_plane, disk_from_klein, distance,
+    inverse, normalize_point, reflection, rotation, side, translation, wall_through,
 };
 use escher_geometry::spherical;
-use glam::{DMat3, DVec3};
+use escher_reference::Reference;
+use glam::{DMat2, DMat3, DVec2, DVec3};
+
+use crate::reference::{
+    Complex, ReferenceExt, complex, disk_to_half_plane, disk_to_klein, half_plane_to_disk,
+    klein_to_disk,
+};
 
 pub(crate) const CASES: usize = 100_000;
 
@@ -20,6 +26,12 @@ const SMALLEST_SEPARATION: f64 = 0.1;
 const LARGEST_SEPARATION: f64 = 128.0;
 
 const ATTEMPTS: usize = 1000;
+
+const MODEL_SET_SMALLEST_GAP: f64 = 1e-6;
+
+const BAND_CASES: usize = 10_000;
+
+const BAND_REFERENCE_CASES: usize = 5_000;
 
 pub(crate) const SPHERE_SEPARATION_FLOOR: f64 = 1e-3;
 
@@ -169,6 +181,12 @@ impl Rng {
                 SphereFactor::Reflection(first, second)
             }
         }
+    }
+
+    pub(crate) fn model_set_disk_position(&mut self) -> DVec2 {
+        let gap = self.log_uniform(MODEL_SET_SMALLEST_GAP, 1.0);
+        let angle = self.angle();
+        DVec2::new(angle.cos(), angle.sin()) * (1.0 - gap)
     }
 
     pub(crate) fn separated_pair(&mut self) -> (DVec3, DVec3) {
@@ -476,4 +494,85 @@ impl SphereDomain {
         }
         domains
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Model {
+    HalfPlane,
+    Band,
+    Klein,
+}
+
+impl Model {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::HalfPlane => "disk_from_half_plane",
+            Self::Band => "disk_from_band",
+            Self::Klein => "disk_from_klein",
+        }
+    }
+
+    pub(crate) fn cases(self) -> usize {
+        match self {
+            Self::HalfPlane | Self::Klein => CASES,
+            Self::Band => BAND_CASES,
+        }
+    }
+
+    pub(crate) fn reference_cases(self) -> usize {
+        match self {
+            Self::HalfPlane | Self::Klein => REFERENCE_CASES,
+            Self::Band => BAND_REFERENCE_CASES,
+        }
+    }
+
+    pub(crate) fn to_disk(self, position: DVec2) -> Option<(DVec2, DMat2)> {
+        match self {
+            Self::HalfPlane => disk_from_half_plane(position),
+            Self::Band => disk_from_band(position),
+            Self::Klein => disk_from_klein(position),
+        }
+    }
+
+    pub(crate) fn exact_to_disk(self, reference: &mut Reference, position: &Complex) -> Complex {
+        match self {
+            Self::HalfPlane => half_plane_to_disk(position),
+            Self::Band => reference.band_to_disk(position),
+            Self::Klein => klein_to_disk(position),
+        }
+    }
+
+    pub(crate) fn sample(self, reference: &mut Reference, disk: DVec2) -> ModelSample {
+        let z = complex(disk.to_array());
+        let exact = match self {
+            Self::HalfPlane => disk_to_half_plane(&z),
+            Self::Band => reference.disk_to_band(&z),
+            Self::Klein => disk_to_klein(&z),
+        };
+        let position = DVec2::new(
+            reference.approximate(&exact[0]),
+            reference.approximate(&exact[1]),
+        );
+        ModelSample { disk, position }
+    }
+
+    pub(crate) fn model_set(
+        self,
+        reference: &mut Reference,
+        rng: &mut Rng,
+        count: usize,
+    ) -> Vec<ModelSample> {
+        let mut samples = vec![self.sample(reference, DVec2::ZERO)];
+        for _ in 0..count {
+            let disk = rng.model_set_disk_position();
+            samples.push(self.sample(reference, disk));
+        }
+        samples
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ModelSample {
+    pub(crate) disk: DVec2,
+    pub(crate) position: DVec2,
 }

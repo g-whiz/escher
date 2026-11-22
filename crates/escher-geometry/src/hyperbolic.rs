@@ -9,7 +9,10 @@
 //! `form(x, u)` equal to `0`. A normal of a wall that bounds a region points
 //! out of the region. An isometry, a map that preserves distances, is a
 //! [`DMat3`] that maps the hyperboloid to itself. A position in the Poincare
-//! disk, which shows the whole plane inside the unit circle, is a [`DVec2`].
+//! disk, which shows the whole plane inside the unit circle, is a [`DVec2`],
+//! and so is a position in the upper half-plane, band, and Klein models, which
+//! [`disk_from_half_plane`], [`disk_from_band`], and [`disk_from_klein`] map
+//! to the disk.
 //!
 //! `matrix * point` applies an isometry. The product `a * b` of two
 //! isometries applies `b` first and is the only way to compose them, so the
@@ -19,13 +22,16 @@
 //! The types carry no proof of what they hold, so each function states its
 //! domain. Every function returns without a panic for every input. Outside
 //! its domain a function returns an unspecified value, except
-//! [`normalize_point`], [`wall_through`], and [`from_disk`], which check
-//! their input. Only [`normalize_point`] and [`wall_through`] scale their
-//! result to unit length. Rounding moves a computed point off the
-//! hyperboloid, and the caller decides when to put it back with
-//! [`normalize_point`].
+//! [`normalize_point`], [`wall_through`], [`from_disk`], and the three
+//! functions that map a model to the disk, which check their input. Only
+//! [`normalize_point`] and [`wall_through`] scale their result to unit
+//! length. Rounding moves a computed point off the hyperboloid, and the
+//! caller decides when to put it back with [`normalize_point`].
 
-use glam::{DMat3, DVec2, DVec3};
+use core::f64::consts::FRAC_PI_4;
+
+use glam::{DMat2, DMat3, DVec2, DVec3};
+use num_complex::Complex64;
 
 use crate::error::{Error, Result};
 
@@ -493,18 +499,178 @@ pub fn from_disk(position: DVec2) -> Option<DVec3> {
     }
 }
 
+/// Returns the position in the Poincare disk of a position of the upper
+/// half-plane model, with the Jacobian of the map, or [`None`] for a position
+/// outside the half-plane.
+///
+/// Use it to draw the hyperbolic plane in the upper half-plane model, in which
+/// the plane is the set of complex numbers `w = w.x + i w.y` with `w.y`
+/// positive. Pass the result to [`from_disk`] to find the point that the
+/// position shows. The map is `(i w + 1) / (w + i)`, the standard
+/// transformation of J. G. Ratcliffe, "Foundations of Hyperbolic Manifolds",
+/// which sends `i` to the centre of the disk. The picture of the half-plane
+/// sits the same way up as the picture of the disk: a position above `i` maps
+/// to the positive second axis of the disk, and a position to the right of
+/// `i` at the same height maps to a disk position with a positive first
+/// coordinate.
+///
+/// The Jacobian, the matrix of the partial derivatives of the map, has the
+/// derivative in `w.x` as its first column and the derivative in `w.y` as its
+/// second. The map is holomorphic with the complex derivative
+/// `c = -2 / (w + i)^2`, so the columns are `(c.re, c.im)` and
+/// `(-c.im, c.re)`. The result is [`None`] exactly when `w.y` is not positive
+/// or a coordinate is NaN or infinite. A position close to the real axis or
+/// far from `i` can give a disk position on the unit circle or one that is
+/// not finite, for which [`from_disk`] gives [`None`].
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::hyperbolic::disk_from_half_plane;
+/// use glam::{DMat2, DVec2};
+///
+/// let (position, jacobian) = disk_from_half_plane(DVec2::new(0.0, 1.0)).ok_or("outside")?;
+/// assert_eq!(position.length(), 0.0);
+/// assert_eq!(jacobian.abs(), DMat2::from_diagonal(DVec2::splat(0.5)));
+/// assert_eq!(disk_from_half_plane(DVec2::new(1.0, 0.0)), None);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[must_use]
+pub fn disk_from_half_plane(position: DVec2) -> Option<(DVec2, DMat2)> {
+    (position.y > 0.0 && position.is_finite()).then(|| {
+        let w = Complex64::new(position.x, position.y);
+        let q = w + Complex64::i();
+        let z = (Complex64::i() * w + 1.0) / q;
+        let c = -2.0 / (q * q);
+        (DVec2::new(z.re, z.im), holomorphic_jacobian(c))
+    })
+}
+
+/// Returns the position in the Poincare disk of a position of the band model,
+/// with the Jacobian of the map, or [`None`] for a position outside the band.
+///
+/// Use it to draw the hyperbolic plane in the band model, in which the plane
+/// is the strip of complex numbers `w = w.x + i w.y` with `|w.y|` below `1`,
+/// and one geodesic runs along the first axis. Pass the result to
+/// [`from_disk`] to find the point that the position shows. The map is
+/// `tanh(pi w / 4)`, which sends `0` to the centre of the disk.
+///
+/// The Jacobian, the matrix of the partial derivatives of the map, has the
+/// derivative in `w.x` as its first column and the derivative in `w.y` as its
+/// second. The map is holomorphic with the complex derivative
+/// `c = pi / 4 (1 - z^2)`, where `z` is the disk position, so the columns are
+/// `(c.re, c.im)` and `(-c.im, c.re)`. The result is [`None`] exactly when
+/// `|w.y|` is not below `1` or a coordinate is NaN or infinite. Far along the
+/// band, `z` is close to `1` or `-1`, so `1 - z^2` cancels and the Jacobian
+/// keeps only an absolute accuracy of a few rounding units. Farther still,
+/// the disk position rounds onto the unit circle or is not finite, and
+/// [`from_disk`] gives [`None`] for it.
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::hyperbolic::disk_from_band;
+/// use glam::DVec2;
+///
+/// let (position, jacobian) = disk_from_band(DVec2::ZERO).ok_or("outside")?;
+/// assert_eq!(position, DVec2::ZERO);
+/// assert_eq!(jacobian.x_axis.x, core::f64::consts::FRAC_PI_4);
+/// assert_eq!(disk_from_band(DVec2::new(0.0, 1.0)), None);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[must_use]
+pub fn disk_from_band(position: DVec2) -> Option<(DVec2, DMat2)> {
+    (position.y.abs() < 1.0 && position.x.is_finite()).then(|| {
+        let w = Complex64::new(position.x, position.y);
+        let z = (w * FRAC_PI_4).tanh();
+        let c = (Complex64::new(1.0, 0.0) - z * z) * FRAC_PI_4;
+        (DVec2::new(z.re, z.im), holomorphic_jacobian(c))
+    })
+}
+
+/// Returns the position in the Poincare disk of a position of the Klein disk
+/// model, with the Jacobian of the map, or [`None`] for a position on or
+/// outside the unit circle.
+///
+/// Use it to draw the hyperbolic plane in the Klein model, which shows the
+/// plane inside the unit circle with every geodesic as a straight chord. Pass
+/// the result to [`from_disk`] to find the point that the position shows. The
+/// map is `s / (1 + sqrt(1 - |s|^2))`, which sends the centre to the centre
+/// and each chord onto the geodesic of the Poincare disk with the same end
+/// points.
+///
+/// The Jacobian, the matrix of the partial derivatives of the map, has the
+/// derivative in `s.x` as its first column and the derivative in `s.y` as its
+/// second. With `r = sqrt(1 - |s|^2)`, its entry in row `j` and column `k` is
+/// `1 / (1 + r)` on the diagonal plus `s_j s_k / (r (1 + r)^2)`. The map
+/// stretches by different amounts in different directions, so the Jacobian is
+/// not a rotation times a scale. The result is [`None`] exactly when the
+/// computed `1 - |s|^2` is not positive, which includes a NaN or infinite
+/// coordinate. Near the unit circle `1 - |s|^2` cancels, and the Jacobian
+/// grows like `1 / r`.
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::hyperbolic::disk_from_klein;
+/// use glam::{DMat2, DVec2};
+///
+/// let (position, jacobian) = disk_from_klein(DVec2::ZERO).ok_or("outside")?;
+/// assert_eq!(position, DVec2::ZERO);
+/// assert_eq!(jacobian, DMat2::from_diagonal(DVec2::splat(0.5)));
+/// assert_eq!(disk_from_klein(DVec2::new(1.0, 0.0)), None);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[must_use]
+pub fn disk_from_klein(position: DVec2) -> Option<(DVec2, DMat2)> {
+    let d = 1.0 - position.length_squared();
+    (d > 0.0).then(|| {
+        let root = d.sqrt();
+        let denominator = 1.0 + root;
+        let diagonal = 1.0 / denominator;
+        let outer = root * denominator * denominator;
+        let (x, y) = (position.x, position.y);
+        let mixed = x * y / outer;
+        let jacobian = DMat2::from_cols(
+            DVec2::new(diagonal + x * x / outer, mixed),
+            DVec2::new(mixed, diagonal + y * y / outer),
+        );
+        (position / denominator, jacobian)
+    })
+}
+
+fn holomorphic_jacobian(derivative: Complex64) -> DMat2 {
+    DMat2::from_cols(
+        DVec2::new(derivative.re, derivative.im),
+        DVec2::new(-derivative.im, derivative.re),
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use glam::{DMat3, DVec2, DVec3};
+    use core::f64::consts::{FRAC_PI_4, SQRT_2};
+
+    use glam::{DMat2, DMat3, DVec2, DVec3};
 
     use super::{
-        ORIGIN, boost, distance, from_disk, isometry_defect, normalize_point, rotation, to_disk,
-        translation, wall_through,
+        ORIGIN, boost, disk_from_band, disk_from_half_plane, disk_from_klein, distance, from_disk,
+        isometry_defect, normalize_point, rotation, to_disk, translation, wall_through,
     };
     use crate::ErrorKind;
 
     fn normalize_kind(vector: DVec3) -> Option<ErrorKind> {
         normalize_point(vector).err().map(|error| error.kind())
+    }
+
+    fn assert_from_disk_rejects_the_image(map: fn(DVec2) -> Option<(DVec2, DMat2)>, input: DVec2) {
+        let Some((position, _)) = map(input) else {
+            panic!("the map rejects {input:?}");
+        };
+        assert!(
+            !position.is_finite() || position.length() >= 1.0 - UNIT_CIRCLE_TOLERANCE,
+            "{position:?} from {input:?}"
+        );
+        assert_eq!(from_disk(position), None, "{position:?} from {input:?}");
     }
 
     #[test]
@@ -750,5 +916,175 @@ mod tests {
         }
     }
 
+    #[test]
+    fn disk_from_half_plane_maps_i_to_the_centre_with_the_jacobian_one_half() {
+        let result = disk_from_half_plane(DVec2::new(0.0, 1.0));
+        let Some((position, jacobian)) = result else {
+            panic!("disk_from_half_plane rejects i");
+        };
+        assert_eq!(position.to_array().map(f64::abs), [0.0, 0.0]);
+        let expected = DMat2::from_diagonal(DVec2::splat(0.5));
+        assert_eq!(jacobian.abs(), expected);
+    }
+
+    #[test]
+    fn disk_from_half_plane_keeps_the_picture_the_same_way_up() {
+        let Some((above, _)) = disk_from_half_plane(DVec2::new(0.0, 2.0)) else {
+            panic!("disk_from_half_plane rejects 2i");
+        };
+        assert_eq!(above.x.abs(), 0.0, "{above:?}");
+        assert!(above.y > 0.0, "{above:?}");
+        let Some((right, _)) = disk_from_half_plane(DVec2::new(1.0, 1.0)) else {
+            panic!("disk_from_half_plane rejects 1 + i");
+        };
+        assert!(right.x > 0.0, "{right:?}");
+    }
+
+    #[test]
+    fn disk_from_half_plane_near_the_real_axis_or_far_from_i_gives_a_rejected_position() {
+        for input in [
+            DVec2::new(1e8, 1e-12),
+            DVec2::new(0.0, 1e-300),
+            DVec2::new(1e300, 1.0),
+        ] {
+            assert_from_disk_rejects_the_image(disk_from_half_plane, input);
+        }
+    }
+
+    #[test]
+    fn disk_from_half_plane_returns_none_on_and_below_the_real_axis() {
+        assert_eq!(disk_from_half_plane(DVec2::new(0.0, 0.0)), None);
+        assert_eq!(disk_from_half_plane(DVec2::new(0.0, -0.0)), None);
+        assert_eq!(disk_from_half_plane(DVec2::new(0.0, -1.0)), None);
+    }
+
+    #[test]
+    fn disk_from_half_plane_returns_none_for_nan_or_infinite_coordinates() {
+        for position in [
+            DVec2::new(f64::NAN, 1.0),
+            DVec2::new(f64::INFINITY, 1.0),
+            DVec2::new(0.0, f64::NAN),
+            DVec2::new(0.0, f64::INFINITY),
+        ] {
+            assert_eq!(disk_from_half_plane(position), None, "{position:?}");
+        }
+    }
+
+    #[test]
+    fn disk_from_band_maps_zero_to_the_centre_with_the_jacobian_pi_over_4() {
+        let expected = DMat2::from_diagonal(DVec2::splat(FRAC_PI_4));
+        assert_eq!(disk_from_band(DVec2::ZERO), Some((DVec2::ZERO, expected)));
+    }
+
+    #[test]
+    fn disk_from_band_maps_1_and_i_over_2_onto_the_positive_first_and_second_axes() {
+        let Some((right, _)) = disk_from_band(DVec2::new(1.0, 0.0)) else {
+            panic!("disk_from_band rejects 1");
+        };
+        assert!(right.x > 0.0, "{right:?}");
+        assert!(
+            (right.x - TANH_OF_PI_OVER_4).abs() <= BAND_VALUE_TOLERANCE,
+            "{right:?}"
+        );
+        assert_eq!(right.y, 0.0, "{right:?}");
+        let Some((above, _)) = disk_from_band(DVec2::new(0.0, 0.5)) else {
+            panic!("disk_from_band rejects i / 2");
+        };
+        assert_eq!(above.x, 0.0, "{above:?}");
+        assert!(above.y > 0.0, "{above:?}");
+        let tan_of_pi_over_8 = SQRT_2 - 1.0;
+        assert!(
+            (above.y - tan_of_pi_over_8).abs() <= BAND_VALUE_TOLERANCE,
+            "{above:?}"
+        );
+    }
+
+    #[test]
+    fn disk_from_band_far_along_the_strip_gives_a_rejected_position() {
+        for input in [
+            DVec2::new(40.0, 0.0),
+            DVec2::new(-40.0, 0.5),
+            DVec2::new(400.0, 0.0),
+            DVec2::new(1e300, 0.0),
+        ] {
+            assert_from_disk_rejects_the_image(disk_from_band, input);
+        }
+    }
+
+    #[test]
+    fn disk_from_band_returns_none_on_and_outside_the_edges_of_the_strip() {
+        for position in [
+            DVec2::new(0.0, 1.0),
+            DVec2::new(0.0, -1.0),
+            DVec2::new(0.0, 4.0),
+        ] {
+            assert_eq!(disk_from_band(position), None, "{position:?}");
+        }
+    }
+
+    #[test]
+    fn disk_from_band_returns_none_for_nan_or_infinite_coordinates() {
+        for position in [
+            DVec2::new(f64::INFINITY, 0.0),
+            DVec2::new(f64::NEG_INFINITY, 0.0),
+            DVec2::new(f64::NAN, 0.0),
+            DVec2::new(0.0, f64::NAN),
+            DVec2::new(0.0, f64::INFINITY),
+        ] {
+            assert_eq!(disk_from_band(position), None, "{position:?}");
+        }
+    }
+
+    #[test]
+    fn disk_from_klein_maps_the_centre_to_the_centre_with_the_jacobian_one_half() {
+        let expected = DMat2::from_diagonal(DVec2::splat(0.5));
+        assert_eq!(disk_from_klein(DVec2::ZERO), Some((DVec2::ZERO, expected)));
+    }
+
+    #[test]
+    fn disk_from_klein_maps_the_positive_first_axis_to_itself_closer_to_the_centre() {
+        let Some((position, _)) = disk_from_klein(DVec2::new(0.5, 0.0)) else {
+            panic!("disk_from_klein rejects (0.5, 0)");
+        };
+        assert!(position.x > 0.0 && position.x < 0.5, "{position:?}");
+        assert_eq!(position.y, 0.0, "{position:?}");
+    }
+
+    #[test]
+    fn disk_from_klein_of_the_largest_radius_below_one_is_inside_the_disk() {
+        let input = DVec2::new(1.0 - f64::EPSILON / 2.0, 0.0);
+        let Some((position, jacobian)) = disk_from_klein(input) else {
+            panic!("disk_from_klein rejects {input:?}");
+        };
+        assert!(
+            position.is_finite() && jacobian.is_finite(),
+            "{position:?} {jacobian:?}"
+        );
+        assert!(position.length() < 1.0, "{position:?}");
+        let point = from_disk(position);
+        assert!(point.is_some_and(DVec3::is_finite), "{point:?}");
+    }
+
+    #[test]
+    fn disk_from_klein_returns_none_on_and_outside_the_unit_circle() {
+        assert_eq!(disk_from_klein(DVec2::new(1.0, 0.0)), None);
+        assert_eq!(disk_from_klein(DVec2::new(0.6, -0.8)), None);
+        assert_eq!(disk_from_klein(DVec2::new(2.0, 0.0)), None);
+    }
+
+    #[test]
+    fn disk_from_klein_returns_none_for_nan_or_infinite_coordinates() {
+        for position in [
+            DVec2::new(f64::NAN, 0.0),
+            DVec2::new(0.0, f64::NAN),
+            DVec2::new(f64::INFINITY, 0.0),
+        ] {
+            assert_eq!(disk_from_klein(position), None, "{position:?}");
+        }
+    }
+
     const TO_DISK_RADIUS_TOLERANCE: f64 = 4.0 * f64::EPSILON;
+    const UNIT_CIRCLE_TOLERANCE: f64 = 4.0 * f64::EPSILON;
+    const BAND_VALUE_TOLERANCE: f64 = 4.0 * f64::EPSILON;
+    const TANH_OF_PI_OVER_4: f64 = 0.655_794_202_632_672_4;
 }

@@ -1051,8 +1051,8 @@ fn small_file(test: &str, args: &[&str]) -> Vec<u8> {
 #[test]
 fn render_colours_a_rotation_domain_with_one_colour_by_default() {
     assert_eq!(
-        small_file("default_rotation", &["732"]),
-        small_file("one_rotation", &["732", "--colouring", "one"])
+        small_file("default_rotation_triangle", &["732"]),
+        small_file("one_rotation_triangle", &["732", "--colouring", "one"])
     );
 }
 

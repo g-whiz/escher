@@ -43,6 +43,9 @@ glam = { version = "0.34.3", default-features = false, features = [
     "std",
 ] }
 insta = { version = "1.49", default-features = false }
+num-complex = { version = "0.4.6", default-features = false, features = [
+    "std",
+] }
 png = "0.18.1"
 proptest = { version = "1.12.0", default-features = false, features = ["std"] }
 rayon = "1.12.0"

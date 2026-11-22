@@ -7,11 +7,11 @@ use escher_geometry::{euclidean, spherical};
 use glam::{DVec2, DVec3};
 
 use crate::common::{
-    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, REFERENCE_CASES, Rng, SPHERE_SEPARATION_FLOOR,
+    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, Model, REFERENCE_CASES, Rng, SPHERE_SEPARATION_FLOOR,
     SphereDomain, SphereFactor, Triangle, pair, point_off_wall, polar_point, table_points,
     table_vectors, tangent_basis, wall_normal,
 };
-use crate::reference::epsilon;
+use crate::reference::{central_jacobian, complex, epsilon, squared_modulus};
 use escher_reference::{
     Reference, Vector, Worst, add, difference, div, dot, error, form as exact_form, int, max, mul,
     num, scale, sqrt, sub, vector,
@@ -40,6 +40,13 @@ const SPHERE_TRANSLATION_DEFECT_TOLERANCE: f64 = 32.0;
 const SPHERE_REFLECTION_TOLERANCE: f64 = 16.0;
 const SPHERE_REFLECTION_DEFECT_TOLERANCE: f64 = 64.0;
 const SPHERE_PRODUCT_DEFECT_TOLERANCE: f64 = 128.0;
+const HALF_PLANE_POSITION_TOLERANCE: f64 = 16.0;
+const HALF_PLANE_JACOBIAN_TOLERANCE: f64 = 32.0;
+const BAND_POSITION_TOLERANCE: f64 = 16.0;
+const BAND_JACOBIAN_TOLERANCE: f64 = 32.0;
+const KLEIN_POSITION_TOLERANCE: f64 = 8.0;
+const KLEIN_JACOBIAN_TOLERANCE: f64 = 16.0;
+const MODEL_ROUND_TRIP_TOLERANCE: f64 = 16.0;
 
 fn big(value: DVec3) -> Vector {
     vector(value.to_array())
@@ -816,6 +823,133 @@ fn disk_round_trips_are_within_their_bounds() {
     }
     from_then_to.assert_at_most(&mut reference, 8.0);
     to_then_from.assert_at_most(&mut reference, 32.0);
+}
+
+struct ModelBounds {
+    seed: u64,
+    position: f64,
+    jacobian: f64,
+}
+
+fn position_scale(model: Model, squared_klein_radius: &BigFloat) -> BigFloat {
+    match model {
+        Model::HalfPlane | Model::Band => epsilon(),
+        Model::Klein => div(&epsilon(), &sqrt(&sub(&int(1), squared_klein_radius))),
+    }
+}
+
+fn jacobian_scale(model: Model, largest: &BigFloat, squared_klein_radius: &BigFloat) -> BigFloat {
+    match model {
+        Model::HalfPlane => mul(&epsilon(), largest),
+        Model::Band => epsilon(),
+        Model::Klein => div(
+            &mul(&epsilon(), largest),
+            &sub(&int(1), squared_klein_radius),
+        ),
+    }
+}
+
+fn scale_names(model: Model) -> (&'static str, &'static str) {
+    match model {
+        Model::HalfPlane => ("absolute in eps", "scaled by eps * m"),
+        Model::Band => ("absolute in eps", "absolute in eps"),
+        Model::Klein => (
+            "scaled by eps / sqrt(1 - |s|^2)",
+            "scaled by eps * m / (1 - |s|^2)",
+        ),
+    }
+}
+
+fn check_model_map(model: Model, bounds: &ModelBounds) {
+    let mut reference = Reference::new();
+    let name = model.name();
+    let (position_unit, jacobian_unit) = scale_names(model);
+    let cases = model.reference_cases();
+    let samples = cases + 1;
+    let mut positions =
+        Worst::of_the_scale(format!("{name}, position, {position_unit}"), 2 * samples);
+    let mut jacobians =
+        Worst::of_the_scale(format!("{name}, Jacobian, {jacobian_unit}"), 4 * samples);
+    let mut trips = Worst::of_the_scale(
+        format!("{name}, round trip, scaled by eps / (1 - |z|)"),
+        2 * samples,
+    );
+    let mut rng = Rng::new(bounds.seed);
+    for sample in model.model_set(&mut reference, &mut rng, cases) {
+        let (w, disk) = (sample.position, sample.disk);
+        let Some((computed, jacobian)) = model.to_disk(w) else {
+            panic!("{name} rejects {w:?}");
+        };
+        let input = || format!("{w:?} from {disk:?}");
+        let exact_w = complex(w.to_array());
+        let exact = model.exact_to_disk(&mut reference, &exact_w);
+        let exact_jacobian = central_jacobian(
+            &mut |position| model.exact_to_disk(&mut reference, position),
+            &exact_w,
+        );
+        let largest = exact_jacobian
+            .iter()
+            .flatten()
+            .fold(int(0), |largest, entry| max(&largest, &entry.abs()));
+        let squared_radius = squared_modulus(&exact_w);
+        let scale = position_scale(model, &squared_radius);
+        for (value, exact) in computed.to_array().into_iter().zip(&exact) {
+            positions.record(&error(value, exact), &scale, input);
+        }
+        let scale = jacobian_scale(model, &largest, &squared_radius);
+        for (column, exact_column) in [jacobian.x_axis, jacobian.y_axis]
+            .into_iter()
+            .zip(&exact_jacobian)
+        {
+            for (value, exact) in column.to_array().into_iter().zip(exact_column) {
+                jacobians.record(&error(value, exact), &scale, input);
+            }
+        }
+        let gap = sub(&int(1), &sqrt(&squared_modulus(&complex(disk.to_array()))));
+        let scale = div(&epsilon(), &gap);
+        for (value, exact) in computed.to_array().into_iter().zip(disk.to_array()) {
+            trips.record(&error(value, &num(exact)), &scale, input);
+        }
+    }
+    positions.assert_at_most(&mut reference, bounds.position);
+    jacobians.assert_at_most(&mut reference, bounds.jacobian);
+    trips.assert_at_most(&mut reference, MODEL_ROUND_TRIP_TOLERANCE);
+}
+
+#[test]
+fn disk_from_half_plane_is_within_its_bounds_of_the_reference() {
+    check_model_map(
+        Model::HalfPlane,
+        &ModelBounds {
+            seed: 50,
+            position: HALF_PLANE_POSITION_TOLERANCE,
+            jacobian: HALF_PLANE_JACOBIAN_TOLERANCE,
+        },
+    );
+}
+
+#[test]
+fn disk_from_band_is_within_its_bounds_of_the_reference() {
+    check_model_map(
+        Model::Band,
+        &ModelBounds {
+            seed: 51,
+            position: BAND_POSITION_TOLERANCE,
+            jacobian: BAND_JACOBIAN_TOLERANCE,
+        },
+    );
+}
+
+#[test]
+fn disk_from_klein_is_within_its_bounds_of_the_reference() {
+    check_model_map(
+        Model::Klein,
+        &ModelBounds {
+            seed: 52,
+            position: KLEIN_POSITION_TOLERANCE,
+            jacobian: KLEIN_JACOBIAN_TOLERANCE,
+        },
+    );
 }
 
 #[test]

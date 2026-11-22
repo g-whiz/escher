@@ -280,6 +280,11 @@ impl Reference {
         value.atan(PRECISION, ROUNDING, &mut self.consts)
     }
 
+    /// Returns the natural logarithm of a positive value.
+    pub fn ln(&mut self, value: &BigFloat) -> BigFloat {
+        value.ln(PRECISION, ROUNDING, &mut self.consts)
+    }
+
     /// Returns a base raised to a power.
     pub fn pow(&mut self, base: &BigFloat, exponent: &BigFloat) -> BigFloat {
         base.pow(exponent, PRECISION, ROUNDING, &mut self.consts)
@@ -490,6 +495,7 @@ mod tests {
             ("sinh(asinh(1))", sub(&reference.sinh(&asinh_one), &one)),
             ("acosh(cosh(1))", sub(&reference.acosh(&cosh_one), &one)),
             ("2^(1/2)", sub(&power, &root)),
+            ("ln(e)", sub(&reference.ln(&e), &one)),
             ("acos(1 / 2)", sub(&reference.acos(&half), &third)),
             ("asin(1 / 2)", sub(&reference.asin(&half), &sixth)),
             ("atan(1)", sub(&reference.atan(&one), &div(&pi, &int(4)))),

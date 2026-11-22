@@ -1,20 +1,24 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 use core::hint::black_box;
 
+use astro_float_num::BigFloat;
 use escher_geometry::hyperbolic::{
-    ORIGIN, boost, covector, distance, form, from_disk, inverse, isometry_defect, normalize_point,
-    reflection, rotation, side, to_disk, translation, wall_through,
+    ORIGIN, boost, covector, disk_from_band, disk_from_half_plane, disk_from_klein, distance, form,
+    from_disk, inverse, isometry_defect, normalize_point, reflection, rotation, side, to_disk,
+    translation, wall_through,
 };
 use escher_geometry::{ErrorKind, euclidean, spherical};
-use glam::{DMat3, DVec2, DVec3};
+use glam::{DMat2, DMat3, DVec2, DVec3};
 use proptest::collection::vec;
 use proptest::prelude::{Just, Strategy, any, prop_assert, prop_assert_eq, prop_oneof, proptest};
 
 use crate::common::{
-    CASES, EUCLIDEAN_RADIUS, Factor, Product, Rng, SPHERE_SEPARATION_FLOOR, Wall, euclidean_point,
-    largest_entry, line_covector, pair, polar_point, sphere_point, sphere_step, tangent_basis,
+    CASES, EUCLIDEAN_RADIUS, Factor, Model, ModelSample, Product, Rng, SPHERE_SEPARATION_FLOOR,
+    Wall, euclidean_point, largest_entry, line_covector, pair, polar_point, sphere_point,
+    sphere_step, tangent_basis,
 };
-use escher_reference::{Reference, Worst, error, num};
+use crate::reference::{ReferenceExt, complex, epsilon};
+use escher_reference::{Reference, Worst, error, int, mul, num, sub};
 
 const INVERSE_TOLERANCE: f64 = 1e-11;
 const LONG_BOOST_DEFECT_TOLERANCE: f64 = 512.0;
@@ -37,6 +41,9 @@ const SPHERE_REFLECTION_DEFECT_TOLERANCE: f64 = 64.0;
 const SPHERE_ORTHOGONALITY_TOLERANCE: f64 = 8.0;
 const SPHERE_NORM_TOLERANCE: f64 = 32.0;
 const SPHERE_LARGEST_CORNER_ORDER: u32 = 12;
+const HALF_PLANE_RELATION_TOLERANCE: f64 = 32.0;
+const BAND_RELATION_TOLERANCE: f64 = 64.0;
+const KLEIN_RELATION_TOLERANCE: f64 = 16.0;
 
 fn point_within(radius: f64) -> impl Strategy<Value = DVec3> {
     (0.0..radius, -PI..PI).prop_map(|(distance, angle)| polar_point(distance, angle))
@@ -267,6 +274,104 @@ fn assert_finite_normal_or_degenerate_wall(first: DVec3, second: DVec3) -> bool 
             true
         }
     }
+}
+
+fn model_disk_position() -> impl Strategy<Value = DVec2> {
+    (-6.0..0.0, -PI..PI).prop_map(|(exponent, angle): (f64, f64)| {
+        DVec2::new(angle.cos(), angle.sin()) * (1.0 - 10.0_f64.powf(exponent))
+    })
+}
+
+fn relation_name(model: Model) -> &'static str {
+    match model {
+        Model::HalfPlane => {
+            "2 |c| / (1 - |z|^2) of disk_from_half_plane times Im w against 1, scaled by eps / (1 - |z|^2)"
+        }
+        Model::Band => {
+            "|c| of disk_from_band against pi / 4 |1 - tanh^2(pi w / 4)|, absolute in eps"
+        }
+        Model::Klein => "2 u / (1 + |u|^2) of u = disk_from_klein(s) against s, absolute in eps",
+    }
+}
+
+fn relation_tolerance(model: Model) -> f64 {
+    match model {
+        Model::HalfPlane => HALF_PLANE_RELATION_TOLERANCE,
+        Model::Band => BAND_RELATION_TOLERANCE,
+        Model::Klein => KLEIN_RELATION_TOLERANCE,
+    }
+}
+
+fn is_holomorphic_form(jacobian: DMat2) -> bool {
+    let expected = DVec2::new(-jacobian.x_axis.y, jacobian.x_axis.x);
+    jacobian.y_axis.to_array().map(f64::to_bits) == expected.to_array().map(f64::to_bits)
+}
+
+fn model_relation(
+    reference: &mut Reference,
+    model: Model,
+    sample: ModelSample,
+) -> Result<Vec<(BigFloat, BigFloat)>, String> {
+    let w = sample.position;
+    let Some((z, jacobian)) = model.to_disk(w) else {
+        return Err(format!("{} rejects {sample:?}", model.name()));
+    };
+    if let Model::HalfPlane | Model::Band = model
+        && !is_holomorphic_form(jacobian)
+    {
+        return Err(format!("{jacobian:?} is not holomorphic at {sample:?}"));
+    }
+    let modulus = jacobian.x_axis.length();
+    Ok(match model {
+        Model::HalfPlane => {
+            let gap = 1.0 - z.length_squared();
+            let ratio = 2.0 * modulus / gap;
+            let err = sub(&mul(&num(ratio), &num(w.y)), &int(1)).abs();
+            vec![(err, num(f64::EPSILON / gap))]
+        }
+        Model::Band => {
+            let factor = reference.band_scale_factor(&complex(w.to_array()));
+            vec![(error(modulus, &factor), epsilon())]
+        }
+        Model::Klein => {
+            let back = z * (2.0 / (1.0 + z.length_squared()));
+            back.to_array()
+                .into_iter()
+                .zip(w.to_array())
+                .map(|(value, exact)| (error(value, &num(exact)), epsilon()))
+                .collect()
+        }
+    })
+}
+
+fn assert_model_relations_within_their_bounds(model: Model, seed: u64) {
+    let mut reference = Reference::new();
+    let cases = model.cases();
+    let mut worst = Worst::of_the_scale(relation_name(model), cases + 1);
+    let mut rng = Rng::new(seed);
+    for sample in model.model_set(&mut reference, &mut rng, cases) {
+        let input = || format!("{:?} from {:?}", sample.position, sample.disk);
+        let relation = model_relation(&mut reference, model, sample);
+        for (err, scale) in relation.unwrap_or_else(|message| panic!("{message}")) {
+            worst.record(&err, &scale, input);
+        }
+    }
+    worst.assert_at_most(&mut reference, relation_tolerance(model));
+}
+
+fn model_relation_holds(model: Model, disk: DVec2) -> Result<(), String> {
+    let mut reference = Reference::new();
+    let sample = model.sample(&mut reference, disk);
+    let bound = num(relation_tolerance(model));
+    for (err, scale) in model_relation(&mut reference, model, sample)? {
+        if err > mul(&bound, &scale) {
+            return Err(format!(
+                "{}: error {err} above the bound at {sample:?}",
+                relation_name(model)
+            ));
+        }
+    }
+    Ok(())
 }
 
 proptest! {
@@ -501,6 +606,30 @@ proptest! {
     }
 
     #[test]
+    fn disk_from_half_plane_meets_the_isometry_relation_and_is_holomorphic(
+        disk in model_disk_position(),
+    ) {
+        let result = model_relation_holds(Model::HalfPlane, disk);
+        prop_assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
+    fn disk_from_band_has_the_scale_factor_of_tanh_and_is_holomorphic(
+        disk in model_disk_position(),
+    ) {
+        let result = model_relation_holds(Model::Band, disk);
+        prop_assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
+    fn disk_from_klein_is_undone_by_the_map_from_the_disk_to_the_klein_model(
+        disk in model_disk_position(),
+    ) {
+        let result = model_relation_holds(Model::Klein, disk);
+        prop_assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
     fn every_function_returns_for_any_input(
         x in any_vector(),
         y in any_vector(),
@@ -532,6 +661,12 @@ proptest! {
         if let Some(point) = from_disk(position) {
             prop_assert!(point.is_finite() && point.z >= 1.0, "{point:?}");
         }
+        let in_half_plane = position.y > 0.0 && position.is_finite();
+        prop_assert_eq!(disk_from_half_plane(position).is_some(), in_half_plane);
+        let in_band = position.y.abs() < 1.0 && position.x.is_finite();
+        prop_assert_eq!(disk_from_band(position).is_some(), in_band);
+        let in_klein = 1.0 - position.length_squared() > 0.0;
+        prop_assert_eq!(disk_from_klein(position).is_some(), in_klein);
         black_box(euclidean::side(x, y));
         black_box(euclidean::rotation(scalar));
         black_box(euclidean::translation(x));
@@ -924,4 +1059,19 @@ fn spherical_wall_through_below_the_separation_floor_gives_finite_normals_or_deg
     println!(
         "spherical wall_through below the separation floor: {degenerate} of {CASES} were DegenerateWall"
     );
+}
+
+#[test]
+fn disk_from_half_plane_meets_the_isometry_relation_within_its_bound() {
+    assert_model_relations_within_their_bounds(Model::HalfPlane, 40);
+}
+
+#[test]
+fn disk_from_band_has_the_scale_factor_of_tanh_within_its_bound() {
+    assert_model_relations_within_their_bounds(Model::Band, 41);
+}
+
+#[test]
+fn disk_from_klein_is_undone_by_the_map_from_the_disk_to_the_klein_model_within_its_bound() {
+    assert_model_relations_within_their_bounds(Model::Klein, 42);
 }

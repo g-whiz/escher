@@ -245,7 +245,7 @@ escher render '*732' --model band -o band.png
 
 **Dependencies and `deny.toml` work.** `num-complex` 0.4.6 in `escher-geometry`, without its default features and with `std`. Its licence, `MIT OR Apache-2.0`, is on the allow-list, and its one dependency, `num-traits`, is already in `Cargo.lock`. `just check-deny` confirms the licence and that no duplicate resolves, and `just check-msrv` the minimum Rust version (Section 11 of `docs/design/geometry.md`).
 
-**Risks.** View conventions (`DEC-76`). Periodicity of the band is not a goal (`geometry-models.md` 5.3).
+**Risks.** Periodicity of the band is not a goal (`geometry-models.md` 5.3).
 
 **Split.** Three branches, in this order:
 
