@@ -8,13 +8,13 @@
 
 ## Abstract
 
-This document specifies the crate `escher-group`, which holds finitely presented groups, Todd-Coxeter coset enumeration with a bound on the number of cosets, and the low-index subgroup search that gives the colourings of a tiling. It defines letters, words, relators with an exponent, and presentations with named generators, the text form of each, and the presentation that Conway's rules read from an orbifold signature. It specifies the coset table that an enumeration returns, the Felsch strategy as numbered steps with the source of each step, the rule for relators of one letter, the closing pass that makes a returned table rest on sourced statements, the limit on cosets and what reaching it shows, and the standard form that makes equal subgroups give equal tables. For the search, it specifies the steps of a run, the first-in-class test, the check of every complete table, the expansion of each conjugacy class into its subgroups, the work budget and the limits on what a call stores, what a call returns when it stops at a limit, the colouring ids, and the rule that turns the sides of a fold into a colour. It also states the error type, the limits on untrusted input with their memory bound and the residual risk on time, the tests with their worked examples, the figures measured on prototypes and on the crate, the dependencies, the unverified statements that the code relies on, and the choices that no other document dictates.
+This document specifies the crate `escher-group`, which holds finitely presented groups, Todd-Coxeter coset enumeration with a bound on the number of cosets, and the low-index subgroup search that gives the colourings of a tiling. It defines letters, words, relators with an exponent, and presentations with named generators, the text form of each, and the presentation that Conway's rules read from an orbifold signature. It specifies the coset table that an enumeration returns, the Felsch strategy as numbered steps with the source of each step, the rule for relators of one letter, the closing pass that makes a returned table rest on sourced statements, the limit on cosets and what reaching it shows, and the standard form that makes equal subgroups give equal tables. For the search, it specifies the steps of a run, the first-in-class test, the check of every complete table, the expansion of each conjugacy class into its subgroups, the work budget and the limits on what a call stores, what a call returns when it stops at a limit, the colouring ids, and the rule that turns the sides of a fold into a colour. It also states the error type, the limits on untrusted input with their memory bound and the residual risk on time, the layers of the tests with their worked examples, the dependencies, the unverified statements that the code relies on, and the choices that no other document dictates.
 
 ## 1. Introduction
 
 ### 1.1. Problem
 
-The colourings of a tiling come from subgroups of finite index of its symmetry group, and every subgroup of finite index has a coset table (Sections 4.1 and 7.9 of the colouring reference). A program that lists colourings therefore needs the group as generators and relators, and a procedure that turns a presentation and a subgroup into a coset table. No usable Rust crate provides either (Section 14 of `docs/research/rust-ecosystem.md`, as Section 5.7 of the plan records). The procedure has no computable bound on its work, and some inputs make it define many more cosets than the index (Section 7.9), so an implementation that reads untrusted input needs limits that it states and enforces.
+The colourings of a tiling come from subgroups of finite index of its symmetry group, and every subgroup of finite index has a coset table (Sections 4.1 and 7.9 of the colouring reference). A program that lists colourings therefore needs the group as generators and relators, and a procedure that turns a presentation and a subgroup into a coset table. No usable Rust crate provides either (Section 14 of `docs/research/rust-ecosystem.md`). The procedure has no computable bound on its work, and some inputs make it define many more cosets than the index (Section 7.9), so an implementation that reads untrusted input needs limits that it states and enforces.
 
 ### 1.2. Purpose
 
@@ -28,13 +28,13 @@ The primary readers are the agent that implements the crate and the reviewer who
 
 ### 1.4. Scope
 
-This document covers the public surface of the crate, words, relators, presentations and their text, the Conway presentation, the coset table and its standard form, the enumeration algorithm with its limit, the low-index search with its budget and limits, the colourings with their ids and the colour of a sample, the error type, the limits on untrusted input, the tests, the prototype measurements, and the dependencies of the crate.
+This document covers the public surface of the crate, words, relators, presentations and their text, the Conway presentation, the coset table and its standard form, the enumeration algorithm with its limit, the low-index search with its budget and limits, the colourings with their ids and the colour of a sample, the error type, the limits on untrusted input, the tests, and the dependencies of the crate.
 
 ### 1.5. Non-Goals
 
 These topics are owned elsewhere:
 
-- The side presentation of a fundamental domain is a function of `escher-domain`, which builds a `Presentation` of this crate. DOM-32 to DOM-35 of Section 5.4 of `docs/design/domain.md` specify it, and `UNV-32` (Section 7 of the plan) records its unverified letter form.
+- The side presentation of a fundamental domain is a function of `escher-domain`, which builds a `Presentation` of this crate. DOM-32 to DOM-35 of Section 5.4 of `docs/design/domain.md` specify it, and `UNV-32` (Section 7 of the plan) records its unverified letter form. The side presentations of the wallpaper domains (DOM-52 of `docs/design/domain.md`) and of the spherical group domains need no code and no rule in this crate. The domain of `1` has the presentation with no generator and no relator (DOM-62 of `docs/design/domain.md`), which enumerates to index 1 and which the search accepts.
 - The option `--presentation` of `escher info`, its lines, and the comparison of the enumerated order with the group order are specified by CLI-37 to CLI-39 and CLI-41 of Section 5.7 and by CLI-40 of Section 6.9 of `docs/design/cli.md`. They are proposed as `DEC-35` (Section 10.2 of the architecture).
 - The fill of a tile by its colour, the side buffer of a sample, and the palette are specified by RND-36 to RND-40 of `docs/design/render.md` and by CLI-44 of `docs/design/cli.md`. The colouring lines of `escher info`, the options `--max-colours` and `--colouring`, and the text of a listing that stops at a limit are specified by CLI-42 to CLI-49 of `docs/design/cli.md`.
 - Reidemeister-Schreier rewriting (Section 7.18 of the colouring reference), names of subgroups, and a marker for normal subgroups are not part of this crate.
@@ -328,7 +328,7 @@ Every public type is `Send`, `Sync`, and `'static`, except `WordDisplay` and `Re
 
 The crate has these private modules, each a file named after the module:
 
-- `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, the re-exports, the unit test "Auto traits" of Section 10.1, and, for the unit tests only, the module `common` of the integration tests, loaded through a `#[path]` attribute.
+- `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, the re-exports, the compile-time assertion of the auto traits of Section 3.2, and, for the unit tests only, the module `common` of the integration tests, loaded through a `#[path]` attribute.
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
 - `src/word.rs`: `Letter` and `Word`.
 - `src/presentation.rs`: `Relator`, `Presentation`, the name checks, and the display adapters.
@@ -338,7 +338,7 @@ The crate has these private modules, each a file named after the module:
 - `src/search.rs`: `IndexLimit`, `SearchBudget`, `count_colourings`, `colourings`, `colourings_of_index`, the steps of Sections 7.10 to 7.14, the crate-private settings, which hold the budget, the stored limits, and a switch of the first-in-class test (every node, complete tables only, or off), and the crate-private search statistics and capacities.
 - `src/colouring.rs`: `ColouringCounts`, `Colourings`, `ColouringsOfIndex`, `Colouring`, `ColouringId`, the ids of Section 7.15, and `colour_of`.
 
-The integration tests form one binary, `tests/group/main.rs`, with the modules `common`, `examples`, `spherical`, `properties`, `limits`, and `search` (TEST-10 of the coding standard). `main.rs` declares each module under `#[cfg(test)]`, as the integration tests of `escher-domain` do, so that the Clippy options for test code cover the panics of their helpers (TEST-10 of the coding standard). `common` holds the fixtures of Section 10.2, including the fixtures of the search, the strategy of random presentations and the strategy of letters that it uses, the `proptest` helper `proptest_config()`, and the helpers that build generator names, words, signatures, presentations from text, Coxeter presentations, Conway presentations, coset limits, index limits, and search budgets. `search` also holds the helpers that read the rows of a table, relabel rows from a base coset, and select the class tables of a listing, which `properties` uses. Each helper exists once, and no test module defines its own copy.
+The integration tests form one binary, `tests/group/main.rs`, with the modules `common`, `examples`, `spherical`, `properties`, `limits`, and `search` (TEST-10 of the coding standard). `main.rs` declares each module under `#[cfg(test)]`, as the integration tests of `escher-domain` do, so that the Clippy options for test code cover the panics of their helpers (TEST-10 of the coding standard). `common` holds the named input sets of Section 10, the `proptest` helper `proptest_config()`, and the helpers that build names, words, presentations, and limits. `search` also holds the helpers that read, relabel, and select the tables of a listing, which `properties` uses. Each helper exists once, and no test module defines its own copy.
 
 ## 4. Words, Relators, and Presentations
 
@@ -455,9 +455,9 @@ Complete means that every entry of every row is defined ([SYMPY-CT] lines 121-12
 
 One relabelling does both, as the last step of the enumeration (step 11 of Section 7.3). It gives new number 0 to coset 0 and then reads the rows in the order of their new numbers. Within a row it reads the columns in order and gives the next new number to each live coset that has none. This is the procedure that [HULPKE2010] states on p. 78, read over all columns instead of the generator columns only (Section 7.14 of the colouring reference). It needs no swap, unlike SymPy's `standardize` ([SYMPY-CT] lines 752-797).
 
-Lemma III.26 of [HULPKE2010] gives a bijection between subgroups of index $n$ and standardized tables, and it is stated for the standard that ignores the inverse columns. For the standard over all columns, Proposition 5.6 of [HOLT2005] states the bijection and justifies it only by the prose before it (p. 189), and [SIMS1994] states it in one sentence (p. 252). Neither gives a stand-alone proof (item 26 of Section 14.1 of the colouring reference). The test "Invariance" of Section 10.1 checks the consequence that this design needs.
+Lemma III.26 of [HULPKE2010] gives a bijection between subgroups of index $n$ and standardized tables, and it is stated for the standard that ignores the inverse columns. For the standard over all columns, Proposition 5.6 of [HOLT2005] states the bijection and justifies it only by the prose before it (p. 189), and [SIMS1994] states it in one sentence (p. 252). Neither gives a stand-alone proof (item 26 of Section 14.1 of the colouring reference). The property test "Invariance" of Section 10.1 checks the consequence that this design needs.
 
-The invariance covers the returned table only. When two calls differ only in the order of the relators or of the subgroup generators and both return a table, the two tables are equal. Whether a call finishes within a limit is not invariant, because the number of cosets that a run defines can depend on the order, the spelling, and the length of the relators and of the subgroup generators. Over random presentations, reversing the subgroup generators changed the number of cosets defined in 285 of the 3184 cases that finished in both orders, and reversing the relators changed it in none (Section 11.2). The documentation of `enumerate` states both parts.
+The invariance covers the returned table only. When two calls differ only in the order of the relators or of the subgroup generators and both return a table, the two tables are equal. Whether a call finishes within a limit is not invariant, because the number of cosets that a run defines can depend on the order, the spelling, and the length of the relators and of the subgroup generators. In a measurement of the crate on random presentations of the strategy of the tests at a limit of 2000, reversing the subgroup generators changed the number of cosets defined in about one in eleven of the cases that finished in both orders, and reversing the relators changed it in none. The documentation of `enumerate` states both parts.
 
 ### 6.3. Coset Limit
 
@@ -465,7 +465,7 @@ GRP-16. The enumeration MUST count every coset that it defines against the limit
 
 SymPy compares its limit with the length of its table, which counts every row defined, dead rows included, by the research's own reading of the code. The DEFINE of [HOLT2005] counts the same way, because it aborts when the largest number used so far reaches the limit and always takes the next number (pp. 151, 153, and 167, Section 7.16 of the colouring reference). A table of index $n$ has $n$ rows, each defined once, so with coset 0 counted, a limit below $n$ always returns `CosetLimitReached`. `escher-cli` relies on this when it skips the enumeration of a group whose order is above the limit (CLI-39 of Section 5.7 of `docs/design/cli.md`).
 
-The proposed default is 16384 and the proposed maximum 1048576 (`DEC-33`). The largest group order of a domain that `escher-domain` builds is 4000, for `*(1000)22`, so the default leaves a margin of 4 when the enumeration defines the group order and no more. Section 11.1 records the figures of the prototype that support both values, and Section 11.2 those of the crate. `CosetLimit::new` returns `LimitExceeded` for 0 or a value above `MAX`.
+The proposed default is 16384 and the proposed maximum 1048576 (`DEC-33`). The largest group order of a domain that `escher-domain` builds is 4000, for `*(1000)22`, so the default leaves a margin of 4 when the enumeration defines the group order and no more. In measurements of the crate and of a prototype outside the repository, every Conway and side presentation of a spherical domain defined exactly its group order of cosets, and a full index of $2^{20}$ at the maximum finished in under 2 s in a release build within the memory bound of Section 15. `CosetLimit::new` returns `LimitExceeded` for 0 or a value above `MAX`.
 
 ## 7. Coset Enumeration
 
@@ -488,9 +488,9 @@ The enumeration keeps these structures, all as flat vectors with indexes and no 
 - The relators: each expanded, cyclically reduced relator and its inverse, stored twice in a row, so a cyclic conjugate is a pair of a relator and an offset with no test for the end. [HAVAS1991] reports the same device with three copies, as implementations expand "each relator out three times to avoid having to check for end of relator during deduction processing" (p. 195, Section 7.12 of the colouring reference).
 - The conjugate lists: for each column $x$, the list $R_x$ of the distinct cyclic conjugates that start with $x$.
 
-GRP-25. The conjugate lists MUST hold each distinct cyclic conjugate once, because a relator such as $(r_1 r_2)^{1000}$ has 2000 cyclic conjugates of which only 2 are distinct, and scanning duplicates multiplies the work by the exponent without changing a table (Section 11.1).
+GRP-25. The conjugate lists MUST hold each distinct cyclic conjugate once, because a relator such as $(r_1 r_2)^{1000}$ has 2000 cyclic conjugates of which only 2 are distinct, and scanning duplicates multiplies the work by the exponent without changing a table. On a prototype outside the repository, the Conway presentation of `*(1000)22` gave the same table with and without duplicates and took about 700 times as long with them.
 
-[HULPKE2010] forms "a list of all cyclic permutations of all relators and their inverses" (Note III.22, Section 7.12 of the colouring reference). The prototype gave identical tables with and without duplicates (Section 11.1). SymPy's Felsch enumeration also forms the conjugates as a set before it splits them by first letter, by a reading of [SYMPY-CT] lines 1230-1240 that Section 7.12 of the colouring reference does not record.
+[HULPKE2010] forms "a list of all cyclic permutations of all relators and their inverses" (Note III.22, Section 7.12 of the colouring reference). SymPy's Felsch enumeration also forms the conjugates as a set before it splits them by first letter, by a reading of [SYMPY-CT] lines 1230-1240 that Section 7.12 of the colouring reference does not record.
 
 Duplicates are removed across the whole presentation, between two relators and between a relator and an inverse, and not only within one relator. The enumeration keys each cyclically reduced word by its least rotation, keeps a set of these keys, and skips a word whose key is already in the set. For a word that it keeps, it lists the conjugates at the offsets below the shortest period of the word, which it finds with the prefix function. The lists are built in a fixed order, by relator in input order, then the relator before its inverse, then by offset, so the run is deterministic (GRP-18).
 
@@ -498,37 +498,37 @@ Columns of involutions are not merged. [HAVAS1991] notes that a table needs $(2g
 
 ### 7.3. Steps
 
-`enumerate` runs these steps. The column "Code-only part" names what only this design or SymPy's code states at step level, with the test of Section 10.1 that carries it, and `UNV-19` covers it. Every definition, in step 3 or step 5, first checks the limit as step 5 states:
+`enumerate` runs these steps. The column "Code-only part" names what only this design or SymPy's code states at step level, and `UNV-19` covers it. The worked examples and the property test "Closing pass idle" of Section 10.1 check every code-only part (GRP-24). Every definition, in step 3 or step 5, first checks the limit as step 5 states:
 
 | Step | What | Source | Code-only part |
 | --- | --- | --- | --- |
-| 1 | Check the limits of Section 15 and the letters of each subgroup generator, in the order of Section 8.2. Expand each relator, cyclically reduce it, and drop it when empty. Mark the one-letter relators. Form the conjugate lists of Section 7.2 | [HULPKE2010] Note III.22, pp. 75-76. Cyclic reduction first and the lists by first letter are [HOLT2005] pp. 165-166 (Section 7.12 of the colouring reference) | Distinct conjugates are GRP-25, carried by "Distinct conjugates" |
-| 2 | Start with coset 0 and every entry undefined. Apply the rule of Section 7.5 to coset 0 | [HULPKE2010] p. 72, [HOLT2005] p. 152, Section 7.9 of the colouring reference | The rule of Section 7.5, which neither [HOLT2005] nor [SIMS1994] treats (Section 7.9 of the colouring reference), carried by "One-letter relators" |
-| 3 | Process the deductions that step 2 pushed (step 6). Then scan and fill each subgroup generator at coset 0, in order. Trace the word forwards and backwards until each trace meets an undefined entry or the traces meet. Where more than one gap is left, define a new coset at the first undefined position of the forward trace, apply the rule of Section 7.5 to it, and process the deductions (step 6). Then replace the coset of each trace by its representative, because a coincidence may have removed it, and continue each trace from the position where it stopped. Repeat until the traces meet, which completes correctly or gives a coincidence (step 8), or until one gap is left, which is a deduction written both ways and pushed. After each subgroup generator, process the deductions (step 6). Because the traces resume, filling a word reads each of its letters once | Doing this first is [HAVAS1991] p. 193 and the COSETENUMERATIONC of [HOLT2005] p. 166 (Section 7.12 of the colouring reference). Scan-and-fill is the SCANANDFILL of [HOLT2005] p. 163 and the full two-sided trace of [SIMS1994] pp. 181-183 (Sections 7.10 and 7.11 of the colouring reference) | Processing the deductions after each definition, as step 5 does, and resuming the traces are this design's own. [HOLT2005] processes them once after all subgroup generators (p. 166). Carried by "Worked examples", "Long subgroup generator", "Long subgroup generators", and "Fill steps" |
-| 4 | Find the first undefined entry among the live cosets, by rows and within a row by columns. If there is none, go to step 10 | [HULPKE2010] p. 77, [HOLT2013] p. 17, [HOLT2005] p. 165, Section 7.12 of the colouring reference | The search keeps a cursor that only moves forward. When the cursor passes the last row, one full rescan of the live rows looks for a gap behind it, and the run statistics count each gap that the rescan finds. This avoids a scan from the first row at every definition. Carried by "Closing pass idle", which asserts that the rescan finds no gap |
-| 5 | If `limit` cosets have been defined, return `CosetLimitReached` (GRP-16). Otherwise define a new coset $j$ with $i^x = j$ and $j^{x^{-1}} = i$, apply the rule of Section 7.5 to $j$, push $(i, x)$, and process the deductions | [HOLT2013] p. 15, and the DEFINE of [HOLT2005] p. 153, which aborts at the limit, counts every number used, and always takes the next one (pp. 151 and 167, Sections 7.10 and 7.16 of the colouring reference) | None. The tests "Finite at a larger limit" and "Limit at its value" carry the count |
-| 6 | Process the deductions: while the stack is not empty, apply Section 7.6 when it holds the cap or more, and otherwise pop $(a, x)$ and scan as Section 7.4 states. Then return to the step that started the processing. After step 5 or step 10, that is step 4 | [HULPKE2010] Note III.22, [BROWN2011] p. 4, the PROCESSDEDUCTIONS of [HOLT2005] pp. 165-166, and the PROCESS_DEDUCTIONS of [SIMS1994] p. 234 (Section 7.12 of the colouring reference) | The order of the overflow (step 9), carried by "Stack cap one". The rest is carried by "Worked examples" and "Closing pass idle" |
-| 7 | Scan a word at a coset: trace the longest defined prefix forwards and the longest defined suffix backwards. The scan completes correctly, completes with two different cosets, which is a coincidence (step 8), leaves exactly one gap, which is a deduction written both ways and pushed, or yields nothing | [HULPKE2010] p. 75 in prose, the SCAN of [HOLT2005] pp. 153 and 155, and the TWO_SIDED_TRACE of [SIMS1994] pp. 181-183 (Section 7.10 of the colouring reference) | None. Carried by "Worked examples" and "Closing pass idle" |
-| 8 | Process a coincidence of $\alpha$ and $\beta$: merge them, which finds their representatives and, when these differ, makes the smaller the representative of the larger and queues the larger. While the queue is not empty, remove its first coset $\gamma$. For each column $x$ with $\delta = \gamma^x$ defined, clear $\delta^{x^{-1}}$, and let $\mu$ and $\nu$ be the representatives of $\gamma$ and $\delta$. Then do the first of these that applies. If $\mu^x$ is defined, merge $\nu$ and $\mu^x$. Otherwise, if $\nu^{x^{-1}}$ is defined, merge $\mu$ and $\nu^{x^{-1}}$. Otherwise set $\mu^x = \nu$ and $\nu^{x^{-1}} = \mu$. Push $(\mu, x)$ for each entry written (GRP-12) | [HOLT2013] p. 17, [HULPKE2010] p. 76, the REP, MERGE, and COINCIDENCE of [HOLT2005] pp. 157-158, and the COINCIDENCE of [SIMS1994] pp. 190-191 (Section 7.13 of the colouring reference) | The pushes. [HOLT2005] pushes each entry that is defined or altered, in prose only (p. 165), and [SIMS1994] pushes the edges that COINCIDENCE adds when a flag asks for it (pp. 190-191). The design pushes $(\mu, x)$ for each entry that it writes, and SymPy pushes $(\delta, x^{-1})$. Carried by "Closing pass idle" |
-| 9 | Overflow of the stack: Section 7.6 | Lookahead is [BROWN2011] p. 4 and the LOOKAHEAD of [HOLT2005] p. 164, which its PROCESSDEDUCTIONS runs on a full stack (p. 166, Sections 7.11 and 7.12 of the colouring reference) | The order of emptying and lookahead, which is the reverse of [HOLT2005] p. 166 and of [SYMPY-CT] lines 673-704, and the cap of [SYMPY-CT] line 54 that this design does not use. Carried by "Stack cap one" |
-| 10 | Closing pass: Section 7.7. If it changes anything, go to step 4 | [HULPKE2010] p. 75, Theorem 5.2 of [HOLT2013], and Theorem 5.2 of [HOLT2005] pp. 154-155, which the handbook proves, Sections 7.9 and 7.15 of the colouring reference | The pass is this design's safeguard (GRP-14), carried by "Closing pass idle" |
-| 11 | Relabel once, as Section 6.2 states, and return the table | [BROWN2011] p. 5, [HULPKE2010] p. 78, [GAP] Sections 47.7 and 47.7-1, the standard of [HOLT2005] p. 167 and of [SIMS1994] Section 3.8, Section 7.14 of the colouring reference | Relabelling in one pass without swaps is this design's own. The COMPRESS and STANDARDIZE of [HOLT2005] pp. 167-168, the STANDARDIZE of [SIMS1994] p. 195, and SymPy's `compress` and `standardize` ([SYMPY-CT] lines 752-832) use swaps or moves instead. The relabelling is carried by "Worked examples" and "Invariance" |
+| 1 | Check the limits of Section 15 and the letters of each subgroup generator, in the order of Section 8.2. Expand each relator, cyclically reduce it, and drop it when empty. Mark the one-letter relators. Form the conjugate lists of Section 7.2 | [HULPKE2010] Note III.22, pp. 75-76. Cyclic reduction first and the lists by first letter are [HOLT2005] pp. 165-166 (Section 7.12 of the colouring reference) | Distinct conjugates are GRP-25 |
+| 2 | Start with coset 0 and every entry undefined. Apply the rule of Section 7.5 to coset 0 | [HULPKE2010] p. 72, [HOLT2005] p. 152, Section 7.9 of the colouring reference | The rule of Section 7.5, which neither [HOLT2005] nor [SIMS1994] treats (Section 7.9 of the colouring reference) |
+| 3 | Process the deductions that step 2 pushed (step 6). Then scan and fill each subgroup generator at coset 0, in order. Trace the word forwards and backwards until each trace meets an undefined entry or the traces meet. Where more than one gap is left, define a new coset at the first undefined position of the forward trace, apply the rule of Section 7.5 to it, and process the deductions (step 6). Then replace the coset of each trace by its representative, because a coincidence may have removed it, and continue each trace from the position where it stopped. Repeat until the traces meet, which completes correctly or gives a coincidence (step 8), or until one gap is left, which is a deduction written both ways and pushed. After each subgroup generator, process the deductions (step 6). Because the traces resume, filling a word reads each of its letters once | Doing this first is [HAVAS1991] p. 193 and the COSETENUMERATIONC of [HOLT2005] p. 166 (Section 7.12 of the colouring reference). Scan-and-fill is the SCANANDFILL of [HOLT2005] p. 163 and the full two-sided trace of [SIMS1994] pp. 181-183 (Sections 7.10 and 7.11 of the colouring reference) | Processing the deductions after each definition, as step 5 does, and resuming the traces are this design's own. [HOLT2005] processes them once after all subgroup generators (p. 166) |
+| 4 | Find the first undefined entry among the live cosets, by rows and within a row by columns. If there is none, go to step 10 | [HULPKE2010] p. 77, [HOLT2013] p. 17, [HOLT2005] p. 165, Section 7.12 of the colouring reference | The search keeps a cursor that only moves forward. When the cursor passes the last row, one full rescan of the live rows looks for a gap behind it, and the run statistics count each gap that the rescan finds. This avoids a scan from the first row at every definition |
+| 5 | If `limit` cosets have been defined, return `CosetLimitReached` (GRP-16). Otherwise define a new coset $j$ with $i^x = j$ and $j^{x^{-1}} = i$, apply the rule of Section 7.5 to $j$, push $(i, x)$, and process the deductions | [HOLT2013] p. 15, and the DEFINE of [HOLT2005] p. 153, which aborts at the limit, counts every number used, and always takes the next one (pp. 151 and 167, Sections 7.10 and 7.16 of the colouring reference) | None |
+| 6 | Process the deductions: while the stack is not empty, apply Section 7.6 when it holds the cap or more, and otherwise pop $(a, x)$ and scan as Section 7.4 states. Then return to the step that started the processing. After step 5 or step 10, that is step 4 | [HULPKE2010] Note III.22, [BROWN2011] p. 4, the PROCESSDEDUCTIONS of [HOLT2005] pp. 165-166, and the PROCESS_DEDUCTIONS of [SIMS1994] p. 234 (Section 7.12 of the colouring reference) | The order of the overflow (step 9) |
+| 7 | Scan a word at a coset: trace the longest defined prefix forwards and the longest defined suffix backwards. The scan completes correctly, completes with two different cosets, which is a coincidence (step 8), leaves exactly one gap, which is a deduction written both ways and pushed, or yields nothing | [HULPKE2010] p. 75 in prose, the SCAN of [HOLT2005] pp. 153 and 155, and the TWO_SIDED_TRACE of [SIMS1994] pp. 181-183 (Section 7.10 of the colouring reference) | None |
+| 8 | Process a coincidence of $\alpha$ and $\beta$: merge them, which finds their representatives and, when these differ, makes the smaller the representative of the larger and queues the larger. While the queue is not empty, remove its first coset $\gamma$. For each column $x$ with $\delta = \gamma^x$ defined, clear $\delta^{x^{-1}}$, and let $\mu$ and $\nu$ be the representatives of $\gamma$ and $\delta$. Then do the first of these that applies. If $\mu^x$ is defined, merge $\nu$ and $\mu^x$. Otherwise, if $\nu^{x^{-1}}$ is defined, merge $\mu$ and $\nu^{x^{-1}}$. Otherwise set $\mu^x = \nu$ and $\nu^{x^{-1}} = \mu$. Push $(\mu, x)$ for each entry written (GRP-12) | [HOLT2013] p. 17, [HULPKE2010] p. 76, the REP, MERGE, and COINCIDENCE of [HOLT2005] pp. 157-158, and the COINCIDENCE of [SIMS1994] pp. 190-191 (Section 7.13 of the colouring reference) | The pushes. [HOLT2005] pushes each entry that is defined or altered, in prose only (p. 165), and [SIMS1994] pushes the edges that COINCIDENCE adds when a flag asks for it (pp. 190-191). The design pushes $(\mu, x)$ for each entry that it writes, and SymPy pushes $(\delta, x^{-1})$ |
+| 9 | Overflow of the stack: Section 7.6 | Lookahead is [BROWN2011] p. 4 and the LOOKAHEAD of [HOLT2005] p. 164, which its PROCESSDEDUCTIONS runs on a full stack (p. 166, Sections 7.11 and 7.12 of the colouring reference) | The order of emptying and lookahead, which is the reverse of [HOLT2005] p. 166 and of [SYMPY-CT] lines 673-704, and the cap of [SYMPY-CT] line 54 that this design does not use |
+| 10 | Closing pass: Section 7.7. If it changes anything, go to step 4 | [HULPKE2010] p. 75, Theorem 5.2 of [HOLT2013], and Theorem 5.2 of [HOLT2005] pp. 154-155, which the handbook proves, Sections 7.9 and 7.15 of the colouring reference | The pass is this design's safeguard (GRP-14) |
+| 11 | Relabel once, as Section 6.2 states, and return the table | [BROWN2011] p. 5, [HULPKE2010] p. 78, [GAP] Sections 47.7 and 47.7-1, the standard of [HOLT2005] p. 167 and of [SIMS1994] Section 3.8, Section 7.14 of the colouring reference | Relabelling in one pass without swaps is this design's own. The COMPRESS and STANDARDIZE of [HOLT2005] pp. 167-168, the STANDARDIZE of [SIMS1994] p. 195, and SymPy's `compress` and `standardize` ([SYMPY-CT] lines 752-832) use swaps or moves instead |
 
-GRP-12. Every entry that a scan, a definition, a coincidence, or the rule of Section 7.5 writes MUST be pushed on the deduction stack, because an entry that is never scanned can leave a relator unchecked at a coset, and the closing pass then has to find the fault. On the prototype, a run without the push of a scan's deduction made the closing pass change the table in some random presentations (Section 11.1).
+GRP-12. Every entry that a scan, a definition, a coincidence, or the rule of Section 7.5 writes MUST be pushed on the deduction stack, because an entry that is never scanned can leave a relator unchecked at a coset, and the closing pass then has to find the fault. On a prototype outside the repository, a run without the push of a scan's deduction made the closing pass change the table in about one random presentation in a hundred.
 
 GRP-13. A coincidence MUST keep the smaller coset number and MUST process the further coincidences through a queue, because coset 0 is the subgroup and must survive every merge, and a recursive merge has no bound on its depth. Holt replaces the larger number by the smaller ([HOLT2013] p. 17), the MERGE of [HOLT2005] and of [SIMS1994] keeps the smaller ([HOLT2005] p. 157, [SIMS1994] p. 190), and Hulpke keeps "a list of coincidences to process" ([HULPKE2010] p. 76). The COINCIDENCE of [HOLT2005] also uses a queue (p. 158). Section 7.13 of the colouring reference records all four.
 
 ### 7.4. Scans of a Deduction
 
-GRP-11. When it pops $(a, x)$, the enumeration MUST scan at $a$, if $a$ is live, every conjugate of $R_x$, and at $b = a^x$, if $b$ is defined and live, every conjugate of $R_{x^{-1}}$, selected by the letter $x$ of the popped entry, reading $b$ after the scans at $a$ and scanning at $b$ only when $a$ is still live, because a faithful rewrite of SymPy's variant, which scans every popped entry with the lists of its caller, never finished on the side presentation of any rotation double that the prototype tried, and without a closing pass it returned wrong tables (Section 11.1).
+GRP-11. When it pops $(a, x)$, the enumeration MUST scan at $a$, if $a$ is live, every conjugate of $R_x$, and at $b = a^x$, if $b$ is defined and live, every conjugate of $R_{x^{-1}}$, selected by the letter $x$ of the popped entry, reading $b$ after the scans at $a$ and scanning at $b$ only when $a$ is still live, because a faithful rewrite of SymPy's variant, which scans every popped entry with the lists of its caller, never finished on the side presentation of any rotation double that a prototype outside the repository tried, and without a closing pass it returned wrong tables.
 
-This is Hulpke's rule: "if the image of coset y under generator g is defined as z, we scan all relators in R^c_g starting at the coset y and all relators in R^c_{g^-1} starting at z" ([HULPKE2010] Note III.22, pp. 75-76, Section 7.12 of the colouring reference). SymPy's `coset_enumeration_c` passes two lists from its caller to its processing of deductions and scans each popped pair with them, whatever the column of the pair ([SYMPY-CT] lines 673-704, Section 7.12 of the colouring reference). Both books select the lists by the letter of the popped entry, as this design does ([HOLT2005] p. 166, [SIMS1994] p. 234), so SymPy departs from both. Neither book discusses SymPy's variant, so no source says whether it matters (item 23 of Section 14.1 of the colouring reference). The prototype answers the question for this design (Section 11.1). One of the presentations on which the variant never finished is the side presentation of `332`, $\langle s_0, s_1, s_2, s_3 \mid s_0 s_1, s_2 s_3, s_1^3, (s_2 s_0)^2, s_3^3 \rangle$, whose group has order 12.
+This is Hulpke's rule: "if the image of coset y under generator g is defined as z, we scan all relators in R^c_g starting at the coset y and all relators in R^c_{g^-1} starting at z" ([HULPKE2010] Note III.22, pp. 75-76, Section 7.12 of the colouring reference). SymPy's `coset_enumeration_c` passes two lists from its caller to its processing of deductions and scans each popped pair with them, whatever the column of the pair ([SYMPY-CT] lines 673-704, Section 7.12 of the colouring reference). Both books select the lists by the letter of the popped entry, as this design does ([HOLT2005] p. 166, [SIMS1994] p. 234), so SymPy departs from both. Neither book discusses SymPy's variant, so no source says whether it matters (item 23 of Section 14.1 of the colouring reference), and the prototype answers the question for this design. One of the presentations on which the variant never finished is the side presentation of `332`, $\langle s_0, s_1, s_2, s_3 \mid s_0 s_1, s_2 s_3, s_1^3, (s_2 s_0)^2, s_3^3 \rangle$, whose group has order 12.
 
 The scans at $a$ stop when a scan kills $a$ by a coincidence, as SymPy's loop stops ([SYMPY-CT] lines 673-704, Section 7.12 of the colouring reference). Skipping the scan at $b$ then rests on GRP-12, because the coincidence pushes the entries that it writes. This is a reading of this design, which "Closing pass idle" checks.
 
 ### 7.5. One-Letter Relators
 
-GRP-26. For each one-letter relator $x$, the enumeration MUST set $c^x = c$ and $c^{x^{-1}} = c$ at coset 0 and at each new coset $c$, and push both entries, because the global relator of a Conway presentation can be such a relator, as the next paragraphs show, and without this rule the enumeration defined about twice the group order on the Conway presentations of the prototype that have a boundary or a crosscap (Section 11.1).
+GRP-26. For each one-letter relator $x$, the enumeration MUST set $c^x = c$ and $c^{x^{-1}} = c$ at coset 0 and at each new coset $c$, and push both entries, because the global relator of a Conway presentation can be such a relator, as the next paragraphs show, and without this rule the enumeration defined about twice the group order on every Conway presentation with a boundary or a crosscap that a prototype outside the repository tried.
 
 Cannon and Havas state the rule "each coset j must be mapped to itself by each of the defining relators" ([CANNON-HAVAS1992] Section 2.2, p. 3, Section 7.10 of the colouring reference). For a relator of one letter $x$, that rule fixes the entry of column $x$ in every row, and this step writes it when the row is created instead of waiting for a scan. When the cyclically reduced relator is $x^{-1}$, the letter is $x^{-1}$ and the same two entries result. The timing of the step is this design's own, under `UNV-19`. Neither [HOLT2005] nor [SIMS1994] treats a relator of one letter as a topic (Section 7.9 of the colouring reference). A one-letter relator also stays in the conjugate lists, so the scans of Section 7.4 check it like any other.
 
@@ -536,13 +536,13 @@ The global relator of every Conway presentation with exactly one Greek generator
 
 ### 7.6. Overflow of the Deduction Stack
 
-GRP-27. When the deduction stack holds its cap or more at the top of step 6, the enumeration MUST first empty the stack and then run a lookahead that scans every relator at every live coset without a definition, pushing every entry that the lookahead writes, and the cap MUST be a crate-private parameter that a test can set to 1, because the overflow path never runs at the default cap on any input that the prototype tried, and only a small cap exercises it.
+GRP-27. When the deduction stack holds its cap or more at the top of step 6, the enumeration MUST first empty the stack and then run a lookahead that scans every relator at every live coset without a definition, pushing every entry that the lookahead writes, and the cap MUST be a crate-private parameter that a test can set to 1, because the overflow path never runs at the default cap on any input that a prototype outside the repository tried, and only a small cap exercises it.
 
-The lookahead is Brown's: "we check all relators at all vertices (but without making new definitions) and take account of any deductions or coincidences that we can discover" ([BROWN2011] p. 4, Section 7.11 of the colouring reference). This design keeps the entries that the lookahead writes on the stack, so that their scans still run, which is how it reads "take account of any deductions". The PROCESSDEDUCTIONS of [HOLT2005] runs the lookahead first and then empties the stack ([HOLT2005] p. 166), and so does SymPy, which drops the entries that the lookahead pushed ([SYMPY-CT] lines 673-704, Section 7.12 of the colouring reference). The handbook gives no size for the stack (p. 165). The reverse order is a choice of this design (Section 14.2). On the prototype, both orders gave correct tables at small caps (Section 11.1).
+The lookahead is Brown's: "we check all relators at all vertices (but without making new definitions) and take account of any deductions or coincidences that we can discover" ([BROWN2011] p. 4, Section 7.11 of the colouring reference). This design keeps the entries that the lookahead writes on the stack, so that their scans still run, which is how it reads "take account of any deductions". The PROCESSDEDUCTIONS of [HOLT2005] runs the lookahead first and then empties the stack ([HOLT2005] p. 166), and so does SymPy, which drops the entries that the lookahead pushed ([SYMPY-CT] lines 673-704, Section 7.12 of the colouring reference). The handbook gives no size for the stack (p. 165). The reverse order is a choice of this design (Section 14.2). On a prototype outside the repository, both orders gave correct tables at small caps.
 
 The cap is checked only at the top of step 6, so one coincidence or one lookahead can push the stack past the cap. Step 3 runs step 6 after each definition and after each subgroup generator, so the cap is also checked during step 3. Section 15 states the bound on the memory of the stack that follows.
 
-After the lookahead, step 6 checks the cap again before it pops. At a cap of 1, every entry that the lookahead pushes therefore starts another emptying and another lookahead, and no entry is ever popped, so a run at a cap of 1 is Felsch with the lookahead as its only scans. Such runs gave the same tables as the default cap on every input of "Stack cap one", and on every input of "Closing pass idle" for which both runs finish (Section 10.1).
+After the lookahead, step 6 checks the cap again before it pops. At a cap of 1, every entry that the lookahead pushes therefore starts another emptying and another lookahead, and no entry is ever popped, so a run at a cap of 1 is Felsch with the lookahead as its only scans. The tests compare such runs with runs at the default cap and require equal tables (Section 10.1).
 
 ### 7.7. Closing Pass
 
@@ -554,7 +554,7 @@ The notes state that the table keeps Holt's properties (R1) to (R3) through coin
 
 The pass runs when step 4 finds no undefined entry. Each scan of a complete table either completes correctly or finds a coincidence. When it finds one, the pass processes it and the pushed deductions and returns to step 4. The crate-private run statistics count the cosets defined, the merges that joined two classes, the largest deduction stack, the changes that the pass finds, and the gaps that the rescan of step 4 finds.
 
-On the prototype and on the crate, the closing pass changed nothing in a correct implementation over every input tried (Sections 11.1 and 11.2). On the prototype, it found the faults of the variants of Sections 7.3 and 7.4 that the prototype introduced (Section 11.1). The pass is therefore a safeguard against a defect of the code-only steps, and the property test "Closing pass idle" of Section 10.1 is what shows that those steps do their part.
+On a prototype outside the repository and on the crate, the closing pass changed nothing in a correct implementation over every input tried, and on the prototype it found the faults of the variants of Sections 7.3 and 7.4 that the prototype introduced. The pass is therefore a safeguard against a defect of the code-only steps, and the property test "Closing pass idle" of Section 10.1 is what shows that those steps do their part.
 
 Two branches guard against a failure of (R1) after a coincidence. Proposition 5.4 of [HOLT2005] proves that the handbook's COINCIDENCE keeps (R1), so the branches guard only against a defect of this crate's code, which is part of `UNV-19` (Section 13):
 
@@ -567,7 +567,7 @@ A reading of the code finds both unreachable while (R1) holds whenever no coinci
 
 GRP-17. An error text, a documentation comment, or a document of this crate MUST NOT state that `CosetLimitReached` shows the index or the group to be infinite, because [HOLT2005] states that a run that runs out of space shows nothing about the index: "So, we learn nothing when this happens" (p. 149, item 19 of Section 14.1 of the colouring reference). [SIMS1994] states that such a run stops without a result (p. 224) and that an enumeration can end because memory is exhausted before the index is known (p. 247), but not that the run shows nothing about the index. ACE's manual shows a subgroup of finite index whose enumeration overflows at a small limit and succeeds at a larger one ([ACE] Appendix B.4, read through a summarizing tool, Section 7.15 of the colouring reference).
 
-The documentation of `CosetLimitReached` states that the run defined the limit and needed more, and that a larger limit may or may not finish. Holt states that if the index is infinite the procedure "will not halt", and that for a finite index "there is no upper bound on the time taken" ([HOLT2013] p. 15, Section 7.15 of the colouring reference). The test "Finite at a larger limit" of Section 10.1 shows a finite group that reaches a small limit.
+The documentation of `CosetLimitReached` states that the run defined the limit and needed more, and that a larger limit may or may not finish. Holt states that if the index is infinite the procedure "will not halt", and that for a finite index "there is no upper bound on the time taken" ([HOLT2013] p. 15, Section 7.15 of the colouring reference). A limit test of Section 10.1 shows that Sims's presentation, a finite group, reaches a limit above its order.
 
 ### 7.9. Determinism and Cost
 
@@ -594,7 +594,7 @@ The search runs through a tree of partial coset tables, as Sims's method does, "
 
 This variant reuses the table layout of Section 6.1 and the conjugate lists of Section 7.2. It needs no coincidence processing, because the search never eliminates a coset: "the live cosets of a node are always $1, \dots, n_C$" ([HOLT2005] p. 190, Section 7.17 of the colouring reference). The setting of [SIMS1994] needs a rewriting system and one column for each involution, which GRP-9 does not use (Section 7.21 of the colouring reference).
 
-The prototype of Section 11.3 found that each element of the group maps the picture of a subgroup onto itself, that two different subgroups always gave different pictures, and that no sampled element of the group related the pictures of two conjugate subgroups. These findings are the prototype's and not a source's. How conjugate subgroups relate to colourings is open in the colouring reference (Section 3.4 and items 1 to 3 of Section 14.1), and the design records it under `UNV-17`. The owner decided on one colouring for each subgroup (`DEC-37`).
+A prototype of the search outside the repository, which used the side presentations of `escher-domain` and the fold of `escher-render`, found on the ten signatures that it rendered that each element of the group maps the picture of a subgroup onto itself, that two different subgroups always gave different pictures, and that no sampled element of the group related the pictures of two conjugate subgroups. These findings are the prototype's and not a source's. How conjugate subgroups relate to colourings is open in the colouring reference (Section 3.4 and items 1 to 3 of Section 14.1), and the design records it under `UNV-17`. The owner decided on one colouring for each subgroup (`DEC-37`).
 
 ### 7.11. Steps of a Run
 
@@ -611,17 +611,17 @@ A run of bound $n$ runs these steps. The column "Code-only part" names what only
 
 A frame holds the slot of its branch, the next candidate, the length of the trail, and the number of rows. Undoing sets each slot of the trail above the noted length back to undefined and restores the number of rows.
 
-GRP-31. To process the deductions, the run MUST pop $(a, x)$ and scan every conjugate of $R_x$ at $a$ and, when $b = a^x$ is defined, every conjugate of $R_{x^{-1}}$ at $b$, as GRP-11 selects them, MUST scan every relator of the presentation, MUST write and push both entries of each deduction that a scan finds, and MUST abandon the candidate at the first contradiction, because a run that splits off the long relators or that does not push its deductions returns wrong tables without the leaf check, and on the prototype a run that split at 5 letters took far more steps than a run that used every relator (Section 11.3).
+GRP-31. To process the deductions, the run MUST pop $(a, x)$ and scan every conjugate of $R_x$ at $a$ and, when $b = a^x$ is defined, every conjugate of $R_{x^{-1}}$ at $b$, as GRP-11 selects them, MUST scan every relator of the presentation, MUST write and push both entries of each deduction that a scan finds, and MUST abandon the candidate at the first contradiction, because a run that splits off the long relators or that does not push its deductions returns wrong tables without the leaf check, and on a prototype outside the repository, a run of `*732` or `*(1000)32` to 20 colours that split at 5 letters took thousands of times the steps of a run that used every relator.
 
-A scan here is the scan of step 7 of Section 7.3 without a definition and without coincidence processing. It completes correctly, completes with two different cosets, which is a contradiction, leaves exactly one gap, which is a deduction, or yields nothing. The handbook's SCANCHECK "returns false (rather than calling COINCIDENCE) if the scan completes incorrectly" ([HOLT2005] p. 191), and Sims abandons the candidate on any coincidence ([SIMS1994] p. 254). That the search pushes the deductions of the relator traces is the research's inference from Sims's reference to the Felsch strategy, which no source states (item 23 of Section 14.1 of the colouring reference). On the prototype, a run without the pushes gave the same output on 417 of 417 presentations with the leaf check, at 2.75 times the steps, and wrong output on 114 of them without it (Section 11.3). In the crate, a run without the pushes makes the leaf check discard tables, and the tests catch it (Section 10.3).
+A scan here is the scan of step 7 of Section 7.3 without a definition and without coincidence processing. It completes correctly, completes with two different cosets, which is a contradiction, leaves exactly one gap, which is a deduction, or yields nothing. The handbook's SCANCHECK "returns false (rather than calling COINCIDENCE) if the scan completes incorrectly" ([HOLT2005] p. 191), and Sims abandons the candidate on any coincidence ([SIMS1994] p. 254). That the search pushes the deductions of the relator traces is the research's inference from Sims's reference to the Felsch strategy, which no source states (item 23 of Section 14.1 of the colouring reference). On a prototype outside the repository, a run without the pushes kept its output right only through the leaf check, at almost three times the steps, and without the check gave wrong output on about a quarter of the presentations that it tried. In the crate, the tests catch a run without the pushes, because the leaf check then discards tables (Section 10.3).
 
-GRP-32. The first-in-class test MUST, for each base coset $\alpha$ from 1 upward, relabel the cosets by first appearance with $\alpha$ as coset 0, reading the rows in their new order and each row by columns, and compare each relabelled entry with the entry of the original table at the same position. When either entry is undefined, or the original coset of the relabelled row is not yet known, it MUST go to the next $\alpha$. When the relabelled entry is smaller, it MUST return false, and when it is larger, it MUST go to the next $\alpha$. It returns true when every $\alpha$ is done. It MUST NOT compare an undefined entry as 0, because the prototype's reading of that rule lost classes on 389 of 417 presentations and returned false on the second `first_in_class` doctest of SymPy, where SymPy expects true (Section 11.3).
+GRP-32. The first-in-class test MUST, for each base coset $\alpha$ from 1 upward, relabel the cosets by first appearance with $\alpha$ as coset 0, reading the rows in their new order and each row by columns, and compare each relabelled entry with the entry of the original table at the same position. When either entry is undefined, or the original coset of the relabelled row is not yet known, it MUST go to the next $\alpha$. When the relabelled entry is smaller, it MUST return false, and when it is larger, it MUST go to the next $\alpha$. It returns true when every $\alpha$ is done. It MUST NOT compare an undefined entry as 0, because a prototype outside the repository that read the rule that way lost classes on most of the presentations that it tried and returned false on the second `first_in_class` doctest of SymPy, where SymPy expects true.
 
-This is the rule of FIRSTINCLASS ([HOLT2005] p. 194), of FIRST_CONJ ([SIMS1994] pp. 208-209), of SymPy's `first_in_class`, and of SymmHub's `isCanonical`, all of which stop at an undefined entry (Sections 7.17 and 7.19 of the colouring reference). The rule of `low_index` compares an empty slot as 0 ([LOWINDEX] Section 3.4). The handbook states that the test "will be conclusive if D is complete" ([HOLT2005] p. 192). That pruning a partial table loses no class is stated and argued by both books and proved by neither (item 22 of Section 14.1 of the colouring reference), so it is part of `UNV-19`. In the crate, pruning partial tables gave the same classes and colourings as testing complete tables only on every random presentation tried, and the test on complete tables only took more nodes and steps (Section 11.4).
+This is the rule of FIRSTINCLASS ([HOLT2005] p. 194), of FIRST_CONJ ([SIMS1994] pp. 208-209), of SymPy's `first_in_class`, and of SymmHub's `isCanonical`, all of which stop at an undefined entry (Sections 7.17 and 7.19 of the colouring reference). The rule of `low_index` compares an empty slot as 0 ([LOWINDEX] Section 3.4). The handbook states that the test "will be conclusive if D is complete" ([HOLT2005] p. 192). That pruning a partial table loses no class is stated and argued by both books and proved by neither (item 22 of Section 14.1 of the colouring reference), so it is part of `UNV-19`. In the crate, pruning partial tables gave the same classes and colourings as testing complete tables only on every random presentation tried, and the test on complete tables only took more nodes and steps.
 
 GRP-33. Before a run passes on a complete table, it MUST scan every relator at every coset of the table and MUST discard the table, counting it in the crate-private statistics, unless every scan completes correctly, because a table that is passed on then rests on the sourced statement about closed tables ([HULPKE2010] p. 75 and Theorem 5.2 of [HOLT2005], Section 7.7), as GRP-14 makes a table of `enumerate` rest on it, and not on the code-only steps of the search.
 
-The handbook states that the leaf tables already satisfy the short relators, with no argument beyond the use of the deduction stack ([HOLT2005] p. 191, Section 7.17 of the colouring reference). In the crate, the leaf check discarded no table (Section 11.4), and on the prototype it took a small part of the steps (Section 11.3). No test detects its removal (Section 10.3). The check stays as the safety net that the closing pass is for `enumerate`.
+The handbook states that the leaf tables already satisfy the short relators, with no argument beyond the use of the deduction stack ([HOLT2005] p. 191, Section 7.17 of the colouring reference). In the crate, the leaf check discarded no table on any input measured, and on a prototype outside the repository it took about 5 percent of the steps. No test detects its removal (Section 10.3). The check stays as the safety net that the closing pass is for `enumerate`.
 
 ### 7.12. Limits of a Call
 
@@ -632,7 +632,7 @@ The values are these:
 | Limit | Default | Maximum | Reason |
 | --- | --- | --- | --- |
 | `IndexLimit` | 12 | 64 | The default is the owner's (Section 10.1 of the architecture). The maximum keeps an id within 2 digits and the table of a run within $64 \cdot 512$ entries |
-| `SearchBudget` | $2^{28}$ steps | $2^{36}$ steps | The crate takes 480 M to 1070 M steps per second in a release build, and about 440 M on the triangles whose corner orders are all near 1000 (Section 11.4). $2^{28}$ steps are 0.25 to 0.56 s, and a call takes at most twice the budget (GRP-35), about 1.2 s on those triangles. $2^{36}$ steps are 256 times the default |
+| `SearchBudget` | $2^{28}$ steps | $2^{36}$ steps | In a release build of the crate, $2^{28}$ steps took 0.25 to 0.56 s on the side presentations measured, and a call takes at most twice the budget (GRP-35), about 1.2 s on the triangles whose corner orders are all near 1000. $2^{36}$ steps are 256 times the default |
 | Colourings stored by one call | 65536 | Not configurable | GRP-36 |
 | Table entries stored by one call | $2^{22}$ | Not configurable | GRP-36, which bounds the stored tables at 16 MiB |
 
@@ -640,7 +640,7 @@ The values are these:
 
 GRP-36. `colourings` and `colourings_of_index` MUST stop a run when storing the next colouring would make the call hold more than 65536 colourings or more than $2^{22}$ table entries, and MUST treat that stop as a stop at the budget (GRP-35), because the number of subgroups grows fast with the index and the class sizes multiply it, and an unbounded list exhausts memory before the budget ends the run. `count_colourings` stores no colouring, so only the budget stops it.
 
-Because the stored limits stop only `colourings` and `colourings_of_index`, `colourings` can be complete to fewer colour counts than `count_colourings` on the same input. At the default limit, `*664` lists to 11 and counts to 12, and `664` lists to 10 and counts to 11 (Section 11.4).
+Because the stored limits stop only `colourings` and `colourings_of_index`, `colourings` can be complete to fewer colour counts than `count_colourings` on the same input. For example, with the default limit and budget, the side presentation of `*664` lists to 11 and counts to 12.
 
 A caller cannot tell from the result whether the budget or a stored limit stopped a call, because both give the same result. Every text that reports such a stop, in the crate and in its callers, says that the search stopped at a limit, which covers both (CLI-47 of `docs/design/cli.md`).
 
@@ -650,7 +650,7 @@ GRP-34. For each class table $T$ of $k$ rows, the call MUST relabel $T$ from eac
 
 The handbook states that "the conjugates of H are just the stabilizers G_alpha of the points alpha in Omega" ([HOLT2005] p. 190), and that the tables $C_\alpha$ from the base points are the standardized tables of the conjugates of $H$ ([HOLT2005] p. 193). Hulpke states the same relabelling ([HULPKE2010] pp. 80-81, Section 7.17 of the colouring reference). That two distinct standard tables are two distinct subgroups is Proposition 5.6 of [HOLT2005], which `UNV-19` covers. No mathematical source states a rule for the number of subgroups in a class, and SymmHub's code computes it as the number of distinct standardizations over all base points (Section 7.17 of the colouring reference), as this design does.
 
-The expansion removes repeated relabellings by comparing each new relabelling with the distinct ones kept so far, entry by entry with an exit at the first difference, and counts the reads in steps (GRP-29). Its scratch buffer holds only distinct tables, at most $k$. Each distinct table is represented by its first base coset, so the relabelling from base 0, which is $T$ itself, is always kept. A sort of the $k$ relabellings was 2 to 5 times slower for each counted step on classes with large normalizers, and its comparisons were not counted. `count_colourings` counts the distinct tables and discards them. The other two functions store them. Section 11.4 gives the sizes of some classes.
+The expansion removes repeated relabellings by comparing each new relabelling with the distinct ones kept so far, entry by entry with an exit at the first difference, and counts the reads in steps (GRP-29). Its scratch buffer holds only distinct tables, at most $k$. Each distinct table is represented by its first base coset, so the relabelling from base 0, which is $T$ itself, is always kept. A sort of the $k$ relabellings was 2 to 5 times slower for each counted step on classes with large normalizers, and its comparisons were not counted. `count_colourings` counts the distinct tables and discards them. The other two functions store them.
 
 $T$ is the least of its results, because it passed the first-in-class test as a complete table, and the test "Least in class" checks it. `Colouring::class` is the id of $T$, the table that the search kept for the class, and not the least id of the class computed after the expansion. The two are equal when the first-in-class test is right. Computing the least id directly would hide a defect of that test, such as swapped comparisons, which would then change no output (Section 10.3).
 
@@ -662,9 +662,9 @@ GRP-35. `count_colourings` and `colourings` with the limit $N$ MUST first run on
 
 An error text, a documentation comment, or a document of this crate MUST NOT state anything about the colourings of a colour count above `complete_to()`, or about any colouring when `is_complete()` is false, because a stopped run shows nothing about them, as GRP-17 states for an enumeration that reaches its limit. A `ColouringsOfIndex` states nothing about any colour count other than its own. A call that stops at a limit returns its result and not an error.
 
-In the crate, the runs by index cost 2.08 to 11.24 times the steps of one run at $N = 12$ and 2.38 to 23.24 times at $N = 24$, the most for `22` (Section 11.4), so a call pays for them only when the one run cannot end. Both phases count steps, so a call takes at most twice the budget, plus the overshoot of GRP-29 in each phase and the uncounted sort of Section 15.
+On the side presentations measured in the crate, the runs by index cost about 2 to 23 times the steps of one run at the limits 12 and 24, so a call pays for them only when the one run cannot end. Both phases count steps, so a call takes at most twice the budget, plus the overshoot of GRP-29 in each phase and the uncounted sort of Section 15.
 
-With the default budget, the search stops early for the triangle groups whose corner orders are all near 1000. In the crate, a call with the default limit and budget, with both phases of GRP-35, is complete to 8 for `*(1000)(1000)(1000)`, to 7 for `(1000)(1000)(1000)`, to 10 for `*(998)(981)(961)`, and to 9 for `(998)(981)(961)`, each in about 1.2 s in a release build (Section 11.4). Each scan of a long power relator reads up to 2000 entries. A split of the relators helps little there. Scanning a power relator $w^e$ by the cycle of $w$ at the coset, with at most $N$ repetitions and a test that the length of the cycle divides $e$, would read at most $2N$ entries for such a relator. That idea is unmeasured and is not part of this design (item 6 of Section 14.3).
+With the default budget, the search stops early for the triangle groups whose corner orders are all near 1000. In a release build of the crate, a call with the default limit and budget on such a side presentation, such as that of `*(1000)(1000)(1000)`, is complete to only 7 to 10 colours after about 1.2 s. Each scan of a long power relator reads up to 2000 entries. A split of the relators helps little there. Scanning a power relator $w^e$ by the cycle of $w$ at the coset, with at most $N$ repetitions and a test that the length of the cycle divides $e$, would read at most $2N$ entries for such a relator. That idea is unmeasured and is not part of this design (item 6 of Section 14.3).
 
 ### 7.15. Colouring Ids
 
@@ -684,7 +684,7 @@ letter       = %x61-7A             ; a to z
 
 `FromStr` accepts only this text with a colour count from 1 to 64, and returns `InvalidColouringId` for anything else, such as `0a`, `03a`, `65a`, `3A`, `3`, `a`, `3aaaaa`, or `3a ` with a trailing space. It does not check that a colouring with the id exists, which only a search can tell. `Display` writes the same text, so a parsed id prints as it was read.
 
-The id depends on the order of the generators, and so for a side presentation on the numbering of the sides of the domain. On the prototype, with the ids of classes, swapping `s0` and `s1` renamed ids, while reordering or rewriting the relators, adding a redundant relator, changing the limit or the budget, and changing the parameter `aspect` of `*2222` did not (Section 11.3). A change of `escher-domain` that renumbers the sides of a domain would therefore rename its ids without an error, which is why the side numbering of a built domain is part of the contract of `escher-domain` (DOM-37 of `docs/design/domain.md`). That the id does not depend on how the relators are written rests on Proposition 5.6 of [HOLT2005], under `UNV-19`.
+The id depends on the order of the generators, and so for a side presentation on the numbering of the sides of the domain. On a prototype outside the repository, with ids ranked among the class tables, swapping `s0` and `s1` renamed ids, while reordering or rewriting the relators, adding a redundant relator, changing the limit or the budget, and changing the parameter `aspect` of `*2222` did not. A change of `escher-domain` that renumbers the sides of a domain would therefore rename its ids without an error, which is why the side numbering of a built domain is part of the contract of `escher-domain` (DOM-37 of `docs/design/domain.md`). That the id does not depend on how the relators are written rests on Proposition 5.6 of [HOLT2005], under `UNV-19`.
 
 The parity table of a reflection domain, whose row 0 is all ones, has the last id of the colour count 2. In the crate, under the ids of GRP-37, it is:
 
@@ -695,7 +695,7 @@ The parity table of a reflection domain, whose row 0 is all ones, has the last i
 | `2g` | `*642`, `*442`, `*664`, and `*(1000)22` |
 | `2o` | `*2222` |
 
-For the signatures that both tried, these are the ids that the prototype gave with its ids of classes, because every class of colour count 2 that the crate measured has one subgroup (Section 11.4). CLI-48 of `docs/design/cli.md` states the aliases `one` and `parity`.
+CLI-48 of `docs/design/cli.md` states the aliases `one` and `parity`.
 
 ### 7.16. Colour of a Sample
 
@@ -705,7 +705,7 @@ For a fold that applies the sides $i_1, \ldots, i_n$ in that order, the sample l
 
 No source states this rule. That the product of the generators of the fold's sides, in fold order, maps the domain onto the tile of the sample, and that the number of $S g^{-1}$ names the left coset $gS$ by which Section 5.4 of the architecture colours the tile $gF$, are both part of `UNV-17`. Lemma 2.1 of [FRETTLOH2008] proves a coset colouring perfect only for the triangle tiling $T_{p,q}$ under $G_{p,q}$ (Sections 4.1 and 4.2 of the colouring reference). The only precedent is the comment of SymmHub that its fold needs "the sequence of _inverse_ transformations applied in _opposite_ order", which is the code's own claim (Section 8.4 of the colouring reference).
 
-On the prototype (Section 11.3), the product of the generators in fold order mapped the folded point back onto the sample for 300 samples of each of 12 signatures, and the product in the reverse order did not. The rule of GRP-38 gave a perfect colouring on every class tried, with the exact permutation that GRP-41 asserts: the colour of $P_i^{-1} x$ is the image of the colour of $x$ under the inverse of generator $i$. Tracing the word forwards was not perfect on exactly the classes that are not normal. Tracing in reverse without the inverse gave a perfect colouring on every class, which was the mirror image of the right one, reflected in a wall of the starred domain. It differed only on rotation domains, because the generator of a mirror is its own inverse.
+The prototype of Section 7.10 checked the rule on samples, which is no proof. The product of the generators in fold order mapped the folded point back onto the sample for 300 samples of each of 12 signatures, and the product in the reverse order did not. The rule of GRP-38 gave a perfect colouring on every class tried, with the exact permutation that GRP-41 asserts: the colour of $P_i^{-1} x$ is the image of the colour of $x$ under the inverse of generator $i$. Tracing the word forwards was not perfect on exactly the classes that are not normal. Tracing in reverse without the inverse gave a perfect colouring on every class, which was the mirror image of the right one, reflected in a wall of the starred domain. It differed only on rotation domains, because the generator of a mirror is its own inverse.
 
 Because the first letter of $g$ acts last, a caller cannot carry one coset forward through the fold. It records the side indices and calls `colour_of` once for each sample (RND-38 of `docs/design/render.md`). The alternative is a permutation of $k$ entries carried through each fold step.
 
@@ -713,7 +713,7 @@ Because the first letter of $g$ acts last, a caller cannot carry one coset forwa
 
 GRP-39. The result of `count_colourings`, `colourings`, and `colourings_of_index` MUST be a function of the presentation, the limit, and the budget alone, and the colourings of each colour count up to `complete_to()` MUST NOT depend on the limit or the budget, because `escher info` lists the ids that `escher render` later resolves in another call with another limit (CLI-43 of `docs/design/cli.md`).
 
-The search iterates no hash map, uses no randomness, starts no thread, and measures no time. Within one run, the class tables of one colour count appeared in lexicographic order in 96 of 96 signature runs of the prototype. The design does not rely on it, because GRP-37 sorts the colourings of each colour count after the expansion. Whether a call is complete to a colour count can depend on the order and the spelling of the relators, as Section 6.2 states for whether an enumeration finishes within its limit.
+The search iterates no hash map, uses no randomness, starts no thread, and measures no time. Within one run, the class tables of one colour count appeared in lexicographic order in every signature run of the prototype of Section 7.10. The design does not rely on it, because GRP-37 sorts the colourings of each colour count after the expansion. Whether a call is complete to a colour count can depend on the order and the spelling of the relators, as Section 6.2 states for whether an enumeration finishes within its limit.
 
 ## 8. Errors
 
@@ -756,82 +756,36 @@ The crate limits the generators, relators, letters, subgroup generators, expande
 
 ### 10.1. Tests
 
-The unit tests sit beside the code (TEST-1 of the coding standard), and the integration tests form the one binary of Section 3.3. The test "Side orders", which serves the second item of the field "Tests and acceptance" of Section 5.7 of the plan, belongs to `escher-domain` (Section 12.1 of `docs/design/domain.md`).
+The unit tests sit beside the code (TEST-1 of the coding standard), and the integration tests form the one binary of Section 3.3. Every test stays well under a minute in a debug build. The presentation tests of `escher-domain`, which enumerate the side presentations of its domains with this crate, belong to that crate (Section 12.1 of `docs/design/domain.md`), among them the test of the spherical side orders that DOM-64 of that document names.
 
-Each test names the item of that field, or of the field "Tests and acceptance" of Section 5.8 of the plan, that it serves, or None. Every test stays well under a minute in a debug build. The tests of the search write their presentations by hand, because this crate cannot build a domain. The Coxeter presentation of `*pqr` in them is $\langle s_0, s_1, s_2 \mid s_0^2, s_1^2, s_2^2, (s_0 s_1)^p, (s_1 s_2)^q, (s_2 s_0)^r \rangle$, the relators of the side presentation of the prototype's domains, such as $(s_0 s_1)^7$, $(s_1 s_2)^3$, and $(s_2 s_0)^2$ for `*732`:
+The tests of the search write their presentations by hand, because this crate cannot build a domain. In them, the Coxeter presentation of `*pqr` is $\langle s_0, s_1, s_2 \mid s_0^2, s_1^2, s_2^2, (s_0 s_1)^p, (s_1 s_2)^q, (s_2 s_0)^r \rangle$, and a side presentation of a rotation domain is written as `escher info --presentation` prints it.
 
-| Test | Plan item | Kind and place | Asserts | Source |
-| --- | --- | --- | --- | --- |
-| Spherical orders | Spherical types | Table test, `spherical` | The Conway presentation of each of the 7 series for $n$ from 1 to 12 and of the 7 particular types, enumerated over the trivial subgroup at the default limit, has an index equal to `group_order()`. The series are written with one digit from 2 to 9 and in parentheses otherwise, so $n = 1$ is `(1)` in every series, such as `(1)(1)`, `*(1)(1)`, `(1)*`, `(1)x`, `(1)22`, `*(1)22`, and `2*(1)`. The parser rejects `11`, `*11`, `122`, and `*122`, so no series writes $n = 1$ as a digit. The test asserts that the 91 strings give 87 distinct canonical signatures, `1` among them, and runs each once | Sections 7.3 and 8.2 of the notation reference |
-| Order two | Order two | Table test, `spherical` | `x`, `22`, and `*` each enumerate to index 2 | [CH] p. 257, Sections 4.2 and 8.2 of the notation reference |
-| Conway words | None | Unit test in `conway.rs` | The generators and relators of every row of Section 5.4, compared as text. Between them `o3*22` and `3*22x` have every kind of feature, so a reversed commutator, a reversed conjugation, a missing global relator, or a wrong exponent fails | Section 9.1 of the notation reference |
-| Infinite groups | Bound | Table test, `limits` | The Conway presentations of `*632`, `2222`, `o`, and `*732` at a limit of 1000 return `CosetLimitReached` | GRP-16, GRP-17 |
-| Limit at its value | Bound | Table test, `limits` | `532` finishes at a limit of 60 and returns `CosetLimitReached` at 59 | GRP-16 |
-| Finite at a larger limit | Bound | Table test, `limits` | For Sims's presentation with $n$ from 3 to 8 over the trivial subgroup, the index is $n^2 - 1$ at the default limit. At a limit equal to the number of cosets that the run defines it finishes, and at one less it returns `CosetLimitReached`. For $n \geq 5$ that number exceeds the index, so a finite group reaches a limit above its order | [HAVAS1991] p. 197, Section 7.20 of the colouring reference, GRP-17 |
-| Worked examples | None | Table test, `examples` | The fixtures of Section 10.2 | Section 7.20 of the colouring reference |
-| One-letter relators | None | Unit test in `enumerate.rs` | The Conway presentations of `*532`, `x`, and `*`, whose global relators `l1`, `w1`, and `l1` are one-letter relators (Section 5.4), each enumerate over the trivial subgroup, and the number of cosets defined, read from the run statistics, equals the group order | GRP-26 |
-| Distinct conjugates | None | Unit test in `enumerate.rs` | The conjugate lists of `(r1 r2)^1000` hold one entry in each of the lists of $r_1$, $r_1^{-1}$, $r_2$, and $r_2^{-1}$ | GRP-25 |
-| Stack cap one | None | Unit test in `enumerate.rs` | With the cap set to 1, the worked examples other than Cox and B_2_4, and the Conway presentation of `*532`, give the same tables as at the default cap | GRP-27 |
-| Closing pass idle | None | `proptest`, unit test in `enumerate.rs` | For random presentations with 2 or 3 generators, 1 to 4 relators of 1 to 6 letters, and 0 to 2 subgroup words of up to 4 letters, the closing pass changes nothing and the rescan of step 4 finds no gap, read from the run statistics, both at the default cap with a limit of 2000 and at a cap of 1 with a limit of 500. When both runs finish, their tables are equal. The cap-1 half runs at 500, because at 1000 the test came close to a minute under `just coverage` (Section 11.2) | GRP-12, GRP-14, GRP-27 |
-| Table laws | None | `proptest`, `properties` | For the same random presentations, a returned table has columns that are permutations, inverse columns that are mutually inverse, every relator tracing every coset to itself, every subgroup generator fixing coset 0, a transitive action, and the standard form | Sections 7.9 and 7.14 of the colouring reference |
-| Invariance | None | `proptest`, `properties` | Over the finite presentations of the fixtures and of the spherical signatures up to order 24, a permutation of the relators, a rotation or an inversion of a relator, and a reordering of the subgroup generators give an equal table | GRP-15, GRP-18 |
-| Word laws | None | `proptest`, `properties` | Free reduction is idempotent, a word followed by its inverse reduces to the empty word, and a cyclically reduced word has no cancelling ends | Section 4.1 |
-| Text form | None | Unit tests in `presentation.rs` | Each rule of Section 4.4, including `(g1^-1)^3`, the empty word `1`, and `None` for a word with a letter outside the generators | GRP-3 |
-| Input limits | None | Unit tests in `presentation.rs`, `table.rs`, and `enumerate.rs` | Each limit of Section 15 at its value is accepted and one above returns `LimitExceeded`. The limit on table entries is tested with 8 generators at `CosetLimit::MAX`, exactly $2^{24}$ entries, which is accepted, and with 9 generators, which is refused with the text `the coset limit 1048576 times 18 columns is more than 16777216 table entries`. Each generator adds two columns, so 8 and 9 generators are the counts on either side of the limit at `CosetLimit::MAX`, and the test uses no more generators than it needs to cross it. The acceptance of exactly 65536 expanded letters is a separate test from the refusal of 65537. `Relator::new` with an exponent of 0 and an empty base, and each name rule, return `InvalidPresentation`. `Presentation::new` checks the generators before the relators | GRP-4, GRP-5, GRP-19 |
-| Error text | None | Unit test in `error.rs` | The `Display` of every kind starts with `cannot build presentation: `, `cannot enumerate cosets: `, `cannot search subgroups: `, or `cannot read colouring id: ` and is in lower case, and each text of the search and of the id is the text of Section 8.2 | GRP-22 |
-| Zero generators | None | Unit test in `table.rs` | The presentation with no generator enumerates to a table of index 1 with no column, and `row(0)` is an empty slice | GRP-9 |
-| Auto traits | None | Compile-time assertion in a unit test in `lib.rs` | Each public type has the auto traits of Section 3.2 | CONC-1 of the coding standard |
-| Printed permutations | None | Test, `examples` | The permutations that Section 10.2 gives for [HULPKE2010] pp. 72-75 and for [HOLT2013] p. 15 over $\langle yx \rangle$, as the lists of `permutation` | Section 7.20 of the colouring reference |
-| Standard form | None | Unit test in `table.rs` | A relabelling numbers the cosets by first occurrence over all columns, inverse columns included | GRP-15 |
-| Largest table | None | Test, `limits` | The free group on 8 generators at `CosetLimit::MAX`, whose table reaches exactly $2^{24}$ entries, returns `CosetLimitReached`. The test asserts only the error kind. Section 11.2 gives its peak memory, measured outside the test, and "Capacities" and "Queue capacity" pin the capacities | GRP-19, GRP-20 |
-| Long subgroup generator | None | Test `a_long_subgroup_generator_finishes_within_the_index`, `limits` | $\langle x \mid x^2 \rangle$ with the subgroup generator $x^{4096}$ at a limit of 2 gives index 2 | Step 3 of Section 7.3 |
-| Long subgroup generators | None | Test `many_long_subgroup_generators_finish_within_the_index`, `limits` | The Klein four-group $\langle x, y \mid x^2, y^2, (xy)^2 \rangle$ with the five subgroup generators $(xy)^{2048}$, $(xy^{-1})^{2048}$, $(x^{-1}y)^{2048}$, $(x^{-1}y^{-1})^{2048}$, and $(yx)^{2048}$, of 4096 letters each, gives index 4 at a limit of 4, in the given order and reversed | Step 3 of Section 7.3 |
-| Fill steps | None | Unit test `filling_a_subgroup_generator_reads_each_letter_once` in `enumerate.rs` | Read from the run statistics, scan-and-fill reads at most 4096 letters for $\langle x \mid x^2 \rangle$ with the subgroup generator $x^{4096}$ at a limit of 2, which gives index 2, and at most 512 letters for $\langle x \mid x^{512} \rangle$ with $x^{512}$ at a limit of 512, which gives index 512 | Step 3 of Section 7.3 |
-| Capacities | None | Unit test `capacities_stay_within_the_limit` in `enumerate.rs` | $\langle x \mid x^{600} \rangle$ at a limit of 600 gives index 600 with a table capacity of exactly 1200 entries, representatives of exactly 600, and relabelling vectors of exactly 600 labels, 600 orders, and 1200 entries, where a doubling vector gives 2048, 1024, and 1024 | GRP-20 |
-| Queue capacity | None | Unit test `coincidence_queue_stays_within_the_limit` in `enumerate.rs` | Sims's presentation with $n = 8$ at a limit of 138 gives index 63 after at least one merge, with a queue capacity of at most 138, representatives of exactly 138, and a table capacity of exactly 552 | GRP-20 |
-| Fixture rows | None | Unit test `fixture_rows_have_a_column_for_each_letter` in `enumerate.rs` | Every printed row of every fixture of Section 10.2 has two entries for each generator, and no fixture prints more rows than its index | Section 10.2 |
-| No panic | None | `proptest`, `properties` | For 0 to 3 generators, up to 4 relators of 1 to 6 letters with exponents 1 to 3, which may reduce to the empty word, up to 3 subgroup words of up to 5 letters, which may use a generator that the presentation lacks, and limits from 1 to 300, `enumerate` returns a table that obeys the laws of "Table laws", `CosetLimitReached`, or `InvalidWord` | GRP-2, GRP-21 |
-| Empty relators | None | Unit test in `enumerate.rs` | Relators that reduce to the empty word, such as $(x x^{-1})^3$, are dropped, and the table is that of the other relators | Section 4.2 |
-| Reflection numbering | None | Unit test in `conway.rs` | The Conway presentation of `**` numbers its reflections `r1` and `r2` across its two boundaries | GRP-6, GRP-7 |
-| Infinite order | None | Unit test in `conway.rs` | `*(inf)22` and `(inf)(inf)` return `UnsupportedSignature` with the text of Section 8.2 | GRP-8 |
-| Search examples | Printed searches | Table test, `search` | The fixtures of the search in Section 10.2 | Section 7.20 of the colouring reference |
-| First in class | Printed searches | Unit test in `search.rs` | The test of GRP-32 returns false on the partial table of Sims's Example 9.3, and true, true, false, and false on the four partial tables of SymPy's doctest | [SIMS1994] pp. 207-208, [SYMPY-FPG] lines 865-880 |
-| Frettloh Table 1 | Frettloh | Table test, `search` | For the Coxeter presentations of `*732`, `*832`, and `*542`, with $c = s_0$, $b = s_1$, and $a = s_2$, the number of classes of each colour count that have a coset fixed by both $s_0$ and $s_1$ is the row `(p^q)`, by $s_1$ and $s_2$ the row `(q^p)`, and by $s_2$ and $s_0$ the row `[p.q.p.q]`, exactly, with 0 for every colour count that a row does not list. Each row is compared up to the smaller of its last printed value and the limit of the test, 50, 39, and 26 | Lemma 3.2 and Table 1 of [FRETTLOH2008], Sections 5.3 and 5.6 of the colouring reference |
-| Frettloh Table 2 | Frettloh | Table test, `search` | For the side presentations of `732`, `832`, and `542`, written in the test as `escher info --presentation` prints them, the number of classes that have a coset fixed by $s_1$ is the row `(p^q)`, by $s_3$ the row `(q^p)`, and by $s_2 s_0$ the row `[p.q.p.q]`, counting a class and its mirror once, where the mirror of a class is the class of the table whose column of each generator is swapped with the column of its inverse. Compared exactly up to 24, 19, and 17 | Lemma 4.1 and Table 2 of [FRETTLOH2008], Sections 5.4 and 5.7 of the colouring reference |
-| Cube | Cube | Table test, `search` | For the Coxeter presentation of `*432`, the classes with a coset fixed by $s_0$ and $s_1$ are exactly one of each colour count 1, 3, and 6, and none of any other colour count up to 48 | [FRETTLOH2008] p. 4, Section 5.8 of the colouring reference |
-| Two colours | Two colours | Table test, `search` | The Coxeter presentations of `*642`, `*842`, and `*664` each have exactly 7 colourings and 7 classes of colour count 2 | [SINGERMAN2014], Section 6 of the colouring reference |
-| Bulatov counts | Bulatov | Table test, `search` | At least one colouring exists for each count of the captions: 3, 8, and 12 for the Coxeter presentation of `*642`, 7 for the Conway presentation of `642`, 3 and 4 for that of `433`, and 2, 4, 5, 6, 10, 11, 12, 15, and 16 for the Coxeter presentation of `*542` | [BULATOV2010], Section 4.4 of the colouring reference, existence only |
-| Search agrees with enumeration | None | Table test, `search` | For every colouring of the Coxeter presentation of `*642` up to 10 and of the Conway presentation of `2222` up to 8, the Schreier generators of its table, computed in the test, given to `enumerate` at `CosetLimit::MAX`, give the same table | [HULPKE2010] pp. 81-82, Section 7.18 of the colouring reference |
-| Least in class | None | `proptest`, `properties` | For random presentations of the strategy of "Closing pass idle" and limits up to 5, every table obeys "Table laws" and has at most the limit of rows, the tables of a call are pairwise distinct, the class table of each class is the least of its class, and the members of a class are exactly the distinct relabellings of its class table | GRP-30, GRP-32, GRP-34 |
-| Pruning | None | `proptest`, unit test in `search.rs` | For the same presentations, the first-in-class test on every node gives the same list as the test on complete tables only, and the classes of a call together are the list of a run with no first-in-class test, through crate-private switches | GRP-32, `UNV-19` |
-| Leaf statistics | None | `proptest`, unit test in `search.rs` | For the same presentations, the leaf check discards no table and the relabelling of step 4 changes no table, read from the search statistics, whose count of changed relabellings exists only in test builds | GRP-33 |
-| Search invariance | Ids | `proptest`, `properties` | A permutation of the relators, a rotation or an inversion of a relator, and an appended cyclic conjugate of a relator give equal colourings with equal ids, when both calls are complete | GRP-37, GRP-39 |
-| Budget and limit | Ids | `proptest`, `properties` | A larger budget never lowers `complete_to()`, and two calls give equal colourings and ids for every colour count up to the smaller `complete_to()`, also for different limits. For every colour count up to `complete_to()`, including that of a call stopped at a small budget, `Colourings::count` equals the number of colourings of that colour count in `list()` | GRP-35, GRP-37, GRP-39 |
-| Counts agree | None | `proptest`, `properties` | When both calls are complete, `count_colourings` gives the numbers of colourings and of classes of `colourings` for each colour count, and `Colourings::count` gives the same number of colourings as the list and as `ColouringCounts::colourings`. `Colourings::count` is `None` at 0 and at the limit plus 1. When `is_complete()` is true, `list()` of `colourings_of_index` gives the colourings of `colourings` that have its colour count | GRP-30, GRP-35 |
-| Runs by index | None | Unit test `runs_by_index_end_at_the_last_bound_that_fits_the_budget` in `search.rs` | With a budget one step below what one run of the Coxeter presentation of `*642` at limit 12 takes, `count_colourings` and `colourings` are complete to the last bound whose runs by index fit the budget, which the test computes from the steps of each run, and hold the colourings of the full listing up to it and nothing above it | GRP-35 |
-| Stored limits | None | Unit test `stored_limits_stop_a_run_as_the_budget_does` in `search.rs` | For the Coxeter presentation of `*642` at limit 12, with the stored limits set through the crate-private settings to 100 colourings, to 3000 entries, or to 1 and 1, `colourings` is complete to the last colour count whose colourings fit and holds the full listing up to it, while `count_colourings` is complete to 12. The search for the colourings of 12 colours, as `colourings_of_index` runs it, is not complete and has an empty list at a limit of 660 colourings, and is complete with all 661 colourings at 661 | GRP-35, GRP-36 |
-| Search capacities | None | Unit test `capacities_stay_at_the_size_that_the_bound_sets` in `search.rs` | One run of the Coxeter presentation of `*642` at limit 12 has capacities of exactly 72 for the table and the trail, 36 for the deduction stack and the frames, 12 for the label map, the order list, and the list of distinct bases, and 864 for the scratch of the expansion | GRP-40 |
-| Trivial group | None | Unit test `the_trivial_group_has_one_colouring` in `search.rs` | The presentation with no generator has the one colouring `1a` up to 3, whose class is its id, whose table has index 1, and whose `colour_of` gives `Some(0)` for the empty slice and `None` for side 0. `colourings_of_index` with 2 colours gives `is_complete()` true and an empty list, and `count_colourings` gives 1 and 0 colourings and 1 class | GRP-34, GRP-38 |
-| Search letter limit | None | Unit test `the_search_refuses_more_expanded_letters_than_the_limit` in `search.rs` | A relator that expands to 65537 letters makes `count_colourings` return `LimitExceeded` with the text of Section 8.2 | GRP-19 |
-| Search fixture rows | None | Unit test `search_fixtures_fit_their_presentation_and_limit` in `search.rs` | Every search fixture of Section 10.2 has as many generators as its presentation and counts that fit its limit, and every printed table has at most the limit of rows and two entries for each generator | Section 10.2 |
-| Colouring size | None | Unit test `a_stored_colouring_has_a_fixed_size` in `colouring.rs` | `Colouring` takes 56 bytes, the size of an entry of the returned list in GRP-40 | GRP-40 |
-| Pending size | None | Unit test `a_pending_colouring_has_a_fixed_size` in `search.rs` | A pending colouring, which holds a table, a class number, and whether it is the class table, takes 48 bytes, the size of an entry of the pending list in GRP-40 | GRP-40 |
-| Budget helper | None | Test `search_budgets_are_built_from_steps`, `properties` | The helper of `common` builds a budget of 5 steps, and `SearchBudget::default()` is $2^{28}$ steps | Section 7.12 |
-| Colouring id text | None | Unit test in `colouring.rs` | The ranks 1, 26, 27, 702, 703, and 475254 write `a`, `z`, `aa`, `zz`, `aaa`, and `zzzz`. Each text of Section 7.15 that `FromStr` rejects returns `InvalidColouringId`, and an accepted text prints as it was read | GRP-37 |
-| Colour rule | Perfectness | Unit test in `colouring.rs` | For each of the 12 colourings of the Conway presentation of `532` up to 6, `colour_of(&[])` is 0, `colour_of` of a side $i$ followed by a sequence $u$ of up to 3 sides is the image of `colour_of(u)` under `Letter::inverse_of(i)`, and a side without a generator gives `None` | GRP-38 |
-| Word invariance | Perfectness | `proptest`, `properties` | For each colouring of the Coxeter presentation of `*642` up to 8 and of the Conway presentation of `2222` up to 6, and random sequences $u$ and $v$ of generator indices, `colour_of` of $u$, a relator, and $v$ equals `colour_of` of $u$ and $v$, for every relator whose letters are all generators | GRP-38 |
-| Search limits | None | Unit tests in `search.rs` | `IndexLimit::new` and `SearchBudget::new` accept 1 and `MAX` and return `LimitExceeded` with the texts of Section 8.2 for 0 and one above `MAX` | GRP-29 |
-| Doctests | None | Doctests | The examples of the crate-level documentation | Sections 7.4 and 7.5 of `docs/writing-documentation.md` |
+The module `common` holds these named input sets:
+
+- The worked examples of the enumeration and of the search, with their sources, as Section 10.2 lists them.
+- The spherical signatures: the 7 series for $n$ from 1 to 12, each written with one digit from 2 to 9 and in parentheses otherwise, so that $n = 1$ is `(1)`, and the 7 particular types. The 91 strings give 87 distinct canonical signatures, `1` among them.
+- Sims's presentation $\langle x, y \mid x^n = y, y^n = x \rangle$ for $n$ from 3 to 8, whose enumeration defines more cosets than its order for $n \geq 5$.
+- The random presentations: 2 or 3 generators, 1 to 4 relators of 1 to 6 letters, and 0 to 2 subgroup words of up to 4 letters. A wider strategy for the test of no panic also draws relators that reduce to the empty word and words with a generator that the presentation lacks.
+- The published presentations of the search: the Coxeter presentations of `*732`, `*832`, `*542`, `*432`, `*642`, `*842`, and `*664`, the side presentations of `732`, `832`, and `542`, and the Conway presentations of `532`, `642`, `433`, and `2222`.
+
+The tests form these layers:
+
+| Layer | What it checks | What it catches |
+| --- | --- | --- |
+| Worked examples | The test "Worked examples" compares every fixture of Section 10.2 with its printed table or index, and another test compares the permutations that [HULPKE2010] and [HOLT2013] print. A unit test compares the Conway presentations of Section 5.4 with their text. "Spherical orders" enumerates every spherical signature over the trivial subgroup and compares the index with `group_order()`, and "Order two" does the same for `x`, `22`, and `*` | A wrong step, a wrong standard form, and a reversed commutator, a reversed conjugation, a missing global relator, or a wrong exponent in a Conway presentation |
+| Table laws | Property tests. "Table laws" asserts, over the random presentations, columns that are permutations, inverse columns that are mutually inverse, every relator tracing every coset to itself, every subgroup generator fixing coset 0, a transitive action, and the standard form. "Invariance" asserts, over the finite presentations of the worked examples and of the spherical signatures up to order 24, an equal table after a permutation, rotation, or inversion of the relators or a reordering of the subgroup generators. Other property tests check the laws of words and that `enumerate` never panics | A table that breaks a law, a table that depends on the order of the input, and a panic |
+| Run statistics | Unit tests that read crate-private state, mostly the run statistics. "Closing pass idle" asserts that the closing pass changes nothing and the rescan of step 4 finds no gap, at the default cap and at a cap of 1, with equal tables when both runs finish. "One-letter relators" asserts that the Conway presentations of `*532`, `x`, and `*` define exactly their group order of cosets. Others assert the sizes of the conjugate lists, equal tables at a cap of 1, and that scan-and-fill reads each letter of a long subgroup generator once | A code-only step that leaves work to the closing pass, a lost rule of Section 7.5, a duplicated conjugate, and a scan-and-fill that restarts |
+| Limits | Each limit of Section 15 at its value and one above it, the limit on table entries at `CosetLimit::MAX` with 8 and 9 generators, `532` at the limits 60 and 59, Sims's presentation at the number of cosets that it defines and one less, and the infinite groups of "Infinite groups", `*632`, `2222`, `o`, and `*732`, at a limit of 1000. Long subgroup generators of 4096 letters give their index at a limit equal to it. Unit tests pin the capacities of the table, the representatives, the queue, the relabelling, and the run of a search, and the sizes of a stored and a pending colouring | A count of live cosets against the limit, a limit off by one, deductions not processed in scan-and-fill, and a vector that doubles beyond the memory bound |
+| Search fixtures and published counts | "Search examples" compares the search fixtures of Section 10.2. "First in class" runs the test of GRP-32 on the partial tables of Sims's Example 9.3 and of SymPy's doctest. "Frettloh Table 1", "Frettloh Table 2", and the cube compare the classes with a fixed coset with the tables of [FRETTLOH2008], exactly up to the last printed value or the limit of the test. Other tests compare the counts of 2 colours with [SINGERMAN2014] and check that a colouring exists for each count of the captions of [BULATOV2010]. "Search agrees with enumeration" gives the Schreier generators of each colouring to `enumerate` and compares the tables | A lost class, a class table that is not the least, and a wrong count |
+| Search properties | Property tests over the random presentations at limits up to 5. "Least in class" asserts that each class table is the least of its class and that a class is the distinct relabellings of its class table. "Pruning" compares the first-in-class test on every node with the test on complete tables only and with no test. "Leaf statistics" asserts that the leaf check discards no table. Other property tests assert equal ids under a rewriting of the relators, ids that no limit or budget changes, and equal counts from the three functions. Unit tests on the Coxeter presentation of `*642` check the completeness of the runs by index and of a stop at a stored limit | A pruning that loses a class, a step whose fault only the leaf check hides, an id that depends on the run, and a wrong `complete_to()` |
+| Colour rule | "Colour rule" asserts, for the colourings of the Conway presentation of `532` up to 6, that `colour_of` of a side $i$ followed by a sequence $u$ is the image of `colour_of(u)` under `Letter::inverse_of(i)`. "Word invariance" asserts that inserting a relator into a sequence of sides leaves its colour unchanged | A `colour_of` that does not follow GRP-38 |
+| Failure paths and text | Every error kind and text of Section 8.2, each rule of the text form of Section 4.4, the colouring id text in both directions, the infinite orders of Section 5.3, the presentation with no generator, the auto traits of Section 3.2, and the doctests | A missing check, a wrong order of checks, and a changed text |
 
 "Colour rule" checks only that the code follows GRP-38, and "Word invariance" holds for the forward trace too, because a relator acts trivially on the cosets either way. Neither checks that GRP-38 is the right rule. Only the assertion of GRP-41 on samples of a rendering checks that, and it belongs to `escher-render`, which has the fold.
 
 The property tests commit their regression files (TEST-9 of the coding standard). They take their configuration from the one helper `proptest_config()` in `common`, which returns the default configuration of `proptest`. "Closing pass idle" runs as a unit test, because the run statistics are crate-private, and it loads the `proptest` helper and the strategy of `common` through the `#[path]` module of Section 3.3, as `escher-render` loads its golden comparison.
 
-These single cases of the table tests above also run as separate tests:
-
-- The cases `2*3` and `3*2` of "Spherical orders".
-- The case `2222` at a limit of 50 of "Infinite groups".
-- Three cases of the search: $\langle x, y \mid x^2, y^3, (xy)^2 \rangle$, which is $S_3$, to the colour count 3, the fixture of [SIMS1994] p. 209, $\langle x, y \mid x^2 \rangle$ to 3, and the fixture of [HOLT2005] Example 5.10, $\langle x, y \mid x^2, y^3, (xy)^4 \rangle$ to 4. The case of $S_3$ asserts 1, 1, and 3 colourings of the colour counts 1 to 3 and 3 classes.
+Some single cases of the table tests also run as tests of their own: `2*3` and `3*2` of "Spherical orders", `2222` at a limit of 50 of "Infinite groups", and three small searches, of $S_3 = \langle x, y \mid x^2, y^3, (xy)^2 \rangle$ to 3 colours and of the fixtures of [SIMS1994] p. 209 and [HOLT2005] Example 5.10.
 
 GRP-28. Withdrawn on 2026-11-19.
 
@@ -865,7 +819,7 @@ The test "Worked examples" compares each fixture of Section 7.20 of the colourin
 | SymPy B_2_4 | The 9 relators of Section 7.20 of the colouring reference, $\langle a \rangle$ | 1024 rows |
 | [ACE] Appendix B.3 | $\langle a, b \mid a^2, b^3, (ab)^5 \rangle$, $\langle ab \rangle$ | Index 12 (read through a summarizing tool) |
 
-The relations of Holt's quaternion example are written as the relators $a^{-1}bab^{-3}$ and $b^{-1}aba^{-3}$ (Section 5.1). The SymPy examples come from doctests of the HLT enumeration, so only their standard rows and their indices transfer to this design, and not their counts of cosets defined (Section 7.20 of the colouring reference). The prototype matched every row of this table (Section 11.1).
+The relations of Holt's quaternion example are written as the relators $a^{-1}bab^{-3}$ and $b^{-1}aba^{-3}$ (Section 5.1). The SymPy examples come from doctests of the HLT enumeration, so only their standard rows and their indices transfer to this design, and not their counts of cosets defined (Section 7.20 of the colouring reference).
 
 The Holt fixture of p. 15 prints $x \mapsto (1,2)$ and $y \mapsto (1,2,3)$ for the subgroup $\langle xy \rangle$. Under the right action of this design that is the standard table of $\langle yx \rangle$, and for $\langle xy \rangle$ the standard table has $y \mapsto (0,2,1)$ when numbered from 0. The index is 3 either way, so the fixture asserts the printed table for $\langle yx \rangle$ and only the index for $\langle xy \rangle$.
 
@@ -883,392 +837,26 @@ The test "Search examples" compares each fixture of the search of Section 7.20 o
 | [GAP] Section 47.10-1 | $\langle a, b \mid a^2, b^3, (ab)^5 \rangle$, limit 10 | 4 classes |
 | [GAP] Chapter 47 | The group with six relators of Section 7.20 of the colouring reference, limit 6 | Classes of the colour counts `[1, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6]` |
 
-The class tables of a source are least in their class, so they are the tables whose `class()` equals their `id()`. Sims's node counts for Higman's group, the group of order 55, and $M_{11}$ depend on how the deductions are processed (Section 7.20 of the colouring reference), so no test asserts them. The crate reproduces them exactly with one run (Section 11.4). On the prototype, runs by index gave other counts (Section 11.3).
+The class tables of a source are least in their class, so they are the tables whose `class()` equals their `id()`. Sims's node counts for Higman's group, the group of order 55, and $M_{11}$ depend on how the deductions are processed (Section 7.20 of the colouring reference), so no test asserts them. A measurement of the crate reproduced them exactly with one run.
 
 ### 10.3. Defects the Tests Catch
 
-This subsection is non-normative. It lists deliberate defects that a reviewer can introduce to check the tests, with the tests that failed when each defect was applied to a copy of the crate and its whole test suite was run. A run that did not end was stopped by a nextest timeout of 60 s:
+This subsection is non-normative. It records deliberate defects that were applied by hand, one at a time, to a copy of the crate to check the tests of Section 10.1. They are not part of the test suite.
 
-| Defect | Tests that fail |
-| --- | --- |
-| Keep the larger coset number in a merge | Closing pass idle, Stack cap one, Worked examples, and Finite at a larger limit. No panic and Table laws never end, because the run does not end once coset 0 dies |
-| Do not push the deduction of a scan | Closing pass idle, One-letter relators, Limit at its value, and Finite at a larger limit |
-| Scan each popped entry with the lists of the caller, as SymPy does | Closing pass idle, One-letter relators, Limit at its value, and Finite at a larger limit |
-| Standardize over the generator columns only | Standard form, Worked examples, Printed permutations, No panic, and Table laws |
-| Count live cosets against the limit | Finite at a larger limit |
-| Omit the global relator of the Conway presentation | Conway words, Reflection numbering, One-letter relators, Stack cap one, Limit at its value, Invariance, Order two, Spherical orders, and the single cases `2*3` and `3*2` |
-| Use twice the order as a corner exponent | Conway words, One-letter relators, Stack cap one, Invariance, Spherical orders, and the single cases `2*3` and `3*2` |
-| Omit the rule of Section 7.5 | One-letter relators |
-| Process no deductions in step 3, neither after a definition nor after a subgroup generator | Closing pass idle, Long subgroup generator, and Long subgroup generators |
-| Restart scan-and-fill from coset 0 after each definition | Fill steps |
-| Grow the table, the representatives, and the queue by plain `reserve`, which doubles | Capacities and Queue capacity |
-| Grow the order list of the relabelling by pushes from an empty vector | Capacities |
+The layers of the enumeration caught a merge that keeps the larger coset, a scan without its push, SymPy's caller lists, a standard form over the generator columns only, a count of live cosets, a missing global relator, a wrong corner exponent, a missing rule of Section 7.5, a scan-and-fill that restarts or processes no deductions, and capacities that double. The layers of the search caught swapped comparisons in the first-in-class test, an undefined entry compared as 0, a search without pushed deductions, a missing candidate $d = c$, rows not restored on undo, a wrong rule for the tables that a run by index keeps, a ranking in the order of the run, and a forward trace or a reversed trace without the inverse in `colour_of`. Swapped comparisons in the first-in-class test keep the greatest table of each class, so every count stays right and only the tests that compare tables catch them.
 
-Forming every cyclic conjugate instead of the distinct ones was not trialled, and "Distinct conjugates" asserts the sizes of the lists directly. Dropping the last `S^2` of a boundary was not trialled either, and "Conway words" compares that relator as text.
+Ranking the tables in the order in which a run finds them is a defect for the ids of GRP-37, because the expansion of a class does not keep that order, even though the prototype found the class tables of each run in lexicographic order (Section 7.17).
 
-No test detects three defects. Each was applied to the crate and no test failed, as on the prototype, where each left every table and every closing pass unchanged: dropping the scan at $b$ of Section 7.4, dropping the push of a coincidence, and dropping the closing pass in an implementation that has no other defect (Section 11.1). They are not test evidence. The scan at $b$ is redundant because the lists hold the conjugates of every relator and of its inverse, and the closing pass and the pushes stay for the soundness reasons of GRP-12 and GRP-14.
+No test detects these five defects, and each part stays for the reason given:
 
-No test detects a fourth defect either: resuming the traces of scan-and-fill without replacing their cosets by their representatives, so that a trace can continue from a coset that a coincidence removed. The closing pass keeps every table correct, and no input of the tests makes a resumed coset die. The lookup stays because the row of a removed coset is not updated after the removal, so its entries can be stale.
-
-These defects of the search were applied to the crate in the same way, with the same timeout. Where the prototype of Section 11.3 tried a defect, the row adds what the prototype showed:
-
-| Defect | Tests that fail |
-| --- | --- |
-| Swap the two comparisons of the first-in-class test | First in class, Search examples, the single cases of [SIMS1994] p. 209 and [HOLT2005] Example 5.10 of Section 10.1, Least in class, and Frettloh Table 2. The search keeps the greatest table of each class, so every count is unchanged and only the tables catch it. On the prototype, Sims's p. 209 gave the tables 1, 2, 4, 6, 8, 10, and 11 in place of 1, 2, 3, 4, 5, 6, and 8 |
-| Compare an undefined entry as 0 and continue | 14 tests: First in class, Search examples, the single cases of [SIMS1994] p. 209, [HOLT2005] Example 5.10, and $S_3$ of Section 10.1, Frettloh Table 1, Frettloh Table 2, Cube, Two colours, Bulatov counts, Pruning, Stored limits, Search capacities, and Colour rule. On the prototype, classes were lost on most presentations (GRP-32) |
-| Do not push the deductions of a scan | Leaf statistics, because the leaf check then discards tables, and Frettloh Table 2, because the default budget then stops `732` at 13 of its 24 colours. On the prototype, the output stayed right with the leaf check, at more steps (GRP-31) |
-| Do not push the deductions of a scan, and drop the leaf check | Search examples, Frettloh Table 1, Frettloh Table 2, Pruning, Stored limits, Least in class, Word invariance, Search agrees with enumeration, and Colour rule. On the prototype, the output was wrong on some presentations (GRP-31), such as 12 classes of `*732` up to 10 in place of 4 |
-| Drop the leaf check | None. No test can detect it, and the check stays for the reason of GRP-33 |
-| Trace the word forwards in `colour_of` | Colour rule, and the assertion of GRP-41 on samples. "Word invariance" passes. On the prototype, the colouring was not perfect on exactly the classes that are not normal, 39 of 39 of `*642`, 46 of 46 of `2222`, and 4 of 4 of `732` |
-| Trace in reverse without the inverse | Colour rule. The result is a perfect colouring, the mirror image of the right one, so a test of perfectness alone passes. On rotation domains, the assertion of GRP-41 on samples or a golden image of a chiral colouring also catches it, as it catches the use of the column of the generator in the caller |
-| Drop the candidate $d = c$ | 13 tests, including every count, Search examples, Pruning, Leaf statistics, Stored limits, and Colour rule |
-| Do not restore the number of rows on undo | 19 tests, 5 of them by the timeout, including Least in class, Runs by index, and Search capacities |
-| Keep the tables of at most $k$ rows in run $k$ of the runs by index | Runs by index, Stored limits, Counts agree, Budget and limit, Least in class, and Trivial group |
-| Rank the tables in the order in which a run finds them | Search examples, through the order of Sims's tables, and Pruning |
-
-Ranking the tables in the order in which a run finds them was no defect for the prototype's ids of classes, because within one run that order was the lexicographic order (Section 7.17). It is one for the ids of GRP-37, because the expansion of a class does not keep that order.
+- Dropping the scan at $b$ of Section 7.4. The scan is redundant, because the lists hold the conjugates of every relator and of its inverse, and it stays because GRP-11 follows Hulpke's rule, which scans there.
+- Dropping the push of a coincidence, or the closing pass, in an implementation that has no other defect. Both stay for the soundness reasons of GRP-12 and GRP-14.
+- Resuming the traces of scan-and-fill without replacing their cosets by their representatives. The lookup stays because the row of a removed coset is not updated after the removal, so its entries can be stale.
+- Dropping the leaf check of the search. It stays for the reason of GRP-33.
 
 ## 11. Prototype Measurements
 
-### 11.1. Figures of the Prototype
-
-These statements of this design rest on figures that no test of the crate measures. They come from a prototype outside the repository that implemented the steps of Section 7 with switches for the variants that this design rejects, through the public surfaces of `escher-signature`, `escher-geometry`, and `escher-domain`. It was built with cargo 1.99.1 on a host with 16 cores. Times are wall-clock times in a release build unless marked debug, within about 30 %. Each figure supports only the statement that it names:
-
-| Statement | Section | Figures of the prototype |
-| --- | --- | --- |
-| Scans selected by the letter of the popped entry | 7.4 | The caller-list variant, alone, with SymPy's push, or with SymPy's main loop and a cap of 100, never finished on the side presentation of any rotation double tried (`332`, `432`, `532`, `222`, `n22` for $n$ from 3 to 12, and `(1000)22`), and reached the limit of 16384. Over 3000 random presentations, the outcome differed in 80 runs, and without a closing pass 107 tables were wrong. The selected lists defined 5220 cosets in total over those runs and the caller lists 5499 |
-| The closing pass changes nothing in a correct implementation | 7.7 | No change over 23 fixtures, 193 corpus cases of the spherical sweep, the side presentations, and their Conway presentations, 8000 random presentations, and Sims's presentation for $n$ from 3 to 16, with the push of Section 7.3 or with SymPy's push. With the push of a scan's deduction removed, it changed the table in 32 of 3000 random runs, and with both the scan at $b$ and the push of a coincidence removed, in 2 of 3000 |
-| Undetectable defects | 10.3 | Without the scan at $b$, or without the push of a coincidence, every table was identical and no closing pass changed anything over the fixtures, the corpus, and 3000 random presentations |
-| One-letter relators | 7.5 | Without the rule, every Conway presentation with a boundary or a crosscap defined about $2N - 1$ cosets for order $N$, the largest ratio was 1.992 at `*532` (239 for 120), and `*(4096)22` needed 32767 cosets. With the rule, the run defined exactly $N$ cosets on the 193 corpus cases, with identical tables, and identical tables on 2000 random presentations |
-| Distinct conjugates | 7.2 | Identical tables with and without. The Conway presentation of `*(1000)22` took 0.115 s with distinct conjugates and 81.1 s without (0.39 s and 270 s in debug), and that of `(1000)22` 9 ms and 4.3 s |
-| Order of the overflow steps | 7.6 | Both orders gave correct tables at caps of 100, 4, and 1. The largest stack in any run was 67 entries. The corpus at a cap of 1 took 195 s, against 0.57 s at the default cap |
-| Default limit | 6.3 | Without the rule of Section 7.5, the spherical sweep enumerated to $2/\chi$ in 1.6 ms in total (11 ms in debug), and the Conway presentation of `*(1000)22` defined 7999 cosets in 115 ms (392 ms in debug) with a peak of 0.57 MiB. The side presentations of the 52 spherical domains that `escher-domain` builds defined exactly $N$ cosets each, in 122 ms in total. `*632`, `2222`, `o`, and `*732` reached a limit of 16384 within 5 ms (36 ms in debug) and 1.2 MiB, and a limit of 1000 within 0.31 ms |
-| Maximum limit | 6.3 | A full index of $2^{20}$ took 1.45 s and 76.00 MiB for $\mathbb{Z}_{32}^4$ with 8 columns, and 1.59 s and 92.01 MiB for $\mathbb{Z}_{16}^5$ with 10 columns |
-| Memory bound | 15 | With the capacity of the table capped at limit times columns, the peaks of the previous row were 76.00 MiB and 92.01 MiB, against 76 MiB and 92 MiB for the table, its relabelled copy, and the vectors of $L$ entries. With a plain doubling vector, `****` with 16 columns at a limit of 540000 peaked at 98 MiB, against about 72 MiB for the same terms |
-| Limit counting | 6.3 | With coset 0 counted, `532` finished at a limit of 60 and failed at 59 |
-| Sims's presentation | 10.1 | Cosets defined for $n$ from 3 to 16: 8, 15, 28, 47, 83, 138, 243, 406, 718, 1205, 2138, 3597, 6393, and 10768, against orders from 8 to 255. A limit of one less than the count failed and the count succeeded, for every $n$. $n = 17$ does not finish at 16384 |
-| Worked examples | 10.2 | All 23 fixtures matched in index and, where printed, in the standard table. Cox defined 500 cosets in 0.74 ms (3.0 ms in debug). B_2_4 defined 1225 cosets with 24 coincidences, in 2.0 ms (10.5 ms in debug). The [GAP] table is not the semilenlex one |
-| Holt p. 15 | 10.2 | The printed table is the standard table of $\langle yx \rangle$. For $\langle xy \rangle$ it is $x \mapsto (1,2)$, $y \mapsto (1,3,2)$, numbered from 1 |
-| Invariance | 6.2 | 1400 variants over 22 presentations, by relator permutation, rotation, inversion, and subgroup reordering, gave no different table |
-| Conway text | 5.4 | The generators and relators that the prototype printed for `*532`, `532`, `3*2`, `x`, `*`, and `1` matched the rows of Section 5.4 character for character. Section 5.7 of `docs/design/cli.md` states which texts of `info --presentation` the prototype reproduced |
-| Residual risk on time | 15 | 2 generators with 16 random cyclically reduced relators of 4096 letters over the trivial subgroup at the default limit took 20.3 s and 3.5 MiB and reached the limit. With 4 such relators it took 5.1 s, with 1 it took 1.3 s, and with 128 generators 0.25 s. The Conway presentation of a spherical signature of order $N$ expands to at most $2N + 11$ letters |
-| Expanded letters | 15 | The relators of `*(1000)32` expand to 2023 letters, and those of `*(1000)22` to 2021. `*(30000)(30000)` expands to 120011 letters and is refused |
-
-The prototype did not run SymPy or GAP. Its comparisons use the printed tables of Section 7.20 of the colouring reference and a rewrite of SymPy's routines from its source.
-
-### 11.2. Figures of the Crate
-
-These figures come from the crate itself, on a host with 16 cores. Debug figures come from `cargo nextest run -p escher-group`, with each test run alone unless stated. Release figures come from temporary measurement tests that the crate does not keep. Counts of cosets and the largest deduction stack come from the crate-private run statistics. Peak memory is the high-water mark of resident memory (`VmHWM`) of the test process after the call minus the same value before it, because no portable measurement exists inside a test.
-
-The cosets defined by each worked example of Section 10.2 and by some Conway presentations, at the default cap and over the subgroup of the fixture:
-
-| Input | Index | Cosets defined | Merges | Largest stack |
-| --- | --- | --- | --- | --- |
-| [BROWN2011] p. 5, $\langle a \rangle$ | 4 | 4 | 0 | 2 |
-| [HULPKE2010] pp. 72-75 | 6 | 6 | 0 | 2 |
-| [HULPKE2010], trivial subgroup | 60 | 60 | 0 | 2 |
-| [GAP], $\langle a, b a b a b^{-1} \rangle$ | 5 | 5 | 0 | 2 |
-| [HOLT2013] p. 15, $\langle xy \rangle$ | 3 | 3 | 0 | 2 |
-| [HOLT2013] p. 15, $\langle yx \rangle$ | 3 | 3 | 0 | 2 |
-| [HOLT2013] pp. 16-17 | 6 | 6 | 0 | 2 |
-| [HOLT2013] p. 17, $\langle a \rangle$ | 2 | 3 | 1 | 3 |
-| [HOLT2013] p. 17, trivial subgroup | 8 | 19 | 11 | 10 |
-| [HOLT2013] pp. 21-22 | 6 | 6 | 0 | 2 |
-| [HOLT2013] pp. 21-22, trivial subgroup | 60 | 60 | 0 | 2 |
-| [HOLT2013] pp. 22-23 | 5 | 5 | 0 | 2 |
-| SymPy "Example 5.1" | 3 | 3 | 0 | 2 |
-| SymPy "Example 5.2" | 4 | 4 | 0 | 2 |
-| SymPy "Example 5.3" | 4 | 7 | 3 | 7 |
-| SymPy "Example 5.4" | 1 | 3 | 2 | 5 |
-| SymPy "Exercises Pg. 161, Q2" | 8 | 9 | 1 | 6 |
-| SymPy [CDHW1973] | 1 | 49 | 48 | 23 |
-| SymPy Cox | 500 | 500 | 0 | 3 |
-| SymPy B_2_4 | 1024 | 1225 | 201 | 67 |
-| [ACE] Appendix B.3 | 12 | 12 | 0 | 2 |
-| Conway `*532` | 120 | 120 | 0 | 7 |
-| Conway `x` | 2 | 2 | 0 | 3 |
-| Conway `*` | 2 | 2 | 0 | 3 |
-| Conway `532` | 60 | 60 | 0 | 2 |
-| Conway `*(1000)22`, 2021 expanded letters | 4000 | 4000 | 0 | 7 |
-| Conway `(1000)22`, 1007 expanded letters | 2000 | 2000 | 0 | 2 |
-| Conway `*(1000)32`, 2023 expanded letters | Limit reached | 16384 | 0 | 5 |
-| Conway `*(4096)22`, 8213 expanded letters | 16384 | 16384 | 0 | 7 |
-
-"Merges" counts the calls of the merge of step 8 that joined two classes, not coincidence events, so it is not comparable with the 24 coincidences of the prototype for B_2_4 (Section 11.1). The largest deduction stack in any measured run was 67, for B_2_4. The closing pass changed nothing and the rescan of step 4 found no gap in every run of this table, in every case of "Closing pass idle", and in the runs at `CosetLimit::MAX` below.
-
-These figures support the statements of this design:
-
-| Figure | Section | Value |
-| --- | --- | --- |
-| One-letter relators | 7.5 | The Conway presentations of `*532`, `x`, and `*` define exactly 120, 2, and 2 cosets, their group orders |
-| Sims's presentation | 10.1 | Cosets defined for $n$ from 3 to 16: 8, 15, 28, 47, 83, 138, 243, 406, 718, 1205, 2138, 3597, 6393, and 10768. For $n = 17$ the run reaches the default limit. Both are identical to the prototype. "Finite at a larger limit" uses the pairs (3, 8), (4, 15), (5, 28), (6, 47), (7, 83), and (8, 138) |
-| Random presentations | 10.1 | 639 of the 1000 presentations of the deterministic runner of the strategy of "Closing pass idle" and "Table laws" finish within a limit of 2000 |
-| Order of the input | 6.2 | Over 5000 presentations of the same strategy from its deterministic runner, at a limit of 2000, reversing only the subgroup generators changed the number of cosets defined, which is the smallest limit at which the run finishes, in 285 of the 3184 cases that finished in both orders. Whether a run finished at 2000 changed in none, and reversing only the relators changed the number of cosets defined in none. Every pair that finished gave equal tables |
-| Debug times of the enumeration | 6.3 | Cox 5.1 ms, B_2_4 15.7 ms, `*532` 0.9 ms, `*(1000)22` 563 ms, `(1000)22` 88 ms, `*(1000)32` to the default limit 78 ms, and `*(4096)22` 9.43 s. `*(4096)22` finishes at exactly 16384, its order, because of the rule of Section 7.5 |
-| Debug time of each test | 10.1 | "Closing pass idle" 2.4 s alone, and 3.6 s and 10.0 s inside the two runs of `just check` and `just coverage`. With its cap-1 half at a limit of 1000 it took 8.0 s alone, 15 to 23 s inside `just check`, and 45 to 51 s under `just coverage`, and at 2000 it took 36 s alone. "Largest table" 0.35 s alone, and 0.49 s and 1.10 s inside the same two runs. "Invariance" 0.39 s, "Table laws" 0.20 s, "Stack cap one" 0.036 s, "Capacities" 0.033 s, "Worked examples" 0.031 s, "Fill steps" 0.027 s, and every other test under 0.025 s |
-| Peak memory at `CosetLimit::MAX` | 15 | In a release build: $\mathbb{Z}_{32}^4$ with 8 columns, index $2^{20}$, 1.12 s and 75.69 MiB against a bound of 76.0 MiB. $\mathbb{Z}_{16}^5$ with 10 columns, index $2^{20}$, 1.09 s and 91.66 MiB against 92.0 MiB. The free group on 8 generators with 16 columns at a limit of 540000, which reaches it, 0.025 s and about 34.9 MiB against 37.1 MiB for the enumeration phase. The same at `CosetLimit::MAX`, the input of "Largest table", 0.046 s and 67.7 MiB against 72 MiB for the enumeration phase, because a run that reaches its limit makes no relabelled copy, so the table and the representatives take 68 MiB |
-| Residual risk on time | 15 | In a release build, on a host with 16 cores that ran other jobs at the same time. At `CosetLimit::MAX`: $\langle x, y \mid x^{1024}, y^{1024}, [x, y] \rangle$ over the trivial subgroup, 2052 expanded letters, index $2^{20}$ in 35.7 s. The same group with the redundant relator $x^{1024}$ added, 3076 letters, 55.4 s, with $x^{4096}$, 6148 letters, 72.3 s, and with $x^{62464}$, 64516 letters, 393.0 s, the slowest finishing input measured. At `CosetLimit::DEFAULT`: the first of these inputs reaches the limit in 0.010 s. 2 generators with 16 random cyclically reduced relators of 4096 letters, 65536 expanded letters, reach the limit in 11.92 s, the slowest input found there. $\mathbb{Z}_{128} \times \mathbb{Z}_{128}$ finishes in 0.026 s, 388 letters, and with a redundant power of $x$ added in 0.56 s at 16260 letters, 1.10 s at 32260 letters, and 2.17 s at 64260 letters, the slowest finishing input found there. $\mathbb{Z}_{32768} \times \mathbb{Z}_2$, whose order is above the limit, takes about 0.27 s, and $\langle x \mid x^{65536} \rangle$ 0.55 s. The time grew about as $N (\alpha + \beta E)$ for $N$ cosets defined and $E$ expanded letters. The padded series at the default limit is linear in $E$ with $\beta$ about 2.1 ns. At the maximum limit $\beta$ is 5.2 to 5.8 ns, because the table of 16 MiB does not fit the cache: $(72.3 - 55.4)$ s over 3072 letters and $2^{20}$ cosets gives 5.2 ns, and 393 s over 64516 letters and $2^{20}$ cosets gives 5.8 ns. Most of the time of a finishing run is the closing pass, which scans every relator at every coset, and the scans of long conjugates. Random long relators cost more for each coset than one long power |
-| Scan-and-fill | 7.3 | In a release build, at `CosetLimit::MAX`. The free group on 2 generators with 256 random reduced subgroup generators of 4096 letters reaches the limit in 0.031 s with a largest stack of 1. A variant that restarts each trace from coset 0 after each definition and processes the deductions only after all subgroup generators took 4.99 s with a largest stack of 1046232. The Klein four-group with the first 250 of those words gives index 2 after 4 cosets defined in 0.005 s, where the variant took 4.27 s and defined 1021474 cosets. In debug builds, the Klein four-group with 5 random subgroup generators of 4096 letters gives index 2 after 4 cosets defined at the default limit, and $\langle x \mid x^2 \rangle$ with $x^{4096}$ gives index 2 after 2 cosets defined at limits of 2 and 4095. The variant returned `CosetLimitReached` on these three inputs, with a largest stack of 16387 on the first |
-
-The callers of the crate in `escher-domain` and `escher-cli` measured these figures on the same host, with a program outside the repository for the counts of cosets, because the run statistics are private to the crate:
-
-| Figure | Section | Value |
-| --- | --- | --- |
-| Side presentations | 6.3 | The side presentation of each of the 54 spherical domains of the test "Side orders" defines exactly its group order of cosets. Section 12.1 of `docs/design/domain.md` records the times |
-| Conway presentations at the limit order | 6.3 | `*(1000)22` 92.0 ms in a release build and 571.1 ms in a debug build, and `(1000)22` 8.1 ms and 89.9 ms |
-| `escher info --presentation` | 6.3 | Item 24 of Section 11.3 of `docs/design/cli.md` records the time of the whole process, up to a group order equal to the default limit |
-
-A test of $\mathbb{Z}_{32}^4$ at `CosetLimit::MAX` that asserts a full index of $2^{20}$ takes 14.1 s alone, 43 s inside `just check`, and 68.8 s under `just coverage`, so "Largest table" uses the free group instead.
-
-### 11.3. Figures of the Search Prototype
-
-These statements of Sections 7.10 to 7.17 rest on figures of a second prototype outside the repository. It implemented the search of Section 7.11 with switches for the variants of Section 10.3, through the public surfaces of the crates, with the side presentations of `escher-domain` and the fold of `escher-render`. It listed one table for each class, so its counts are of classes and its ids are ranks among the class tables. A step was one table read in a scan, in the first-in-class test, or in the leaf check. It ran on a host with 16 cores, built with rustc 1.99.1, with times of one thread in a release build unless marked debug. No GAP, Sage, or SymPy was available, so every reference count comes from the printed sources. The crate counts more reads as steps (GRP-29), so the steps of the prototype are not comparable with those of the crate. Section 11.4 gives the figures that the crate measures, and this table keeps only the figures that have no counterpart there:
-
-| Statement | Section | Figures of the prototype |
-| --- | --- | --- |
-| Node counts | 10.2 | Runs by index gave 1226, 17432, 833, and 138411 nodes for Sims's examples, where one run gave his counts |
-| Pruning and leaf check | 7.11 | Over 417 presentations, 17 named and 400 random with 2 or 3 generators and 1 to 3 relators of up to 7 letters to a power up to 3, at limit 5: without pushed deductions, the leaf check discarded 176353 tables. With pushed deductions, the leaf check took about 5 % of the steps |
-| Relator split | 7.11 | `*732` to 20: every relator used, 1.0 M steps in 3 ms, and a split at 5 letters, 25.7 G steps in 83 s. `*(1000)32` to 20: 58.0 M steps in 0.12 s, a split at 5 letters 110 G in 247 s, and a split at 14 letters 20.7 M in 0.05 s. `(1000)32` to 20: 160 M steps, and 121 M with either split. The outputs were equal in every case |
-| Long power relators | 7.14 | `(1000)(1000)(1000)` to 8 took 326 M steps, and 287 M with a split at 14 letters |
-| Emission order | 7.17 | The class tables of each colour count appeared in lexicographic order in 96 of 96 signature runs |
-| Ids | 7.15 | The ids of classes up to each limit were equal under a reversed, a rotated, and an inverted relator order and an appended consequence, for `*642`, `2222`, `732`, `*2222`, and `432`, and for every limit and budget up to `complete_to()`. Swapping `s0` and `s1` renamed 39 of 73 classes of `*642` up to 10 and 121 of 197 of `*2222` up to 8. `aspect` 1 and 2.5 gave equal side presentations of `*2222` |
-| Subgroups of a class | 7.13 | The three pictures of the three subgroups of `3a` of `*642` differ |
-| Conjugate pictures | 7.10 | No sampled element of the group related the pictures of two conjugate subgroups: 0 of 15 pairs for `*732`, 88 for `*642`, 27 for `732`, 76 for `642`, 37 for `432`, 28 for `532`, 152 for `2222`, 19 for `*333`, 36 for `*2222`, and 24 for `*442`, and no two pairs gave the same picture. A reflection of the starred domain related a few pairs of the rotation domains, such as 1 of 27 for `732` and 11 of 76 for `642` |
-| Fold word | 7.16 | For 300 samples of each of 12 signatures, the product of $P_i^{-1}$ in fold order mapped the folded point back onto the sample within $5.9 \times 10^{-6}$ in hyperbolic distance, $1.4 \times 10^{-14}$ in the plane, and $2.1 \times 10^{-8}$ on the sphere. The product in reverse order missed by 1.5 to 2.5 |
-| Colour rule | 7.16 | The rule of GRP-38 was perfect with the exact permutation on every class of `*732` up to 12, `*642` up to 8, `532`, `432`, `*532` up to 12, `2222` up to 6, `732` up to 9, `*2222` up to 5, `632` up to 8, `333` up to 7, `(1000)22` up to 8, and `22`. Reversed without the inverse, the exact permutation failed on 37 of 64 classes of `2222` and 4 of 4 of `532`, and on no reflection domain, and the picture was the right one reflected in a wall of the starred domain on every class of `732`, `432`, `2222`, `642`, and `532` tried |
-| Schreier generators | 10.1 | The Schreier generators of every table found, given to `enumerate` at `CosetLimit::MAX`, gave the same table: 73 of 73 for `*642`, 116 of 116 for `2222`, 197 of 197 for `*2222`, and every table of `732`, `432`, `*(1000)32`, and `(1000)22` tried |
-
-### 11.4. Figures of the Search in the Crate
-
-These figures come from the search of the crate. A program outside the repository, with path dependencies on `escher-group`, `escher-domain`, and `escher-signature`, builds each domain with `FundamentalDomain::build` and searches its `side_presentation()`, so every figure of a signature is of its side presentation. A counter of live bytes around the system allocator gives the peak heap. Steps and run statistics come from the crate-private statistics, read through a temporary export that the crate does not keep. Times are of a release build with one thread, the least of 3 calls, built with cargo 1.99.1 on a host whose load varied, and are within about 30 % for calls over 10 ms.
-
-Colourings by colour count at the default limit of 12 and the default budget, from `count_colourings` and `colourings`. The classes equal the prototype's in every entry:
-
-| Signature | Classes of the colour counts 1 to 12 | Colourings of the colour counts 1 to 12 | Colourings in total |
-| --- | --- | --- | --- |
-| `*732` | 1 1 0 0 0 0 0 1 1 0 0 0 | 1 1 0 0 0 0 0 8 9 0 0 0 | 19 |
-| `*642` | 1 7 1 12 1 18 0 18 4 11 2 115 | 1 7 3 19 5 61 0 71 36 75 22 661 | 961 |
-| `*542` | 1 3 0 1 2 1 0 0 0 24 1 6 | 1 3 0 1 10 6 0 0 0 126 11 54 | 212 |
-| `*832` | 1 3 1 2 0 7 0 5 0 2 0 18 | 1 3 3 5 0 19 0 28 0 20 0 91 | 170 |
-| `*532` | 1 1 0 0 1 1 0 0 0 2 0 3 | 1 1 0 0 5 6 0 0 0 15 0 18 | 46 |
-| `*432` | 1 3 1 2 0 7 0 3 0 0 0 9 | 1 3 3 5 0 19 0 12 0 0 0 31 | 74 |
-| `*332` | 1 1 1 1 0 3 0 1 0 0 0 2 | 1 1 3 4 0 7 0 4 0 0 0 9 | 29 |
-| `*632` | 1 3 2 2 0 11 0 3 3 0 0 20 | 1 3 6 5 0 32 0 12 27 0 0 94 | 180 |
-| `*442` | 1 7 0 19 0 2 0 43 1 3 0 22 | 1 7 0 31 0 12 0 111 9 30 0 124 | 325 |
-| `*333` | 1 1 4 1 0 6 0 1 5 0 0 9 | 1 1 12 4 0 10 0 4 21 0 0 63 | 116 |
-| `*2222` | 1 15 2 51 2 31 2 93 3 32 2 109 | 1 15 6 67 10 92 14 207 27 162 22 412 | 1035 |
-| `*(1000)22` | 1 7 0 11 1 0 0 11 0 7 0 0 | 1 7 0 15 5 0 0 27 0 31 0 0 | 86 |
-| `*(1000)32` | 1 3 1 2 1 8 1 5 1 9 0 28 | 1 3 3 5 5 25 7 28 9 75 0 169 | 330 |
-| `*66` | 1 3 1 1 0 3 0 0 0 0 0 1 | 1 3 3 1 0 7 0 0 0 0 0 1 | 16 |
-| `732` | 1 0 0 0 0 0 2 1 1 0 0 0 | 1 0 0 0 0 0 14 8 9 0 0 0 | 32 |
-| `642` | 1 3 1 4 1 10 4 14 12 17 8 87 | 1 3 3 9 5 37 28 77 108 155 88 689 | 1203 |
-| `532` | 1 0 0 0 1 1 0 0 0 1 0 1 | 1 0 0 0 5 6 0 0 0 10 0 6 | 28 |
-| `432` | 1 1 1 1 0 3 0 1 0 0 0 2 | 1 1 3 4 0 7 0 4 0 0 0 9 | 29 |
-| `632` | 1 1 2 1 0 5 2 1 3 0 0 8 | 1 1 4 4 0 10 14 4 21 0 0 43 | 102 |
-| `442` | 1 3 0 7 2 2 0 13 1 8 0 14 | 1 3 0 11 10 12 0 39 9 50 0 76 | 211 |
-| `333` | 1 0 4 1 0 1 2 0 5 0 0 6 | 1 0 4 4 0 3 14 0 13 0 0 19 | 58 |
-| `2222` | 1 7 4 19 6 28 8 43 13 42 12 76 | 1 7 12 31 30 76 56 127 117 186 132 348 | 1123 |
-| `(1000)22` | 1 3 0 3 1 0 0 3 0 3 0 0 | 1 3 0 5 5 0 0 9 0 11 0 0 | 34 |
-| `22` | 1 1 0 0 0 0 0 0 0 0 0 0 | 1 1 0 0 0 0 0 0 0 0 0 0 | 2 |
-
-At a limit of 24, where the classes of `*642`, `642`, `*2222`, and `*(1000)32` equal the prototype's 2102, 14693, 940, and 709:
-
-| Signature | `count_colourings` complete to | `colourings` complete to | Stored colourings | Stored entries | Count time | List time | Peak heap |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `*642` | 24 | 24 | 30574 | 4032978 | 50 ms | 65 ms | 18.2 MB |
-| `*2222` | 24 | 24 | 5111 | 738688 | 14 ms | 16 ms | 3.5 MB |
-| `*(1000)32` | 24 | 24 | 12441 | 1623636 | 176 ms | 180 ms | 7.5 MB |
-| `642` | 24 | 19, stopped by the stored limits | 26379 | 3628472 | 435 ms | 110 ms | 18.8 MB |
-| `2222` | 24 | 24 | 8275 | 1844016 | 20 ms | 22 ms | 8.4 MB |
-| `*732` | 24 | 24 | 158 | 15384 | 0.9 ms | 0.9 ms | 0.1 MB |
-| `*542` | 24 | 24 | 1777 | 203076 | 5 ms | 6 ms | 1.0 MB |
-| `*832` | 24 | 24 | 1640 | 205362 | 4 ms | 5 ms | 1.0 MB |
-| `732` | 24 | 24 | 644 | 100384 | 1.5 ms | 1.6 ms | 0.5 MB |
-
-The signatures for which a default call is not complete to the limit of 12, and one for which it is:
-
-| Signature | `count_colourings` complete to | `colourings` complete to | Stored at the end | Count time | List time | Peak heap | Cause |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `*664` | 12 | 11 | 14981 | 71 ms | 175 ms | 20.7 MB | The stored limits at 12, with 4849 classes of 12 colours |
-| `*666` | 12 | 11 | 45929 | 208 ms | 187 ms | 20.7 MB | The stored limits |
-| `*866` | 12 | 11 | 32375 | 243 ms | 247 ms | 20.7 MB | The stored limits |
-| `*888` | 12 | 11 | 17675 | 321 ms | 334 ms | 20.7 MB | The stored limits |
-| `664` | 11 | 10 | 51153 | 1.27 s | 153 ms | 20.7 MB | The budget for the count, the stored limits for the list |
-| `666` | 10 | 9 | 44030 | 1.24 s | 127 ms | 20.7 MB | The budget for the count, the stored limits for the list |
-| `*(1000)(1000)(1000)` | 8 | 8 | 6031 | 1.21 s | 1.22 s | 9.3 MB | The budget |
-| `(1000)(1000)(1000)` | 7 | 7 | 2082 | 1.20 s | 1.21 s | 13.6 MB | The budget |
-| `*(998)(981)(961)` | 10 | 10 | 2 | 1.18 s | 1.18 s | 0.08 MB | The budget |
-| `(998)(981)(961)` | 9 | 9 | 1 | 1.18 s | 1.19 s | 0.05 MB | The budget |
-| `*(1000)(1000)2` | 12 | 12 | 14002 | 325 ms | 330 ms | 4.8 MB | None |
-
-Every signature of the first table is complete to 12 in at most 6.3 ms, for the count and for the list.
-
-`colourings_of_index` with 12 colours, which a caller runs to resolve an id of 12 colours:
-
-| Signature | `is_complete()` | Colourings | Time | Peak heap |
-| --- | --- | --- | --- | --- |
-| `*664` | True | 51213 | 94 ms | 20.8 MB |
-| `*666`, `*866`, `*888`, `664`, and `666` | False, stopped by the stored limits | 0 | 40 to 121 ms | 20.7 MB |
-| `*642` | True | 661 | 1 ms | 0.26 MB |
-| `*2222` | True | 412 | 1 ms | 0.20 MB |
-
-Steps of one run, and the steps of the runs by index from 1 to the limit over those of one run, each on an unlimited budget:
-
-| Signature | One run at 12 | Ratio at 12 | One run at 24 | Ratio at 24 |
-| --- | --- | --- | --- | --- |
-| `*732` | 50684 | 4.01 | 396948 | 6.60 |
-| `*642` | 817563 | 2.16 | 32546447 | 2.78 |
-| `*542` | 193765 | 3.26 | 3035855 | 5.21 |
-| `*832` | 171436 | 2.85 | 2490665 | 3.74 |
-| `*532` | 48040 | 3.76 | 166622 | 8.40 |
-| `*432` | 83373 | 3.50 | 211985 | 7.88 |
-| `*332` | 24379 | 4.83 | 55324 | 8.77 |
-| `*632` | 166737 | 2.89 | 1358578 | 4.59 |
-| `*442` | 290733 | 3.63 | 2949124 | 5.38 |
-| `*333` | 81727 | 3.44 | 579364 | 5.21 |
-| `*2222` | 1280682 | 2.94 | 12456969 | 5.13 |
-| `*(1000)22` | 909512 | 5.87 | 2162885 | 11.19 |
-| `*(1000)32` | 2785573 | 3.11 | 80392256 | 3.46 |
-| `*66` | 10217 | 4.88 | 10217 | 16.88 |
-| `732` | 32231 | 4.02 | 735334 | 4.94 |
-| `642` | 752084 | 2.08 | 251455512 | 2.38 |
-| `532` | 18088 | 4.14 | 55286 | 9.66 |
-| `432` | 24441 | 4.19 | 61488 | 7.71 |
-| `632` | 88508 | 3.05 | 896427 | 4.89 |
-| `442` | 173718 | 3.10 | 2077379 | 4.92 |
-| `333` | 69194 | 2.84 | 542708 | 5.58 |
-| `2222` | 1245792 | 2.71 | 18330232 | 4.84 |
-| `(1000)22` | 156527 | 5.72 | 366784 | 10.95 |
-| `22` | 160 | 11.24 | 160 | 23.24 |
-
-These figures support the statements of Sections 7.10 to 7.17 and of Section 15:
-
-| Figure | Section | Value |
-| --- | --- | --- |
-| Steps per second | 7.12 | Default calls at a limit of 64, both phases, $2^{29}$ steps and the overshoot of the last read: `*542` 0.92 s, complete to 41, `*832` 0.95 s to 46, `*2222` 0.59 s to 43, `*(1000)32` 1.12 s to 25, `732` 0.79 s to 48, `2222` 0.50 s to 39, and `*642` 0.87 s to 29. `*732`, 53.0 M steps in 0.080 s, and `*442`, 80.6 M in 0.082 s, complete 64 in one run. That is 480 M to 1070 M steps per second, so $2^{28}$ steps take 0.25 to 0.56 s. The triangles with long power relators run at about 440 M steps per second, $2^{29}$ steps in 1.18 to 1.22 s. Debug builds were not timed at the budget |
-| Node counts | 10.2 | With one run, counting as a node the root and each candidate that passes the processing of GRP-31 and the first-in-class test: Higman's group 548 at 8 and 8179 at 12, the group of order 55 244 at 11, and $M_{11}$ 82928 at 12, exactly as Sims prints them, in 115086, 2624223, 45910, and 23956046 steps |
-| Pruning and leaf check | 7.11 | 400 deterministic random presentations, with 2 or 3 generators and 1 to 3 relators of 1 to 7 letters to a power from 1 to 3, at limit 5 with a budget of $2^{30}$, all complete. The first-in-class test on every node and on complete tables only gave equal classes and colourings on 400 of 400, and the test on complete tables only took 2.55 times the nodes and 1.43 times the steps. The run without the test gave the subgroups of the expanded classes on 400 of 400. The leaf check discarded no table and no leaf relabelling changed a table in any of the three variants, nor in any run of the signatures of this section. In the property tests, 255 of 256 random cases are complete at limits 1 to 5 with the test budget of $2^{20}$ that `common` holds |
-| Peak memory | 15 | Against the bound of GRP-40: 0.68 to 0.99 of it for every call that completed at limits 12 and 24, such as `*642` at 12 with 352 KB of 407 KB, `*2222` at 12 with 0.972, and `2222` at 24 with 8.63 MB of 8.73 MB. For every call that stopped at a limit, 0.48 to 0.80 of the bound at $T = 2^{22}$ and $M = 65536$, which is 27.3 MB for $L = 12$ and $c = 6$. `*664` and `*666` peak at 19.9 MB and `664` at 21.7 MB |
-| Subgroups of a class | 7.13 | Under the ids of GRP-37: the class `3a` of `*642` has 3 members, `3a`, `3b`, and `3c`, the only class of 3 colours. `8a` of `*642` has 4, `8a`, `8o`, `8z`, and `8az`. `8a` of `*732` has 8, `8a` to `8h`, the only class of 8 colours. `9a` of `732` has 9, `9a` to `9i`. `3a` of `432` has 3, `3a` to `3c`. `4a` of `432` has 4. `5a` of `532` has 5, `5a` to `5e`, and `6a` of `532` has 6. `5a` of `*532` has 5, `5a` to `5e`. `4a` of `*2222` has 2, `4a` and `4h`, and `4c` of `*2222` is a class of one. `2222` has 12 colourings of 3 colours in 4 classes of 3, `3a`, `3b`, `3c`, and `3d` |
-| Debug time of each test | 10.1 | One thread: "Closing pass idle" 2.25 s, "Frettloh Table 1" 1.42 s, "Search examples" 1.04 s, "Counts agree" 0.51 s, "Runs by index" 0.29 s, "Pruning" 0.25 to 1.1 s, because `proptest` draws new cases on each run, "Least in class" 0.22 s, "Stored limits" 0.18 s, "Budget and limit" 0.15 s, "Leaf statistics" 0.14 s, "Frettloh Table 2" 0.14 s, "Search invariance" 0.14 s, "Search agrees with enumeration" 0.06 s, "Bulatov counts" 0.05 s, "Search capacities" 0.04 s, "Cube" 0.02 s, "Word invariance" 0.02 s, which searches its fixed presentations once for all cases, and every other search test under 0.01 s. The whole crate takes 2.5 s on many threads |
-
-### 11.5. Figures of the Wallpaper Prototype
-
-`escher-domain` gives the domains of `o`, `**`, `xx`, `*x`, `22*`, `22x`, `2*22`, `4*2`, and `3*3` and the sheared `2222` their side presentations by DOM-52 of `docs/design/domain.md`. They need no code and no rule in this crate. The search, the Conway presentations, and the ids serve these side presentations unchanged.
-
-A prototype outside the repository tested this design. A copy of the workspace gained the ten domains of DOM-50, the walk of DOM-55, and the side presentation of DOM-52 of `docs/design/domain.md`, and called `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. Apart from the second table, the figures of this section are those of that prototype. The test "Equal counts" of DOM-57 of `docs/design/domain.md` measures the counts on the crates up to index 16, as the second table gives. Times are of one thread on a host with 16 cores, in a release build unless marked.
-
-The numbers of subgroups of the side presentation equal those of the Conway presentation at every index from 1 to 12, for all ten signatures. Each cell of the second column holds both. "Smallest budget" is the smallest `SearchBudget` that completes index 12, which bisection found, for the side presentation and then the Conway presentation:
-
-| Signature | Subgroups of index 1 to 12 | Release time to 12 | Smallest budget to 12 | Debug time to 12 and to 24 |
-| --- | --- | --- | --- | --- |
-| `o` | 1 3 4 7 6 12 8 15 13 18 12 28 | 0.001 s | 539165 and 577191 | 0.019 s and 0.264 s for the side, 0.419 s for the Conway presentation |
-| `**` | 1 7 4 19 6 28 8 43 13 42 12 76 | 0.001 s | 481105 and 464143 | 0.016 s and 0.159 s |
-| `xx` | 1 3 4 7 6 12 8 15 13 18 12 28 | Under 0.001 s | 199282 and 197929 | 0.007 s and 0.080 s |
-| `*x` | 1 3 4 11 6 12 8 27 13 18 12 44 | Under 0.001 s | 252905 and 248148 | 0.008 s and 0.094 s |
-| `22x` | 1 3 6 11 10 20 14 39 27 42 22 92 | Under 0.001 s | 235197 and 230421 | 0.009 s and 0.095 s |
-| `22*` | 1 7 6 23 10 44 14 67 27 82 22 156 | 0.001 s | 633890 and 421281 | 0.026 s and 0.234 s |
-| `2*22` | 1 7 6 31 10 44 14 111 27 82 22 212 | 0.001 s | 685143 and 669131 | 0.025 s and 0.284 s |
-| `4*2` | 1 3 0 11 0 12 0 39 9 30 0 52 | Under 0.001 s | 138488 and 132166 | 0.007 s and 0.073 s |
-| `3*3` | 1 1 4 4 0 10 0 4 21 0 0 31 | Under 0.001 s | 72040 and 73940 | 0.004 s and 0.031 s |
-| `2222` | 1 7 12 31 30 76 56 127 117 186 132 348 | 0.002 s | 1245792 and 857812 | 0.057 s and 0.919 s |
-
-The row of `2222` equals its row in Section 11.4.
-
-The test "Equal counts" measured these figures on the crates for the ten domains, at `aspect` 1 for those with a parameter, with `IndexLimit` 16 and `SearchBudget::DEFAULT`. Every search completed 16 colours, the side and the Conway presentation gave equal counts, and the counts to 12 equal the rows of the prototype above. Times are in a debug build. Of three runs, the table gives the first for `o` and `**`, the second for `xx`, `*x`, and `22x`, and the third for `22*`, `2*22`, and `2222`. The figures of `4*2` and `3*3` come from one run. The second run gave `o` 0.052 s and 0.067 s and `**` 0.037 s and 0.036 s:
-
-| Signature | Subgroups of index 1 to 16 | Debug time to 16, side and Conway |
-| --- | --- | --- |
-| `o` | 1 3 4 7 6 12 8 15 13 18 12 28 14 24 24 31 | 0.051 s and 0.067 s |
-| `**` | 1 7 4 19 6 28 8 43 13 42 12 76 14 56 24 91 | 0.039 s and 0.036 s |
-| `xx` | 1 3 4 7 6 12 8 15 13 18 12 28 14 24 24 31 | 0.016 s and 0.016 s |
-| `*x` | 1 3 4 11 6 12 8 27 13 18 12 44 14 24 24 59 | 0.021 s and 0.021 s |
-| `22x` | 1 3 6 11 10 20 14 39 27 42 22 92 26 72 60 143 | 0.021 s and 0.020 s |
-| `22*` | 1 7 6 23 10 44 14 67 27 82 22 156 26 128 60 203 | 0.050 s and 0.034 s |
-| `2*22` | 1 7 6 31 10 44 14 111 27 82 22 212 26 128 60 343 | 0.061 s and 0.060 s |
-| `4*2` | 1 3 0 11 0 12 0 39 9 30 0 52 0 28 0 127 | 0.015 s and 0.014 s |
-| `3*3` | 1 1 4 4 0 10 0 4 21 0 0 31 0 14 18 16 | 0.004 s and 0.004 s |
-| `2222` | 1 7 12 31 30 76 56 127 117 186 132 348 182 344 360 511 | 0.116 s and 0.079 s |
-
-The prototype also measured these figures:
-
-| Figure | Value |
-| --- | --- |
-| Agreement at higher indexes | With the default budget at the index limit 64, the side and the Conway presentation gave equal counts at every index that both completed: to 64 for `**`, `xx`, `*x`, `22x`, `4*2`, and `3*3`, to 48 for `22*` and `2*22`, to 39 for `2222`, and to 32 for `o`. The default budget stopped the search of `o`, `22*`, `2*22`, and `2222` before 64. Each call took 0.02 to 1.0 s in a release build |
-| `o` and `xx` | The counts of `o` and `xx` are equal at every index computed, to 64 for `xx` and to 39 for the side presentation and 32 for the Conway presentation of `o`. Each count equals the sum of the divisors of its index. So no count tells `o` from `xx`. The test "Wallpaper certificate" of DOM-57 of `docs/design/domain.md` is required for that reason: its point group tells `o` from `xx`, its glide reflections whose axes are no mirror lines tell `**` from `*x`, and its rotations whose centres lie on mirror lines tell `22*` from `2*22` |
-| A dropped cycle relator | With the second cycle relator of `*x` left out of its side presentation, the counts of index 1 to 6 were 1, 3, 7, 23, 71, and 255, so the equal counts detect it |
-| A dropped mirror relator | With `s1^2` or `s3^2` left out of the side presentation of `*x`, the counts of index 1 to 6 stayed 1, 3, 4, 11, 6, and 12, so the equal counts do not detect it. The test "Wallpaper presentations" of `docs/design/domain.md`, which asserts the exact relator texts, does |
-| Index of the test | The prototype recommended index 16 for the test of the equal counts in `just test`, which took under 5 ms in a release build and well under 1 s in a debug build for each presentation. The test "Equal counts" of DOM-57 of `docs/design/domain.md` runs to index 16 with `SearchBudget::DEFAULT` at `aspect` 1 |
-
-### 11.6. Figures of the Spherical Prototype
-
-This section holds the figures of the spherical group domains on a prototype and the figures that the tests of the crates measure for the kites `3*2`, `2*n`, and `n*` and for the lune groups `nx`, `x`, `*`, and `1`. `escher-domain` gives the domains of `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1` their side presentations by Section 5.4 of `docs/design/domain.md`, and the domain of `1`, which has no side, a presentation with no generator and no relator (DOM-62 of `docs/design/domain.md`). They need no code and no rule in this crate. `enumerate`, the search, the Conway presentations, and the ids serve these side presentations unchanged. A presentation with no generator enumerates to the index 1, and the search accepts it.
-
-A prototype outside the repository tested this design. A copy of the workspace gained the constructions of DOM-58 and DOM-59 of `docs/design/domain.md` as private code of `escher-domain`, and called `enumerate`, `count_colourings`, `colourings`, and `conway_presentation` of this crate unchanged. It covered the 37 canonical signatures of the seven types with $n$ up to 12 and the three limits `(1000)*`, `(1000)x`, and `2*(500)`, 40 signatures in all. Every figure of this section comes from that prototype, in a release build on one thread, except the figures of the crates, which the section marks. The tests "Spherical side orders" and "Spherical counts" of `docs/design/domain.md` measure the same quantities on the crates, the counts up to 16 colours or the group order when that is smaller.
-
-Enumeration over the trivial subgroup gave the index $2/\chi$ for the side presentation of each of the 40 signatures. For $n$ up to 12, each run took at most 0.02 ms. At the limits, the side and the Conway presentations took these times:
-
-| Signature | Side presentation | Conway presentation |
-| --- | --- | --- |
-| `(1000)*` | 10.8 ms | 8.1 ms |
-| `(1000)x` | 16.0 ms | 8.1 ms |
-| `2*(500)` | 18.3 ms | 18.2 ms |
-
-The colouring counts of the side presentation equalled those of the Conway presentation for all 40 signatures, at every index up to the smaller of 64 and the group order. Each search took at most 1 ms. For example, `3*2` gave the counts 1, 1, 1, 4, 0, 7, 0, 4, 0, 0, 0, and 7 at the indexes 1 to 12, and 1 at the index 24.
-
-The tests "Spherical side orders" and "Spherical counts" measured these figures on the crates for the kites `3*2`, `n*`, and `2*n`, in a debug build, beside the release figures of the prototype above:
-
-| Figure | Crates, debug build | Prototype, release build |
-| --- | --- | --- |
-| Enumeration of the side presentation | Every kite gives `group_order()`. The slowest is `2*(500)`, at 140 to 148 ms, and the whole set takes 0.24 to 0.25 s | `2*(500)` at 18.3 ms, and at most 0.02 ms for $n$ up to 12 |
-| Colouring search to 16 colours or the group order, side and Conway presentations | Equal counts for every kite with $n$ up to 12. Each search takes at most 0.008 s | Equal counts up to 64 colours or the group order. Each search took at most 1 ms |
-| Search without a cycle relator | Run to 6 colours, or to 4 for `2*`, because the search to 16 colours took up to 23 s, for `3*2` without `s2 s0 s3 s1`. The counts differ from those of the Conway presentation, such as 1, 3, 10, 57, 60, and 504 for `3*2` without that relator against 1, 1, 1, 4, 0, and 7 | The counts differed |
-
-The same tests measured these figures for the lune groups, in a debug build:
-
-| Figure | Crates, debug build |
-| --- | --- |
-| Enumeration of the side presentation | Every lune group of the test set, `nx` with $n$ from 2 to 12 and at 1000, `x`, `*`, and `1`, gives `group_order()`. The slowest is `(1000)x`, at 168 ms, and the whole set of kites and lune groups takes 0.41 s |
-| Colouring search to 16 colours or the group order, side and Conway presentations | Equal counts for every lune group with $n$ up to 12, and for `x`, `*`, and `1`. Each search takes at most 0.001 s. For example, `5x` gives 1, 1, 0, 0, 1, 0, 0, 0, 0, and 1 at 1 to 10 colours |
-| Search without a cycle relator | Run to 6 colours. `5x` without `(s1 s1)^5` gives 1, 1, 1, 1, 1, and 1 against 1, 1, 0, 0, 1, and 0 for the Conway presentation |
-
-The counts of the side presentations of the kites, for 1 to 16 colours or to the group order when that is smaller, are these:
-
-| Signature | Colourings with 1 to 16 colours, or to the group order |
-| --- | --- |
-| `3*2` | 1, 1, 1, 4, 0, 7, 0, 4, 0, 0, 0, 7, 0, 0, 0, 0 |
-| `2*` | 1, 3, 0, 1 |
-| `3*` | 1, 1, 1, 0, 0, 1 |
-| `4*` | 1, 3, 0, 3, 0, 0, 0, 1 |
-| `5*` | 1, 1, 0, 0, 1, 0, 0, 0, 0, 1 |
-| `6*` | 1, 3, 1, 1, 0, 3, 0, 0, 0, 0, 0, 1 |
-| `7*` | 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1 |
-| `8*` | 1, 3, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1 |
-| `9*` | 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 |
-| `(10)*` | 1, 3, 0, 1, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0 |
-| `(11)*` | 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0 |
-| `(12)*` | 1, 3, 1, 3, 0, 3, 0, 1, 0, 0, 0, 3, 0, 0, 0, 0 |
-| `2*2` | 1, 3, 0, 5, 0, 0, 0, 1 |
-| `2*3` | 1, 3, 3, 1, 0, 7, 0, 0, 0, 0, 0, 1 |
-| `2*4` | 1, 3, 0, 5, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 1 |
-| `2*5` | 1, 3, 0, 1, 5, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0 |
-| `2*6` | 1, 3, 3, 5, 0, 7, 0, 1, 0, 0, 0, 13, 0, 0, 0, 0 |
-| `2*7` | 1, 3, 0, 1, 0, 0, 7, 0, 0, 0, 0, 0, 0, 15, 0, 0 |
-| `2*8` | 1, 3, 0, 5, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 17 |
-| `2*9` | 1, 3, 3, 1, 0, 7, 0, 0, 9, 0, 0, 1, 0, 0, 0, 0 |
-| `2*(10)` | 1, 3, 0, 5, 5, 0, 0, 1, 0, 11, 0, 0, 0, 0, 0, 0 |
-| `2*(11)` | 1, 3, 0, 1, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0 |
-| `2*(12)` | 1, 3, 3, 5, 0, 7, 0, 9, 0, 0, 0, 13, 0, 0, 0, 1 |
-
-The prototype also left relators out of the side presentations, one at a time:
-
-| Relator left out | Enumeration | Colouring counts | Detected by these two |
-| --- | --- | --- | --- |
-| A mirror relator: `s0^2` or `s1^2` of `3*2` and `2*3`, `s2^2` or `s3^2` of `3*` and `2*`, or any one of the four relators of `*` | $2/\chi$ | Equal to the Conway counts | No |
-| A cycle relator of `3*2`, `3*`, `2*3`, `5x`, or `2*` | Reached the coset limit | Differed | Yes |
-| The cycle relator `s1 s1` of `x` | Reached the coset limit | Equal, 1 and 1 up to index 2 | By the enumeration only |
-
-On the signatures tried, the mirror relators follow from the other relators, so neither the enumeration nor the colouring counts detect the loss of one. The test "Spherical presentations" of `docs/design/domain.md`, which asserts the exact relator texts, does. "Spherical side orders" asserts that each cycle relator left out stops the enumeration, and "Spherical counts" that it changes the counts, except for `x`. On the same prototype, five domains built for the wrong group with the right order, such as the lune of `nx` paired by a rotation, which gives the group of `(2n)(2n)`, passed `verify()`, and the enumeration of each side presentation gave the order of the signature that the domain was labelled with. The order by enumeration therefore does not tell such a domain from the right one. The census or the exactly-once test of the certificate of DOM-64 of `docs/design/domain.md` does, and the test "Census defects" asserts the census.
+Withdrawn on 2026-11-22. Where a measurement of the crate or of a prototype outside the repository is the reason for a limit, a rule, or a choice, the section of that limit, rule, or choice states the conclusion with its scope. The heading stays so that Sections 12 to 17 keep their numbers.
 
 ## 12. Dependencies
 
@@ -1280,25 +868,17 @@ GRP-23. The crate MUST declare `escher-signature` and `thiserror` as its only no
 | `thiserror` | Normal | Default | Derives `Display` and `std::error::Error`, as the other library crates do. Section 3.1 of the architecture lists it for this crate |
 | `proptest` | Dev | `default-features = false`, with `std` | The property tests |
 
-The crate sets `publish = false`, inherits the workspace fields and lints, and declares no Cargo feature. `Signature` appears in the public surface as the argument of `conway_presentation`. That is a dependency inside the workspace, which is not published (`DEC-22`). `algebraeon-groups` is under GPL-3.0-only, and no code is copied from it (Section 5.7 of the plan).
+The crate sets `publish = false`, inherits the workspace fields and lints, and declares no Cargo feature. `Signature` appears in the public surface as the argument of `conway_presentation`. That is a dependency inside the workspace, which is not published (`DEC-22`). `algebraeon-groups` is under GPL-3.0-only, and no code is copied from it.
 
 ## 13. Unverified Statements
 
-PLAN-3 of the plan requires this list. Each row names an unverified statement of Section 7 of the plan that the code relies on, and what the code does about it:
+PLAN-3 of the plan requires this list. Each row names an unverified statement of Section 7 of the plan that the code relies on, the sections of this document that rely on it, and what the code does about it:
 
-| Label | What the code relies on | What the code does |
-| --- | --- | --- |
-| `UNV-19` | The parts of the steps that only this design or SymPy state, which the column "Code-only part" of Section 7.3 lists: the distinct cyclic conjugates of Section 7.2, the rule and timing of Section 7.5, the forward cursor and the final rescan of step 4, the order of the overflow of Section 7.6, the processing of the deductions after each definition in scan-and-fill and the resumed traces of step 3, the form of the pushes of a coincidence, and the relabelling in one pass. [HOLT2005] and [SIMS1994] state the other steps (item 23 of Section 14.1 of the colouring reference) | Ends every run with the closing pass of GRP-14, so a returned table rests on the closed-table statements of [HULPKE2010] p. 75 and of Theorem 5.2 of [HOLT2005]. The worked examples and "Closing pass idle" check the steps (GRP-24) |
-| `UNV-19` | That this crate's coincidence processing keeps (R1). Proposition 5.4 of [HOLT2005] proves it for the handbook's COINCIDENCE (Section 7.7) | The same as the previous row, and keeps the two branches of Section 7.7 that turn a failure of (R1) into a correct table instead of a run that does not end |
-| `UNV-19` | Termination of this crate's code for a finite index. Theorem 5.5 of [HOLT2005] and Proposition 1.3 of [SIMS1994] prove termination for the books' own procedures that meet their conditions on the strategy, and no source proves it for this crate's code (Section 7.1) | Bounds every run by the coset limit, so termination of a run never depends on it |
-| `UNV-19` | The bijection between subgroups and lenlex standard tables, which Proposition 5.6 of [HOLT2005] and p. 252 of [SIMS1994] state without a stand-alone proof (item 26 of Section 14.1 of the colouring reference) | The test "Invariance" checks that equal subgroups give equal tables over its corpus |
-| `UNV-19` | The group orders and indices of the worked examples that no source states, which are the open part of item 25 of Section 14.1 of the colouring reference | Asserts only the rows and indices that the sources print (Section 10.2) |
-| `UNV-19` | The code-only parts of the search that the column "Code-only part" of Section 7.11 lists: the pushed deductions, every relator used for deductions, the leaf check, the undo trail, the start at the slot of the parent, and the one run followed by runs by index of GRP-35 | Passes on a table only after the leaf check of GRP-33, so a returned table rests on the closed-table statements. The tests of GRP-41 check the steps |
-| `UNV-19` | That pruning a partial table by the first-in-class test loses no class, which [HOLT2005] and [SIMS1994] state and argue without a proof (item 22 of Section 14.1 of the colouring reference) | "Pruning" compares the search with the test on complete tables only, where the handbook states the test conclusive, and "Search examples" and "Frettloh Table 1" compare the counts with the printed ones |
-| `UNV-19` | That the distinct relabellings of a class table from its base cosets are the distinct subgroups of its class, which rests on the bijection of Proposition 5.6 of [HOLT2005] (Section 7.13) | "Least in class" and "Pruning" compare the expansion with a run without the first-in-class test, and "Search examples" compares Sims's 1, 3, 7, 23, and 71 subgroups |
-| `UNV-17` | The rule of GRP-38: that the product of the generators of a fold's sides in fold order maps the domain onto the tile of the sample, that the right coset $S g^{-1}$ numbers the left coset $gS$ of Section 5.4 of the architecture, and that the coset colouring is perfect for a group that Lemma 2.1 of [FRETTLOH2008] does not cover | Implements the rule once, in `colour_of`. "Colour rule" pins the code to the rule, and the assertion of GRP-41 on the samples of `escher-render` checks the rule on rotation domains |
-| `UNV-17` | How conjugate subgroups relate to colourings, and whether the listing holds every perfect colouring (Section 3.4 and items 1 to 3 of Section 14.1 of the colouring reference) | Lists every subgroup of finite index as its own colouring (`DEC-37`), so the listing holds every coset colouring up to the limit, whatever the relation of the conjugates |
-| `UNV-22` | The Conway presentation of a boundary without corners in general | Implements the reading of GRP-7. The test "Spherical orders" checks `n*` and `2*n` against $2/\chi$, and "Order two" checks `*` |
+| Label | What the code relies on | Relied on in | What the code does |
+| --- | --- | --- | --- |
+| `UNV-19` | The steps that only this design, SymPy, or SymmHub states, which the columns "Code-only part" of Sections 7.3 and 7.11 list, while [HOLT2005] and [SIMS1994] state the other steps (item 23 of Section 14.1 of the colouring reference). It also covers four statements that the sources make without a proof for this crate's code: that the coincidence processing keeps (R1), that the code terminates for a finite index, the bijection between subgroups and lenlex standard tables (item 26), and that pruning a partial table by the first-in-class test loses no class (item 22). It covers the indices of the worked examples that no source states (item 25) | 6.2, 7.1 to 7.7, 7.10 to 7.15, 10.2 | Ends every run of `enumerate` with the closing pass of GRP-14, and passes on a table of the search only after the leaf check of GRP-33, so a returned table rests on the closed-table statements of [HULPKE2010] p. 75 and of Theorem 5.2 of [HOLT2005]. Keeps the two branches of Section 7.7, and bounds every run by a limit, so termination of a run never depends on the statement. The worked examples and "Closing pass idle" check the steps of the enumeration (GRP-24), and the tests of GRP-41 those of the search. "Invariance", "Pruning", and "Least in class" check the bijection and the pruning on their inputs. The worked examples assert only the rows and indices that the sources print |
+| `UNV-17` | The rule of GRP-38: that the product of the generators of a fold's sides in fold order maps the domain onto the tile of the sample, that the right coset $S g^{-1}$ numbers the left coset $gS$ of Section 5.4 of the architecture, and that the coset colouring is perfect for a group that Lemma 2.1 of [FRETTLOH2008] does not cover. Also how conjugate subgroups relate to colourings (Section 3.4 and items 1 to 3 of Section 14.1 of the colouring reference) | 6.1, 7.10, 7.16 | Implements the rule once, in `colour_of`. "Colour rule" pins the code to the rule, and the assertion of GRP-41 on the samples of `escher-render` checks the rule on rotation domains. Lists every subgroup of finite index as its own colouring (`DEC-37`), so the listing holds every coset colouring up to the limit, whatever the relation of the conjugates |
+| `UNV-22` | The Conway presentation of a boundary without corners in general | 5.2 | Implements the reading of GRP-7. The test "Spherical orders" checks `n*` and `2*n` against $2/\chi$, and "Order two" checks `*` |
 
 The crate does not rely on `UNV-32`, which concerns the side presentation of `escher-domain` (Section 7 of the plan). Its colourings of a domain are those of the side presentation that it receives, so a wrong letter order of a cycle relator would give the colourings of another presentation without an error.
 
@@ -1312,9 +892,9 @@ These readings of this design rest on no sentence of a source. Each names what c
 - The groups of the Euclidean and hyperbolic signatures `*632`, `2222`, `o`, and `*732` are infinite, so their enumeration reaches any limit. The test "Infinite groups" relies on it, and only reports a run that reached its limit (GRP-17). A source that states that a Euclidean or hyperbolic orbifold group is infinite would settle it.
 - Writing each entry of a one-letter relator when its row is created gives the same table as finding the entry by a scan. Rule (b) of [CANNON-HAVAS1992] forces the entry (Section 7.5), and the closing pass and the test "One-letter relators" check it. Neither [HOLT2005] nor [SIMS1994] treats a relator of one letter (Section 7.9 of the colouring reference), so a source that does, or Lean, would settle it.
 - The mirror of a class of a rotation side presentation, the class of the table whose generator and inverse columns are swapped, is the class that Frettloh identifies with it as conjugate in $G_{p,q}$ (Section 5.4 of the colouring reference). This is the prototype's reading of the automorphism $s_i \mapsto s_i^{-1}$, which conjugation by a reflection realizes, and no source states it. "Frettloh Table 2" relies on it and compares every count of the table under it.
-- The single case of $S_3$ (Section 10.1) asserts counts that no source of the colouring reference prints, and the test takes them from the subgroups of $S_3$. A source that prints the subgroups of $S_3$ with their indices would settle it.
+- The single case of $S_3$ (Section 10.1) asserts 1, 1, and 3 colourings of 1 to 3 colours and 3 classes, which no source of the colouring reference prints, and the test takes them from the subgroups of $S_3$. A source that prints the subgroups of $S_3$ with their indices would settle it.
 - The generators $c$, $b$, and $a$ of [FRETTLOH2008] are $s_0$, $s_1$, and $s_2$ of the Coxeter presentation of Section 10.1. The relators $(bc)^p$, $(ab)^q$, and $(ac)^2$ of $G_{p,q}$ (Section 5.1 of the colouring reference) match the relators of that presentation under this reading, and "Frettloh Table 1" relies on it.
-- A generic sample has a trivial stabilizer, so the fold of a sample names one tile. GRP-38 relies on it, and the measurement "Fold word" of Section 11.3 checks it on samples.
+- A generic sample has a trivial stabilizer, so the fold of a sample names one tile. GRP-38 relies on it, and the prototype of Section 7.16 checked it on samples.
 
 ### 14.2. Choices of This Design
 
@@ -1323,13 +903,13 @@ Every choice in this table is a proposed default. No other document dictates it,
 | Choice | Alternative | Section |
 | --- | --- | --- |
 | Felsch only, no HLT (`DEC-33`) | HLT as a second strategy, which Holt says may not meet (R4), and which [HOLT2005] states meets its Property 5 when it defines every open entry of a row after its scans | 7.1 |
-| Coset limit default 16384 and maximum 1048576, with a bound of $2^{24}$ table entries (`DEC-33`) | Other values, measured by the same method | 6.3, 15 |
+| Coset limit default 16384 and maximum 1048576, with a bound of $2^{24}$ table entries (`DEC-33`) | Other values, which would change the margin over the largest group order or the memory bound | 6.3, 15 |
 | Generator names `x1`, `y1`, `a1`, `g1`, `r1`, `l1`, `z1`, `w1`, and the relator text of Section 4.4 (`DEC-34`) | The letters of [CH] with indexes | 4.4, 5.1 |
 | Right cosets and the column order of [SYMPY-CT] in tables (`DEC-36`) | Left cosets, which no enumeration source uses | 6.1 |
 | A relator as base and exponent, expanded only in `enumerate` | Flat words with a limit, which refuse large orders even for printing | 4.2 |
 | A `u8` generator index in `Letter` | A fallible constructor over a wider index | 4.1 |
 | `UnsupportedSignature` for an infinite order | A presentation without a source | 5.3 |
-| Scans selected by the letter of the popped entry | SymPy's caller lists, which failed on the prototype | 7.4 |
+| Scans selected by the letter of the popped entry | SymPy's caller lists, which never finished on the rotation doubles of a prototype | 7.4 |
 | A closing pass at the end of every run | No pass, which leaves correctness on the code-only steps | 7.7 |
 | The rule for one-letter relators | Leaving them to the scans, which doubles the cosets defined for presentations with a boundary or crosscap | 7.5 |
 | Distinct cyclic conjugates | Every conjugate, as Hulpke's note lists them | 7.2 |
@@ -1355,25 +935,20 @@ Every choice in this table is a proposed default. No other document dictates it,
 | `ColouringsOfIndex` as the result of `colourings_of_index`, with `is_complete()` and no `complete_to()` | `Colourings` with `complete_to()` equal to the colour count or 0, which a caller can misread as proof about the colour counts below it | 3.1, 7.14 |
 | A run holds its tables as pending colourings and builds each `Colouring` once, with its final id and class | `Colouring` values built with placeholder ids and classes and patched after the ranking | 7.15, 15 |
 | `Colouring::class` as the id of the class table that the search kept | No class data, a class size, which a caller can count from the list, or the least id of the class computed after the expansion, which hides a defect of the first-in-class test | 3.1, 7.13 |
-| The operations `search subgroups` and `read colouring id` | Other wording | 8 |
-| `thiserror` for the error | An error implemented by hand | 12 |
-| The operations `build presentation` and `enumerate cosets`, and positions counted from 1 in error texts | Other wording | 8 |
-| `Option` from `permutation`, `display_word`, and `display_relator` | A panic or an empty result for a letter outside the table | 3.2 |
-| Run statistics crate-private | A public type for the statistics | 3.1 |
 | Subgroup words scanned as given, without reduction | Freely reducing them first | 7.3 |
 
 ### 14.3. Points for the Owner
 
 None of these blocks the crate. Each states what the design does until the owner decides:
 
-1. Time of an enumeration. No limit of the crate bounds the time of a run, which grows about as the cosets defined times the expanded relator letters (Section 15). Section 15 gives the worst inputs measured. `escher-cli` cannot reach such an input. The design accepts this residual risk and recommends that a caller that takes untrusted input keep the default limit. The alternative is a limit on time or on work, such as a work budget in letter steps with its own error kind, which bounds the time of every call. The owner decides whether such a limit is wanted.
+1. Time of an enumeration. No limit of the crate bounds the time of a run, and `escher-cli` cannot reach a slow input (Section 15). The design accepts this residual risk and recommends that a caller that takes untrusted input keep the default limit. The alternative is a limit on time or on work, such as a work budget in letter steps with its own error kind.
 2. Strategy and limits. The design proposes Felsch with a default limit of 16384 and a maximum of 1048576 (`DEC-33`). The alternative is other values, or HLT as a second strategy.
 3. Cosets. The tables use right cosets, as every source does, while Section 5.10 of the architecture picks left cosets for colourings (`DEC-36`). The alternative is tables of left cosets, which no enumeration source supports.
 4. Names. The design proposes ASCII names numbered by kind (`DEC-34`). The alternative is the letters of [CH], such as `P`, `Q`, and `lambda`, with indexes.
 5. Search budget. The design proposes $2^{28}$ steps (`DEC-42`, Section 7.12). The alternative is $2^{29}$ steps, which completes more colour counts for the triangles with orders near 1000.
 6. Long power relators. The search at the default limit stops early for triangle groups whose corner orders are all near 1000, at 7 to 10 colours (Section 7.14). The design accepts this. The recorded idea is the scan of a power relator by the cycle of its base, which Section 7.14 describes. It is unmeasured and would need its own design and tests.
 7. Reference counts. The tests compare the search with printed counts only, because no GAP, Sage, or SymPy is available in the container. The alternative is fixtures generated offline with GAP or `low_index` and committed as data with their provenance, which would cover the Euclidean groups that no printed table covers.
-8. A higher limit can complete fewer colour counts. When the one run at the limit $N$ stops, the runs by index share one budget (GRP-35), so a call with a higher limit can complete fewer colour counts than a call with a lower limit whose one run ends. Section 11.3 of `docs/design/cli.md` records the measured cases of `escher info`.
+8. A higher limit can complete fewer colour counts. When the one run at the limit $N$ stops, the runs by index share one budget (GRP-35), so a call with a higher limit can complete fewer colour counts than a call with a lower limit whose one run ends (Section 7.14). The design accepts this.
 9. Tests kept for a reason that does not apply. TQ-11 of `docs/design/tooling.md` puts them to the owner, including the single cases of Section 10.1.
 
 ## 15. Security Considerations
@@ -1392,7 +967,7 @@ GRP-19. The crate MUST enforce the limits of this table, return `LimitExceeded` 
 | Generator name | 1 to 32 bytes, `[A-Za-z][A-Za-z0-9]*`, unique | Printable ASCII, so a caller can print a name without escaping it |
 | Subgroup generators | 256 | A choice of this design |
 | Letters in a subgroup generator | 4096 | The same bound as a relator base |
-| Expanded relator letters, summed over the relators, checked by `enumerate` | 65536 | Above the expanded length of the Conway presentation of every signature whose domain `escher-domain` builds, whose corner and cone orders are at most 1000. Section 11.1 records the lengths for `*(1000)32` and `*(1000)22` |
+| Expanded relator letters, summed over the relators, checked by `enumerate` | 65536 | Above the expanded length of the Conway presentation of every signature whose domain `escher-domain` builds, whose corner and cone orders are at most 1000, such as the 2023 letters of `*(1000)32` |
 | Cosets | `CosetLimit::MAX`, 1048576 | Section 6.3 |
 | Table entries, limit times columns | $2^{24}$ | Bounds the table at 64 MiB and its relabelled copy at as much |
 | Index of a search | `IndexLimit::MAX`, 64 | Section 7.12. The table of a run then has at most $64 \cdot 512 = 2^{15}$ entries |
@@ -1415,7 +990,7 @@ bytes beyond its inputs. The run has two phases, and the larger of them sets the
 - Both phases: the stored relators and their conjugate lists, $24 E$. Each letter is stored as a `u16` four times, the relator and its inverse each written twice in a row, which is 8 bytes. A letter starts at most two distinct conjugates, one of the relator and one of its inverse, each a span of two `u32`, which is 16 bytes.
 - Both phases: the subgroup generators as columns, $2 W$, one `u16` for each letter, at most 2 MiB for 256 words of 4096 letters, kept for the whole call because steps 3 and 10 scan them.
 
-The table, the representatives, and the queue each grow to the smaller of twice their length and their cap, $L c$, $L$, and $L$, and never below what the next entry needs. The queue holds a coset only when a merge removes it, so it never needs more than $L$ entries. The label map has one entry for each coset defined, the order list is allocated with that capacity, and the relabelled copy with the index times $c$ entries. At the maxima the bound is about 143.5 MiB, from 140 MiB for the relabelling, 1.5 MiB for $24 E$, and 2 MiB for $2 W$. At the default limit with the most columns, 512, it is about 68 MiB. The tests "Capacities" and "Queue capacity" pin the capacities, and Section 11.2 gives the measured peaks, such as 75.69 MiB for $\mathbb{Z}_{32}^4$ at `CosetLimit::MAX` against a bound of 76.0 MiB.
+The table, the representatives, and the queue each grow to the smaller of twice their length and their cap, $L c$, $L$, and $L$, and never below what the next entry needs. The queue holds a coset only when a merge removes it, so it never needs more than $L$ entries. The label map has one entry for each coset defined, the order list is allocated with that capacity, and the relabelled copy with the index times $c$ entries. At the maxima the bound is about 143.5 MiB, from 140 MiB for the relabelling, 1.5 MiB for $24 E$, and 2 MiB for $2 W$. At the default limit with the most columns, 512, it is about 68 MiB. Unit tests pin the capacities, and in a release build of the crate the peaks measured at `CosetLimit::MAX` stayed just below the bound.
 
 Step 1 makes allocations outside the formula, before the table exists:
 
@@ -1423,7 +998,7 @@ Step 1 makes allocations outside the formula, before the table exists:
 - A prefix-function array of `usize` for one word at a time, 8 bytes for each letter, at most 512 KiB for a word of 65536 letters, freed before the next word.
 - A `BTreeSet` of slice references, one for each distinct word, freed at the end of step 1.
 
-$S_{max}$ exceeds the cap of 65536 only by the entries that one coincidence or one lookahead pushes before the next check of the cap (Section 7.6). The design has no smaller bound on that excess than the number of entries that one such pass writes. The largest stack in any measured run of the crate is 67 entries (Section 11.2).
+$S_{max}$ exceeds the cap of 65536 only by the entries that one coincidence or one lookahead pushes before the next check of the cap (Section 7.6). The design has no smaller bound on that excess than the number of entries that one such pass writes. No measured run of the crate or of the prototype held more than 67 entries on the stack.
 
 GRP-40. The memory of one call of `count_colourings`, `colourings`, or `colourings_of_index` MUST stay within the bound of this section, with the table, the trail, the deduction stack, and the frames of each run allocated at the size that the bound of that run sets, which is at most the index limit, because the stored limits of GRP-36 bound only the output, and a vector that doubles can exceed the bound.
 
@@ -1437,22 +1012,17 @@ bytes beyond its inputs, with these terms:
 - $20 L c$: the table of the run, $4 L c$, the trail of written slots, $4 L c$ in slots of 32 bits, the deduction stack, at most $4 L c$, with a capacity of $L c / 2$ entries of 8 bytes, and the frames, at most $8 L c$, with a capacity of $L c / 2$ frames of 16 bytes.
 - $4 L^2 c$: the scratch of the expansion of Section 7.13, at most $L$ tables of $L c$ entries.
 - $12 L$: the label map and the order list of the relabelling, and the list of the distinct base cosets of the expansion.
-- $4 T + 160 M$: the stored tables, and the fixed part of each stored colouring. A run holds each found table as a pending colouring of 48 bytes, which the test "Pending size" pins. The pending list grows by doubling up to 65536 entries, so it takes up to 96 bytes for each colouring. The ids of the class tables take up to 8 bytes for each class. The returned list takes 56 bytes for each `Colouring`, which the test "Colouring size" pins, and is allocated at its exact length while the pending list is consumed.
+- $4 T + 160 M$: the stored tables, and the fixed part of each stored colouring. A run holds each found table as a pending colouring of 48 bytes, which a unit test pins. The pending list grows by doubling up to 65536 entries, so it takes up to 96 bytes for each colouring. The ids of the class tables take up to 8 bytes for each class. The returned list takes 56 bytes for each `Colouring`, which a unit test pins, and is allocated at its exact length while the pending list is consumed.
 
-$T$ and $M$ are the largest numbers held at any moment of the call. While a run that stopped at a limit is discarded, they include what that run stored. At the maxima, with $L = 64$ and $c = 512$, the bound is about 36.1 MiB: 0.625 MiB for the run, 8 MiB for the scratch, 16 MiB for the stored tables, 10 MiB for the stored colourings, and 1.5 MiB for $24 E$. `count_colourings` stores nothing, so its bound has no $4 T + 160 M$. The test "Search capacities" pins the capacities, as "Capacities" does for `enumerate`. Section 11.4 gives the measured peaks.
+$T$ and $M$ are the largest numbers held at any moment of the call. While a run that stopped at a limit is discarded, they include what that run stored. At the maxima, with $L = 64$ and $c = 512$, the bound is about 36.1 MiB: 0.625 MiB for the run, 8 MiB for the scratch, 16 MiB for the stored tables, 10 MiB for the stored colourings, and 1.5 MiB for $24 E$. `count_colourings` stores nothing, so its bound has no $4 T + 160 M$. Unit tests pin the capacities, as for `enumerate`.
 
 The budget bounds the time of a search call (GRP-35 and Section 7.14 give the bound). The sort of the colourings of each colour count is not counted in steps. It compares stored tables, so it reads at most $T \log_2 M$ entries, about $6.7 \times 10^7$ at the maxima. This closes, for the search, the residual risk on time that this section states for `enumerate`.
 
 GRP-21. The crate MUST check every arithmetic operation on a size that comes from input, MUST contain no `unsafe` code, and MUST use no recursion, because an overflow gives a wrong table without an error, and the depth of a recursion over words or cosets is set by the input.
 
-The time of a run of `enumerate` has no bound from these limits, and no limit of the crate bounds it. A coset limit bounds the cosets defined and not the work for each coset, and the sources give no computable bound on the work (Section 7.9). The residual risk is a caller that passes long relators with a high limit. On the crate, the time of a run grew about as $N (\alpha + \beta E)$, for $N$ cosets defined and $E$ expanded relator letters, with $\beta$ of a few nanoseconds (Section 11.2). The worst inputs measured in a release build are these (Section 11.2):
+The time of a run of `enumerate` has no bound from these limits, and no limit of the crate bounds it. A coset limit bounds the cosets defined and not the work for each coset, and the sources give no computable bound on the work (Section 7.9). The residual risk is a caller that passes long relators with a high limit. In a release build of the crate, the time of a run grew about as $N (\alpha + \beta E)$, for $N$ cosets defined and $E$ expanded relator letters, with $\beta$ of a few nanoseconds. The slowest input measured at `CosetLimit::MAX`, a group of order $2^{20}$ with 64516 expanded letters that finishes within every limit, took several minutes. At `CosetLimit::DEFAULT`, the slowest input found, 2 generators with 16 random relators of 4096 letters, reached the limit in about 12 s.
 
-- 393 s at `CosetLimit::MAX` for an input that finishes within every limit, a group of order $2^{20}$ with 64516 expanded letters. The law gives about 7 minutes for $2^{20}$ cosets and 65536 letters.
-- 35.7 s at `CosetLimit::MAX` for $\langle x, y \mid x^{1024}, y^{1024}, [x, y] \rangle$, which has 2052 expanded letters.
-- 11.9 s at `CosetLimit::DEFAULT` for 2 generators with 16 random relators of 4096 letters, which reaches the limit.
-- 2.17 s at `CosetLimit::DEFAULT` for the slowest input found there that finishes.
-
-The design therefore recommends that a caller that takes untrusted input keep the default limit, under which the slowest input found took about 12 s. `escher-cli` cannot reach such an input, because the Conway presentation of a spherical signature of order $N$ expands to at most $2N + 11$ letters and the side presentations are short, and it does not enumerate a group whose order is above the limit (CLI-39 of Section 5.7 of `docs/design/cli.md`). A work budget in letter steps is the recorded alternative (item 1 of Section 14.3).
+The design therefore recommends that a caller that takes untrusted input keep the default limit. `escher-cli` cannot reach such an input, because the Conway presentation of a spherical signature of order $N$ expands to at most $2N + 11$ letters and the side presentations are short, and it does not enumerate a group whose order is above the limit (CLI-39 of Section 5.7 of `docs/design/cli.md`). A work budget in letter steps is the recorded alternative (item 1 of Section 14.3).
 
 The other topics of Section 3.2 of `docs/writing-documentation.md` apply as follows:
 
