@@ -483,9 +483,9 @@ RND-12. `encode_png` MUST write an RGB image of bit depth 8 with the sRGB chunk 
 | 5.6 | The sRGB transfer function | Section 7.5 of the rendering reference | Sourced through secondary sources. The rounding of an encoder is item 23 of Section 13.1 of the rendering reference |
 | 5.6 | Averaging in linear light | None | A choice of the architecture |
 | 5.6 | The sRGB chunk through `set_source_srgb` | Section 4 of the ecosystem survey | The API of `png` |
-| 5.16 | The maps from the half-plane, the band, and the Klein model to the disk | [BEA], p. 131, the code of [SYMMHUB], and [CFKP], p. 71, as `hyperbolic::disk_from_half_plane`, `disk_from_band`, and `disk_from_klein` (Sections 7.5 to 7.7 of the geometry design) | Sourced, except the band map, which is `UNV-13`. The choice of the half-plane map is `DEC-75` |
+| 5.16 | The maps from the half-plane, the band, and the Klein model to the disk | [RAT], Exercise 4.4.4, p. 126, the code of [SYMMHUB], and [CFKP], p. 71, as `hyperbolic::disk_from_half_plane`, `disk_from_band`, and `disk_from_klein` (Sections 7.5 to 7.7 of the geometry design) | Sourced, except the band map, which is `UNV-13`. The owner chose the half-plane map (`DEC-75`) |
 | 5.16 | The model Jacobians, and the screen tangents built from them | None | Unverified (Section 10) |
-| 5.16 | The canonical views of the other models | None | A choice of this design (`DEC-76`) |
+| 5.16 | The canonical views of the other models | None | A decision of the owner (`DEC-76`) |
 
 ### 5.8. Euclidean Domains
 
@@ -866,7 +866,7 @@ RND-52. The fold, the border estimate, and the colour of a sample MUST NOT read 
 
 The border estimate is RND-9 for every model. The model Jacobian carries the stretch of the model into the screen tangents, so the gradient size $g_i$ is the change of the side value per pixel of that model. This holds for the Klein model, whose metric differs by direction (Section 3.1 of the geometry reference), because the estimate uses the two screen tangents and no scale factor, so the Klein model needs no case of its own. What changes for a model is only the start value of the screen tangents. The walls of the Klein model are chords ([CFKP], Section 9, Section 3.1 of the geometry reference), so its borders are straight bands, which the test of Section 8.1 checks.
 
-The canonical view of each model is a choice of this design (`DEC-76`):
+The canonical view of each model is the owner's decision `DEC-76`:
 
 | Model | Model positions of the image | Centre of the image | Outside the model |
 | --- | --- | --- | --- |
@@ -875,7 +875,7 @@ The canonical view of each model is a choice of this design (`DEC-76`):
 | Band | $w = v$ | The band position 0, the image of the centre of the disk | The background, on and beyond the lines $w_2 = \pm 1$, which lie $1/h$ pixels above and below the centre of the image |
 | Klein | $w = v$ | The centre of the Klein disk, the image of the centre of the disk | The background, outside the unit circle |
 
-Every model has the disk scale $h$ of Section 5.1, so one pixel has the same length in model units in every model. The diameter of the unit circle of the Klein model and the width of the strip of the band span $(1 - 2m)$ times the shorter side of the image, as the diameter of the disk does, and the distance from $i$ to the real axis spans half of that. In an image wider than it is tall, the band runs across the whole width and the longer side shows more of it. In an image taller than it is wide, the background fills the rows above and below the band. A square image of the half-plane shows the real axis $m$ times its side above its bottom edge. The centre of the domain lies at the centre of the image in every model, because the domain design places it at `hyperbolic::ORIGIN` (Section 6.3 of the domain design), which `from_disk` gives for the disk position 0. The map of the half-plane sends the ray above $i$ to the positive first axis of the disk (Section 7.5 of the geometry design), so the picture near $i$ is the picture of the disk turned a quarter turn counterclockwise, and vertex 0 of a reflection polygon, which the disk shows on the positive first axis (`DEC-49`), appears above $i$. Point 46 of Section 12.3 puts this orientation to the owner.
+Every model has the disk scale $h$ of Section 5.1, so one pixel has the same length in model units in every model. The diameter of the unit circle of the Klein model and the width of the strip of the band span $(1 - 2m)$ times the shorter side of the image, as the diameter of the disk does, and the distance from $i$ to the real axis spans half of that. In an image wider than it is tall, the band runs across the whole width and the longer side shows more of it. In an image taller than it is wide, the background fills the rows above and below the band. A square image of the half-plane shows the real axis $m$ times its side above its bottom edge. The centre of the domain lies at the centre of the image in every model, because the domain design places it at `hyperbolic::ORIGIN` (Section 6.3 of the domain design), which `from_disk` gives for the disk position 0. The picture of the half-plane sits the same way up as the picture of the disk (`DEC-75`), an orientation that Section 7.5 of the geometry design states and tests.
 
 The fold cap and the colour of an unconverged sample do not change with the model (RND-10). A sample whose disk position lies close to the unit circle takes many steps and can reach the cap, as at the rim of the disk. In the half-plane these are the samples close to the real axis and far from $i$, and in a wide image of the band the samples far along the strip. Section 6.12 states where the renderer is accurate.
 
@@ -1249,7 +1249,7 @@ The golden images cover each family of domains, and each image adds coverage tha
 - Reflection polygons, including one with four different orders, which fixes the cyclic order of the corners, one at a setting that differs visibly from the default, and the double of `3333`.
 - Wallpaper domains with the parity fill, one for each parity picture that differs from every other golden image: `o`, `**`, `xx`, `2*22`, `4*2`, `3*3`, and the sheared `2222`. `22*`, `*x`, and `22x` have none, because their parity pictures equal those of `**` and `*2222` (Section 5.14).
 - The spherical group domain of `3*2` with the parity fill.
-- The reflection triangle `*732` with the parity fill in each of the half-plane, the band, and the Klein model, as `7-3-2-half-plane.png`, `7-3-2-band.png`, and `7-3-2-klein.png`, which fix the canonical view of each model (`DEC-76`), the convention of each model map (GEO-30 of the geometry design), and the border width through the model Jacobian. The disk keeps its golden images unchanged (RND-50).
+- The reflection triangle `*732` with the parity fill in each of the half-plane, the band, and the Klein model, as `7-3-2-half-plane.png`, `7-3-2-band.png`, and `7-3-2-klein.png`, which fix the canonical view of each model (`DEC-76`), the convention of each model map (GEO-30 of the geometry design), including the orientation of the half-plane picture (`DEC-75`), and the border width through the model Jacobian. The disk keeps its golden images unchanged (RND-50).
 - Coset golden images: a colouring whose subgroup is not normal on a reflection domain, the largest colour count, chiral colourings on spherical rotation domains, a Euclidean colouring, a shaded colouring on the ball, a colouring of `*22222` that a renumbering of its sides changes, so that the image fixes the numbering of the sides that the domain design makes part of its contract (DOM-37), one colouring for each of the nine wallpaper groups that tells it from the related groups, and colourings of `3*2` and `2*5` that no related group gives. `n*` and `nx` have no golden image, because no picture of them is known to differ from that of a related group, and `*`, `x`, and `1` have none, because their default pictures are one tile or a plain ball (Section 5.15).
 
 A change that adds a golden image follows these rules:
@@ -1322,7 +1322,7 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | `UNV-6` | The construction of a reflection polygon from SymmHub's cuts, through the domain that `escher-domain` builds | 5.13 | Renders the walls and pairings that the domain gives. `build_with` returns only a polygon or a double that passes `verify()` (DOM-44 of the domain design), and the border oracle and the exact permutation check the tiling that results |
 | `UNV-7` | The default shape of a reflection polygon, through the domain that `escher-domain` builds | 5.13 | As for `UNV-6` |
 | `UNV-11` | That each wallpaper domain and each spherical group domain gives the group of its signature, through the domain that `escher-domain` builds | 5.14, 5.15 | Renders the walls and pairings that the domain gives. The guards of DOM-54 and DOM-60 and the certificates of DOM-57 and DOM-64 of the domain design check each group, and the tests of Section 8.1 check the tiling that results. No image of this crate can tell `n*` from `n22` or `nx` from `*nn` (Section 5.15) |
-| `UNV-13` | The map from the band to the disk, through `hyperbolic::disk_from_band` of `escher-geometry`. The choice of the half-plane map is `DEC-75`, not a fact | 5.16 | Draws the band through that function only (RND-51). Section 12 of the geometry design states its tests, and the golden image of the band and the "Same tile" test check the image that results |
+| `UNV-13` | The map from the band to the disk, through `hyperbolic::disk_from_band` of `escher-geometry`. The choice of the half-plane map is the owner's decision `DEC-75`, not a fact | 5.16 | Draws the band through that function only (RND-51). Section 12 of the geometry design states its tests, and the golden image of the band and the "Same tile" test check the image that results |
 | `UNV-14` | The unit-normal form $\sinh d = \lvert \langle x, u \rangle \rvert$, in the distance form of the tests only | 5.4 | Compares the gradient form with it. The code of the crate does not use it |
 | `UNV-15` | The gradient form of the border estimate through a chain of folds in the linear model, in every hyperbolic model | 5.4, 5.16 | Tests it against the distance form, against tile identity, against the grid of the rectangle, and on the ball against a brute-force oracle, and on the ball states its accuracy by rim band (Section 6.7). The comparison with the distance form tells the two forms apart only in bands 1 and 2 (Section 6.4) |
 | `UNV-16` | The lift onto the ball and the Phong reflection model, whose primary paper is unread | 5.9, 5.10 | Lifts as Section 5.9 states and shades as Section 5.10 states. The tests check the tangents, the brightest point, and the shading against the reference |
@@ -1375,8 +1375,6 @@ No other document dictates these choices, and each looks like something a change
 | --- | --- |
 | No public `View`, the hyperbolic model as an option of `RenderOptions` of the type `HyperbolicModel`, and a public `fold` with a visitor for the side sequence | 3.1, 3.4 |
 | The other models through the disk, with the disk path unchanged bit for bit and the derivative of `from_disk` kept in this crate (`DEC-74`) | 5.16 |
-| The canonical views of the other models with the disk scale, the margin, and the image of the centre of the disk at the centre of the image (`DEC-76`) | 5.16 |
-| `model` read only for a hyperbolic domain, with no effect on another domain (`DEC-77`) | 4.1 |
 | `RenderOptions::builder` takes the fill, so the library has no default fill colour | 3.1, 4.2 |
 | `Fill` without `Copy`, and `CosetFill::new` takes the `Colouring` by value, because the fill stores it | 3.1, 5.12 |
 | One tolerance constant of $4 \times 10^{-15}$, one fold cap, and one golden allowance for every geometry and every kind of domain, because another value changes committed golden images | 6.2, 8.4 |
@@ -1443,10 +1441,6 @@ Point 43. Shared pictures of the spherical groups (`DEC-61`, Section 5.15). The 
 
 Point 44. The step bounds of the spherical group domains (Section 6.11). Each is one step above the largest count that a measurement outside the repository found, so a change that moves one fold decision can break it. The alternatives are the cap itself as the bound, which checks only convergence, or a wider margin, which gives a weaker check.
 
-Point 45. The canonical views of the half-plane, the band, and the Klein model (`DEC-76`, Section 5.16). Each has the disk scale and margin, with the image of the centre of the disk at the centre of the image, so a square image of the half-plane shows a window about 2 units wide above the real axis, and a square image of the band shows a short piece of the strip. The alternatives are a window of its own for each model, such as a half-plane view that shows more of the real axis, or a band view that fits a fixed length of the strip.
-
-Point 46. The orientation of the half-plane (`DEC-75`, Section 5.16). With the map of [BEA], the picture near $i$ is the picture of the disk turned a quarter turn counterclockwise. The alternative composes the map with a quarter turn of the disk, so that both pictures have the same orientation, which is a formula that no source prints.
-
 ## 13. Security Considerations
 
 The threat model is a caller that passes options and a domain derived from untrusted text to the crate, such as `escher-cli` with the arguments of a user. `escher-signature` has bounded the signature, and `escher-domain` has rejected every signature without a domain, every corner order above 100, every signature with more than eight orders, every value of a shape parameter outside its range, every polygon or double of a polygon that fails `verify()`, every wallpaper domain that fails `verify()`, every spherical group domain other than `*` that fails `verify()`, and every `2*n` with $n$ above 50 (DOM-38, DOM-44, DOM-54, DOM-60, DOM-63, and Section 16 of the domain design). The attacker can choose any domain that `build` returns and any value of each option. The attacker cannot change the crate, its dependencies, or the caller.
@@ -1502,7 +1496,6 @@ The crate declares no Cargo feature and has no build script. The golden-image te
 
 The tags of the mathematical and software sources resolve to the reference sections of the research documents:
 
-- [BEA] Section 16.1 of `docs/research/geometry-models.md`.
 - [CBG] Section 13.1 of `docs/research/orbifold-notation.md`.
 - [CFKP] Section 14 of `docs/research/rendering.md`, and Section 16.1 of `docs/research/geometry-models.md`.
 - [CH] Section 13.1 of `docs/research/orbifold-notation.md`.

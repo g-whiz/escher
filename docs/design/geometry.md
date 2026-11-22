@@ -528,15 +528,15 @@ GEO-28. `disk_from_half_plane`, `disk_from_band`, and `disk_from_klein` MUST eac
 
 GEO-29. Each of the three functions MUST return, with the disk position, the Jacobian of its formula at the same input, with column $k$ the partial derivative in coordinate $k$, because the renderer builds its screen tangents from it (Section 5.16 of `docs/design/render.md`), and a wrong Jacobian draws borders of the wrong width without any error.
 
-GEO-30. The three functions MUST use the formulas of Sections 7.5 to 7.7, with the half-plane map of [BEA] and the band constant $\pi/4$, and no other convention, because the canonical views and the golden images of `escher-render` fix where each tile appears, and another convention turns or scales every image without any error (`DEC-75` and Section 5.10 of the architecture).
+GEO-30. The three functions MUST use the formulas of Sections 7.5 to 7.7, with the half-plane map $\eta$ of [RAT] and the band constant $\pi/4$, and no other convention, because the canonical views and the golden images of `escher-render` fix where each tile appears, and another convention turns or scales every image without any error (`DEC-75` and Section 5.10 of the architecture).
 
-No source states the three Jacobians, so Section 12 records them as statements of this design. The tests compare each Jacobian with central differences of the reference map, and the moduli of the two holomorphic Jacobians with the sourced moduli of Sections 7.5 and 7.6.
+No source states the three Jacobians, so Section 12 records them as statements of this design. The tests compare each Jacobian with central differences of the reference map, the modulus of the band Jacobian with the sourced scale factor of Section 7.6, and the modulus of the half-plane Jacobian with the scale relation of Section 7.5.
 
 The cases of this table show the behaviour at the edge of each model:
 
 | Input | Result |
 | --- | --- |
-| `disk_from_half_plane((0, 1))`, the point $i$ | `Some`, with the position $(0, 0)$ up to the sign of zero and the Jacobian of $c = -i/2$ |
+| `disk_from_half_plane((0, 1))`, the point $i$ | `Some`, with the position $(0, 0)$ up to the sign of zero and the Jacobian of $c = 1/2$, which is $\frac{1}{2} I$ up to the sign of zero |
 | `disk_from_half_plane((0, 0))`, on the real axis | `None` |
 | `disk_from_half_plane((0, -1))`, below the real axis | `None` |
 | `disk_from_half_plane((NaN, 1))`, `disk_from_half_plane((inf, 1))` | `None` |
@@ -552,17 +552,24 @@ A position inside a model can still give a disk position on the unit circle afte
 
 ### 7.5. Half-Plane to Disk
 
-[BEA], Section 7.2, p. 131, gives a map from the half-plane onto the disk, "a 1-1 map of $H^2$ onto $\Delta$", and shows with $\frac{2 \lvert f'(z) \rvert}{1 - \lvert f(z) \rvert^2} = \frac{1}{\operatorname{Im} z}$ that it is an isometry (P, Section 4.3 of the reference):
+[RAT], Exercise 4.4.4, p. 126, gives the "standard transformation" $\eta$ from $U^2$ to $B^2$ (P, stated as an exercise), and [W-METRIC] gives the same formula with $i$ mapped to 0 (S, Section 4.3 of the reference):
 
-$$\operatorname{disk\_from\_half\_plane}(w) = f(w) = \frac{w - i}{w + i}$$
+$$\operatorname{disk\_from\_half\_plane}(w) = \eta(w) = \frac{i w + 1}{w + i}$$
 
-The sources do not agree on one map between the disk and the half-plane (Section 4.3 of the reference), so the choice of this map is `DEC-75` of the architecture. It maps $i$ to the centre of the disk, as [CAM] records for the same formula (A, Section 4.3 of the reference), and the ray above $i$ to the positive first axis of the disk.
+[RAT], p. 124, defines $\eta$ as the reflection in the boundary followed by the reflection in the sphere $S(e_n, \sqrt{2})$ (Section 4.3 of the reference). The sources do not agree on one map between the disk and the half-plane. The owner chose this one so that the picture of the half-plane sits the same way up as the picture of the disk (`DEC-75` of the architecture).
+
+The orientation is part of the contract of the function. No source states it, so it is a statement of this design (Section 12), which a unit test of Section 10.1 pins:
+
+- A half-plane position directly above $i$, such as $(0, 2)$, maps to a disk position on the positive second axis.
+- A half-plane position beside $i$ at the same height, on the side of the positive real axis, such as $(1, 1)$, maps to a disk position with a positive first coordinate.
+
+[BEA], Section 7.2, p. 131, shows with $\frac{2 \lvert f'(z) \rvert}{1 - \lvert f(z) \rvert^2} = \frac{1}{\operatorname{Im} z}$ that its own map $f(z) = (z - i)/(z + i)$ is an isometry (P, Section 4.3 of the reference). No source read states this scale relation for $\eta$. This design states that $\eta$ meets it, with the complex derivative $c$ below in place of $f'$, and the property tests of Section 10.1 pin it (Section 12).
 
 The test is $w_2 > 0$ with both coordinates finite. The Jacobian is that of the complex derivative
 
-$$c = \frac{2i}{(w + i)^2}$$
+$$c = \frac{-2}{(w + i)^2}$$
 
-which this design states (Section 12). The function computes $q = w + i$ once as a `num-complex` value, then $(w - i)/q$ and $2i/(q q)$. The imaginary part of $q$ is above 1 on the model, so the denominator has a modulus above 1 and cancels nothing.
+which this design states (Section 12). The function computes $q = w + i$ once as a `num-complex` value, then $(i w + 1)/q$ and $-2/(q q)$. The imaginary part of $q$ is above 1 on the model, so the denominator has a modulus above 1 and cancels nothing.
 
 ### 7.6. Band to Disk
 
@@ -741,7 +748,7 @@ The tests measure each row of this table as Section 8.4 states, and GEO-12 appli
 
 | Function | Accuracy |
 | --- | --- |
-| `disk_from_half_plane`, position | Each coordinate within $8\varepsilon$ of the reference value of $(w - i)/(w + i)$ |
+| `disk_from_half_plane`, position | Each coordinate within $8\varepsilon$ of the reference value of $(i w + 1)/(w + i)$ |
 | `disk_from_half_plane`, Jacobian | Each entry within $16\varepsilon m$ of its reference value |
 | `disk_from_band`, position | Each coordinate within $16\varepsilon$ of the reference value of $\tanh(\pi w / 4)$ |
 | `disk_from_band`, Jacobian | Each entry within $16\varepsilon$ of its reference value, an absolute bound, because $1 - z^2$ cancels where $\lvert c \rvert$ is small (Section 7.6) |
@@ -795,12 +802,14 @@ The tests form these layers:
 | Layer | What it checks | What it catches |
 | --- | --- | --- |
 | Reference arithmetic | Each row of Sections 8.4 to 8.7 against the reference arithmetic of Section 10.2, on the inputs of the row and within its bound, and the five functions of Section 8.4 on the triangle set. The maps of [KC24] and the disk maps against their formulas in the reference type, and the three properties of each wall evaluated in the reference type from the exact `f64` values of the result and the points. The Jacobian of each model map against central differences of the reference map, and the round trip of each model map from the model set | A wrong formula, a wrong convention, a lost digit, and a wrong Jacobian |
-| Property tests and sweeps | Deterministic sweeps of 100,000 cases, and `proptest` on 256 cases, of relations that hold in exact arithmetic: a reflection is an involution, fixes the points of its wall, and has a small `isometry_defect`, a product of isometries preserves `form` and `distance`, `distance(ORIGIN, boost(l) * ORIGIN)` is $\lvert l \rvert$, `distance` agrees with the disk formula of [RAT], Theorem 4.5.1, both disk round trips return their input, the product of the reflections in two walls at the angle $\pi/n$ raised to the power $n$ is the identity, and swapping the arguments of each `wall_through` negates its result exactly. For the model maps, on the model set: the modulus of the Jacobian of `disk_from_half_plane` meets the relation of [BEA] of Section 7.5, the modulus of the Jacobian of `disk_from_band` equals the scale factor of [SYMMHUB] of Section 7.6, each holomorphic Jacobian has the form of Section 2.1, and the map of [BEA], p. 128, applied to the result of `disk_from_klein` returns its input. Below the separation floors of Sections 8.4 and 8.6, and beyond distance 15 for `normalize_point`, the tests assert only a finite result or the error | A formula that holds on the reference inputs but breaks a law elsewhere in its range |
+| Property tests and sweeps | Deterministic sweeps of 100,000 cases, and `proptest` on 256 cases, of relations that hold in exact arithmetic: a reflection is an involution, fixes the points of its wall, and has a small `isometry_defect`, a product of isometries preserves `form` and `distance`, `distance(ORIGIN, boost(l) * ORIGIN)` is $\lvert l \rvert$, `distance` agrees with the disk formula of [RAT], Theorem 4.5.1, both disk round trips return their input, the product of the reflections in two walls at the angle $\pi/n$ raised to the power $n$ is the identity, and swapping the arguments of each `wall_through` negates its result exactly. For the model maps, on the model set: the modulus of the Jacobian of `disk_from_half_plane` meets the scale relation of Section 7.5, the modulus of the Jacobian of `disk_from_band` equals the scale factor of [SYMMHUB] of Section 7.6, each holomorphic Jacobian has the form of Section 2.1, and the map of [BEA], p. 128, applied to the result of `disk_from_klein` returns its input. Below the separation floors of Sections 8.4 and 8.6, and beyond distance 15 for `normalize_point`, the tests assert only a finite result or the error | A formula that holds on the reference inputs but breaks a law elsewhere in its range |
 | Exact cases | Unit tests of the values that IEEE 754 arithmetic gives exactly: the images of the centres of the three models in the table of Section 7.4, dyadic reflections, copies, negations, the identity from `spherical::translation` of `spherical::ORIGIN` and of every zero vector, the transpose, `rotation` of each module equal bit for bit to `hyperbolic::rotation`, and the last row of `euclidean::reflection`. Further unit tests assert `isometry_defect` within $10^{-12}$ of its value on six matrices that each break one of its equations | A wrong sign, a wrong constant, and a special case that rounds |
 | Failure paths and any input | `NotAPoint` and `DegenerateWall` for every input that Sections 5.1, 5.3 to 5.5, and 8.1 name, including underflow and overflow, the results of Section 8.1 for non-finite input, the rows of the tables of Sections 7.3 and 7.4, and the error texts of Section 9.2. A property test passes any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value to every function and asserts no panic and the invariants of GEO-2, GEO-20, GEO-21, GEO-23 to GEO-26, and GEO-28 | A missing check, a panic, and a changed text |
 | Other tests | A compile-time assertion that `Error` and `ErrorKind` are `Send`, `Sync`, and `'static`, and the doctests | A wrong auto trait and a stale example |
 
 Each reference test and sweep that asserts a bound prints its largest error, in the form of the bound, with its margin and the input that gave it. The test harness captures that output for a test that passes. The tests of `docs/design/domain.md` check its triangles themselves.
+
+A unit test asserts the two cases of the orientation of Section 7.5.
 
 A unit test asserts that `euclidean::isometry_defect` exceeds $10^{-9}$, the tolerance of check 1 of `docs/design/domain.md`, for a reflection scaled by $1 + 10^{-6}$ and for a reflection whose last row is set to $(0, 10^{-6}, 1)$.
 
@@ -820,7 +829,7 @@ These rules apply to the module:
 - Points are arrays of three numbers of the high-precision type.
 - Comparison: `astro-float-num` has no public conversion from its number type `BigFloat` to `f64`, while `BigFloat::from_f64` is public and `BigFloat` implements `PartialEq` and `PartialOrd`. A test therefore converts each `f64` result of the crate into the high-precision type, which is exact, computes the difference there, and compares it with the tolerance with `PartialOrd`. A test that prints a measured error formats the number with `format`.
 - Inputs and functions: `num` converts each `f64` input with `BigFloat::from_f64`, which is exact, and the tests of the module `spherical` use `acos` for the reference distance. The module imports nothing from this crate or from `glam`.
-- Model maps: complex values are pairs of the high-precision type, and the module writes complex multiplication, division, the hyperbolic tangent, and the logarithm componentwise from the real functions of `astro-float-num`. It evaluates the three maps of Sections 7.5 to 7.7 from their formulas, and maps a disk position $\zeta$ to each model for the model set of Section 8.7 by these formulas: to the half-plane by $i(1 + \zeta)/(1 - \zeta)$, which [CAM] prints beside the map of [BEA] as its inverse (A, Section 4.3 of the reference), to the band by $\frac{4}{\pi} \operatorname{artanh} \zeta$ of [B2] and [B3], evaluated as $\frac{2}{\pi}\left(\log(1 + \zeta) - \log(1 - \zeta)\right)$ by the rule of [B1] (P, Section 5.1 of the reference), and to the Klein model by $2\zeta/(1 + \lvert \zeta \rvert^2)$ of [BEA], p. 128 (P). The round trip of Section 8.7 compares the crate with the inverse of each formula, so a forward formula that is wrong fails the round trip.
+- Model maps: complex values are pairs of the high-precision type, and the module writes complex multiplication, division, the hyperbolic tangent, and the logarithm componentwise from the real functions of `astro-float-num`. It evaluates the three maps of Sections 7.5 to 7.7 from their formulas, and maps a disk position $\zeta$ to each model for the model set of Section 8.7 by these formulas: to the half-plane by $(\zeta + i)/(i \zeta + 1)$, which [W-MOBIUS] gives as "a concrete isomorphism" between the disk and the half-plane with no recorded direction (S, Section 4.3 of the reference) and which this design states to be the inverse of $\eta$ (Section 12), to the band by $\frac{4}{\pi} \operatorname{artanh} \zeta$ of [B2] and [B3], evaluated as $\frac{2}{\pi}\left(\log(1 + \zeta) - \log(1 - \zeta)\right)$ by the rule of [B1] (P, Section 5.1 of the reference), and to the Klein model by $2\zeta/(1 + \lvert \zeta \rvert^2)$ of [BEA], p. 128 (P). The round trip of Section 8.7 compares the crate with the inverse of each formula, so a forward formula that is wrong fails the round trip.
 
 ### 10.3. Tolerances
 
@@ -875,9 +884,11 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | None | The line through two points as a normalized cross product, item 24 of Section 15.1 of the reference | 5.4 | Uses the formula only to compute a candidate. The tests check the three properties of Section 5.4 on the result |
 | `UNV-25` | Correct rounding of the reference-arithmetic crate, in tests only | 10.2 | Works at 256 bits against tolerances of a few multiples of $\varepsilon$ at the tightest, so a wrong last bit of the reference cannot change a verdict. The self-check of `escher-reference` (Section 7.1 of the architecture) checks the precision and rounding arguments. A comparison of six values with the MPFR library 4.2.2 at 200 bits, called through its C interface, agreed exactly to more than 60 significant digits, and item 2 of Section 13.3 asks the owner whether it closes `UNV-25` |
 | `UNV-4` | The precision of the disk map near the limit circle, and of the band and Klein maps near the edges of their models | 7.3, 7.6, 7.7, 8.4, 8.7 | States the loss of `from_disk` and the distance beyond which the radius of `to_disk` is within rounding of 1 (Section 7.3), and tests both against the reference arithmetic at radius up to $1 - 10^{-12}$. States the cancellation of the band and Klein maps and bounds it on the model set. The effect on an image is measured by the renderer |
-| `UNV-13` | The map from the band to the disk, $\tanh(\pi w / 4)$, which only the code of [SYMMHUB] states (item 14 of Section 13.1 of `docs/research/rendering.md`). The choice of the map between the half-plane and the disk, which is `DEC-75` of the architecture and not a fact, is the other part of the label. The band metric, the third part, is not used, because the renderer takes the Jacobian of the map | 7.6 | Evaluates the inverse of the forward map of [B2] and [B3] that Section 5.1 of the reference states. The round trip of Section 8.7 checks it against that forward map in the reference arithmetic, and the modulus of its Jacobian against the scale factor of [SYMMHUB] |
-| This design | The Jacobians of Sections 7.5 to 7.7, as derivatives of their formulas, and the columns $(a, b)$ and $(-b, a)$ of the Jacobian of a holomorphic map with the complex derivative $a + ib$ (Section 2.1) | 7.5, 7.6, 7.7 | The reference tests compare each Jacobian with central differences of the reference map, and the property tests compare the moduli of the two holomorphic Jacobians with the sourced moduli of [BEA] and [SYMMHUB] |
-| This design | The map of [CAM] from the disk to the half-plane, which rests on a summary, in the tests only | 10.2 | Computes the half-plane positions of the model set. A wrong formula fails the round trip of `disk_from_half_plane`, whose map rests on [BEA] |
+| `UNV-13` | The map from the band to the disk, $\tanh(\pi w / 4)$, which only the code of [SYMMHUB] states (item 14 of Section 13.1 of `docs/research/rendering.md`). The choice of the map between the half-plane and the disk, which the owner made in `DEC-75` of the architecture and which is not a fact, is the other part of the label. The band metric, the third part, is not used, because the renderer takes the Jacobian of the map | 7.6 | Evaluates the inverse of the forward map of [B2] and [B3] that Section 5.1 of the reference states. The round trip of Section 8.7 checks it against that forward map in the reference arithmetic, and the modulus of its Jacobian against the scale factor of [SYMMHUB] |
+| This design | The Jacobians of Sections 7.5 to 7.7, as derivatives of their formulas, and the columns $(a, b)$ and $(-b, a)$ of the Jacobian of a holomorphic map with the complex derivative $a + ib$ (Section 2.1) | 7.5, 7.6, 7.7 | The reference tests compare each Jacobian with central differences of the reference map. The property tests compare the modulus of the Jacobian of `disk_from_band` with the sourced scale factor of [SYMMHUB], and that of `disk_from_half_plane` with the scale relation of the next row |
+| This design | That $\eta$ meets the scale relation $\frac{2 \lvert c \rvert}{1 - \lvert \eta(w) \rvert^2} = \frac{1}{w_2}$, which [BEA] states for its own map $(w - i)/(w + i)$ and no source read states for $\eta$ | 7.5, 10.1 | The property tests assert the relation on the model set, with the Jacobian and the disk position that `disk_from_half_plane` returns |
+| This design | The orientation of $\eta$ that Section 7.5 states | 7.5, 10.1 | A unit test asserts both. A map turned or reflected against $\eta$ fails it |
+| This design | That $(\zeta + i)/(i \zeta + 1)$ of [W-MOBIUS], whose direction the reference does not record, is the inverse of $\eta$, in the tests only | 10.2 | Computes the half-plane positions of the model set. The reference tests compare `disk_from_half_plane` with $\eta$ directly, so a round trip of Section 8.7 that fails while that comparison passes shows a wrong inverse |
 
 `UNV-28` does not apply. No test of this crate uses SymmHub's triangle as an oracle.
 
@@ -901,7 +912,6 @@ No other document dictates these choices. Each looks like something a change cou
 | One module per geometry, with flat functions `to_<model>` and `from_<model>`, no trait, and no `compose` function, because no caller is generic over the geometry and composition is the `glam` product | 3.4, 6.1 |
 | `from_disk` returns an `Option`, because a position outside the disk is a normal outcome of every image | 7.2, 9.1 |
 | The other models reach the hyperboloid through the disk, with one function `disk_from_<model>` for each model that returns the disk position and the Jacobian together, and no map from the disk to another model (`DEC-74` of the architecture) | 3.4, 7.4 |
-| The half-plane map of [BEA], which sends $i$ to the centre of the disk (`DEC-75` of the architecture) | 7.5 |
 | `num-complex` for the two holomorphic maps, kept private, because hand-written complex functions need a formula that no research document states | 7.5, 7.6, 11 |
 | `normalize_point` rejects a vector with a non-positive last coordinate and does not flip it, because such a vector is a symptom of an error upstream | 5.1 |
 | `distance` has one form, because the forms for close points need polar input, clamped to at least 1 so that rounding cannot make the result NaN, and keeps a NaN input visible | 5.2 |
@@ -985,7 +995,6 @@ The tags of the mathematical sources and source code resolve to the reference se
 
 - [B1], [B2], and [B3] Section 16.1 of `docs/research/geometry-models.md`.
 - [BEA] Section 16.1 of `docs/research/geometry-models.md`.
-- [CAM] Section 16.2 of `docs/research/geometry-models.md`.
 - [CFKP] Section 16.1 of `docs/research/geometry-models.md`.
 - [CS] Section 16.1 of `docs/research/geometry-models.md`.
 - [DAVIS] Section 16.1 of `docs/research/geometry-models.md`.
@@ -997,6 +1006,8 @@ The tags of the mathematical sources and source code resolve to the reference se
 - [SYMMHUB] Section 16.1 of `docs/research/geometry-models.md`.
 - [W-AFFINE] Section 16.3 of `docs/research/geometry-models.md`.
 - [W-HYPERBOLOID] Section 16.3 of `docs/research/geometry-models.md`.
+- [W-METRIC] Section 16.3 of `docs/research/geometry-models.md`.
+- [W-MOBIUS] Section 16.3 of `docs/research/geometry-models.md`.
 
 ## Appendix A. Requirement Summary
 
@@ -1031,4 +1042,4 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-27 | `spherical::inverse` returns the transpose and never a general inverse | 6.7 |
 | GEO-28 | Each `disk_from_<model>` returns `None` exactly when the test of its model fails, including for every NaN or infinite coordinate | 7.4 |
 | GEO-29 | Each `disk_from_<model>` returns the Jacobian of its formula at the same input, column $k$ in coordinate $k$ | 7.4 |
-| GEO-30 | The model maps use the formulas of Sections 7.5 to 7.7, with the half-plane map of [BEA] and the band constant $\pi/4$ | 7.4 |
+| GEO-30 | The model maps use the formulas of Sections 7.5 to 7.7, with the half-plane map $\eta$ of [RAT] and the band constant $\pi/4$ | 7.4 |

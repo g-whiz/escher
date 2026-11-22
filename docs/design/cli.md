@@ -1394,7 +1394,6 @@ These choices are made here, and no other document dictates them. Each one is ea
 13. `parity` names the valid colouring with 2 colours, `2a`, and is refused where the domain has none, so the alias and the default of `DEC-72` name one colouring. The alternative keeps `parity` for the reversal parity colouring of Section 5.12 of `docs/design/render.md`, which is not valid on every domain, so `info` would have to list it apart from the valid colourings (Section 4.6).
 14. `1a` stays accepted on every domain as the colouring with one colour, although `info` lists it only for `1`, so that command lines with `1a` keep working (Section 4.6). The alternative accepts only `one`.
 15. The line `Parity colouring` is withdrawn, because rows 18 and 19 show whether `parity` exists (row 13 of Section 5.1). The alternative keeps it with a new condition, which needs the search of 2 colours on every domain that is not all-reversing.
-16. `--model` is passed for every signature and has no effect on a Euclidean or spherical one (`DEC-77`), as the options of the ball have none on a hyperbolic one, so `render` needs no check of the geometry for it (Section 4.6).
 
 ### 11.3. Points for the Owner
 
@@ -1438,7 +1437,7 @@ None of these blocks the implementation. Points 1, 3, 4, 5, 8, and 36 belong to 
 36. Tests kept for a reason that does not apply belong to TQ-11 of `docs/design/tooling.md`, which puts them to the owner.
 37. Withdrawn on 2026-11-22.
 38. The pictures of the spherical groups (`DEC-61` of `docs/design/architecture.md`). With the default colouring, `5x` renders the image of `*55` and `x` that of `*`, and with `--colouring one`, `3*2` renders the image of `432`. For the orders that Section 5.15 of `docs/design/render.md` treats, no picture of a colouring id tells `n*` from `n22` or `nx` from `*nn`. The default images of `*`, `x`, and `1` differ only in a thin rim, so a user who renders `*` sees no mirror until `--rotation` turns the ball. Points 42 and 43 of Section 12.3 of `docs/design/render.md` hold the alternatives.
-39. `--model` on a Euclidean or spherical signature has no effect and gives no diagnostic (`DEC-77`, Section 4.6). The alternative is the diagnostic `error: cannot render *632: --model applies only to a hyperbolic signature` for every value other than `disk`.
+39. Withdrawn on 2026-11-22, when the owner decided that `--model` has no effect on a Euclidean or spherical signature and gives no diagnostic (`DEC-77`).
 
 ## 12. Security Considerations
 
