@@ -5,7 +5,7 @@ use glam::{DVec2, DVec3};
 
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, PLAN_TRIPLES, domain, euclidean_domain, euclidean_name,
-    options, text,
+    options, text, viewing_matrix,
 };
 use crate::golden_images::{WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings, renderer};
 use crate::reference::count_bound;
@@ -36,10 +36,20 @@ fn position(column: u32, row: u32) -> DVec2 {
 }
 
 fn border_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool> {
+    rotated_border_mask(domain, size, [0.0; 3])
+}
+
+fn rotated_border_mask(
+    domain: &escher_domain::FundamentalDomain,
+    size: u32,
+    degrees: [f64; 3],
+) -> Vec<bool> {
+    let [yaw, pitch, roll] = degrees.map(f64::to_radians);
     let options = options(
         RenderOptions::builder(Fill::One(Colour::from_srgb8(70, 130, 180)))
             .size(size, size)
             .samples(1)
+            .rotation(yaw, pitch, roll)
             .shading(Shading::Flat),
     );
     let (pixels, _) = renderer(domain, options).render();
@@ -286,31 +296,56 @@ fn rectangle_borders_and_parities_match_the_grid_of_the_rectangle() {
 
 const SPHERE_DOMAINS: [&str; 5] = ["*532", "*432", "*332", "*722", "*55"];
 
+fn assert_ball_borders_where_the_tile_changes(
+    text: &str,
+    domain: &escher_domain::FundamentalDomain,
+    degrees: [f64; 3],
+) {
+    let size = usize::try_from(SIZE).unwrap_or(usize::MAX);
+    let border = rotated_border_mask(domain, SIZE, degrees);
+    let turn = viewing_matrix(degrees).transpose();
+    let mut tiles: Vec<Option<DVec3>> = Vec::with_capacity(size * size);
+    for row in 0..SIZE {
+        for column in 0..SIZE {
+            let position = position(column, row);
+            let tile = (position.length() <= RADIUS)
+                .then(|| {
+                    let height = (1.0 - position.length_squared()).sqrt();
+                    turn * DVec3::new(position.x, position.y, height)
+                })
+                .and_then(|point| tile_of(domain, point, spherical::inverse));
+            tiles.push(tile);
+        }
+    }
+    let name = format!("{text} with rotation {degrees:?}");
+    let (changes, borders) = compare_with_tiles(&name, &border, &tiles, size, |here, there| {
+        spherical::distance(here, there) >= SAME_TILE
+    });
+    println!(
+        "{name}: {changes} pixels where the tile changes and {borders} border pixels within ball radius {RADIUS}"
+    );
+}
+
 #[test]
 fn spherical_border_pixels_lie_where_the_tile_of_a_sample_changes() {
-    let size = usize::try_from(SIZE).unwrap_or(usize::MAX);
     for text in SPHERE_DOMAINS {
-        let domain = domain_with_aspect(text, None);
-        let border = border_mask(&domain, SIZE);
-        let mut tiles: Vec<Option<DVec3>> = Vec::with_capacity(size * size);
-        for row in 0..SIZE {
-            for column in 0..SIZE {
-                let position = position(column, row);
-                let tile = (position.length() <= RADIUS)
-                    .then(|| {
-                        let height = (1.0 - position.length_squared()).sqrt();
-                        DVec3::new(position.x, position.y, height)
-                    })
-                    .and_then(|point| tile_of(&domain, point, spherical::inverse));
-                tiles.push(tile);
-            }
-        }
-        let (changes, borders) = compare_with_tiles(text, &border, &tiles, size, |here, there| {
-            spherical::distance(here, there) >= SAME_TILE
-        });
-        println!(
-            "{text}: {changes} pixels where the tile changes and {borders} border pixels within ball radius {RADIUS}"
-        );
+        assert_ball_borders_where_the_tile_changes(text, &domain_with_aspect(text, None), [0.0; 3]);
+    }
+}
+
+const SPHERICAL_GROUP_BORDER_CASES: [(&str, [f64; 3]); 6] = [
+    ("3*2", [0.0; 3]),
+    ("5*", [0.0; 3]),
+    ("5x", [0.0; 3]),
+    ("2*5", [0.0; 3]),
+    ("*", [30.0, 50.0, 10.0]),
+    ("x", [30.0, 50.0, 10.0]),
+];
+
+#[test]
+fn spherical_group_border_pixels_lie_where_the_tile_of_a_sample_changes() {
+    for (text, degrees) in SPHERICAL_GROUP_BORDER_CASES {
+        assert_ball_borders_where_the_tile_changes(text, &domain_with_settings(text, &[]), degrees);
     }
 }
 

@@ -5,7 +5,8 @@ use escher_render::{
 };
 
 use crate::common::{
-    DEFAULT_CAP, decode_png, domain, one_fill, options, render_image_in_bands, render_in_bands,
+    DEFAULT_CAP, GROUP_LIMITS, SPHERICAL_GROUP_DOMAINS, decode_png, domain, one_fill, options,
+    render_image_in_bands, render_in_bands, spherical_group_bounds,
 };
 use crate::golden_images::{
     ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
@@ -414,9 +415,10 @@ fn assert_folds_within_the_group_order(text: &str) {
 fn spherical_golden_domains_fold_every_sample_within_the_group_order() {
     let mut texts: Vec<&str> = Vec::new();
     for image in &GOLDEN_IMAGES {
-        let spherical = image.domain().geometry() == escher_signature::Geometry::Spherical;
-        let reflection = image.signature.starts_with('*');
-        if spherical && reflection && !texts.contains(&image.signature) {
+        let domain = image.domain();
+        let spherical = domain.geometry() == escher_signature::Geometry::Spherical;
+        let rotation = !domain.reverses_orientation();
+        if spherical && !rotation && !texts.contains(&image.signature) {
             texts.push(image.signature);
         }
     }
@@ -947,5 +949,285 @@ fn coset_golden_colourings_of_the_nine_wallpaper_groups_give_pairwise_distinct_i
             println!("{file} and {other}: {differing} of 4096 pixels differ");
             assert!(pixels != other_pixels, "{file} and {other}");
         }
+    }
+}
+
+const TURNED: [f64; 3] = [30.0, 50.0, 10.0];
+
+const GROUP_IMAGE_SIZE: u32 = 256;
+
+const DEGENERATE: [&str; 3] = ["*", "x", "1"];
+
+fn turned_builder(fill: Fill, degrees: [f64; 3]) -> escher_render::RenderOptionsBuilder {
+    let [yaw, pitch, roll] = degrees.map(f64::to_radians);
+    RenderOptions::builder(fill).rotation(yaw, pitch, roll)
+}
+
+fn group_order(text: &str) -> u64 {
+    let signature: escher_signature::Signature = text
+        .parse()
+        .unwrap_or_else(|error| panic!("{text:?} is rejected: {error}"));
+    signature
+        .group_order()
+        .unwrap_or_else(|| panic!("{text} has no group order"))
+        .get()
+}
+
+#[test]
+fn spherical_group_images_fold_every_sample_within_the_step_bound_and_the_group_order() {
+    let cases = SPHERICAL_GROUP_DOMAINS
+        .into_iter()
+        .filter(|text| !GROUP_LIMITS.contains(text))
+        .map(|text| (text, [0.0; 3]))
+        .chain(DEGENERATE.map(|text| (text, TURNED)));
+    for (text, degrees) in cases {
+        let name = format!("{text} with rotation {degrees:?}");
+        let order = group_order(text);
+        let steps = spherical_group_bounds(text).steps;
+        let options = options(
+            turned_builder(one_fill(), degrees)
+                .size(GROUP_IMAGE_SIZE, GROUP_IMAGE_SIZE)
+                .samples(4),
+        );
+        let stats = render_in_bands(&name, &domain_with_settings(text, &[]), options);
+        let inside = stats.samples() - stats.outside();
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the counts are far below 2 to the power 52"
+        )]
+        let mean = stats.folds() as f64 / inside as f64;
+        println!(
+            "{name} at {GROUP_IMAGE_SIZE} by {GROUP_IMAGE_SIZE} with 4 by 4 samples: {inside} samples inside the ball, mean steps {mean:.2}, largest {}, step bound {steps}, group order {order}, {} unconverged",
+            stats.largest_fold(),
+            stats.unconverged()
+        );
+        assert_eq!(stats.unconverged(), 0, "{name}");
+        assert!(stats.largest_fold() <= steps, "{name}");
+        assert!(u64::from(stats.largest_fold()) < order, "{name}");
+    }
+}
+
+#[test]
+fn whole_sphere_of_the_trivial_group_is_one_tile_without_a_border_in_every_view() {
+    let domain = domain_with_settings("1", &[]);
+    let [first, second] =
+        GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+    for degrees in [[0.0; 3], TURNED] {
+        let render = |fill: Fill| {
+            let options = options(
+                turned_builder(fill, degrees)
+                    .size(64, 64)
+                    .samples(2)
+                    .border_width(1.0)
+                    .shading(escher_render::Shading::Flat),
+            );
+            renderer(&domain, options).render()
+        };
+        let (pixels, stats) = render(Fill::One(first));
+        assert_eq!(stats.largest_fold(), 0, "{degrees:?}");
+        assert_eq!(stats.unconverged(), 0, "{degrees:?}");
+        let pixel = 2.0 / (15.0 / 16.0 * 64.0);
+        let mut inside = 0;
+        for (index, bytes) in pixels.as_chunks::<3>().0.iter().enumerate() {
+            let index = u32::try_from(index).unwrap_or(u32::MAX);
+            let (column, row) = (index % 64, index / 64);
+            let corners = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].map(|(across, down)| {
+                let x = (f64::from(column) + across - 32.0) * pixel;
+                let y = (32.0 - f64::from(row) - down) * pixel;
+                x * x + y * y
+            });
+            if corners.iter().all(|&squared| squared < 1.0) {
+                inside += 1;
+                assert_eq!(*bytes, first.to_srgb8(), "{degrees:?} at ({column}, {row})");
+            }
+        }
+        assert!(inside > 0, "{degrees:?}");
+        println!(
+            "1 with rotation {degrees:?}: {inside} pixels wholly inside the ball have the fill colour"
+        );
+        assert!(
+            render(Fill::Parity([first, second])) == render(Fill::One(first)),
+            "{degrees:?}"
+        );
+    }
+}
+
+const SHARED_VIEWS: [[f64; 3]; 3] = [[0.0; 3], [20.0, 35.0, 0.0], TURNED];
+
+fn shared_render(text: &str, fill: Fill, degrees: [f64; 3]) -> Vec<u8> {
+    let options = options(turned_builder(fill, degrees).size(64, 64).samples(2));
+    renderer(&domain_with_settings(text, &[]), options)
+        .render()
+        .0
+}
+
+#[test]
+fn spherical_groups_share_the_pictures_of_the_groups_whose_tiles_and_borders_they_share() {
+    let [first, second] =
+        GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+    let parity = || Fill::Parity([first, second]);
+    let one = || Fill::One(first);
+    let order = |n: u32| {
+        if n < 10 {
+            n.to_string()
+        } else {
+            format!("({n})")
+        }
+    };
+    let mut parity_pairs: Vec<(String, String)> = [2, 3, 5, 12, 1000]
+        .map(|n| (format!("{}x", order(n)), format!("*{0}{0}", order(n))))
+        .to_vec();
+    parity_pairs.push(("x".to_owned(), "*".to_owned()));
+    let mut one_pairs: Vec<(String, String)> = vec![("x".to_owned(), "*".to_owned())];
+    one_pairs
+        .extend([2, 3, 5, 12, 1000].map(|n| (format!("{}*", order(n)), format!("{}22", order(n)))));
+    one_pairs.extend(
+        [2, 3, 5, 12, 500].map(|n| (format!("2*{}", order(n)), format!("{}22", order(2 * n)))),
+    );
+    one_pairs.push(("3*2".to_owned(), "432".to_owned()));
+    for degrees in SHARED_VIEWS {
+        for (pairs, label) in [(&parity_pairs, "Fill::Parity"), (&one_pairs, "Fill::One")] {
+            for (group, related) in pairs {
+                let fill = || {
+                    if label == "Fill::One" {
+                        one()
+                    } else {
+                        parity()
+                    }
+                };
+                assert!(
+                    shared_render(group, fill(), degrees)
+                        == shared_render(related, fill(), degrees),
+                    "{group} and {related} with {label} and rotation {degrees:?}"
+                );
+            }
+            println!(
+                "rotation {degrees:?}: {} pairs equal byte for byte with {label}",
+                pairs.len()
+            );
+        }
+        let kite = shared_render("3*2", parity(), degrees);
+        let rotation = shared_render("432", one(), degrees);
+        assert!(kite != rotation, "3*2 with parity against 432, {degrees:?}");
+    }
+    let whole = shared_render("1", one(), [0.0; 3]);
+    let cross_cap = shared_render("x", one(), [0.0; 3]);
+    let differing = whole
+        .as_chunks::<3>()
+        .0
+        .iter()
+        .zip(cross_cap.as_chunks::<3>().0)
+        .filter(|(left, right)| left != right)
+        .count();
+    println!("1 and x with Fill::One in the canonical view: {differing} of 4096 pixels differ");
+    assert!(differing > 0);
+}
+
+#[test]
+fn spherical_group_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_parity_fill()
+ {
+    let [first, second] =
+        GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+    let mut reversing = 0;
+    let cases = SPHERICAL_GROUP_DOMAINS
+        .into_iter()
+        .filter(|text| !GROUP_LIMITS.contains(text))
+        .map(|text| (text, [0.0; 3]))
+        .chain(DEGENERATE.map(|text| (text, TURNED)));
+    for (text, degrees) in cases {
+        let domain = domain_with_settings(text, &[]);
+        let render = |fill| {
+            let options = options(turned_builder(fill, degrees).size(64, 64).samples(2));
+            renderer(&domain, options).render()
+        };
+        let trivial = golden_colouring(&domain, "1a");
+        let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{text}: {error}"),
+        };
+        assert!(
+            render(Fill::Cosets(cosets)) == render(Fill::One(first)),
+            "{text} with 1a and rotation {degrees:?}"
+        );
+        if !domain.reverses_orientation() {
+            println!(
+                "{text}, rotation {degrees:?}: 1a equals the one fill, and no side reverses orientation"
+            );
+            continue;
+        }
+        let parity = parity_colouring(&domain);
+        let id = parity.id();
+        let cosets = match CosetFill::new(&domain, parity, vec![first, second]) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{text}: {error}"),
+        };
+        assert!(
+            render(Fill::Cosets(cosets)) == render(Fill::Parity([first, second])),
+            "{text} with {id} and rotation {degrees:?}"
+        );
+        reversing += 1;
+        println!(
+            "{text}, rotation {degrees:?}: 1a equals the one fill, and the parity colouring {id} the parity fill"
+        );
+    }
+    assert_eq!(reversing, 15 + 2);
+}
+
+#[test]
+fn spherical_group_golden_images_give_pairwise_distinct_images() {
+    let images: Vec<(&str, Vec<u8>)> = GOLDEN_IMAGES
+        .iter()
+        .chain(&COSET_GOLDEN_IMAGES)
+        .filter(|image| image.file.starts_with("sg-") || image.file.starts_with("cos-sg-"))
+        .map(|image| {
+            let domain = image.domain();
+            let fill = match image.colouring {
+                None => Fill::Parity(
+                    GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue)),
+                ),
+                Some(id) => Fill::Cosets(coset_fill(&domain, golden_colouring(&domain, id))),
+            };
+            let options = options(
+                RenderOptions::builder(fill)
+                    .size(64, 64)
+                    .samples(2)
+                    .border_width(1.0),
+            );
+            (image.file, renderer(&domain, options).render().0)
+        })
+        .collect();
+    assert_eq!(images.len(), 3);
+    for (index, (file, pixels)) in images.iter().enumerate() {
+        for (other, other_pixels) in &images[..index] {
+            let differing = pixels
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .zip(other_pixels.as_chunks::<3>().0)
+                .filter(|(left, right)| left != right)
+                .count();
+            println!("{file} and {other}: {differing} of 4096 pixels differ");
+            assert!(pixels != other_pixels, "{file} and {other}");
+        }
+    }
+}
+
+const CENSUS: [&str; 31] = [
+    "o", "2222", "333", "442", "632", "*2222", "**", "xx", "*x", "22*", "22x", "2*22", "*333",
+    "*442", "*632", "4*2", "3*3", "*532", "532", "*432", "432", "*332", "332", "3*2", "*522",
+    "522", "2*5", "*55", "55", "5*", "5x",
+];
+
+#[test]
+fn every_euclidean_and_spherical_type_renders_with_every_sample_converged() {
+    for text in CENSUS {
+        let options = options(RenderOptions::builder(one_fill()).size(128, 128).samples(2));
+        let stats = render_in_bands(text, &domain_with_settings(text, &[]), options);
+        println!(
+            "{text} at 128 by 128 with 2 by 2 samples: largest fold {}, {} unconverged",
+            stats.largest_fold(),
+            stats.unconverged()
+        );
+        assert_eq!(stats.unconverged(), 0, "{text}");
     }
 }

@@ -1,7 +1,7 @@
 use core::f64::consts::TAU;
 use std::sync::LazyLock;
 
-use escher_domain::{FundamentalDomain, Orientation, PairingKind};
+use escher_domain::{FundamentalDomain, Orientation};
 use escher_geometry::hyperbolic::{from_disk, side, to_disk};
 use escher_geometry::spherical;
 use escher_group::{Colouring, IndexLimit, Letter, SearchBudget, colourings};
@@ -13,10 +13,13 @@ use proptest::sample::Index;
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
     Measure, REPLAY_BOUNDS, ROTATION_EUCLIDEAN_REPLAY_BOUNDS, ROTATION_REPLAY_BOUNDS,
-    SPHERICAL_DOMAINS, TOLERANCE, domain, euclidean_band, euclidean_domain, proptest_config,
-    rotation_domain, spherical_domain, text, wallpaper_bounds,
+    SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, TOLERANCE, domain, euclidean_band,
+    euclidean_domain, proptest_config, rotation_domain, spherical_domain, spherical_group_bounds,
+    text, wallpaper_bounds,
 };
-use crate::golden_images::{POLYGON_DOMAINS, WALLPAPER_DOMAINS, domain_with_aspect};
+use crate::golden_images::{
+    POLYGON_DOMAINS, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings,
+};
 use crate::reference::{self, Reference, num, vector};
 
 const WALL_CLEARANCE: f64 = 1e-6;
@@ -50,6 +53,10 @@ fn sphere_point(height: f64, angle: f64, exponent: i32) -> DVec3 {
 fn power_of_two(exponent: i32) -> f64 {
     let step = if exponent < 0 { 0.5 } else { 2.0 };
     (0..exponent.unsigned_abs()).fold(1.0, |factor, _| factor * step)
+}
+
+fn reverses(side: &escher_domain::Side) -> bool {
+    side.pairing().determinant() < 0.0
 }
 
 fn fold_counting_reversing_sides(
@@ -684,8 +691,7 @@ proptest! {
         }
         let second = fold(&domain, image, DEFAULT_CAP, |_| {});
         prop_assert!(second.converged());
-        let reverses = matches!(side.kind(), PairingKind::Mirror | PairingKind::GlideReflection);
-        prop_assert_eq!((first.reversals() + second.reversals()) % 2, u32::from(reverses));
+        prop_assert_eq!((first.reversals() + second.reversals()) % 2, u32::from(reverses(&side)));
         let distance = reference::plane_distance(&folded, &vector(second.point().to_array()));
         let mut reference = Reference::new();
         prop_assert!(distance <= num(bound), "distance {}", reference.approximate(&distance));
@@ -805,7 +811,7 @@ struct ColouredDomain {
     colourings: Vec<Colouring>,
 }
 
-const COLOURED_DOMAINS: [(&str, Measure, u32); 13] = [
+const COLOURED_DOMAINS: [(&str, Measure, u32); 16] = [
     ("*732", Measure::Hyperbolic, 9),
     ("*642", Measure::Hyperbolic, 6),
     ("*2222", Measure::Euclidean, 6),
@@ -819,6 +825,9 @@ const COLOURED_DOMAINS: [(&str, Measure, u32); 13] = [
     ("22x", Measure::Euclidean, 6),
     ("*x", Measure::Euclidean, 6),
     ("3*3", Measure::Euclidean, 6),
+    ("3*2", Measure::Spherical, 6),
+    ("5x", Measure::Spherical, 6),
+    ("2*3", Measure::Spherical, 6),
 ];
 
 static COLOURED: LazyLock<Vec<ColouredDomain>> = LazyLock::new(|| {
@@ -913,5 +922,189 @@ proptest! {
             colouring.id(),
             side
         );
+    }
+}
+
+fn group_domain(index: usize) -> FundamentalDomain {
+    domain_with_settings(SPHERICAL_GROUP_DOMAINS[index], &[])
+}
+
+proptest! {
+    #![proptest_config(proptest_config())]
+
+    #[test]
+    fn spherical_group_fold_converges_inside_every_side(
+        index in 0..SPHERICAL_GROUP_DOMAINS.len(),
+        height in -1.0..=1.0_f64,
+        angle in 0.0..TAU,
+        exponent in -100..=100_i32,
+    ) {
+        let domain = group_domain(index);
+        let point = sphere_point(height, angle, exponent);
+        let (result, reversing) = fold_counting_reversing_sides(&domain, point, DEFAULT_CAP);
+        prop_assert!(result.converged());
+        prop_assert!(result.reversals() <= result.steps());
+        prop_assert_eq!(result.reversals(), reversing);
+        let folded = result.point();
+        for wall in domain.sides() {
+            let covector = wall.covector();
+            let threshold = TOLERANCE * covector.abs().element_sum() * folded.abs().max_element();
+            prop_assert!(spherical::side(covector, folded) <= threshold);
+        }
+        if domain.sides().is_empty() {
+            prop_assert_eq!(result.steps(), 0);
+            prop_assert_eq!(folded.to_array().map(f64::to_bits), point.to_array().map(f64::to_bits));
+        }
+    }
+
+    #[test]
+    fn spherical_group_fold_of_a_folded_point_takes_zero_steps_and_returns_the_same_bits(
+        index in 0..SPHERICAL_GROUP_DOMAINS.len(),
+        height in -1.0..=1.0_f64,
+        angle in 0.0..TAU,
+        exponent in -100..=100_i32,
+    ) {
+        let domain = group_domain(index);
+        let first = fold(&domain, sphere_point(height, angle, exponent), DEFAULT_CAP, |_| {});
+        prop_assume!(first.converged());
+        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
+        prop_assert!(second.converged());
+        prop_assert_eq!(second.steps(), 0);
+        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+    }
+
+    #[test]
+    fn spherical_group_fold_takes_the_same_decisions_for_the_point_scaled_by_a_power_of_two(
+        index in 0..SPHERICAL_GROUP_DOMAINS.len(),
+        height in -1.0..=1.0_f64,
+        angle in 0.0..TAU,
+        exponent in -100..=100_i32,
+    ) {
+        let domain = group_domain(index);
+        let point = sphere_point(height, angle, exponent);
+        let mut sides = Vec::new();
+        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
+        for power in -40..=40 {
+            let factor = power_of_two(power);
+            let mut scaled_sides = Vec::new();
+            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
+            prop_assert_eq!(&scaled_sides, &sides);
+            prop_assert_eq!(scaled.steps(), unscaled.steps());
+            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
+            prop_assert_eq!(scaled.converged(), unscaled.converged());
+            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
+        }
+    }
+
+    #[test]
+    fn spherical_group_fold_of_any_bit_pattern_returns_within_the_cap_and_converges_only_at_a_finite_point_that_is_not_zero(
+        index in 0..SPHERICAL_GROUP_DOMAINS.len(),
+        bits in any::<[u64; 3]>(),
+        cap in 0..=2000_u32,
+        negative in any::<[bool; 3]>(),
+    ) {
+        let domain = group_domain(index);
+        let point = DVec3::from_array(bits.map(f64::from_bits));
+        let (result, reversing) = fold_counting_reversing_sides(&domain, point, cap);
+        prop_assert!(result.steps() <= cap);
+        prop_assert!(result.reversals() <= result.steps());
+        prop_assert_eq!(result.reversals(), reversing);
+        prop_assert!(!result.converged() || (result.point().is_finite() && result.point() != DVec3::ZERO));
+        let zero = DVec3::from_array(negative.map(|negative| if negative { -0.0 } else { 0.0 }));
+        let from_zero = fold(&domain, zero, cap, |_| {});
+        prop_assert!(!from_zero.converged());
+        prop_assert_eq!(from_zero.steps(), 0);
+    }
+
+    #[test]
+    fn spherical_group_fold_of_a_paired_point_changes_its_parity_exactly_when_the_side_reverses_orientation(
+        index in 0..SPHERICAL_GROUP_DOMAINS.len(),
+        height in -1.0..=1.0_f64,
+        angle in 0.0..TAU,
+        paired in any::<Index>(),
+    ) {
+        let name = SPHERICAL_GROUP_DOMAINS[index];
+        let domain = group_domain(index);
+        prop_assume!(!domain.sides().is_empty());
+        let bound = spherical_group_bounds(name).pairing;
+        let mut reference = Reference::new();
+        let outcome = paired_fold(&mut reference, &domain, sphere_point(height, angle, 0), paired.index(domain.sides().len()), bound);
+        let Some((parity_changes, side_reverses, distance)) = outcome else {
+            return Err(proptest::test_runner::TestCaseError::reject("the folded point lies too close to a wall"));
+        };
+        prop_assert_eq!(parity_changes, side_reverses, "{}", name);
+        prop_assert!(distance <= num(bound), "{} distance {}", name, reference.approximate(&distance));
+    }
+}
+
+fn paired_fold(
+    reference: &mut Reference,
+    domain: &FundamentalDomain,
+    point: DVec3,
+    paired: usize,
+    bound: f64,
+) -> Option<(bool, bool, astro_float_num::BigFloat)> {
+    let first = fold(domain, point, DEFAULT_CAP, |_| {});
+    assert!(first.converged(), "{point:?}");
+    let folded = vector(first.point().to_array());
+    let clearance = num(WALL_CLEARANCE.max(2.0 * bound));
+    let clear = domain.sides().iter().all(|wall| {
+        reference.sphere_wall_distance(&vector(wall.covector().to_array()), &folded) >= clearance
+    });
+    if !clear {
+        return None;
+    }
+    let side = domain.sides()[paired];
+    let second = fold(domain, side.pairing() * point, DEFAULT_CAP, |_| {});
+    assert!(second.converged(), "{point:?} across side {paired}");
+    let distance =
+        Measure::Spherical.distance(reference, &folded, &vector(second.point().to_array()));
+    Some((
+        (first.reversals() + second.reversals()) % 2 == 1,
+        reverses(&side),
+        distance,
+    ))
+}
+
+const GROUP_PAIRING_GRID: u32 = 16;
+
+#[test]
+fn spherical_group_folds_of_paired_points_stay_within_the_pairing_bound_with_the_parity_of_the_side()
+ {
+    let mut reference = Reference::new();
+    for (index, &name) in SPHERICAL_GROUP_DOMAINS.iter().enumerate() {
+        let domain = group_domain(index);
+        if domain.sides().is_empty() {
+            continue;
+        }
+        let bound = spherical_group_bounds(name).pairing;
+        let mut worst = reference::Worst::new(
+            format!("folded points of a point and its image under a pairing, {name}"),
+            500,
+        );
+        for height in 0..=GROUP_PAIRING_GRID {
+            for turn in 0..GROUP_PAIRING_GRID {
+                let unit = f64::from(height) / f64::from(GROUP_PAIRING_GRID);
+                let angle = TAU * f64::from(turn) / f64::from(GROUP_PAIRING_GRID);
+                let point = sphere_point(2.0 * unit - 1.0, angle, 0);
+                for paired in 0..domain.sides().len() {
+                    let Some((changes, reverses, distance)) =
+                        paired_fold(&mut reference, &domain, point, paired, bound)
+                    else {
+                        continue;
+                    };
+                    assert_eq!(
+                        changes, reverses,
+                        "{name} at {height}, {turn}, side {paired}"
+                    );
+                    worst.record(&distance, &reference::int(1), || {
+                        format!(
+                            "height {height} and turn {turn} of {GROUP_PAIRING_GRID}, side {paired}"
+                        )
+                    });
+                }
+            }
+        }
+        worst.assert_at_most(&mut reference, bound);
     }
 }

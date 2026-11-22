@@ -697,4 +697,73 @@ mod tests {
             }
         }
     }
+    const GROUP_ROTATION_SIZE: u32 = 96;
+
+    const GROUP_ROTATION_GRID: u32 = 2;
+
+    const GROUP_ROTATION_CASES: [(&str, [f64; 3]); 8] = [
+        ("3*2", [0.0; 3]),
+        ("3*2", [30.0, 50.0, 10.0]),
+        ("5*", [0.0; 3]),
+        ("5*", [30.0, 50.0, 10.0]),
+        ("5x", [0.0; 3]),
+        ("5x", [30.0, 50.0, 10.0]),
+        ("2*5", [0.0; 3]),
+        ("2*5", [30.0, 50.0, 10.0]),
+    ];
+
+    #[test]
+    fn turning_the_ball_by_an_element_of_a_spherical_group_gives_the_same_image_or_the_image_with_the_colours_exchanged()
+     {
+        let [first, second] = [
+            Colour::from_srgb8(245, 222, 179),
+            Colour::from_srgb8(70, 130, 180),
+        ];
+        for (text, degrees) in GROUP_ROTATION_CASES {
+            let domain = domain(text);
+            let [yaw, pitch, roll] = radians(degrees);
+            let viewing = viewing_matrix([yaw, pitch, roll]);
+            let render = |fill: Fill, viewing: DMat3| {
+                let options = options(
+                    RenderOptions::builder(fill)
+                        .size(GROUP_ROTATION_SIZE, GROUP_ROTATION_SIZE)
+                        .samples(GROUP_ROTATION_GRID)
+                        .rotation(yaw, pitch, roll),
+                );
+                let view = View::rotated(&options, viewing);
+                renderer(&domain, options).with_view(view).render().0
+            };
+            let plain = render(Fill::Parity([first, second]), viewing);
+            let swapped = render(Fill::Parity([second, first]), viewing);
+            let count = domain.sides().len();
+            let words = (0..count)
+                .map(|side| vec![side])
+                .chain((0..count).map(|side| vec![side, (side + 1) % count]));
+            for word in words {
+                let reversing = word
+                    .iter()
+                    .filter(|&&side| {
+                        domain.sides()[side].orientation() == escher_domain::Orientation::Reversing
+                    })
+                    .count();
+                let expected = if reversing % 2 == 1 { &swapped } else { &plain };
+                let element = word_product(&domain, &word);
+                let turned = render(Fill::Parity([first, second]), viewing * element);
+                let differing = expected
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .zip(turned.as_chunks::<3>().0)
+                    .filter(|(left, right)| left != right)
+                    .count();
+                println!(
+                    "{text} rotation {degrees:?}, word {word:?} with {reversing} reversing sides: {differing} differing pixels"
+                );
+                assert!(
+                    *expected == turned,
+                    "{text} {degrees:?} {word:?}: {differing} differing pixels"
+                );
+            }
+        }
+    }
 }

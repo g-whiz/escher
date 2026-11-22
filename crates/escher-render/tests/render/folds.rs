@@ -8,16 +8,20 @@ use glam::{DMat3, DVec3};
 
 use crate::common::{
     BANDS, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS, EUCLIDEAN_REPLAY_BOUNDS,
-    FOLD_ANGLES, FOLD_TRIPLES, POLYGON_DECISION_COUNTS, POLYGON_REPLAY_BOUNDS, PlaneSample,
-    REPLAY_BOUNDS, RotationCase, SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS,
-    SPHERICAL_IMAGE_BOUNDS, SPHERICAL_REPLAY_BOUNDS, TOLERANCE, VERTEX_TRIPLES, describe,
-    describe_plane, describe_polygon, describe_sphere, domain, euclidean_domain,
-    euclidean_fold_set, euclidean_name, euclidean_rotation_cases, fold_set,
-    hyperbolic_rotation_cases, one_fill, options, pixel_position, polygon_fold_set,
-    reference_walls, render_in_bands, rim_set, rotation_domain, rotation_text, spherical_domain,
-    spherical_fold_set, spherical_rotation_cases, text, wallpaper_bounds,
+    FOLD_ANGLES, FOLD_TRIPLES, GROUP_LIMITS, POLYGON_DECISION_COUNTS, POLYGON_REPLAY_BOUNDS,
+    PlaneSample, REPLAY_BOUNDS, RIM_DISTANCES, RotationCase, SPHERE_ROTATIONS,
+    SPHERICAL_DECISION_COUNTS, SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, SPHERICAL_IMAGE_BOUNDS,
+    SPHERICAL_REPLAY_BOUNDS, SphereSample, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane,
+    describe_polygon, describe_sphere, domain, euclidean_domain, euclidean_fold_set,
+    euclidean_name, euclidean_rotation_cases, fold_set, hyperbolic_rotation_cases, one_fill,
+    options, pixel_position, polygon_fold_set, reference_walls, render_in_bands, rim_set,
+    rotation_domain, rotation_text, spherical_domain, spherical_fold_set, spherical_group_bounds,
+    spherical_rotation_cases, text, wallpaper_bounds,
 };
-use crate::golden_images::{POLYGON_DOMAINS, WALLPAPER_DOMAINS, domain_with_aspect, renderer};
+use crate::golden_images::{
+    POLYGON_DOMAINS, WALLPAPER_DOMAINS, colourings_of, domain_with_aspect, domain_with_settings,
+    renderer,
+};
 use crate::reference::{self, Reference, Worst, count_bound, num, vector};
 
 const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 6];
@@ -1389,4 +1393,325 @@ fn every_vertex_of_a_wallpaper_domain_folds_in_zero_steps() {
         TOLERANCE / ratio
     );
     assert!(8.0 * ratio <= TOLERANCE, "{ratio:e} at {at}");
+}
+
+fn describe_group_sample(sample: &SphereSample) -> String {
+    format!(
+        "{} with rotation {:?} at {} pixels from the rim at angle {} of {FOLD_ANGLES}",
+        SPHERICAL_GROUP_DOMAINS[sample.domain],
+        SPHERE_ROTATIONS[sample.rotation],
+        RIM_DISTANCES[sample.band],
+        sample.angle
+    )
+}
+
+#[test]
+fn spherical_group_fold_replay_and_decisions_stay_within_their_bounds_and_converge_within_the_step_bound()
+ {
+    let mut reference = Reference::new();
+    for (index, &name) in SPHERICAL_GROUP_DOMAINS.iter().enumerate() {
+        let domain = domain_with_settings(name, &[]);
+        let bounds = spherical_group_bounds(name);
+        let walls = reference_walls(&domain);
+        let set: Vec<SphereSample> = spherical_fold_set(index)
+            .into_iter()
+            .filter(|sample| !GROUP_LIMITS.contains(&name) || sample.angle.is_multiple_of(2))
+            .collect();
+        let mut worst = Worst::new(
+            format!("folded point, angle from the replay, {name}"),
+            set.len(),
+        );
+        let mut differing = 0_usize;
+        let mut total = 0_u64;
+        let mut largest = 0_u32;
+        for sample in &set {
+            let (result, sides) = sides_of(&domain, sample.point, DEFAULT_CAP);
+            assert!(
+                result.converged(),
+                "{} does not converge",
+                describe_group_sample(sample)
+            );
+            total += u64::from(result.steps());
+            largest = largest.max(result.steps());
+            let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
+            let angle = reference.angle(&vector(result.point().to_array()), &replayed);
+            worst.record(&angle, &reference::int(1), || describe_group_sample(sample));
+            let exact = reference::fold(&walls, sample.point.to_array(), DEFAULT_CAP);
+            assert!(
+                exact.converged,
+                "the exact fold of {} does not converge",
+                describe_group_sample(sample)
+            );
+            if exact.sides != sides {
+                println!(
+                    "{}: the side sequence differs from the exact fold",
+                    describe_group_sample(sample)
+                );
+                differing += 1;
+            }
+        }
+        worst.assert_at_most(&mut reference, bounds.replay);
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the total is far below 2 to the power 52"
+        )]
+        let mean = total as f64 / set.len() as f64;
+        let allowed = count_bound(bounds.decisions);
+        println!(
+            "{name}: mean steps {mean:.2}, largest {largest}, step bound {}, {differing} of {} folds differ, bound {allowed}",
+            bounds.steps,
+            set.len()
+        );
+        assert!(
+            differing <= allowed,
+            "{name}: {differing} folds differ, more than {allowed}"
+        );
+        assert!(
+            largest <= bounds.steps,
+            "{name}: {largest} steps, more than {}",
+            bounds.steps
+        );
+    }
+}
+
+#[test]
+fn every_vertex_of_a_spherical_group_domain_folds_in_zero_steps() {
+    let domains = SPHERICAL_GROUP_DOMAINS
+        .iter()
+        .map(|&name| (name.to_owned(), domain_with_settings(name, &[])));
+    let (ratio, at) = largest_vertex_ratio(domains);
+    println!(
+        "largest side value at a vertex of a spherical group domain over the tolerance scale: {ratio:.3e} at {at}, tolerance {TOLERANCE:e}, margin {:.2}",
+        TOLERANCE / ratio
+    );
+    assert!(8.0 * ratio <= TOLERANCE, "{ratio:e} at {at}");
+}
+
+fn shared_walls(domain: &escher_domain::FundamentalDomain) -> Vec<(usize, usize)> {
+    let normals: Vec<DVec3> = domain
+        .sides()
+        .iter()
+        .map(|side| side.normal().normalize())
+        .collect();
+    let mut pairs = Vec::new();
+    for first in 0..normals.len() {
+        for second in first + 1..normals.len() {
+            if normals[first].abs_diff_eq(normals[second], 1e-12) {
+                pairs.push((first, second));
+            }
+        }
+    }
+    pairs
+}
+
+const SHARED_WALL_DOMAINS: [(&str, usize); 11] = [
+    ("*", 1),
+    ("x", 1),
+    ("2*", 2),
+    ("3*", 1),
+    ("5*", 1),
+    ("(12)*", 1),
+    ("(1000)*", 1),
+    ("3*2", 0),
+    ("5x", 0),
+    ("2*5", 1),
+    ("1", 0),
+];
+
+const SHARED_WALL_OFFSETS: [f64; 4] = [1e-12, 1e-11, 1e-10, 1e-9];
+
+const SHARED_WALL_POINTS: u32 = 64;
+
+#[test]
+fn sides_on_one_wall_give_the_same_colour_parity_and_folded_point() {
+    let mut reference = Reference::new();
+    for (name, count) in SHARED_WALL_DOMAINS {
+        let domain = domain_with_settings(name, &[]);
+        let pairs = shared_walls(&domain);
+        assert_eq!(pairs.len(), count, "{name}: {pairs:?}");
+        let bound = spherical_group_bounds(name).pairing;
+        let colourings: Vec<escher_group::Colouring> = (1..=4)
+            .flat_map(|colours| colourings_of(&domain, colours))
+            .collect();
+        for (first, second) in pairs {
+            let sides = domain.sides();
+            let normals = [sides[first].normal(), sides[second].normal()];
+            let difference = (normals[0] - normals[1]).abs().max_element();
+            println!(
+                "{name}: sides {first} and {second} share a wall, largest difference of their stored normals {difference:e}"
+            );
+            if matches!(name, "*" | "x") {
+                assert_eq!(
+                    normals[0].to_array().map(f64::to_bits),
+                    normals[1].to_array().map(f64::to_bits),
+                    "{name}"
+                );
+            }
+            for colouring in &colourings {
+                let letters = [first, second].map(|side| [u8::try_from(side).unwrap_or(u8::MAX)]);
+                assert_eq!(
+                    colouring.colour_of(&letters[0]),
+                    colouring.colour_of(&letters[1]),
+                    "{name} {}: sides {first} and {second}",
+                    colouring.id()
+                );
+            }
+            let normal = normals[0].normalize();
+            let along = normal.any_orthonormal_vector();
+            let across = normal.cross(along);
+            let mut worst = Worst::new(
+                format!("folded points across sides {first} and {second} of {name}"),
+                1,
+            );
+            for offset in SHARED_WALL_OFFSETS {
+                for step in 0..SHARED_WALL_POINTS {
+                    let turn =
+                        core::f64::consts::TAU * f64::from(step) / f64::from(SHARED_WALL_POINTS);
+                    let on_wall = along * turn.cos() + across * turn.sin();
+                    let point = on_wall * offset.cos() + normal * offset.sin();
+                    let [one, other] = [first, second].map(|side| {
+                        fold(&domain, sides[side].pairing() * point, DEFAULT_CAP, |_| {})
+                    });
+                    assert!(one.converged() && other.converged(), "{name} at {step}");
+                    assert_eq!(
+                        one.reversals() % 2,
+                        other.reversals() % 2,
+                        "{name} at offset {offset:e}, step {step}"
+                    );
+                    let distance = reference.angle(
+                        &vector(one.point().to_array()),
+                        &vector(other.point().to_array()),
+                    );
+                    worst.record(&distance, &reference::int(1), || {
+                        format!("offset {offset:e}, step {step} of {SHARED_WALL_POINTS}")
+                    });
+                }
+            }
+            worst.assert_at_most(&mut reference, bound);
+        }
+    }
+}
+
+const GROUP_NEAR_VERTEX_DOMAINS: [&str; 6] = [
+    "(1000)*", "(1000)x", "2*(500)", "(999)*", "(999)x", "2*(499)",
+];
+
+const GROUP_NEAR_VERTEX_DISTANCES: [f64; 8] =
+    [1e-6, 1e-9, 1e-12, 1e-13, 1e-14, 1e-15, 1e-16, 3e-17];
+
+#[test]
+fn fold_near_a_vertex_of_a_spherical_group_domain_converges_within_the_cap() {
+    for name in GROUP_NEAR_VERTEX_DOMAINS {
+        let domain = domain_with_settings(name, &[]);
+        let mut unconverged = [0_u32; GROUP_NEAR_VERTEX_DISTANCES.len()];
+        let mut largest = [0_u32; GROUP_NEAR_VERTEX_DISTANCES.len()];
+        for (index, &vertex) in domain.vertices().iter().enumerate() {
+            let vertex = vertex.normalize();
+            let first = vertex.any_orthonormal_vector();
+            let second = vertex.cross(first);
+            for (slot, &distance) in GROUP_NEAR_VERTEX_DISTANCES.iter().enumerate() {
+                for direction in 0..NEAR_VERTEX_DIRECTIONS {
+                    let heading = core::f64::consts::TAU * f64::from(direction)
+                        / f64::from(NEAR_VERTEX_DIRECTIONS);
+                    let tangent = first * heading.cos() + second * heading.sin();
+                    let point = vertex * distance.cos() + tangent * distance.sin();
+                    let result = fold(&domain, point, DEFAULT_CAP, |_| {});
+                    assert!(
+                        result.steps() <= DEFAULT_CAP,
+                        "{name} vertex {index} direction {direction}"
+                    );
+                    largest[slot] = largest[slot].max(result.steps());
+                    if !result.converged() {
+                        unconverged[slot] += 1;
+                    }
+                }
+            }
+        }
+        println!(
+            "{name}, {} vertices, {NEAR_VERTEX_DIRECTIONS} directions each, at distances {GROUP_NEAR_VERTEX_DISTANCES:?}: unconverged {unconverged:?}, largest steps {largest:?}",
+            domain.vertices().len()
+        );
+        assert_eq!(
+            unconverged,
+            [0; GROUP_NEAR_VERTEX_DISTANCES.len()],
+            "{name}"
+        );
+    }
+}
+
+const GROUP_CENTRE_BOUNDS: [(&str, f64); 18] = [
+    ("3*2", 2e-14),
+    ("*", 0.0),
+    ("x", 0.0),
+    ("2*", 1e-14),
+    ("3*", 4e-15),
+    ("5*", 2e-14),
+    ("(12)*", 2e-14),
+    ("(1000)*", 4e-10),
+    ("2x", 1e-14),
+    ("3x", 1e-14),
+    ("5x", 4e-15),
+    ("(12)x", 4e-15),
+    ("(1000)x", 4e-13),
+    ("2*2", 1e-14),
+    ("2*3", 1e-14),
+    ("2*5", 4e-14),
+    ("2*(12)", 2e-14),
+    ("2*(500)", 2e-12),
+];
+
+#[test]
+fn images_of_the_centre_under_a_spherical_group_fold_back_near_the_centre() {
+    let mut reference = Reference::new();
+    for name in SPHERICAL_GROUP_DOMAINS
+        .into_iter()
+        .filter(|&name| name != "1")
+    {
+        let bound = GROUP_CENTRE_BOUNDS
+            .iter()
+            .find(|&&(row, _)| row == name)
+            .map_or_else(
+                || panic!("{name} has no bound of the images of the centre"),
+                |&(_, bound)| bound,
+            );
+        let signature: Signature = name
+            .parse()
+            .unwrap_or_else(|error| panic!("{name:?} is rejected: {error}"));
+        let order = signature
+            .group_order()
+            .unwrap_or_else(|| panic!("{name} has no group order"))
+            .get();
+        let domain = domain_with_settings(name, &[]);
+        let elements = enumerate_group(&domain, order);
+        assert_eq!(elements.len() as u64, order, "{name}");
+        let centre = domain.centre();
+        let exact_centre = vector(centre.to_array());
+        let mut largest = (0.0_f64, 0_u32);
+        let mut most_steps = 0;
+        for element in &elements {
+            let exact_image = reference::apply(&element.exact, &exact_centre);
+            let image =
+                DVec3::from_array([0, 1, 2].map(|row| reference.approximate(&exact_image[row])));
+            let result = fold(&domain, image, DEFAULT_CAP, |_| {});
+            assert!(result.converged(), "{name} at depth {}", element.depth);
+            most_steps = most_steps.max(result.steps());
+            let angle = reference.angle(&vector(result.point().to_array()), &exact_centre);
+            let angle = reference.approximate(&angle);
+            if angle > largest.0 {
+                largest = (angle, element.depth);
+            }
+        }
+        println!(
+            "{name}: {} elements of order {order}, most steps {most_steps}, largest angle {:.3e} at depth {}, bound {bound:e}, margin {:.1}",
+            elements.len(),
+            largest.0,
+            largest.1,
+            bound / largest.0
+        );
+        assert!(
+            largest.0 <= bound,
+            "{name}: angle {:e} exceeds {bound:e}",
+            largest.0
+        );
+    }
 }

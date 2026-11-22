@@ -77,7 +77,7 @@ const fn coset_with(
     }
 }
 
-pub(crate) const GOLDEN_IMAGES: [GoldenImage; 32] = [
+pub(crate) const GOLDEN_IMAGES: [GoldenImage; 33] = [
     golden("*732", &[], "7-3-2.png"),
     golden("*542", &[], "5-4-2.png"),
     golden("*433", &[], "4-3-3.png"),
@@ -131,9 +131,10 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 32] = [
     golden("4*2", &[], "wp-4-s-2.png"),
     golden("3*3", &[], "wp-3-s-3.png"),
     golden("2222", &[("skew", 0.25)], "rot-2-2-2-2-skew-0.25.png"),
+    golden("3*2", &[], "sg-3-s-2.png"),
 ];
 
-pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 16] = [
+pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 18] = [
     coset("*642", "3a", "cos-6-4-2-3a.png"),
     coset("*732", "8a", "cos-7-3-2-8a.png"),
     coset("432", "3a", "cos-rot-4-3-2-3a.png"),
@@ -150,6 +151,8 @@ pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 16] = [
     coset("2*22", "3b", "cos-wp-2-s-2-2-3b.png"),
     coset("4*2", "4c", "cos-wp-4-s-2-4c.png"),
     coset("3*3", "3b", "cos-wp-3-s-3-3b.png"),
+    coset("3*2", "4c", "cos-sg-3-s-2-4c.png"),
+    coset("2*5", "5a", "cos-sg-2-s-5-5a.png"),
 ];
 
 pub(crate) const GOLDEN_FILL: [[u8; 3]; 2] = [[245, 222, 179], [70, 130, 180]];

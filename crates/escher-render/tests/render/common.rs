@@ -362,6 +362,66 @@ pub(crate) fn wallpaper_bounds(shape: &PolygonShape) -> &'static WallpaperBounds
         .unwrap_or_else(|| panic!("{} has no wallpaper bounds", shape.name()))
 }
 
+pub(crate) const SPHERICAL_GROUP_DOMAINS: [&str; 19] = [
+    "3*2", "*", "x", "1", "2*", "3*", "5*", "(12)*", "(1000)*", "2x", "3x", "5x", "(12)x",
+    "(1000)x", "2*2", "2*3", "2*5", "2*(12)", "2*(500)",
+];
+
+pub(crate) const GROUP_LIMITS: [&str; 3] = ["(1000)*", "(1000)x", "2*(500)"];
+
+pub(crate) struct SphericalGroupBounds {
+    signature: &'static str,
+    pub(crate) replay: f64,
+    pub(crate) decisions: usize,
+    pub(crate) steps: u32,
+    pub(crate) pairing: f64,
+}
+
+const fn group_bounds(
+    signature: &'static str,
+    replay: f64,
+    decisions: usize,
+    steps: u32,
+    pairing: f64,
+) -> SphericalGroupBounds {
+    SphericalGroupBounds {
+        signature,
+        replay,
+        decisions,
+        steps,
+        pairing,
+    }
+}
+
+const SPHERICAL_GROUP_BOUNDS: [SphericalGroupBounds; 19] = [
+    group_bounds("3*2", 4e-15, 0, 7, 4e-14),
+    group_bounds("*", 0.0, 0, 2, 0.0),
+    group_bounds("x", 0.0, 0, 2, 0.0),
+    group_bounds("1", 0.0, 0, 0, 0.0),
+    group_bounds("2*", 2e-15, 0, 3, 2e-14),
+    group_bounds("3*", 4e-15, 0, 3, 1e-14),
+    group_bounds("5*", 4e-15, 0, 4, 2e-14),
+    group_bounds("(12)*", 4e-15, 0, 8, 2e-14),
+    group_bounds("(1000)*", 4e-14, 0, 502, 4e-10),
+    group_bounds("2x", 1e-15, 0, 3, 1e-14),
+    group_bounds("3x", 2e-15, 2, 4, 2e-14),
+    group_bounds("5x", 2e-15, 0, 6, 1e-14),
+    group_bounds("(12)x", 4e-15, 0, 13, 1e-14),
+    group_bounds("(1000)x", 4e-14, 0, 1001, 2e-14),
+    group_bounds("2*2", 4e-15, 0, 4, 4e-14),
+    group_bounds("2*3", 2e-15, 0, 5, 4e-14),
+    group_bounds("2*5", 4e-15, 0, 7, 2e-14),
+    group_bounds("2*(12)", 4e-15, 0, 14, 1e-13),
+    group_bounds("2*(500)", 4e-14, 0, 502, 4e-10),
+];
+
+pub(crate) fn spherical_group_bounds(signature: &str) -> &'static SphericalGroupBounds {
+    SPHERICAL_GROUP_BOUNDS
+        .iter()
+        .find(|row| row.signature == signature)
+        .unwrap_or_else(|| panic!("{signature} has no spherical group bounds"))
+}
+
 pub(crate) struct SphereSample {
     pub(crate) domain: usize,
     pub(crate) rotation: usize,
@@ -374,7 +434,7 @@ pub(crate) fn spherical_domain(index: usize) -> FundamentalDomain {
     domain_with_aspect(SPHERICAL_DOMAINS[index], None)
 }
 
-fn viewing_matrix([yaw, pitch, roll]: [f64; 3]) -> DMat3 {
+pub(crate) fn viewing_matrix([yaw, pitch, roll]: [f64; 3]) -> DMat3 {
     let [yaw, pitch, roll] = [yaw, pitch, roll].map(f64::to_radians);
     let (sin, cos) = pitch.sin_cos();
     let turn_pitch = DMat3::from_cols(
