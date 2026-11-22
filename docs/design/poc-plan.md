@@ -130,7 +130,7 @@ The owner set the order of the remaining work on 2026-11-22 (`DEC-63`). A cleanu
 | M9 | Hyperbolic reflection polygons with shape parameters | `*p1...pn` with 4 to 8 corners and its parameters | `escher-domain`, `escher-render` (tests and golden images), `escher-cli` | M6, RP-3 (sheet and slice part) |
 | M10 | The 17 Euclidean groups | All 17 Euclidean signatures, and the parameter `skew` of `o` and `2222` | `escher-domain`, `escher-cli`, `escher-render` (tests and golden images) | M4, M6, M8, RP-2 |
 | M11 | The 14 spherical types | All 14 spherical types, with `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1` added | `escher-domain`, `escher-cli`, `escher-render` (tests and golden images) | M5, M6, M7, M8, M10, RP-2 |
-| M20 | Valid colourings | Colouring counts, listings, and ids restricted to the valid colourings, with the colouring with one colour still available | `escher-group`, `escher-cli`, `escher-render` (tests and golden images) | M8, M9, M10, M11 |
+| M20 | Valid colourings | Colouring counts, listings, and ids restricted to the valid colourings, one for each conjugacy class, with the colouring with one colour still available | `escher-group`, `escher-cli`, `escher-render` (tests and golden images) | M8, M9, M10, M11 |
 | M12 | Half-plane, band, and Klein models | `--model` | `escher-geometry`, `escher-render`, `escher-cli` | M3 |
 | M13 | Intrinsic border width | `--border-unit intrinsic` | `escher-render`, `escher-geometry`, `escher-cli` | M3, with M4 and M5 for the other geometries and M12 for one test |
 | M21 | Schlafli symbols in `escher info` | The Schlafli symbol of the regular tiling of a signature and of its dual | `escher-cli`, and `escher-signature` if the design puts the symbol there | M1 |
@@ -203,7 +203,7 @@ Each command in this section illustrates its milestone, and Project Status in `A
 
 **Goal.** The low-index subgroup search, colouring ids, the listing in `info`, and coset colours in `render`.
 
-**Delivers.** The search of `escher-group`, with one colouring for each subgroup of finite index (`DEC-37`), the colouring lines and the options `--max-colours` and `--colourings` of `escher info`, the fill by cosets of `escher-render`, and `escher render --colouring <id>` with a palette of 12 colours (`DEC-39`). M20 restricts these colourings (`DEC-65`).
+**Delivers.** The search of `escher-group`, with one colouring for each subgroup of finite index (`DEC-37`), the colouring lines and the options `--max-colours` and `--colourings` of `escher info`, the fill by cosets of `escher-render`, and `escher render --colouring <id>` with a palette of 12 colours (`DEC-39`). M20 restricts these colourings (`DEC-37`, `DEC-65`).
 
 ### 5.9. M9: Hyperbolic Reflection Polygons With Shape Parameters
 
@@ -313,7 +313,7 @@ The owner moved this milestone to the roadmap (`DEC-64`). Section 4.1 of `docs/d
 
 ### 5.20. M20: Valid Colourings
 
-**Goal.** The colourings that `escher` counts, lists, and draws by id are only the valid colourings, and the colouring with one colour stays available. The owner's criterion (`DEC-65`) is "A colouring is valid if and only if no adjacent polygons share a colour." Two polygons are adjacent when they share an edge.
+**Goal.** The colourings that `escher` counts, lists, and draws by id are only the valid colourings, one for each conjugacy class of subgroups (`DEC-37`), and the colouring with one colour stays available. The owner's criterion (`DEC-65`) is "A colouring is valid if and only if no adjacent polygons share a colour." Two polygons are adjacent when they share an edge.
 
 **Command line.** These commands illustrate the milestone. `<id>` stands for an id that `escher info --colourings` lists:
 
@@ -327,7 +327,7 @@ escher render '*642' --colouring <id> -o valid.png
 - `--colourings` lists only those colourings, each with its id.
 - `render --colouring <id>` draws a colouring of that list. `one` and `1a` still draw the colouring with one colour.
 
-**Scope.** The restriction lives in `escher-group`, whose search takes a `ColouringSet` and, for `Valid`, drops each subgroup that contains a side generator as it expands a class into its subgroups (GRP-42 and GRP-43 of `docs/design/group.md`). `All` stays for the tests against the counts of the sources. The ids number the valid colourings with no gap (`DEC-71`). `escher info` counts and lists only the valid colourings (`DEC-73`), and `render` without `--colouring` draws the valid colouring with 2 colours when the domain has one, and one colour otherwise (`DEC-72`). Section 4.6 of `docs/design/cli.md` states the aliases `one` and `parity`, and Section 8.4 of `docs/design/render.md` the coset golden images.
+**Scope.** The restriction lives in `escher-group`, whose search takes a `ColouringSet` and, for `Valid`, drops each subgroup that contains a side generator as it expands a class into its subgroups (GRP-42 and GRP-43 of `docs/design/group.md`). `All` stays for the tests against the counts of the sources. For `ValidClasses`, the search keeps one valid colouring for each class (GRP-44), and the command line uses that set. The ids number the colourings of a set with no gap (`DEC-71`). `escher info` counts and lists only the valid colourings (`DEC-73`), and `render` without `--colouring` draws the valid colouring with 2 colours when the domain has one, and one colour otherwise (`DEC-72`). Section 4.6 of `docs/design/cli.md` states the aliases `one` and `parity`, and Section 8.4 of `docs/design/render.md` the coset golden images.
 
 **Design documents.** Extensions of `group.md`, `cli.md`, and `render.md`, the amendments of `docs/design/architecture.md` (`DEC-7`, `DEC-15`, `DEC-32`, `DEC-37`, `DEC-38`, `DEC-43`, `DEC-44`, `DEC-65`, and `DEC-71` to `DEC-73`), and `colourings.md` for `UNV-35` and `UNV-36`.
 
@@ -341,11 +341,12 @@ escher render '*642' --colouring <id> -o valid.png
 
 **Risks.** A signature may have no valid colouring up to the maximum colour count, which leaves only the colouring with one colour. Command lines that users saved with ids of M8 draw another colouring or fail.
 
-**Split.** Three branches, in this order:
+**Split.** Four branches, in this order:
 
 1. Design: the design documents above, and `colourings.md`.
 2. Search: `ColouringSet`, `contained_generator`, the filter, and the ids of `escher-group`, with its tests.
-3. Command line: the counts, the listing, the aliases, and the default colouring of `escher-cli`, the tests and coset golden images of `escher-render`, the snapshots, the examples and images of `README.md`, and `scripts/readme-images`, which renders the colouring `3a` of `*642` to `three*.png`.
+3. Classes: `ColouringSet::ValidClasses` of `escher-group`, with its tests.
+4. Command line: the counts, the listing, the aliases, and the default colouring of `escher-cli`, the tests and coset golden images of `escher-render`, the snapshots, the examples and images of `README.md`, and `scripts/readme-images`, which renders the colouring `3a` of `*642` to `three*.png`.
 
 ### 5.21. M21: Schlafli Symbols in `escher info`
 
