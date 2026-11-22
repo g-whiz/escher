@@ -3,8 +3,9 @@ use escher_geometry::hyperbolic::{distance, inverse, to_disk, translation};
 
 use crate::common::{big, domain, signature};
 use crate::polygons::exact_defaults;
-use crate::reference::{Reference, Worst, add, div, error, int, mul, sqrt, sub};
+use crate::reference::ReferenceExt;
 use crate::shared::corner_orders;
+use escher_reference::{Reference, Worst, add, div, error, int, mul, sqrt, sub};
 
 const EDGE_TOLERANCE: f64 = 2e-13;
 const CIRCUMRADIUS_TOLERANCE: f64 = 1e-13;

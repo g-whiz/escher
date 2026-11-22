@@ -10,8 +10,9 @@ use crate::common::{
     EUCLIDEAN_TRIANGLES, LargestResiduals, aspects, assert_same_domain, big, domain,
     largest_coordinate_error, rectangle, signature, text,
 };
-use crate::reference::{
-    Matrix, Polygon, Reference, Vector, Worst, add, div, error, int, matrix, max, mul, num, sub,
+use crate::reference::{Polygon, ReferenceExt};
+use escher_reference::{
+    Matrix, Reference, Vector, Worst, add, div, error, int, matrix, max, mul, num, sub,
 };
 
 pub(crate) const VERTEX_BOUND: f64 = 2e-15;

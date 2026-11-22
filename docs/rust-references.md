@@ -298,7 +298,7 @@ Rules: OWN-5.
 | [IR-55] | 3 | Traits for developer-friendly libraries. |
 | [IR-26] | 3 | Chapter 11, Traits and Generics, not read. |
 
-Rules: API-8, API-11, API-12, UNS-5, SIMP-1.
+Rules: API-8, API-11, API-12, API-17, UNS-5, SIMP-1.
 
 ### 2.16. Object Safety and Trait Objects
 
@@ -481,7 +481,7 @@ Rules: TEST-5. Section 7 of `docs/writing-documentation.md` governs API document
 | [IR-84] | 3 | Testing each locking branch. |
 | [IR-9] | 1 | Syntax for unit tests and doctests. |
 
-Unit tests, doctests, snapshot tests, fuzzing, and Miri are each covered above. No source above covers floating-point tolerances or tests against high-precision arithmetic, so TEST-13 rests on its reason alone. [IR-17] covers snapshot tests of text with `insta`, but no source above covers golden-image tests that compare decoded pixels within an allowance, so TEST-14 also rests on its reason alone. Rules: TEST-1 to TEST-7, TEST-9, TEST-10, and TEST-12 to TEST-14.
+Unit tests, doctests, snapshot tests, fuzzing, and Miri are each covered above. No source above covers floating-point tolerances or tests against high-precision arithmetic, so TEST-13 rests on its reason alone. [IR-17] covers snapshot tests of text with `insta`, but no source above covers golden-image tests that compare decoded pixels within an allowance, so TEST-14 also rests on its reason alone. No source above covers test helpers shared between crates, so TEST-15 rests on its reason alone. Rules: TEST-1 to TEST-7, TEST-9, TEST-10, and TEST-12 to TEST-15.
 
 ### 2.28. Lints and Tooling
 

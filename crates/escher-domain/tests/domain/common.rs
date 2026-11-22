@@ -2,9 +2,9 @@ use astro_float_num::BigFloat;
 use escher_domain::{Check, FundamentalDomain, Verification};
 use glam::DVec3;
 
-use crate::reference::{Vector, vector};
 use crate::shared::{NAMED_POLYGONS, built_with_aspect};
 pub(crate) use crate::shared::{built, order_text, signature};
+use escher_reference::{Vector, int, max, sub, vector};
 
 pub(crate) const EXAMPLE_TRIPLES: [[u32; 3]; 6] = [
     [7, 3, 2],
@@ -104,9 +104,9 @@ pub(crate) fn big(value: DVec3) -> Vector {
 
 pub(crate) fn largest_coordinate_error(value: DVec3, exact: &Vector) -> BigFloat {
     let computed = big(value);
-    let mut largest = crate::reference::int(0);
+    let mut largest = int(0);
     for (computed, exact) in computed.iter().zip(exact) {
-        largest = crate::reference::max(&largest, &crate::reference::sub(computed, exact).abs());
+        largest = max(&largest, &sub(computed, exact).abs());
     }
     largest
 }

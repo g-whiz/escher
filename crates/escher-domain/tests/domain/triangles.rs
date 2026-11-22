@@ -7,9 +7,10 @@ use crate::common::{
     LargestResiduals, all_triangles, big, built, cone_text, domain, is_small, kite,
     largest_coordinate_error, order_text, signature, small_triangles, text,
 };
-use crate::reference::{Reference, Triangle, Worst, error, int, largest_magnitude, sub};
+use crate::reference::{ReferenceExt, Triangle};
 use crate::rotation::two_vertex_cycle_residual;
 use crate::shared::{NAMED_POLYGONS, small_polygons};
+use escher_reference::{Reference, Worst, error, int, largest_magnitude, sub};
 
 const QUANTITIES: [&str; 6] = [
     "vertex, largest coordinate error over the largest coordinate",

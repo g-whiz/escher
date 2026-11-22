@@ -386,8 +386,9 @@ mod tests {
         domain_with_aspect, find_colouring, linear_table, renderer,
     };
     use crate::options::{RenderOptions, Shading};
-    use crate::reference::{Reference, Worst, count_bound, error, plane_border_distance, vector};
+    use crate::reference::{ReferenceExt, count_bound, plane_border_distance};
     use crate::view::View;
+    use escher_reference::{Reference, Worst, error, int, vector};
 
     const EUCLIDEAN_DOMAINS: [(&str, Option<f64>); 7] = [
         ("*632", None),
@@ -988,7 +989,7 @@ mod tests {
                     let channel = f64::from(step) / 16.0;
                     let [shaded, ..] = shade([channel; 3], normal, light);
                     let exact = reference.shade(normal.to_array(), light.to_array(), channel);
-                    worst.record(&error(shaded, &exact), &crate::reference::int(1), || {
+                    worst.record(&error(shaded, &exact), &int(1), || {
                         format!("light {direction:?}, normal {normal:?}, channel {channel}")
                     });
                 }

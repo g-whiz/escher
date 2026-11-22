@@ -1,0 +1,17 @@
+[package]
+name = "escher-reference"
+description = "High-precision reference arithmetic for the accuracy tests of the Escher crates, a test support crate."
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
+astro-float-num.workspace = true
+
+[lints]
+workspace = true

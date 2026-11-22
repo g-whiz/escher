@@ -9,6 +9,7 @@ use escher_render::fold;
 use glam::{DVec2, DVec3};
 use proptest::prelude::{any, prop_assert, prop_assert_eq, prop_assume, proptest};
 use proptest::sample::Index;
+use proptest::test_runner::TestCaseError;
 
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
@@ -18,9 +19,9 @@ use crate::common::{
     text, wallpaper_bounds,
 };
 use crate::golden_images::{
-    POLYGON_DOMAINS, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings,
+    POLYGON_DOMAINS, PolygonShape, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings,
 };
-use crate::reference::{self, Reference, num, vector};
+use escher_reference::{Reference, Worst, int, num, vector};
 
 const WALL_CLEARANCE: f64 = 1e-6;
 
@@ -74,65 +75,172 @@ fn fold_counting_reversing_sides(
     (result, reversing)
 }
 
+fn size(measure: Measure, point: DVec3) -> f64 {
+    match measure {
+        Measure::Hyperbolic | Measure::Euclidean => point.z,
+        Measure::Spherical => point.abs().max_element(),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Reversals {
+    None,
+    Uncounted,
+    Counted,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FirstFold {
+    Assumed,
+    Asserted,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Parity {
+    OtherAfterOneStepMoreOrLess,
+    Kept,
+    ChangedExactlyWhenTheSideReverses,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Rejected {
+    NotPositive,
+    SignedZero([bool; 3]),
+}
+
+struct Family {
+    domain: FundamentalDomain,
+    measure: Measure,
+    side: fn(DVec3, DVec3) -> f64,
+    reversals: Reversals,
+    first_fold: FirstFold,
+    may_stop_at_the_cap: bool,
+}
+
+impl Family {
+    fn stops_at_the_cap(&self, result: escher_render::Fold) -> bool {
+        self.may_stop_at_the_cap && !result.converged() && result.steps() == DEFAULT_CAP
+    }
+}
+
+fn hyperbolic(triple: usize) -> Family {
+    Family {
+        domain: domain(FOLD_TRIPLES[triple]),
+        measure: Measure::Hyperbolic,
+        side,
+        reversals: Reversals::Uncounted,
+        first_fold: FirstFold::Assumed,
+        may_stop_at_the_cap: false,
+    }
+}
+
+fn euclidean(index: usize) -> Family {
+    Family {
+        domain: euclidean_domain(index),
+        measure: Measure::Euclidean,
+        side,
+        reversals: Reversals::Uncounted,
+        first_fold: FirstFold::Assumed,
+        may_stop_at_the_cap: false,
+    }
+}
+
+fn spherical(index: usize) -> Family {
+    Family {
+        domain: spherical_domain(index),
+        measure: Measure::Spherical,
+        side: spherical::side,
+        reversals: Reversals::Uncounted,
+        first_fold: FirstFold::Assumed,
+        may_stop_at_the_cap: false,
+    }
+}
+
+fn polygon(shape: &PolygonShape) -> Family {
+    Family {
+        domain: shape.domain(),
+        measure: Measure::Hyperbolic,
+        side,
+        reversals: Reversals::Counted,
+        first_fold: FirstFold::Asserted,
+        may_stop_at_the_cap: false,
+    }
+}
+
+fn wallpaper(shape: &PolygonShape) -> Family {
+    Family {
+        domain: shape.domain(),
+        measure: Measure::Euclidean,
+        side,
+        reversals: Reversals::Counted,
+        first_fold: FirstFold::Asserted,
+        may_stop_at_the_cap: false,
+    }
+}
+
+fn spherical_group(index: usize) -> Family {
+    Family {
+        domain: group_domain(index),
+        measure: Measure::Spherical,
+        side: spherical::side,
+        reversals: Reversals::Counted,
+        first_fold: FirstFold::Assumed,
+        may_stop_at_the_cap: false,
+    }
+}
+
 const ROTATION_DOMAINS: usize =
     FOLD_TRIPLES.len() + EUCLIDEAN_DOMAINS.len() + SPHERICAL_DOMAINS.len();
 
 struct RotationDomain {
-    domain: FundamentalDomain,
-    measure: Measure,
+    family: Family,
     index: usize,
 }
 
 fn rotation_case(index: usize) -> RotationDomain {
     let euclidean = index.checked_sub(FOLD_TRIPLES.len());
     let spherical = euclidean.and_then(|index| index.checked_sub(EUCLIDEAN_DOMAINS.len()));
-    match (euclidean, spherical) {
-        (None, _) => RotationDomain {
-            domain: rotation_domain(&text(FOLD_TRIPLES[index]), None),
-            measure: Measure::Hyperbolic,
+    let (domain, measure, index) = match (euclidean, spherical) {
+        (None, _) => (
+            rotation_domain(&text(FOLD_TRIPLES[index]), None),
+            Measure::Hyperbolic,
             index,
-        },
+        ),
         (Some(index), None) => {
             let (starred, aspect) = EUCLIDEAN_DOMAINS[index];
-            RotationDomain {
-                domain: rotation_domain(starred, aspect),
-                measure: Measure::Euclidean,
-                index,
-            }
+            (rotation_domain(starred, aspect), Measure::Euclidean, index)
         }
-        (Some(_), Some(index)) => RotationDomain {
-            domain: rotation_domain(SPHERICAL_DOMAINS[index], None),
-            measure: Measure::Spherical,
+        (Some(_), Some(index)) => (
+            rotation_domain(SPHERICAL_DOMAINS[index], None),
+            Measure::Spherical,
             index,
+        ),
+    };
+    RotationDomain {
+        family: Family {
+            domain,
+            measure,
+            side: DVec3::dot,
+            reversals: Reversals::None,
+            first_fold: FirstFold::Assumed,
+            may_stop_at_the_cap: measure == Measure::Hyperbolic
+                && FOLD_TRIPLES[index] == [100, 100, 100],
         },
+        index,
     }
 }
 
 impl RotationDomain {
-    fn may_stop_at_the_cap(&self, result: escher_render::Fold) -> bool {
-        self.measure == Measure::Hyperbolic
-            && FOLD_TRIPLES[self.index] == [100, 100, 100]
-            && !result.converged()
-            && result.steps() == DEFAULT_CAP
-    }
-
     fn point(&self, unit: f64, angle: f64, exponent: i32) -> DVec3 {
-        match self.measure {
+        match self.family.measure {
             Measure::Hyperbolic => point_in_range(6.0 * unit, angle),
             Measure::Euclidean => plane_point(EUCLIDEAN_RANGE * unit, angle),
             Measure::Spherical => sphere_point(2.0 * unit - 1.0, angle, exponent),
         }
     }
 
-    fn size(&self, point: DVec3) -> f64 {
-        match self.measure {
-            Measure::Hyperbolic | Measure::Euclidean => point.z,
-            Measure::Spherical => point.abs().max_element(),
-        }
-    }
-
     fn bound(&self, point: DVec3, image: DVec3) -> Option<f64> {
-        match self.measure {
+        match self.family.measure {
             Measure::Hyperbolic => {
                 let exponent = |point: DVec3| -(1.0 - to_disk(point).length()).log10();
                 let outer = exponent(point).max(exponent(image));
@@ -147,6 +255,174 @@ impl RotationDomain {
     }
 }
 
+fn converges_inside_every_side(family: &Family, point: DVec3) -> Result<(), TestCaseError> {
+    let (result, reversing) = fold_counting_reversing_sides(&family.domain, point, DEFAULT_CAP);
+    prop_assume!(!family.stops_at_the_cap(result));
+    prop_assert!(result.converged());
+    match family.reversals {
+        Reversals::None => prop_assert_eq!(result.reversals(), 0),
+        Reversals::Uncounted => {}
+        Reversals::Counted => {
+            prop_assert!(result.reversals() <= result.steps());
+            prop_assert_eq!(result.reversals(), reversing);
+        }
+    }
+    let folded = result.point();
+    if family.measure == Measure::Euclidean {
+        prop_assert_eq!(folded.z.to_bits(), 1.0_f64.to_bits());
+    }
+    for wall in family.domain.sides() {
+        let covector = wall.covector();
+        let threshold = TOLERANCE * covector.abs().element_sum() * size(family.measure, folded);
+        prop_assert!((family.side)(covector, folded) <= threshold);
+    }
+    if family.domain.sides().is_empty() {
+        prop_assert_eq!(result.steps(), 0);
+        prop_assert_eq!(
+            folded.to_array().map(f64::to_bits),
+            point.to_array().map(f64::to_bits)
+        );
+    }
+    Ok(())
+}
+
+fn fold_of_a_folded_point_takes_zero_steps(
+    family: &Family,
+    point: DVec3,
+) -> Result<(), TestCaseError> {
+    let first = fold(&family.domain, point, DEFAULT_CAP, |_| {});
+    match family.first_fold {
+        FirstFold::Assumed => prop_assume!(first.converged()),
+        FirstFold::Asserted => prop_assert!(first.converged()),
+    }
+    let second = fold(&family.domain, first.point(), DEFAULT_CAP, |_| {});
+    prop_assert!(second.converged());
+    prop_assert_eq!(second.steps(), 0);
+    prop_assert_eq!(
+        second.point().to_array().map(f64::to_bits),
+        first.point().to_array().map(f64::to_bits)
+    );
+    Ok(())
+}
+
+fn fold_of_a_paired_point_keeps_the_folded_point(
+    family: &Family,
+    point: DVec3,
+    paired: impl FnOnce(usize) -> usize,
+    bound: impl FnOnce(DVec3) -> Option<f64>,
+    parity: Parity,
+) -> Result<(), TestCaseError> {
+    let first = fold(&family.domain, point, DEFAULT_CAP, |_| {});
+    prop_assume!(!family.stops_at_the_cap(first));
+    prop_assert!(first.converged());
+    let sides = family.domain.sides();
+    let side = sides[paired(sides.len())];
+    let image = side.pairing() * point;
+    let bound = bound(image);
+    prop_assume!(bound.is_some());
+    let bound = bound.unwrap_or(0.0);
+    let clearance = num(WALL_CLEARANCE.max(2.0 * bound));
+    let mut reference = Reference::new();
+    let folded = vector(first.point().to_array());
+    for wall in sides {
+        let covector = vector(wall.covector().to_array());
+        let distance = family
+            .measure
+            .wall_distance(&mut reference, &covector, &folded);
+        prop_assume!(distance >= clearance);
+    }
+    let second = fold(&family.domain, image, DEFAULT_CAP, |_| {});
+    prop_assume!(!family.stops_at_the_cap(second));
+    prop_assert!(second.converged());
+    match parity {
+        Parity::OtherAfterOneStepMoreOrLess => {
+            prop_assert_eq!(first.steps().abs_diff(second.steps()), 1);
+            prop_assert_eq!(first.reversals() % 2 + second.reversals() % 2, 1);
+        }
+        Parity::Kept => prop_assert_eq!(first.reversals() % 2, second.reversals() % 2),
+        Parity::ChangedExactlyWhenTheSideReverses => prop_assert_eq!(
+            (first.reversals() + second.reversals()) % 2,
+            u32::from(reverses(&side))
+        ),
+    }
+    let distance =
+        family
+            .measure
+            .distance(&mut reference, &folded, &vector(second.point().to_array()));
+    prop_assert!(
+        distance <= num(bound),
+        "distance {}",
+        reference.approximate(&distance)
+    );
+    Ok(())
+}
+
+fn fold_takes_the_same_decisions_for_the_scaled_point(
+    family: &Family,
+    point: DVec3,
+) -> Result<(), TestCaseError> {
+    let mut sides = Vec::new();
+    let unscaled = fold(&family.domain, point, DEFAULT_CAP, |index| {
+        sides.push(index);
+    });
+    for power in -40..=40 {
+        let factor = power_of_two(power);
+        let mut scaled_sides = Vec::new();
+        let scaled = fold(&family.domain, point * factor, DEFAULT_CAP, |index| {
+            scaled_sides.push(index);
+        });
+        prop_assert_eq!(&scaled_sides, &sides);
+        prop_assert_eq!(scaled.steps(), unscaled.steps());
+        prop_assert_eq!(scaled.reversals(), unscaled.reversals());
+        prop_assert_eq!(scaled.converged(), unscaled.converged());
+        prop_assert_eq!(scaled.point(), unscaled.point() * factor);
+    }
+    Ok(())
+}
+
+fn fold_of_any_bit_pattern_returns_within_the_cap(
+    family: &Family,
+    point: DVec3,
+    cap: u32,
+    rejected: Rejected,
+) -> Result<(), TestCaseError> {
+    let (result, reversing) = fold_counting_reversing_sides(&family.domain, point, cap);
+    prop_assert!(result.steps() <= cap);
+    match family.reversals {
+        Reversals::None => prop_assert_eq!(result.reversals(), 0),
+        Reversals::Uncounted => prop_assert!(result.reversals() <= result.steps()),
+        Reversals::Counted => {
+            prop_assert!(result.reversals() <= result.steps());
+            prop_assert_eq!(result.reversals(), reversing);
+        }
+    }
+    match rejected {
+        Rejected::NotPositive => {
+            prop_assert!(
+                !result.converged()
+                    || (result.point().is_finite() && size(family.measure, result.point()) > 0.0)
+            );
+            let positive = size(family.measure, point) > 0.0;
+            if !positive {
+                prop_assert!(!result.converged());
+                prop_assert_eq!(result.steps(), 0);
+            }
+        }
+        Rejected::SignedZero(negative) => {
+            prop_assert!(
+                !result.converged()
+                    || (result.point().is_finite() && result.point() != DVec3::ZERO)
+            );
+            let zero =
+                DVec3::from_array(negative.map(|negative| if negative { -0.0 } else { 0.0 }));
+            let from_zero = fold(&family.domain, zero, cap, |_| {});
+            prop_assert!(!from_zero.converged());
+            prop_assert_eq!(from_zero.steps(), 0);
+        }
+    }
+    Ok(())
+}
+
 proptest! {
     #[test]
     fn rotation_fold_converges_inside_every_side(
@@ -155,20 +431,8 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let case = rotation_case(index);
-        let result = fold(&case.domain, case.point(unit, angle, exponent), DEFAULT_CAP, |_| {});
-        prop_assume!(!case.may_stop_at_the_cap(result));
-        prop_assert!(result.converged());
-        prop_assert_eq!(result.reversals(), 0);
-        let point = result.point();
-        if case.measure == Measure::Euclidean {
-            prop_assert_eq!(point.z.to_bits(), 1.0_f64.to_bits());
-        }
-        for wall in case.domain.sides() {
-            let covector = wall.covector();
-            let threshold = TOLERANCE * covector.abs().element_sum() * case.size(point);
-            prop_assert!(covector.dot(point) <= threshold);
-        }
+        let rotation = rotation_case(index);
+        converges_inside_every_side(&rotation.family, rotation.point(unit, angle, exponent))?;
     }
 
     #[test]
@@ -178,13 +442,8 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let case = rotation_case(index);
-        let first = fold(&case.domain, case.point(unit, angle, exponent), DEFAULT_CAP, |_| {});
-        prop_assume!(first.converged());
-        let second = fold(&case.domain, first.point(), DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(second.steps(), 0);
-        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+        let rotation = rotation_case(index);
+        fold_of_a_folded_point_takes_zero_steps(&rotation.family, rotation.point(unit, angle, exponent))?;
     }
 
     #[test]
@@ -194,29 +453,15 @@ proptest! {
         angle in 0.0..TAU,
         paired in 0..6_usize,
     ) {
-        let case = rotation_case(index);
-        let point = case.point(unit, angle, 0);
-        let first = fold(&case.domain, point, DEFAULT_CAP, |_| {});
-        prop_assume!(!case.may_stop_at_the_cap(first));
-        prop_assert!(first.converged());
-        let sides = case.domain.sides();
-        let image = sides[paired % sides.len()].pairing() * point;
-        let bound = case.bound(point, image);
-        prop_assume!(bound.is_some());
-        let bound = bound.unwrap_or(0.0);
-        let clearance = num(WALL_CLEARANCE.max(2.0 * bound));
-        let mut reference = Reference::new();
-        let folded = vector(first.point().to_array());
-        for wall in sides {
-            let distance = case.measure.wall_distance(&mut reference, &vector(wall.covector().to_array()), &folded);
-            prop_assume!(distance >= clearance);
-        }
-        let second = fold(&case.domain, image, DEFAULT_CAP, |_| {});
-        prop_assume!(!case.may_stop_at_the_cap(second));
-        prop_assert!(second.converged());
-        prop_assert_eq!(first.reversals() % 2, second.reversals() % 2);
-        let distance = case.measure.distance(&mut reference, &folded, &vector(second.point().to_array()));
-        prop_assert!(distance <= num(bound), "distance {}", reference.approximate(&distance));
+        let rotation = rotation_case(index);
+        let point = rotation.point(unit, angle, 0);
+        fold_of_a_paired_point_keeps_the_folded_point(
+            &rotation.family,
+            point,
+            |sides| paired % sides,
+            |image| rotation.bound(point, image),
+            Parity::Kept,
+        )?;
     }
 
     #[test]
@@ -226,20 +471,8 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let case = rotation_case(index);
-        let point = case.point(unit, angle, exponent);
-        let mut sides = Vec::new();
-        let unscaled = fold(&case.domain, point, DEFAULT_CAP, |index| sides.push(index));
-        for power in -40..=40 {
-            let factor = power_of_two(power);
-            let mut scaled_sides = Vec::new();
-            let scaled = fold(&case.domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
-            prop_assert_eq!(&scaled_sides, &sides);
-            prop_assert_eq!(scaled.steps(), unscaled.steps());
-            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
-            prop_assert_eq!(scaled.converged(), unscaled.converged());
-            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
-        }
+        let rotation = rotation_case(index);
+        fold_takes_the_same_decisions_for_the_scaled_point(&rotation.family, rotation.point(unit, angle, exponent))?;
     }
 
     #[test]
@@ -248,17 +481,8 @@ proptest! {
         bits in any::<[u64; 3]>(),
         cap in 0..=2000_u32,
     ) {
-        let case = rotation_case(index);
         let point = DVec3::from_array(bits.map(f64::from_bits));
-        let result = fold(&case.domain, point, cap, |_| {});
-        prop_assert!(result.steps() <= cap);
-        prop_assert_eq!(result.reversals(), 0);
-        prop_assert!(!result.converged() || (result.point().is_finite() && case.size(result.point()) > 0.0));
-        let positive = case.size(point) > 0.0;
-        if !positive {
-            prop_assert!(!result.converged());
-            prop_assert_eq!(result.steps(), 0);
-        }
+        fold_of_any_bit_pattern_returns_within_the_cap(&rotation_case(index).family, point, cap, Rejected::NotPositive)?;
     }
 
     #[test]
@@ -267,15 +491,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = domain(FOLD_TRIPLES[triple]);
-        let result = fold(&domain, point_in_range(exponent, angle), DEFAULT_CAP, |_| {});
-        prop_assert!(result.converged());
-        let point = result.point();
-        for wall in domain.sides() {
-            let covector = wall.covector();
-            let threshold = TOLERANCE * covector.abs().element_sum() * point.z;
-            prop_assert!(side(covector, point) <= threshold);
-        }
+        converges_inside_every_side(&hyperbolic(triple), point_in_range(exponent, angle))?;
     }
 
     #[test]
@@ -284,13 +500,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = domain(FOLD_TRIPLES[triple]);
-        let first = fold(&domain, point_in_range(exponent, angle), DEFAULT_CAP, |_| {});
-        prop_assume!(first.converged());
-        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(second.steps(), 0);
-        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+        fold_of_a_folded_point_takes_zero_steps(&hyperbolic(triple), point_in_range(exponent, angle))?;
     }
 
     #[test]
@@ -300,27 +510,16 @@ proptest! {
         angle in 0.0..TAU,
         paired in 0..3_usize,
     ) {
-        let domain = domain(FOLD_TRIPLES[triple]);
-        let point = point_in_range(exponent, angle);
-        let first = fold(&domain, point, DEFAULT_CAP, |_| {});
-        prop_assert!(first.converged());
-        let image = domain.sides()[paired].pairing() * point;
-        let image_exponent = -(1.0 - to_disk(image).length()).log10();
-        prop_assume!(image_exponent <= 6.0);
-        let bound = REPLAY_BOUNDS[triple][band(exponent.max(image_exponent))];
-        let clearance = WALL_CLEARANCE.max(2.0 * bound);
-        let mut reference = Reference::new();
-        let folded = vector(first.point().to_array());
-        for wall in domain.sides() {
-            let distance = reference.wall_distance(&vector(wall.covector().to_array()), &folded);
-            prop_assume!(distance >= num(clearance));
-        }
-        let second = fold(&domain, image, DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(first.steps().abs_diff(second.steps()), 1);
-        prop_assert_eq!(first.reversals() % 2 + second.reversals() % 2, 1);
-        let distance = reference.distance(&folded, &vector(second.point().to_array()));
-        prop_assert!(distance <= num(bound), "distance {}", reference.approximate(&distance));
+        fold_of_a_paired_point_keeps_the_folded_point(
+            &hyperbolic(triple),
+            point_in_range(exponent, angle),
+            |_| paired,
+            |image| {
+                let image_exponent = -(1.0 - to_disk(image).length()).log10();
+                (image_exponent <= 6.0).then(|| REPLAY_BOUNDS[triple][band(exponent.max(image_exponent))])
+            },
+            Parity::OtherAfterOneStepMoreOrLess,
+        )?;
     }
 
     #[test]
@@ -329,20 +528,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = domain(FOLD_TRIPLES[triple]);
-        let point = point_in_range(exponent, angle);
-        let mut sides = Vec::new();
-        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
-        for power in -40..=40 {
-            let factor = power_of_two(power);
-            let mut scaled_sides = Vec::new();
-            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
-            prop_assert_eq!(&scaled_sides, &sides);
-            prop_assert_eq!(scaled.steps(), unscaled.steps());
-            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
-            prop_assert_eq!(scaled.converged(), unscaled.converged());
-            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
-        }
+        fold_takes_the_same_decisions_for_the_scaled_point(&hyperbolic(triple), point_in_range(exponent, angle))?;
     }
 
     #[test]
@@ -351,17 +537,8 @@ proptest! {
         bits in any::<[u64; 3]>(),
         cap in 0..=2000_u32,
     ) {
-        let domain = domain(FOLD_TRIPLES[triple]);
         let point = DVec3::from_array(bits.map(f64::from_bits));
-        let result = fold(&domain, point, cap, |_| {});
-        prop_assert!(result.steps() <= cap);
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert!(!result.converged() || (result.point().is_finite() && result.point().z > 0.0));
-        let on_upper_sheet = point.z > 0.0;
-        if !on_upper_sheet {
-            prop_assert!(!result.converged());
-            prop_assert_eq!(result.steps(), 0);
-        }
+        fold_of_any_bit_pattern_returns_within_the_cap(&hyperbolic(triple), point, cap, Rejected::NotPositive)?;
     }
 
     #[test]
@@ -370,16 +547,7 @@ proptest! {
         distance in 0.0..=EUCLIDEAN_RANGE,
         angle in 0.0..TAU,
     ) {
-        let domain = euclidean_domain(index);
-        let result = fold(&domain, plane_point(distance, angle), DEFAULT_CAP, |_| {});
-        prop_assert!(result.converged());
-        let point = result.point();
-        prop_assert_eq!(point.z.to_bits(), 1.0_f64.to_bits());
-        for wall in domain.sides() {
-            let covector = wall.covector();
-            let threshold = TOLERANCE * covector.abs().element_sum() * point.z;
-            prop_assert!(side(covector, point) <= threshold);
-        }
+        converges_inside_every_side(&euclidean(index), plane_point(distance, angle))?;
     }
 
     #[test]
@@ -388,13 +556,7 @@ proptest! {
         distance in 0.0..=EUCLIDEAN_RANGE,
         angle in 0.0..TAU,
     ) {
-        let domain = euclidean_domain(index);
-        let first = fold(&domain, plane_point(distance, angle), DEFAULT_CAP, |_| {});
-        prop_assume!(first.converged());
-        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(second.steps(), 0);
-        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+        fold_of_a_folded_point_takes_zero_steps(&euclidean(index), plane_point(distance, angle))?;
     }
 
     #[test]
@@ -404,28 +566,16 @@ proptest! {
         angle in 0.0..TAU,
         paired in 0..4_usize,
     ) {
-        let domain = euclidean_domain(index);
-        let point = plane_point(distance, angle);
-        let first = fold(&domain, point, DEFAULT_CAP, |_| {});
-        prop_assert!(first.converged());
-        let pairing = domain.sides()[paired % domain.sides().len()].pairing();
-        let image = pairing * point;
-        let outer = euclidean_band(distance.max(image.truncate().length()));
-        prop_assume!(outer.is_some());
-        let bound = outer.map_or(0.0, |outer| EUCLIDEAN_REPLAY_BOUNDS[index][outer]);
-        let clearance = WALL_CLEARANCE.max(2.0 * bound);
-        let folded = vector(first.point().to_array());
-        for wall in domain.sides() {
-            let distance = reference::plane_wall_distance(&vector(wall.covector().to_array()), &folded);
-            prop_assume!(distance >= num(clearance));
-        }
-        let second = fold(&domain, image, DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(first.steps().abs_diff(second.steps()), 1);
-        prop_assert_eq!(first.reversals() % 2 + second.reversals() % 2, 1);
-        let distance = reference::plane_distance(&folded, &vector(second.point().to_array()));
-        let mut reference = Reference::new();
-        prop_assert!(distance <= num(bound), "distance {}", reference.approximate(&distance));
+        fold_of_a_paired_point_keeps_the_folded_point(
+            &euclidean(index),
+            plane_point(distance, angle),
+            |sides| paired % sides,
+            |image| {
+                euclidean_band(distance.max(image.truncate().length()))
+                    .map(|outer| EUCLIDEAN_REPLAY_BOUNDS[index][outer])
+            },
+            Parity::OtherAfterOneStepMoreOrLess,
+        )?;
     }
 
     #[test]
@@ -434,20 +584,7 @@ proptest! {
         distance in 0.0..=EUCLIDEAN_RANGE,
         angle in 0.0..TAU,
     ) {
-        let domain = euclidean_domain(index);
-        let point = plane_point(distance, angle);
-        let mut sides = Vec::new();
-        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
-        for power in -40..=40 {
-            let factor = power_of_two(power);
-            let mut scaled_sides = Vec::new();
-            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
-            prop_assert_eq!(&scaled_sides, &sides);
-            prop_assert_eq!(scaled.steps(), unscaled.steps());
-            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
-            prop_assert_eq!(scaled.converged(), unscaled.converged());
-            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
-        }
+        fold_takes_the_same_decisions_for_the_scaled_point(&euclidean(index), plane_point(distance, angle))?;
     }
 
     #[test]
@@ -456,17 +593,8 @@ proptest! {
         bits in any::<[u64; 3]>(),
         cap in 0..=2000_u32,
     ) {
-        let domain = euclidean_domain(index);
         let point = DVec3::from_array(bits.map(f64::from_bits));
-        let result = fold(&domain, point, cap, |_| {});
-        prop_assert!(result.steps() <= cap);
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert!(!result.converged() || (result.point().is_finite() && result.point().z > 0.0));
-        let positive = point.z > 0.0;
-        if !positive {
-            prop_assert!(!result.converged());
-            prop_assert_eq!(result.steps(), 0);
-        }
+        fold_of_any_bit_pattern_returns_within_the_cap(&euclidean(index), point, cap, Rejected::NotPositive)?;
     }
 
     #[test]
@@ -476,15 +604,7 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let domain = spherical_domain(index);
-        let result = fold(&domain, sphere_point(height, angle, exponent), DEFAULT_CAP, |_| {});
-        prop_assert!(result.converged());
-        let point = result.point();
-        for wall in domain.sides() {
-            let covector = wall.covector();
-            let threshold = TOLERANCE * covector.abs().element_sum() * point.abs().max_element();
-            prop_assert!(spherical::side(covector, point) <= threshold);
-        }
+        converges_inside_every_side(&spherical(index), sphere_point(height, angle, exponent))?;
     }
 
     #[test]
@@ -494,13 +614,7 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let domain = spherical_domain(index);
-        let first = fold(&domain, sphere_point(height, angle, exponent), DEFAULT_CAP, |_| {});
-        prop_assume!(first.converged());
-        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(second.steps(), 0);
-        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+        fold_of_a_folded_point_takes_zero_steps(&spherical(index), sphere_point(height, angle, exponent))?;
     }
 
     #[test]
@@ -510,20 +624,7 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let domain = spherical_domain(index);
-        let point = sphere_point(height, angle, exponent);
-        let mut sides = Vec::new();
-        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
-        for power in -40..=40 {
-            let factor = power_of_two(power);
-            let mut scaled_sides = Vec::new();
-            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
-            prop_assert_eq!(&scaled_sides, &sides);
-            prop_assert_eq!(scaled.steps(), unscaled.steps());
-            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
-            prop_assert_eq!(scaled.converged(), unscaled.converged());
-            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
-        }
+        fold_takes_the_same_decisions_for_the_scaled_point(&spherical(index), sphere_point(height, angle, exponent))?;
     }
 
     #[test]
@@ -533,16 +634,8 @@ proptest! {
         cap in 0..=2000_u32,
         negative in any::<[bool; 3]>(),
     ) {
-        let domain = spherical_domain(index);
         let point = DVec3::from_array(bits.map(f64::from_bits));
-        let result = fold(&domain, point, cap, |_| {});
-        prop_assert!(result.steps() <= cap);
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert!(!result.converged() || (result.point().is_finite() && result.point() != DVec3::ZERO));
-        let zero = DVec3::from_array(negative.map(|negative| if negative { -0.0 } else { 0.0 }));
-        let from_zero = fold(&domain, zero, cap, |_| {});
-        prop_assert!(!from_zero.converged());
-        prop_assert_eq!(from_zero.steps(), 0);
+        fold_of_any_bit_pattern_returns_within_the_cap(&spherical(index), point, cap, Rejected::SignedZero(negative))?;
     }
 }
 
@@ -553,17 +646,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
-        let (result, reversing) = fold_counting_reversing_sides(&domain, point_in_range(exponent, angle), DEFAULT_CAP);
-        prop_assert!(result.converged());
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert_eq!(result.reversals(), reversing);
-        let point = result.point();
-        for wall in domain.sides() {
-            let covector = wall.covector();
-            let threshold = TOLERANCE * covector.abs().element_sum() * point.z;
-            prop_assert!(side(covector, point) <= threshold);
-        }
+        converges_inside_every_side(&polygon(index.get(&POLYGON_DOMAINS)), point_in_range(exponent, angle))?;
     }
 
     #[test]
@@ -572,13 +655,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
-        let first = fold(&domain, point_in_range(exponent, angle), DEFAULT_CAP, |_| {});
-        prop_assert!(first.converged());
-        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(second.steps(), 0);
-        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+        fold_of_a_folded_point_takes_zero_steps(&polygon(index.get(&POLYGON_DOMAINS)), point_in_range(exponent, angle))?;
     }
 
     #[test]
@@ -587,20 +664,7 @@ proptest! {
         exponent in 0.0..=6.0_f64,
         angle in 0.0..TAU,
     ) {
-        let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
-        let point = point_in_range(exponent, angle);
-        let mut sides = Vec::new();
-        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
-        for power in -40..=40 {
-            let factor = power_of_two(power);
-            let mut scaled_sides = Vec::new();
-            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
-            prop_assert_eq!(&scaled_sides, &sides);
-            prop_assert_eq!(scaled.steps(), unscaled.steps());
-            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
-            prop_assert_eq!(scaled.converged(), unscaled.converged());
-            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
-        }
+        fold_takes_the_same_decisions_for_the_scaled_point(&polygon(index.get(&POLYGON_DOMAINS)), point_in_range(exponent, angle))?;
     }
 
     #[test]
@@ -609,18 +673,8 @@ proptest! {
         bits in any::<[u64; 3]>(),
         cap in 0..=2000_u32,
     ) {
-        let domain = POLYGON_DOMAINS[index.index(POLYGON_DOMAINS.len())].domain();
         let point = DVec3::from_array(bits.map(f64::from_bits));
-        let (result, reversing) = fold_counting_reversing_sides(&domain, point, cap);
-        prop_assert!(result.steps() <= cap);
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert_eq!(result.reversals(), reversing);
-        prop_assert!(!result.converged() || (result.point().is_finite() && result.point().z > 0.0));
-        let positive = point.z > 0.0;
-        if !positive {
-            prop_assert!(!result.converged());
-            prop_assert_eq!(result.steps(), 0);
-        }
+        fold_of_any_bit_pattern_returns_within_the_cap(&polygon(index.get(&POLYGON_DOMAINS)), point, cap, Rejected::NotPositive)?;
     }
 }
 
@@ -631,18 +685,7 @@ proptest! {
         distance in 0.0..=EUCLIDEAN_RANGE,
         angle in 0.0..TAU,
     ) {
-        let domain = WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())].domain();
-        let (result, reversing) = fold_counting_reversing_sides(&domain, plane_point(distance, angle), DEFAULT_CAP);
-        prop_assert!(result.converged());
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert_eq!(result.reversals(), reversing);
-        let point = result.point();
-        prop_assert_eq!(point.z.to_bits(), 1.0_f64.to_bits());
-        for wall in domain.sides() {
-            let covector = wall.covector();
-            let threshold = TOLERANCE * covector.abs().element_sum() * point.z;
-            prop_assert!(side(covector, point) <= threshold);
-        }
+        converges_inside_every_side(&wallpaper(index.get(&WALLPAPER_DOMAINS)), plane_point(distance, angle))?;
     }
 
     #[test]
@@ -651,13 +694,7 @@ proptest! {
         distance in 0.0..=EUCLIDEAN_RANGE,
         angle in 0.0..TAU,
     ) {
-        let domain = WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())].domain();
-        let first = fold(&domain, plane_point(distance, angle), DEFAULT_CAP, |_| {});
-        prop_assert!(first.converged());
-        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(second.steps(), 0);
-        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+        fold_of_a_folded_point_takes_zero_steps(&wallpaper(index.get(&WALLPAPER_DOMAINS)), plane_point(distance, angle))?;
     }
 
     #[test]
@@ -667,28 +704,17 @@ proptest! {
         angle in 0.0..TAU,
         paired in any::<Index>(),
     ) {
-        let shape = &WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())];
-        let domain = shape.domain();
-        let point = plane_point(distance, angle);
-        let first = fold(&domain, point, DEFAULT_CAP, |_| {});
-        prop_assert!(first.converged());
-        let side = domain.sides()[paired.index(domain.sides().len())];
-        let image = side.pairing() * point;
-        let outer = euclidean_band(distance.max(image.truncate().length()));
-        prop_assume!(outer.is_some());
-        let bound = outer.map_or(0.0, |outer| wallpaper_bounds(shape).replay[outer]);
-        let clearance = WALL_CLEARANCE.max(2.0 * bound);
-        let folded = vector(first.point().to_array());
-        for wall in domain.sides() {
-            let distance = reference::plane_wall_distance(&vector(wall.covector().to_array()), &folded);
-            prop_assume!(distance >= num(clearance));
-        }
-        let second = fold(&domain, image, DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!((first.reversals() + second.reversals()) % 2, u32::from(reverses(&side)));
-        let distance = reference::plane_distance(&folded, &vector(second.point().to_array()));
-        let mut reference = Reference::new();
-        prop_assert!(distance <= num(bound), "distance {}", reference.approximate(&distance));
+        let shape = index.get(&WALLPAPER_DOMAINS);
+        fold_of_a_paired_point_keeps_the_folded_point(
+            &wallpaper(shape),
+            plane_point(distance, angle),
+            |sides| paired.index(sides),
+            |image| {
+                euclidean_band(distance.max(image.truncate().length()))
+                    .map(|outer| wallpaper_bounds(shape).replay[outer])
+            },
+            Parity::ChangedExactlyWhenTheSideReverses,
+        )?;
     }
 
     #[test]
@@ -697,20 +723,7 @@ proptest! {
         distance in 0.0..=EUCLIDEAN_RANGE,
         angle in 0.0..TAU,
     ) {
-        let domain = WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())].domain();
-        let point = plane_point(distance, angle);
-        let mut sides = Vec::new();
-        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
-        for power in -40..=40 {
-            let factor = power_of_two(power);
-            let mut scaled_sides = Vec::new();
-            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
-            prop_assert_eq!(&scaled_sides, &sides);
-            prop_assert_eq!(scaled.steps(), unscaled.steps());
-            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
-            prop_assert_eq!(scaled.converged(), unscaled.converged());
-            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
-        }
+        fold_takes_the_same_decisions_for_the_scaled_point(&wallpaper(index.get(&WALLPAPER_DOMAINS)), plane_point(distance, angle))?;
     }
 
     #[test]
@@ -719,18 +732,8 @@ proptest! {
         bits in any::<[u64; 3]>(),
         cap in 0..=2000_u32,
     ) {
-        let domain = WALLPAPER_DOMAINS[index.index(WALLPAPER_DOMAINS.len())].domain();
         let point = DVec3::from_array(bits.map(f64::from_bits));
-        let (result, reversing) = fold_counting_reversing_sides(&domain, point, cap);
-        prop_assert!(result.steps() <= cap);
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert_eq!(result.reversals(), reversing);
-        prop_assert!(!result.converged() || (result.point().is_finite() && result.point().z > 0.0));
-        let positive = point.z > 0.0;
-        if !positive {
-            prop_assert!(!result.converged());
-            prop_assert_eq!(result.steps(), 0);
-        }
+        fold_of_any_bit_pattern_returns_within_the_cap(&wallpaper(index.get(&WALLPAPER_DOMAINS)), point, cap, Rejected::NotPositive)?;
     }
 }
 
@@ -741,10 +744,10 @@ fn rotation_folds_of_paired_points_on_the_sphere_stay_within_the_pairing_bound()
     let mut reference = Reference::new();
     for (index, row) in SPHERICAL_BOUNDS.iter().enumerate() {
         let (name, bound) = (row.signature, row.pairing);
-        let case = rotation_case(FOLD_TRIPLES.len() + EUCLIDEAN_DOMAINS.len() + index);
-        let sides = case.domain.sides();
+        let rotation = rotation_case(FOLD_TRIPLES.len() + EUCLIDEAN_DOMAINS.len() + index);
+        let sides = rotation.family.domain.sides();
         let clearance = num(WALL_CLEARANCE.max(2.0 * bound));
-        let mut worst = reference::Worst::new(
+        let mut worst = Worst::new(
             format!(
                 "folded points of a point and its image under a pairing, {}",
                 &name[1..]
@@ -755,12 +758,12 @@ fn rotation_folds_of_paired_points_on_the_sphere_stay_within_the_pairing_bound()
             for turn in 0..PAIRING_GRID {
                 let unit = f64::from(height) / f64::from(PAIRING_GRID);
                 let angle = TAU * f64::from(turn) / f64::from(PAIRING_GRID);
-                let point = case.point(unit, angle, 0);
-                let first = fold(&case.domain, point, DEFAULT_CAP, |_| {});
+                let point = rotation.point(unit, angle, 0);
+                let first = fold(&rotation.family.domain, point, DEFAULT_CAP, |_| {});
                 assert!(first.converged(), "{name} at {unit}, {turn}");
                 let folded = vector(first.point().to_array());
                 let clear = sides.iter().all(|wall| {
-                    case.measure.wall_distance(
+                    rotation.family.measure.wall_distance(
                         &mut reference,
                         &vector(wall.covector().to_array()),
                         &folded,
@@ -770,17 +773,22 @@ fn rotation_folds_of_paired_points_on_the_sphere_stay_within_the_pairing_bound()
                     continue;
                 }
                 for (paired, side) in sides.iter().enumerate() {
-                    let second = fold(&case.domain, side.pairing() * point, DEFAULT_CAP, |_| {});
+                    let second = fold(
+                        &rotation.family.domain,
+                        side.pairing() * point,
+                        DEFAULT_CAP,
+                        |_| {},
+                    );
                     assert!(
                         second.converged(),
                         "{name} at {unit}, {turn}, side {paired}"
                     );
-                    let distance = case.measure.distance(
+                    let distance = rotation.family.measure.distance(
                         &mut reference,
                         &folded,
                         &vector(second.point().to_array()),
                     );
-                    worst.record(&distance, &reference::int(1), || {
+                    worst.record(&distance, &int(1), || {
                         format!("height {height} and turn {turn} of {PAIRING_GRID}, side {paired}")
                     });
                 }
@@ -921,22 +929,7 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let domain = group_domain(index);
-        let point = sphere_point(height, angle, exponent);
-        let (result, reversing) = fold_counting_reversing_sides(&domain, point, DEFAULT_CAP);
-        prop_assert!(result.converged());
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert_eq!(result.reversals(), reversing);
-        let folded = result.point();
-        for wall in domain.sides() {
-            let covector = wall.covector();
-            let threshold = TOLERANCE * covector.abs().element_sum() * folded.abs().max_element();
-            prop_assert!(spherical::side(covector, folded) <= threshold);
-        }
-        if domain.sides().is_empty() {
-            prop_assert_eq!(result.steps(), 0);
-            prop_assert_eq!(folded.to_array().map(f64::to_bits), point.to_array().map(f64::to_bits));
-        }
+        converges_inside_every_side(&spherical_group(index), sphere_point(height, angle, exponent))?;
     }
 
     #[test]
@@ -946,13 +939,7 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let domain = group_domain(index);
-        let first = fold(&domain, sphere_point(height, angle, exponent), DEFAULT_CAP, |_| {});
-        prop_assume!(first.converged());
-        let second = fold(&domain, first.point(), DEFAULT_CAP, |_| {});
-        prop_assert!(second.converged());
-        prop_assert_eq!(second.steps(), 0);
-        prop_assert_eq!(second.point().to_array().map(f64::to_bits), first.point().to_array().map(f64::to_bits));
+        fold_of_a_folded_point_takes_zero_steps(&spherical_group(index), sphere_point(height, angle, exponent))?;
     }
 
     #[test]
@@ -962,20 +949,7 @@ proptest! {
         angle in 0.0..TAU,
         exponent in -100..=100_i32,
     ) {
-        let domain = group_domain(index);
-        let point = sphere_point(height, angle, exponent);
-        let mut sides = Vec::new();
-        let unscaled = fold(&domain, point, DEFAULT_CAP, |index| sides.push(index));
-        for power in -40..=40 {
-            let factor = power_of_two(power);
-            let mut scaled_sides = Vec::new();
-            let scaled = fold(&domain, point * factor, DEFAULT_CAP, |index| scaled_sides.push(index));
-            prop_assert_eq!(&scaled_sides, &sides);
-            prop_assert_eq!(scaled.steps(), unscaled.steps());
-            prop_assert_eq!(scaled.reversals(), unscaled.reversals());
-            prop_assert_eq!(scaled.converged(), unscaled.converged());
-            prop_assert_eq!(scaled.point(), unscaled.point() * factor);
-        }
+        fold_takes_the_same_decisions_for_the_scaled_point(&spherical_group(index), sphere_point(height, angle, exponent))?;
     }
 
     #[test]
@@ -985,17 +959,8 @@ proptest! {
         cap in 0..=2000_u32,
         negative in any::<[bool; 3]>(),
     ) {
-        let domain = group_domain(index);
         let point = DVec3::from_array(bits.map(f64::from_bits));
-        let (result, reversing) = fold_counting_reversing_sides(&domain, point, cap);
-        prop_assert!(result.steps() <= cap);
-        prop_assert!(result.reversals() <= result.steps());
-        prop_assert_eq!(result.reversals(), reversing);
-        prop_assert!(!result.converged() || (result.point().is_finite() && result.point() != DVec3::ZERO));
-        let zero = DVec3::from_array(negative.map(|negative| if negative { -0.0 } else { 0.0 }));
-        let from_zero = fold(&domain, zero, cap, |_| {});
-        prop_assert!(!from_zero.converged());
-        prop_assert_eq!(from_zero.steps(), 0);
+        fold_of_any_bit_pattern_returns_within_the_cap(&spherical_group(index), point, cap, Rejected::SignedZero(negative))?;
     }
 
     #[test]
@@ -1012,7 +977,7 @@ proptest! {
         let mut reference = Reference::new();
         let outcome = paired_fold(&mut reference, &domain, sphere_point(height, angle, 0), paired.index(domain.sides().len()), bound);
         let Some((parity_changes, side_reverses, distance)) = outcome else {
-            return Err(proptest::test_runner::TestCaseError::reject("the folded point lies too close to a wall"));
+            return Err(TestCaseError::reject("the folded point lies too close to a wall"));
         };
         prop_assert_eq!(parity_changes, side_reverses, "{}", name);
         prop_assert!(distance <= num(bound), "{} distance {}", name, reference.approximate(&distance));
@@ -1031,7 +996,8 @@ fn paired_fold(
     let folded = vector(first.point().to_array());
     let clearance = num(WALL_CLEARANCE.max(2.0 * bound));
     let clear = domain.sides().iter().all(|wall| {
-        reference.sphere_wall_distance(&vector(wall.covector().to_array()), &folded) >= clearance
+        Measure::Spherical.wall_distance(reference, &vector(wall.covector().to_array()), &folded)
+            >= clearance
     });
     if !clear {
         return None;
@@ -1060,7 +1026,7 @@ fn spherical_group_folds_of_paired_points_stay_within_the_pairing_bound_with_the
             continue;
         }
         let bound = spherical_group_bounds(name).pairing;
-        let mut worst = reference::Worst::new(
+        let mut worst = Worst::new(
             format!("folded points of a point and its image under a pairing, {name}"),
             500,
         );
@@ -1079,7 +1045,7 @@ fn spherical_group_folds_of_paired_points_stay_within_the_pairing_bound_with_the
                         changes, reverses,
                         "{name} at {height}, {turn}, side {paired}"
                     );
-                    worst.record(&distance, &reference::int(1), || {
+                    worst.record(&distance, &int(1), || {
                         format!(
                             "height {height} and turn {turn} of {GROUP_PAIRING_GRID}, side {paired}"
                         )

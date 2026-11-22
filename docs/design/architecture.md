@@ -26,7 +26,7 @@ The primary readers are the coding agents that write a crate design document or 
 
 ### 1.4. Scope
 
-This document covers the six crates of the proof of concept, their dependencies, the data flow, the cross-crate conventions, the constraints from the standards documents, testing, performance, numerical robustness, and the decisions. It describes every crate, type, function, command, and option that it names as a design, whether or not the code exists. Project Status in `AGENTS.md` says which crates exist. The crate `escher-cli` of Section 3 is the package in `crates/escher-cli`.
+This document covers the six crates of the proof of concept and the test support crate `escher-reference`, their dependencies, the data flow, the cross-crate conventions, the constraints from the standards documents, testing, performance, numerical robustness, and the decisions. It describes every crate, type, function, command, and option that it names as a design, whether or not the code exists. Project Status in `AGENTS.md` says which crates exist. The crate `escher-cli` of Section 3 is the package in `crates/escher-cli`.
 
 ### 1.5. Non-Goals
 
@@ -76,7 +76,7 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md`, 
 
 ### 3.1. Crate Table
 
-The workspace of the proof of concept has six members under `crates/`. Every member inherits the workspace package fields and lints, sets `publish = false` (`DEC-22`), declares no Cargo feature, and has the `# Features` section that Section 7.8 of `docs/writing-documentation.md` requires.
+The workspace of the proof of concept has seven members under `crates/`: the six crates of the proof of concept and the test support crate `escher-reference`. Every member inherits the workspace package fields and lints, sets `publish = false` (`DEC-22`), declares no Cargo feature, and has the `# Features` section that Section 7.8 of `docs/writing-documentation.md` requires.
 
 | Crate | Responsibility | Internal dependencies | External dependencies |
 | --- | --- | --- | --- |
@@ -86,8 +86,9 @@ The workspace of the proof of concept has six members under `crates/`. Every mem
 | `escher-domain` | Build the fundamental domain of a signature with its shape parameters | `escher-signature`, `escher-geometry`, `escher-group` | `glam` and `thiserror` |
 | `escher-render` | Turn a domain, a colouring, and a view into pixels and a PNG file | `escher-geometry`, `escher-domain`, `escher-signature`, and `escher-group` from `M8` | `glam`, `png`, and `thiserror` (`DEC-39`) |
 | `escher-cli` | The binary `escher`, with the commands `info` and `render` | `escher-signature`, `escher-domain`, `escher-render`, and `escher-group` from `M7` | `clap` with the derive API, `anyhow`, and `rayon` (`DEC-21`) |
+| `escher-reference` | The shared core of the reference arithmetic, for tests only (Section 7.1) | None | `astro-float-num` |
 
-The dev-dependencies are `insta`, `proptest`, and `astro-float-num`, the reference-arithmetic crate of `DEC-3`.
+The dev-dependencies are `insta`, `proptest`, `astro-float-num`, the reference-arithmetic crate of `DEC-3`, and `escher-reference`.
 
 `escher-domain` and `escher-render` compute with the `glam` types that `escher-geometry` exposes, so each declares `glam` itself, from the one entry in `[workspace.dependencies]` that rule DEP-2 in Section 12 of `docs/rust-coding-standards.md` requires.
 
@@ -131,6 +132,8 @@ Section 3 of `docs/design/group.md` specifies the public surface.
 ### 3.3. Dependency Graph
 
 `escher-signature` and `escher-geometry` are the roots and depend on no other member. The column "Internal dependencies" of Section 3.1 gives the other edges, and the graph has no cycle. `escher-group` depends on `escher-signature` only, so `escher-domain` can depend on it. From milestone `M7`, `escher-domain` and `escher-cli` declare `escher-group`, and from milestone `M8`, `escher-render` does. The graph is that of the completed proof of concept, and a crate declares a dependency from the milestone that first uses it (Section 3 of `docs/design/poc-plan.md` gives the order).
+
+`escher-reference` is only a dev-dependency (Section 7.1), so it adds no edge to the graph.
 
 Every path dependency between members carries a version, as TOOL-25 in Section 8 of `docs/design/tooling.md` requires.
 
@@ -320,7 +323,7 @@ These rules of `docs/rust-coding-standards.md` have an effect on the architectur
 
 - ERR-1 and ERR-2 (Section 7): Section 5.8 applies them.
 - DEP-3 (Section 12) and CONC-4 (Section 10): Section 3.5 applies them.
-- TEST-10 (Section 11): each crate has exactly one integration-test binary.
+- TEST-10 (Section 11): each crate except `escher-reference` has exactly one integration-test binary.
 - TEST-2 and TEST-9 (Section 11): `insta` snapshot files and property-test regression files are committed.
 - SIMP-2 (Section 13): no backend abstraction exists before a second backend exists.
 
@@ -342,7 +345,11 @@ The tests form these layers, in the order in which they catch defects:
 8. Golden images.
 9. One integration-test binary per crate (TEST-10) and one smoke test of the binary as a process.
 
-The reference arithmetic is an independent implementation, in a high-precision type inside the test suite, of the few formulas that matter: the forms, the reflections, the constructions of the triangle and of the reflection polygon, the model maps, and the replay of a fold. It is not a generic instantiation of production code. The public API therefore stays concrete (SIMP-1 in Section 13 of `docs/rust-coding-standards.md`), and a transcription error is not shared between the code and its test. The design document of each crate that uses it gives the working precision and the tolerances that are part of a contract of the crate, and the tests hold every other tolerance (TEST-13).
+The reference arithmetic is an independent implementation, in a high-precision type and in test code only, of the few formulas that matter: the forms, the reflections, the constructions of the triangle and of the reflection polygon, the model maps, and the replay of a fold. It is not a generic instantiation of production code. The public API therefore stays concrete (SIMP-1 in Section 13 of `docs/rust-coding-standards.md`), and a transcription error is not shared between the code and its test. The design document of each crate that uses it gives the working precision and the tolerances that are part of a contract of the crate, and the tests hold every other tolerance (TEST-13).
+
+The test support crate `escher-reference` holds the shared core of the reference arithmetic (`DEC-70`, TEST-15): the precision of 256 bits with rounding to nearest, ties to even, the scalar, vector, and matrix operations and the cross product, the constants and functions of the high-precision type, `normalize` onto the hyperboloid, the hyperbolic distance, and `Worst`, which records the worst case of a bound. It depends only on `astro-float-num`, so it shares no code with the crates under test. `escher-geometry`, `escher-domain`, and `escher-render` use it only as a dev-dependency. Their tests import its items by name, with no re-export (API-10), and each crate keeps in `tests/<name>/reference.rs` only what it alone uses, with any methods that it adds to `Reference` in a crate-private extension trait (API-17).
+
+Only tests call the crate, so it panics when a bound fails, has no error type, and is exempt from Section 5.8. Unit tests in the crate compare its arithmetic with known values and check that the assertions of `Worst` fail when they should. The comparison catches a wrong precision or rounding argument but does not establish correct rounding, which stays unverified as `UNV-25` of `docs/design/poc-plan.md`. The crate has no integration-test binary (TEST-10), and the recipe `coverage` leaves it out of the report.
 
 Coverage stays a report with no threshold (Section 7.1 of `docs/design/tooling.md`).
 
@@ -481,15 +488,16 @@ The owner reviewed the proof of concept after milestone `M11` and made these dec
 - `DEC-67`, Schlafli symbols in `info`: `escher info` prints the Schlafli symbol of the regular tiling of a signature and of its dual, for regular tilings only, such as `{7,3}` and `{3,7}` for `*732`. `info` has no `--dual` option.
 - `DEC-68`, Wythoff constructions: a roadmap item, much later. The first version works on the triangle groups `*pqr`, with on or off marks on the mirrors. The user picks one colour or one image fill for each face type, so up to three fills. Group colourings of the faces are not part of the first version. Section 4.2 of `docs/design/roadmap.md` records the item.
 
-The owner made this decision later on 2026-11-22:
+The owner made these decisions later on 2026-11-22:
 
 - `DEC-69`, largest corner order: the largest corner order that `escher-domain` accepts is 100, and the limit of $n$ in `2*n`, which is half of it, is 50. The reasons are that nobody uses orders that high and that the tests at order 1000 took most of the test time. This amends `DEC-7`, `DEC-48`, `DEC-56`, and `DEC-59`. DOM-3 and DOM-63 of `docs/design/domain.md` state the limits and their error texts. The owner also decided to keep, as they are, these parts that were sized for corners of order 1000: the fold cap of 1500 of `DEC-7`, the coset limit of `DEC-33`, the bounds that Section 9.3 of `docs/design/domain.md` states for every supported triple, and the refusal of a double by the guard of DOM-44 of `docs/design/domain.md`, which no test reaches. The limit on expanded relator letters of `docs/design/group.md` also keeps its value.
+- `DEC-70`, test support crate: the reference arithmetic that the tests of `escher-geometry`, `escher-domain`, and `escher-render` share lives in one unpublished crate, which they use only as a dev-dependency. Section 7.1 describes that crate, `escher-reference`.
 
 The layout of the planning documents is a proposal that the owner may change. It follows the sibling project slang-rust and has three documents under `docs/design/`. This document holds the architecture and the decisions, `docs/design/poc-plan.md` holds the milestones of the proof of concept, and `docs/design/roadmap.md` holds the phases after it.
 
 ### 10.2. Proposed Defaults
 
-The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-18`, `DEC-19`, `DEC-21`, `DEC-28`, `DEC-29`, `DEC-30`, `DEC-37`, `DEC-38`, `DEC-39`, and `DEC-63` to `DEC-69`, the view of a rotation signature in `DEC-12`, and the listing of each subgroup in place of each conjugacy class in `DEC-15`, and has withdrawn `DEC-5`. The planning applies the criterion of `DEC-65` to `DEC-15`, `DEC-37`, and `DEC-38`. Section 10.1 states these decisions. Every other default is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
+The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, `DEC-18`, `DEC-19`, `DEC-21`, `DEC-28`, `DEC-29`, `DEC-30`, `DEC-37`, `DEC-38`, `DEC-39`, and `DEC-63` to `DEC-70`, the view of a rotation signature in `DEC-12`, and the listing of each subgroup in place of each conjugacy class in `DEC-15`, and has withdrawn `DEC-5`. The planning applies the criterion of `DEC-65` to `DEC-15`, `DEC-37`, and `DEC-38`. Section 10.1 states these decisions. Every other default is a proposal and holds until the owner changes it. A design document that relies on a default cites its label.
 
 | Label | Topic | Proposed default | Reason |
 | --- | --- | --- | --- |
@@ -562,6 +570,7 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-67` | Schlafli symbols in `info` | Decided by the owner: the Schlafli symbol of the regular tiling of a signature and of its dual, for regular tilings only, and no `--dual` option | Section 10.1 |
 | `DEC-68` | Wythoff constructions | Decided by the owner: a roadmap item, much later, first for `*pqr` with on or off marks on the mirrors and one fill for each face type | Section 10.1 |
 | `DEC-69` | Largest corner order | Decided by the owner: 100, and 50 for $n$ in `2*n` | Section 10.1 |
+| `DEC-70` | Test support crate | Decided by the owner: one shared crate, used only as a dev-dependency, holds the reference arithmetic | Section 10.1 |
 
 Items 34 to 39 of Section 15.3 of `docs/design/domain.md` put the defaults of the reflection polygons to the owner, with their alternatives: `DEC-13` as amended, `DEC-47`, the corner limit and the guard of `DEC-48`, `DEC-14` as amended, and `DEC-50`. Items 43 and 44 of Section 15.3 of `docs/design/domain.md` put the tiles of `DEC-51` to the owner, the kites of `4*2` and `3*3` and the layout of the rectangular groups, item 45 puts the convention of `DEC-52`, and point 40 of Section 12.3 of `docs/design/render.md` puts `DEC-55`. `DEC-51` to `DEC-55` and the amendments of `DEC-12`, `DEC-14`, and `DEC-17` for `M10` are proposals, and the owner has decided none of them.
 

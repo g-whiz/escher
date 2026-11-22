@@ -15,10 +15,11 @@ use crate::common::{
     built, largest_coordinate_error, limit_kites, lune_test_set, signature, small_kites,
     small_lune_groups, test_set,
 };
-use crate::reference::{
-    Matrix, Model, Reference, Vector, Worst, div, error, int, matrix, max, mul, product, sub,
-};
+use crate::reference::{Model, ReferenceExt};
 use crate::spherical::{FOLD_BACK_TOLERANCE, Group, LIMIT_IMAGE_FLOOR, fold, sphere_sample};
+use escher_reference::{
+    Matrix, Reference, Vector, Worst, div, error, int, matrix, max, mul, product, sub,
+};
 
 const VERTEX_BOUND: f64 = 4e-14;
 const NORMAL_BOUND: f64 = 2e-14;

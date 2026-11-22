@@ -3,8 +3,9 @@ use escher_group::{Colouring, ColouringId, IndexLimit, SearchBudget, colourings_
 use escher_signature::Signature;
 use glam::{DMat3, DVec2};
 
-use crate::reference::Reference;
+use crate::reference::ReferenceExt;
 use crate::{Colour, CosetFill, Fill, RenderOptions, Renderer, Shading};
+use escher_reference::Reference;
 
 pub(crate) struct GoldenImage {
     pub(crate) signature: &'static str,

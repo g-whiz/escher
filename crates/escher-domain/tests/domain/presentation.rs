@@ -14,12 +14,11 @@ use crate::common::{
     cone_text, lune_test_set, named_rotation_polygons, order_text, signature, small_kites,
     small_lune_groups, starred, test_set, text, triangles,
 };
-use crate::reference::{
-    Matrix, Reference, add, div, identity, int, largest_entry_from_identity as largest_entry,
-    matrix, mul, power, product as exact_product, sqrt, sub, vector,
-};
+use crate::reference::{identity, largest_entry_from_identity as largest_entry, power};
 use crate::shared::{NAMED_POLYGONS, relator_text, relator_texts};
 use crate::wallpaper::named_settings;
+use escher_reference::product as exact_product;
+use escher_reference::{Matrix, Reference, add, div, int, matrix, mul, sqrt, sub, vector};
 
 const PAIRING_TOLERANCE: f64 = 1e-9;
 

@@ -16,6 +16,7 @@ thiserror.workspace = true
 
 [dev-dependencies]
 astro-float-num.workspace = true
+escher-reference.workspace = true
 proptest.workspace = true
 
 [lints]

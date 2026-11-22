@@ -14,11 +14,12 @@ use crate::common::{
     named_rotation_polygons, order_text, signature, starred, triangles, with_aspect,
 };
 use crate::polygons::signature_area;
-use crate::reference::{
-    Double, Model, Reference, Worst, add, div, error, int, largest_entry_from_identity,
-    largest_magnitude, matrix, max, mul, num, power, product, sub,
-};
+use crate::reference::{Double, Model, ReferenceExt, largest_entry_from_identity, power};
 use crate::shared::corner_orders;
+use escher_reference::{
+    Matrix, Reference, Worst, add, div, error, int, largest_magnitude, matrix, max, mul, num,
+    product, sub,
+};
 
 #[derive(Clone, Copy)]
 struct Samples {
@@ -646,14 +647,14 @@ fn isometry_defect(model: Model, pairing: DMat3) -> f64 {
     }
 }
 
-fn exact_product(first: DMat3, second: DMat3) -> crate::reference::Matrix {
+fn exact_product(first: DMat3, second: DMat3) -> Matrix {
     product(
         &matrix(first.to_cols_array()),
         &matrix(second.to_cols_array()),
     )
 }
 
-fn largest_entry_error(computed: DMat3, exact: &crate::reference::Matrix) -> BigFloat {
+fn largest_entry_error(computed: DMat3, exact: &Matrix) -> BigFloat {
     let computed = matrix(computed.to_cols_array());
     let mut largest = int(0);
     for (computed_row, exact_row) in computed.iter().zip(exact) {

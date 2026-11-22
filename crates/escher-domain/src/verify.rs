@@ -967,10 +967,10 @@ mod tests {
     use crate::double::double;
     use crate::kite::{MirrorPair, on_kite};
     use crate::polygon::Polygon;
-    use crate::reference::{Reference, Worst, add, div, error, int, mul, num, sqrt, sub};
     use crate::shared::{built, built_with_aspect, signature};
     use crate::triangle::{Shape, Supported, construct, supported};
     use crate::wallpaper::half_turn;
+    use escher_reference::{Reference, Worst, add, div, error, int, mul, num, sqrt, sub};
 
     const BASES: [[u32; 3]; 3] = [[7, 3, 2], [4, 4, 4], [100, 3, 2]];
 

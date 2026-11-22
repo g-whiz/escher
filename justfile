@@ -253,7 +253,7 @@ check-features:
 check-msrv:
     CARGO_BUILD_WARNINGS=deny cargo hack check --workspace --all-targets --rust-version
 
-# Write a test coverage report to target/lcov.info, run by CI only
+# Write a test coverage report of every crate except the test support crate escher-reference to target/lcov.info, run by CI only
 [group('rust')]
 coverage:
-    cargo llvm-cov nextest --workspace --all-features --profile default --no-tests=warn --lcov --output-path target/lcov.info
+    cargo llvm-cov nextest --workspace --exclude-from-report escher-reference --all-features --profile default --no-tests=warn --lcov --output-path target/lcov.info

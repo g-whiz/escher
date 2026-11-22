@@ -9,7 +9,8 @@ use crate::common::{
     LargestResiduals, SMALL_ORDER, assert_same_domain, built, largest_coordinate_error, order_text,
     signature,
 };
-use crate::reference::{Reference, SphericalPolygon, Worst, error, int};
+use crate::reference::{ReferenceExt, SphericalPolygon};
+use escher_reference::{Reference, Worst, error, int};
 
 const VERTEX_BOUND: f64 = 4e-14;
 const NORMAL_BOUND: f64 = 2e-14;

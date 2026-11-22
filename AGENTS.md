@@ -4,7 +4,7 @@ Every coding agent reads this file before it works in this repository. `CLAUDE.m
 
 Escher is a Rust application for creating symmetry-based graphics, like those in some works of M. C. Escher, with the SymmHub project as prior art. It covers the planar symmetries that orbifold notation expresses, in Euclidean, spherical, and hyperbolic geometry. The goal is a tool in which an artist draws a motif on one or more fundamental domains of a symmetry, sees it replicated live over the tiling, reshapes the tiles, animates the result, and renders it as raster images, first stills and then video. Tilings without a symmetry group, such as aperiodic tilings, are not a goal for now.
 
-The repository holds the command-line tool `escher`, five library crates behind it, research documents, and design documents. Project Status states what exists. The goals below are the owner's, and the tool meets none of them in full.
+The repository holds the command-line tool `escher`, five library crates behind it, a test support crate, research documents, and design documents. Project Status states what exists. The goals below are the owner's, and the tool meets none of them in full.
 
 The owner has set these phases and platforms:
 
@@ -103,13 +103,14 @@ Both commands support these signatures, with corner orders up to 100:
 | `escher-group` | Group presentations, coset enumeration, and the low-index search for colourings | `docs/design/group.md` |
 | `escher-domain` | Builds and verifies a fundamental domain with its side pairings and side presentation | `docs/design/domain.md` |
 | `escher-render` | Renders the tiling of a domain per pixel and encodes it as PNG | `docs/design/render.md` |
+| `escher-reference` | Test support: the shared reference arithmetic of the accuracy tests | `docs/design/architecture.md` |
 
 Milestones `M1` to `M11` of `docs/design/poc-plan.md` are complete, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
 
 What does not exist yet:
 
 - Every command of `escher` other than `info` and `render`.
-- The design document of each component other than the six crates above, which its milestone writes before the code of the component.
+- The design document of each component other than the crates above, which its milestone writes before the code of the component.
 - A Lean development.
 
 Section 10.1 of `docs/design/architecture.md` records the owner's decisions, and its Section 10.2 the proposed defaults, which stand until the owner changes them. `docs/design/roadmap.md` records the scope after the proof of concept.
@@ -128,7 +129,7 @@ The change that alters what exists updates this section in the same change: the 
 | `README.md` | The README, also the readme of every crate |
 | `LICENSE` | The GNU General Public License, version 3 |
 | `Cargo.toml`, `Cargo.lock` | The workspace manifest, with the shared package fields, dependencies, and lint tables, and its lock file. `Cargo.toml` sets the optimization levels of the `dev` profile (Section 4 of `docs/design/tooling.md`), and `Cargo.lock` holds `flate2` at 1.1.9 for the reason that Section 8 of that document states |
-| `crates/` | The six crates of Project Status |
+| `crates/` | The seven crates of Project Status |
 | `docs/` | The standards, design documents, and research documents |
 | `scripts/` | The custom checkers and the scripts that recipes run |
 | `justfile` | Every recipe, in the groups `checks`, `rust`, and `git` |
@@ -139,7 +140,7 @@ The change that alters what exists updates this section in the same change: the 
 | `.claude/settings.json` | The Claude Code settings, with the commands that run without asking and the prose hook |
 | `.editorconfig`, `.gitattributes`, `.gitignore` | Editor settings, LF line endings, and ignored files |
 
-Each crate `crates/escher-<name>/` has a `Cargo.toml` with `publish = false`, a `src/` directory with the modules that Section 3 of its design document lists, and one integration-test binary in `tests/<name>/`, with `main.rs` and the shared helpers in `common.rs`.
+Each crate `crates/escher-<name>/` has a `Cargo.toml` with `publish = false`, a `src/` directory with the modules that Section 3 of its design document lists, and one integration-test binary in `tests/<name>/`, with `main.rs` and the shared helpers in `common.rs`. The test support crate `escher-reference` has only `src/lib.rs` and no integration-test binary.
 
 The documents:
 

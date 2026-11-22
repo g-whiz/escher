@@ -14,7 +14,7 @@ use crate::common::{
     CASES, EUCLIDEAN_RADIUS, Factor, Product, Rng, SPHERE_SEPARATION_FLOOR, Wall, euclidean_point,
     largest_entry, line_covector, pair, polar_point, sphere_point, sphere_step, tangent_basis,
 };
-use crate::reference::{Reference, Worst, error, num};
+use escher_reference::{Reference, Worst, error, num};
 
 const INVERSE_TOLERANCE: f64 = 1e-11;
 const LONG_BOOST_DEFECT_TOLERANCE: f64 = 512.0;
@@ -586,12 +586,12 @@ fn boost_product(rng: &mut Rng) -> Product {
 #[test]
 fn inverse_and_isometry_defect_of_products_are_within_their_bounds() {
     let mut reference = Reference::new();
-    let mut inverses = Worst::new(
+    let mut inverses = Worst::of_the_scale(
         "inverse(m) * m against the identity, scaled by mu^2",
         9 * CASES,
     );
-    let mut defects = Worst::new("isometry_defect of products, scaled by mu^2", CASES);
-    let mut long = Worst::new(
+    let mut defects = Worst::of_the_scale("isometry_defect of products, scaled by mu^2", CASES);
+    let mut long = Worst::of_the_scale(
         "isometry_defect with boosts up to 5, scaled by eps * g^2",
         CASES,
     );
@@ -625,11 +625,11 @@ fn inverse_and_isometry_defect_of_products_are_within_their_bounds() {
 #[test]
 fn reflections_are_involutions_that_fix_their_walls_within_their_bounds() {
     let mut reference = Reference::new();
-    let mut twice = Worst::new(
+    let mut twice = Worst::of_the_scale(
         "reflection applied twice against the identity, scaled by eps * mu^2",
         9 * CASES,
     );
-    let mut fixed = Worst::new(
+    let mut fixed = Worst::of_the_scale(
         "reflection of a point of its wall, scaled by eps * (|x_i| + 2 |u_i| (sum |c_j x_j| + K max(a3, b3)))",
         6 * CASES,
     );
@@ -666,8 +666,9 @@ fn reflections_are_involutions_that_fix_their_walls_within_their_bounds() {
 #[test]
 fn isometries_preserve_form_and_distance_within_their_bounds() {
     let mut reference = Reference::new();
-    let mut forms = Worst::new("preserved form, scaled by eps * mu^2 * x3 * y3", 2 * CASES);
-    let mut distances = Worst::new(
+    let mut forms =
+        Worst::of_the_scale("preserved form, scaled by eps * mu^2 * x3 * y3", 2 * CASES);
+    let mut distances = Worst::of_the_scale(
         "preserved distance, scaled by eps * mu^2 * x3 * y3 / sinh d",
         2 * CASES,
     );
@@ -697,8 +698,8 @@ fn isometries_preserve_form_and_distance_within_their_bounds() {
 #[test]
 fn distances_of_boosts_and_disk_positions_are_within_their_bounds() {
     let mut reference = Reference::new();
-    let mut boosts = Worst::new("distance(ORIGIN, boost(l) * ORIGIN) against |l|", CASES);
-    let mut conditioned = Worst::new(
+    let mut boosts = Worst::of_the_scale("distance(ORIGIN, boost(l) * ORIGIN) against |l|", CASES);
+    let mut conditioned = Worst::of_the_scale(
         "distance against the disk formula, scaled by eps * x3 y3 / sinh d",
         CASES,
     );

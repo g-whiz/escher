@@ -11,7 +11,7 @@ Escher is a command-line tool that renders symmetric tilings, like those in some
 
 ## Crates
 
-The workspace holds the command-line tool and five libraries. Every crate uses this README.
+The workspace holds the command-line tool, five libraries, and a test support crate. Every crate uses this README.
 
 | Crate | Use it to |
 | --- | --- |
@@ -21,6 +21,7 @@ The workspace holds the command-line tool and five libraries. Every crate uses t
 | [escher-group](https://github.com/g-whiz/escher/tree/main/crates/escher-group) | Work with group presentations, run coset enumeration, and search for the colourings of a tiling. |
 | [escher-signature](https://github.com/g-whiz/escher/tree/main/crates/escher-signature) | Parse an orbifold signature into its canonical form and classify it as spherical, Euclidean, or hyperbolic. |
 | [escher-geometry](https://github.com/g-whiz/escher/tree/main/crates/escher-geometry) | Compute distances and isometries in the hyperbolic plane, in the Euclidean plane, and on the sphere. |
+| [escher-reference](https://github.com/g-whiz/escher/tree/main/crates/escher-reference) | Compute high-precision reference values for this project's own accuracy tests only. |
 
 ## Requirements
 

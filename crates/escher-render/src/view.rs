@@ -212,7 +212,8 @@ mod tests {
     };
     use crate::options::RenderOptions;
     use crate::options::Shading;
-    use crate::reference::{Reference, Worst, difference, largest_magnitude, vector};
+    use crate::reference::ReferenceExt;
+    use escher_reference::{Reference, Worst, difference, int, largest_magnitude, vector};
 
     fn domain(text: &str) -> FundamentalDomain {
         let signature: Signature = match text.parse() {
@@ -621,7 +622,7 @@ mod tests {
                     };
                     let exact = reference.lift(position.to_array(), angles);
                     let error = reference.angle(&vector(lifted.point.to_array()), &exact);
-                    worst.record(&error, &crate::reference::int(1), || {
+                    worst.record(&error, &int(1), || {
                         format!("rotation {degrees:?} at angle {index} of {ANGLES}")
                     });
                 }

@@ -6,10 +6,11 @@ use glam::{DMat2, DMat3, DVec2, DVec3};
 use proptest::prelude::{Just, Strategy, prop_assert, prop_oneof, proptest};
 
 use crate::common::{LargestResiduals, largest_coordinate_error, signature};
-use crate::reference::{Reference, Worst, div, error, int, matrix, mul, num, sub};
+use crate::reference::ReferenceExt;
 use crate::shared::{
     GRID_ASPECTS, GRID_SKEWS, build_with_aspect, built, built_with_aspect, relator_texts,
 };
+use escher_reference::{Reference, Worst, add, div, error, int, matrix, max, mul, num, sub};
 
 const RECTANGULAR: [&str; 6] = ["**", "xx", "*x", "22x", "22*", "2*22"];
 
@@ -566,7 +567,7 @@ fn wallpaper_domains_match_their_closed_forms() {
             let mut largest = int(0);
             for (row, exact_row) in computed.iter().zip(&exact.pairings[index]) {
                 for (entry, exact_entry) in row.iter().zip(exact_row) {
-                    largest = crate::reference::max(&largest, &sub(entry, exact_entry).abs());
+                    largest = max(&largest, &sub(entry, exact_entry).abs());
                 }
             }
             pairing.record(&largest, &one, || format!("{label}, side {index}"));
@@ -634,7 +635,7 @@ fn skewed_domains_are_shears_of_their_unskewed_domains() {
                     .enumerate()
                 {
                     let [x, y, z] = [start.x, start.y, start.z].map(num);
-                    let exact = [crate::reference::add(&x, &mul(&factor, &y)), y, z];
+                    let exact = [add(&x, &mul(&factor, &y)), y, z];
                     vertex.record(&largest_coordinate_error(moved, &exact), &one, || {
                         format!("{label}, vertex {index}")
                     });

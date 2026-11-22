@@ -398,7 +398,7 @@ mod tests {
     use glam::DVec3;
 
     use super::{Dd, PI, construct, cos_sin, cosh_sinh, double_double_angle, mirrors, place, walk};
-    use crate::reference::{Reference, add, div, int, num, sub};
+    use escher_reference::{Reference, add, div, int, num, sub};
 
     const TWO_TO_THE_MINUS_30: f64 = 1.0 / 1_073_741_824.0;
 

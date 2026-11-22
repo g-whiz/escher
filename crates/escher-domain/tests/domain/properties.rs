@@ -8,10 +8,8 @@ use proptest::prelude::{Just, Strategy, prop_assert, prop_oneof, proptest};
 use proptest::sample::select;
 
 use crate::common::{cone_text, domain, is_hyperbolic, kite, order_text, text, triangles};
-use crate::reference::{
-    Matrix, Reference, Worst, div, error, int, largest_entry_from_identity, matrix, max, mul, num,
-    power, product,
-};
+use crate::reference::{largest_entry_from_identity, power};
+use escher_reference::{Matrix, Reference, Worst, div, error, int, matrix, max, mul, num, product};
 
 const INSIDE_TOLERANCE: f64 = 1e-9;
 const CENTRE_TOLERANCE: f64 = 1e-9;

@@ -184,6 +184,7 @@ dependencies = [
  "astro-float-num",
  "escher-geometry",
  "escher-group",
+ "escher-reference",
  "escher-signature",
  "glam",
  "proptest",
@@ -195,6 +196,7 @@ name = "escher-geometry"
 version = "0.1.0"
 dependencies = [
  "astro-float-num",
+ "escher-reference",
  "glam",
  "proptest",
  "thiserror",
@@ -210,6 +212,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "escher-reference"
+version = "0.1.0"
+dependencies = [
+ "astro-float-num",
+]
+
+[[package]]
 name = "escher-render"
 version = "0.1.0"
 dependencies = [
@@ -217,6 +226,7 @@ dependencies = [
  "escher-domain",
  "escher-geometry",
  "escher-group",
+ "escher-reference",
  "escher-signature",
  "glam",
  "png",

@@ -8,7 +8,8 @@ use escher_signature::Signature;
 use glam::{DMat3, DVec2, DVec3};
 
 use crate::golden_images::{POLYGON_DOMAINS, PolygonShape, Shape, domain_with_aspect};
-use crate::reference::{self, Reference, Vector, Wall, matrix, vector};
+use crate::reference::{self, ReferenceExt, Wall};
+use escher_reference::{Reference, Vector, dot, matrix, normalize, vector};
 
 pub(crate) const FOLD_TRIPLES: [[u32; 3]; 7] = [
     [7, 3, 2],
@@ -707,9 +708,9 @@ impl Measure {
         y: &Vector,
     ) -> astro_float_num::BigFloat {
         match self {
-            Self::Hyperbolic => reference.distance(x, y),
+            Self::Hyperbolic => reference.distance(&normalize(x), &normalize(y)),
             Self::Euclidean => reference::plane_distance(x, y),
-            Self::Spherical if reference::dot(x, y).is_positive() => reference.angle(x, y),
+            Self::Spherical if dot(x, y).is_positive() => reference.angle(x, y),
             Self::Spherical => reference.pi(),
         }
     }

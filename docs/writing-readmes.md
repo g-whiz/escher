@@ -131,7 +131,7 @@ From the first publication of a crate, the alert also states that the published 
 
 RDM-8. The section `Crates` MUST hold one table with one row for each crate of the workspace and the columns Crate and Use it to. The Crate column links the crate name to its source directory on GitHub, and the Use it to column has one sentence. From the first publication of a crate, its row links to its crate README, and the table gains the column API documentation, which links to the page of each published crate on the hosted API documentation.
 
-The rows start with `escher-cli`, which holds the tool that a visitor runs, followed by the libraries, each above every library that it depends on: `escher-render`, `escher-domain`, `escher-group`, `escher-signature`, and `escher-geometry`. A visitor scans the table top down from the product to its parts.
+The rows start with `escher-cli`, which holds the tool that a visitor runs, followed by the libraries, each above every library that it depends on: `escher-render`, `escher-domain`, `escher-group`, `escher-signature`, and `escher-geometry`. The test support crate `escher-reference` comes last. A visitor scans the table top down from the product to its parts.
 ### 5.5. Getting Started
 
 RDM-9. The section `Getting Started` MUST show, as commands in a `sh` block, how to build `escher` from a clone, and MUST show one command that renders a first image. Guidance on documentation asks that a new user reach a first success quickly [KAPLAN-MOSS] [WTD]. From the first publication of `escher-cli`, the section also shows the command that installs the published tool with its full version.

@@ -20,16 +20,17 @@ This document assigns every rule to one of the two classes, following Section 3.
 
 ### 1.1. Scope
 
-This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has six members:
+This document applies to every Rust crate, test, and tool in the repository. The Project Status section of `AGENTS.md` says what exists. The workspace has seven members:
 
 - `escher-cli`: a package with a library target that runs the command line, and the binary `escher`, which calls it, as `docs/design/cli.md` specifies.
 - `escher-domain`: a library crate that builds and verifies the fundamental domain of a compact hyperbolic reflection triangle, of the three Euclidean reflection triangles, and of the rectangle with its shape parameter, as `docs/design/domain.md` specifies.
 - `escher-geometry`: a library crate that holds the linear model of the hyperbolic plane, with the map to and from the Poincare disk, and the affine model of the Euclidean plane, over the `glam` types, as `docs/design/geometry.md` specifies.
 - `escher-group`: a library crate that holds words, relators, and presentations, builds the presentation of an orbifold signature, and runs Todd-Coxeter coset enumeration with a limit on the number of cosets, as `docs/design/group.md` specifies.
+- `escher-reference`: a test support library crate with the shared core of the reference arithmetic of the tests, as Section 7.1 of `docs/design/architecture.md` specifies.
 - `escher-render`: a library crate that renders the fundamental domain of a compact hyperbolic reflection triangle in the Poincare disk, and that of a Euclidean reflection triangle or of the rectangle in the Euclidean plane, as the pixels of an image, and encodes them as a PNG file, as `docs/design/render.md` specifies.
 - `escher-signature`: a library crate that parses an orbifold signature into its canonical form and computes its exact Euler characteristic, as `docs/design/signature.md` specifies.
 
-Rules ERR-1 and ERR-2 apply to library crates only, because a binary such as `escher` is an application, which may report errors through `Box<dyn std::error::Error>`.
+Rules ERR-1 and ERR-2 apply to library crates only, because a binary such as `escher` is an application, which may report errors through `Box<dyn std::error::Error>`. Nor do they apply to a test support crate under TEST-15, because only tests call it and a failing test panics.
 
 This document does not govern documentation, commit messages, or the design of any particular crate. The writing guide covers documentation, and design documents in `docs/design/` cover the design of each component.
 
@@ -510,13 +511,13 @@ These commands run the checks of the tools from `cargo hack` to `actionlint`. Th
 CARGO_BUILD_WARNINGS=deny cargo hack check --workspace --all-targets --feature-powerset
 CARGO_BUILD_WARNINGS=deny cargo hack check --workspace --all-targets --rust-version
 cargo machete
-cargo llvm-cov nextest --workspace --all-features --profile default --no-tests=warn --lcov --output-path target/lcov.info
+cargo llvm-cov nextest --workspace --exclude-from-report escher-reference --all-features --profile default --no-tests=warn --lcov --output-path target/lcov.info
 typos
 taplo fmt --check
 actionlint
 ```
 
-These command lines are those of the recipes, except that the recipe `update-golden` narrows the test command, as TOOL-7 of `docs/design/tooling.md` states. They hold two additions that TOOL-7 permits. The first is `--profile default` in the nextest command and the `cargo llvm-cov` command, which selects the nextest profile. The second is `--lcov --output-path target/lcov.info`, the arguments of the `coverage` recipe, which make the `cargo llvm-cov` command write an LCOV report to `target/lcov.info`. With these options, the command prints no coverage summary.
+These command lines are those of the recipes, except that the recipe `update-golden` narrows the test command, as TOOL-7 of `docs/design/tooling.md` states. They hold two additions that TOOL-7 permits. The first is `--profile default` in the nextest command and the `cargo llvm-cov` command, which selects the nextest profile. The second is `--lcov --output-path target/lcov.info`, the arguments of the `coverage` recipe, which make the `cargo llvm-cov` command write an LCOV report to `target/lcov.info`. With these options, the command prints no coverage summary. The command itself holds `--exclude-from-report escher-reference`, which keeps the test support crate out of the report while the tests of every member still run (TEST-15).
 
 The command for `cargo semver-checks` is chosen with the first release, because the tool fails on a crate that has no published version.
 
@@ -622,6 +623,10 @@ Reason: `Deref` changes method resolution implicitly, gives no subtyping, and ex
 **API-16.** Keep `Drop` infallible and non-blocking: release resources on a best-effort basis and ignore errors there. Provide a consuming `close(self)` that returns a `Result` for teardown whose errors matter, and an explicit method for a wait, such as a wait for written data to reach the disk. Put cleanup that must `.await` in an explicit async method, because `Drop` cannot be async.
 
 Reason: a panic in `Drop` during unwinding aborts the process, and a destructor that blocks stalls the caller at an unpredictable point. [IR-8] [IR-13] [IR-88]
+
+**API-17.** Add methods to a type of another crate through a crate-private extension trait named `<Type>Ext`, such as `ReferenceExt` for `Reference`, never through `Deref` (API-15), and never under the name of a method that the type already has.
+
+Reason: Rust forbids an inherent `impl` on a foreign type, and the name of the trait states which type it extends. Method resolution picks an inherent method before a trait method of the same name, so a method call never reaches the trait method, and the compiler gives no warning.
 
 ## 6. Type-Driven Design
 
@@ -900,7 +905,7 @@ Reason: the workspace denies `unsafe_code` and no crate opts out, so the check r
 
 **TEST-9.** Do not write tests that restate constants or mirror the implementation, and use property tests for conversions that round-trip, with their regression files in version control. Reason: a test that restates the implementation passes whatever the code does, and a property test that shrinks its failures finds inputs that the author did not think of. [S-10] [IR-13]
 
-**TEST-10.** Give each crate exactly one integration-test binary, `tests/<suite>/main.rs`, with the tests in sibling module files and the shared helpers in a module declared in `main.rs` as `#[cfg(test)] mod common;`, and put no other Rust file directly in `tests/`.
+**TEST-10.** Give each crate exactly one integration-test binary, `tests/<suite>/main.rs`, with the tests in sibling module files and the shared helpers in a module declared in `main.rs` as `#[cfg(test)] mod common;`, and put no other Rust file directly in `tests/`. A test support crate under TEST-15 has no integration-test binary, because the tests of the crates that use it exercise its code, and its own unit tests check its arithmetic on known values and that its assertions fail when they should.
 
 Reason: each Rust file directly in `tests/` is a separate test binary, so a helper module shared by several of them is dead code in each binary that does not use a given helper. `dead_code` then fires in that binary, while an `#[expect(dead_code)]` is unfulfilled in the binary that uses the helper, so no lint exception passes the check.
 
@@ -917,6 +922,10 @@ Reason: the last bits of a transcendental function differ between platform libra
 **TEST-14.** Compare a golden image, a committed PNG file that a test renders again, by its decoded pixels and not by the bytes of the file, within an allowance of a largest difference per pixel and a number of pixels that may differ. Set the number of pixels from a measurement that a test repeats and asserts. On a failure, write the actual image and an image of the differences to a directory under the build output, and change the committed files only through the recipe that regenerates them.
 
 Reason: the bytes of a PNG file depend on the encoder and its compression settings, so a byte comparison fails on an image that is pixel for pixel the same. A platform mathematics library can move a sample across a border, so an exact comparison fails on a correct renderer, while a guessed pixel count either fails on it or hides a defect. The written images let a developer see what changed, and a single recipe keeps a test from rewriting its own expected result during an ordinary run.
+
+**TEST-15.** Put test helpers that several crates share in one unpublished workspace crate that the others use only as a dev-dependency, that depends on no crate under test, and that the coverage report leaves out. Keep in each crate the helpers that only it uses.
+
+Reason: a helper copied into several test suites lets a fix reach one copy and miss the others. A dev-dependency keeps the helpers out of every build that users get. A helper that depends on no crate under test cannot share a defect with that code, which TEST-13 requires of a reference implementation. Its lines run only through the tests of other crates, so in the report they would measure those tests rather than the product code.
 
 ## 12. Dependencies and Cargo Features
 
@@ -1077,6 +1086,7 @@ The identifiers FFI-1 to FFI-11, SYS-1 to SYS-8, and COM-1 to COM-13 are reserve
 | API-14 | Results are returned as values, not through out-parameters. |
 | API-15 | `Deref` only on smart pointers. |
 | API-16 | `Drop` never fails or blocks, with explicit `close` and wait methods. |
+| API-17 | Methods on a type of another crate come from a crate-private `<Type>Ext` trait, never `Deref`, and never under the name of an existing method. |
 | TYPE-1 | Validation happens once, in the constructor of a newtype with a private field. |
 | TYPE-2 | Enums replace meaningful `bool` values and option strings. |
 | TYPE-3 | Interdependent fields are one enum, bounded values use bounded types, derived data is not stored. |
@@ -1122,11 +1132,12 @@ The identifiers FFI-1 to FFI-11, SYS-1 to SYS-8, and COM-1 to COM-13 are reserve
 | TEST-7 | A crate that opts out of the denial of `unsafe_code` adds a tool check of its unsafe code, such as Miri, in the same change. |
 | TEST-8 | Withdrawn on 2026-11-15. |
 | TEST-9 | No tests that restate the implementation, and property tests for round trips. |
-| TEST-10 | One integration-test binary per crate, `tests/<suite>/main.rs`, with sibling modules and a `#[cfg(test)] mod common;`. |
+| TEST-10 | One integration-test binary per crate, `tests/<suite>/main.rs`, with sibling modules and a `#[cfg(test)] mod common;`, and none in a test support crate. |
 | TEST-11 | Withdrawn on 2026-11-22. |
 | TEST-12 | A snapshot of program output holds the status and each stream after a fixed marker line, and ends with a final marker line. |
 | TEST-13 | Floating-point results are compared with a tolerance that follows their scale, never bit for bit except where IEEE 754 makes two values equal, and checked against an independent high-precision implementation. Each tolerance is at least 8 times the largest error over a stated deterministic input set, the test prints the measurement, and the design document states only the tolerances of a contract. |
 | TEST-14 | Golden images are compared by decoded pixels within an allowance whose pixel count comes from a measurement that a test repeats and asserts. A failure writes the actual and difference images, and only the recipe changes the committed files. |
+| TEST-15 | Test helpers shared by several crates live in one unpublished crate, used only as a dev-dependency, independent of every crate under test, and left out of the coverage report. |
 | DEP-1 | Cargo features are additive and named after what they enable. |
 | DEP-2 | Dependencies are few, preferably standard, and declared once in the workspace, except another version requirement on a member. |
 | DEP-3 | A crate that exposes a dependency below 1.0 stays below 1.0, and a breaking upgrade of a public dependency is a breaking release. |

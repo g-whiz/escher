@@ -276,7 +276,8 @@ mod tests {
     use super::{Colour, CosetFill, decode, decode_unit, encode, encode_unit};
     use crate::ErrorKind;
     use crate::golden_images::{colouring, colourings_of, domain_with_aspect};
-    use crate::reference::{Reference, Worst, int, mul, num, sub};
+    use crate::reference::ReferenceExt;
+    use escher_reference::{Reference, Worst, error, int, mul, num, sub};
 
     fn rejection(domain: &FundamentalDomain, colouring: &Colouring, count: u8) -> String {
         let colours = (0..count)
@@ -440,15 +441,11 @@ mod tests {
         for byte in 0..=u8::MAX {
             let exact = reference.srgb_decode(byte);
             let input = || format!("byte {byte}");
-            decoding.record(
-                &crate::reference::error(decode(byte), &exact),
-                &int(1),
-                input,
-            );
+            decoding.record(&error(decode(byte), &exact), &int(1), input);
             let stored = num(decode(byte));
             let exact_encoded = reference.srgb_encode(&stored);
             encoding.record(
-                &crate::reference::error(encode_unit(decode(byte)), &exact_encoded),
+                &error(encode_unit(decode(byte)), &exact_encoded),
                 &int(1),
                 input,
             );
@@ -480,18 +477,14 @@ mod tests {
         for step in 0..=STEPS {
             let encoded = between(0.03928, 0.04045, step);
             let exact = reference.srgb_decode_unit(&num(encoded));
-            decoding.record(
-                &crate::reference::error(decode_unit(encoded), &exact),
-                &int(1),
-                || format!("encoded value {encoded}"),
-            );
+            decoding.record(&error(decode_unit(encoded), &exact), &int(1), || {
+                format!("encoded value {encoded}")
+            });
             let linear = between(0.00304, 0.003_130_8, step);
             let exact = reference.srgb_encode(&num(linear));
-            encoding.record(
-                &crate::reference::error(encode_unit(linear), &exact),
-                &int(1),
-                || format!("linear value {linear}"),
-            );
+            encoding.record(&error(encode_unit(linear), &exact), &int(1), || {
+                format!("linear value {linear}")
+            });
         }
         decoding.assert_at_most(&mut reference, 4.0e-15);
         encoding.assert_at_most(&mut reference, 2.0e-15);

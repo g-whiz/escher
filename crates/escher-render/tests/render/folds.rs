@@ -22,7 +22,10 @@ use crate::golden_images::{
     POLYGON_DOMAINS, WALLPAPER_DOMAINS, colourings_of, domain_with_aspect, domain_with_settings,
     renderer,
 };
-use crate::reference::{self, Reference, Worst, count_bound, num, vector};
+use crate::reference::{self, ReferenceExt, count_bound};
+use escher_reference::{
+    Matrix, Reference, Vector, Worst, apply, int, matrix, normalize, num, vector,
+};
 
 const DECISION_COUNTS: [usize; 6] = [0, 0, 0, 0, 0, 4];
 
@@ -62,7 +65,7 @@ fn exact_fold_and_replay(
     walls: &[reference::Wall],
     point: DVec3,
     sides: &[usize],
-) -> (reference::ExactFold, reference::Vector) {
+) -> (reference::ExactFold, Vector) {
     let exact = reference::fold(walls, point.to_array(), DEFAULT_CAP);
     let replayed = if exact.sides == sides {
         exact.point.clone()
@@ -98,8 +101,11 @@ fn fold_replay_stays_within_the_bound_of_each_band_and_triple() {
                 describe(&sample)
             );
             let replayed = reference::replay(&walls, sample.point.to_array(), &sides);
-            let distance = reference.distance(&vector(result.point().to_array()), &replayed);
-            worst[sample.band].record(&distance, &reference::int(1), || describe(&sample));
+            let distance = reference.distance(
+                &normalize(&vector(result.point().to_array())),
+                &normalize(&replayed),
+            );
+            worst[sample.band].record(&distance, &int(1), || describe(&sample));
         }
         for (worst, bound) in worst.iter().zip(bounds) {
             worst.assert_at_most(&mut reference, bound);
@@ -308,8 +314,7 @@ fn euclidean_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
             *largest = (*largest).max(result.steps());
             let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let distance = reference::plane_distance(&vector(result.point().to_array()), &replayed);
-            worst[sample.distance]
-                .record(&distance, &reference::int(1), || describe_plane(&sample));
+            worst[sample.distance].record(&distance, &int(1), || describe_plane(&sample));
             assert!(
                 exact.converged,
                 "the exact fold of {} does not converge",
@@ -394,7 +399,7 @@ fn spherical_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
             largest = largest.max(result.steps());
             let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let angle = reference.angle(&vector(result.point().to_array()), &replayed);
-            worst.record(&angle, &reference::int(1), || describe_sphere(sample));
+            worst.record(&angle, &int(1), || describe_sphere(sample));
             assert!(
                 exact.converged,
                 "the exact fold of {} does not converge",
@@ -425,22 +430,22 @@ fn spherical_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
 
 struct GroupElement {
     approximate: DMat3,
-    exact: reference::Matrix,
+    exact: Matrix,
     depth: u32,
 }
 
 fn enumerate_group(domain: &escher_domain::FundamentalDomain, order: u64) -> Vec<GroupElement> {
-    let generators: Vec<(DMat3, reference::Matrix)> = domain
+    let generators: Vec<(DMat3, Matrix)> = domain
         .sides()
         .iter()
         .map(|side| {
             let pairing = side.pairing();
-            (pairing, reference::matrix(pairing.to_cols_array()))
+            (pairing, matrix(pairing.to_cols_array()))
         })
         .collect();
     let mut elements = vec![GroupElement {
         approximate: DMat3::IDENTITY,
-        exact: reference::matrix(DMat3::IDENTITY.to_cols_array()),
+        exact: matrix(DMat3::IDENTITY.to_cols_array()),
         depth: 0,
     }];
     let mut next = 0;
@@ -452,7 +457,7 @@ fn enumerate_group(domain: &escher_domain::FundamentalDomain, order: u64) -> Vec
                 .iter()
                 .any(|known| known.approximate.abs_diff_eq(product, 1e-9))
             {
-                let exact = reference::product(&elements[next].exact, exact);
+                let exact = escher_reference::product(&elements[next].exact, exact);
                 elements.push(GroupElement {
                     approximate: product,
                     exact,
@@ -514,7 +519,7 @@ fn images_of_the_centre_under_the_group_fold_back_in_as_many_steps_as_their_dept
         let exact_centre = vector(centre.to_array());
         for element in &elements {
             let depth = element.depth;
-            let exact_image = reference::apply(&element.exact, &exact_centre);
+            let exact_image = apply(&element.exact, &exact_centre);
             let image =
                 DVec3::from_array([0, 1, 2].map(|row| reference.approximate(&exact_image[row])));
             let result = fold(&domain, image, DEFAULT_CAP, |_| {});
@@ -819,7 +824,7 @@ fn assert_rotation_replay(cases: &[RotationCase]) {
                 &vector(result.point().to_array()),
                 &replayed,
             );
-            worst[sample.group].record(&distance, &reference::int(1), || sample.name.clone());
+            worst[sample.group].record(&distance, &int(1), || sample.name.clone());
             if !exact.converged || exact.sides != sides {
                 println!(
                     "{}: the side sequence differs from the exact fold, which converged {}",
@@ -882,7 +887,7 @@ fn assert_double_oracle(cases: &[RotationCase]) {
     let mut reference = Reference::new();
     for case in cases {
         let reflection_walls = reference_walls(&case.reflection);
-        let covectors: Vec<reference::Vector> = case
+        let covectors: Vec<Vector> = case
             .reflection
             .sides()
             .iter()
@@ -915,7 +920,7 @@ fn assert_double_oracle(cases: &[RotationCase]) {
             let target = if reflected.reversals().is_multiple_of(2) {
                 folded
             } else {
-                reference::apply(doubled, &folded)
+                apply(doubled, &folded)
             };
             let rotated = fold(&case.domain, sample.point, DEFAULT_CAP, |_| {});
             let agrees = rotated.converged()
@@ -1105,7 +1110,7 @@ fn images_of_the_centre_under_a_rotation_group_fold_back_in_at_least_as_many_ste
         let mut most_steps = 0;
         for element in &elements {
             let depth = element.depth;
-            let exact_image = reference::apply(&element.exact, &exact_centre);
+            let exact_image = apply(&element.exact, &exact_centre);
             let image =
                 DVec3::from_array([0, 1, 2].map(|row| reference.approximate(&exact_image[row])));
             let result = fold(&domain, image, DEFAULT_CAP, |_| {});
@@ -1214,8 +1219,11 @@ fn assert_polygon_replay(domains: core::ops::Range<usize>) {
             *total += u64::from(result.steps());
             *largest = (*largest).max(result.steps());
             let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
-            let distance = reference.distance(&vector(result.point().to_array()), &replayed);
-            worst[sample.band].record(&distance, &reference::int(1), || describe_polygon(&sample));
+            let distance = reference.distance(
+                &normalize(&vector(result.point().to_array())),
+                &normalize(&replayed),
+            );
+            worst[sample.band].record(&distance, &int(1), || describe_polygon(&sample));
             if !exact.converged || exact.sides != sides {
                 let first = sides
                     .iter()
@@ -1330,9 +1338,7 @@ fn wallpaper_fold_replay_and_decisions_stay_within_their_bounds_and_converge_wit
             *largest = (*largest).max(result.steps());
             let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let distance = reference::plane_distance(&vector(result.point().to_array()), &replayed);
-            worst[sample.distance].record(&distance, &reference::int(1), || {
-                describe_wallpaper(&sample)
-            });
+            worst[sample.distance].record(&distance, &int(1), || describe_wallpaper(&sample));
             if !exact.converged || exact.sides != sides {
                 let first = sides
                     .iter()
@@ -1426,7 +1432,7 @@ fn spherical_group_fold_replay_and_decisions_stay_within_their_bounds_and_conver
             largest = largest.max(result.steps());
             let (exact, replayed) = exact_fold_and_replay(&walls, sample.point, &sides);
             let angle = reference.angle(&vector(result.point().to_array()), &replayed);
-            worst.record(&angle, &reference::int(1), || describe_group_sample(sample));
+            worst.record(&angle, &int(1), || describe_group_sample(sample));
             assert!(
                 exact.converged,
                 "the exact fold of {} does not converge",
@@ -1572,7 +1578,7 @@ fn sides_on_one_wall_give_the_same_colour_parity_and_folded_point() {
                         &vector(one.point().to_array()),
                         &vector(other.point().to_array()),
                     );
-                    worst.record(&distance, &reference::int(1), || {
+                    worst.record(&distance, &int(1), || {
                         format!("offset {offset:e}, step {step} of {SHARED_WALL_POINTS}")
                     });
                 }
@@ -1650,7 +1656,7 @@ fn images_of_the_centre_under_a_spherical_group_fold_back_near_the_centre() {
         let mut largest = (0.0_f64, 0_u32);
         let mut most_steps = 0;
         for element in &elements {
-            let exact_image = reference::apply(&element.exact, &exact_centre);
+            let exact_image = apply(&element.exact, &exact_centre);
             let image =
                 DVec3::from_array([0, 1, 2].map(|row| reference.approximate(&exact_image[row])));
             let result = fold(&domain, image, DEFAULT_CAP, |_| {});

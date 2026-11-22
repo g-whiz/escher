@@ -94,7 +94,7 @@ The recipe `update-golden` is the one exception. It MUST run the command of `tes
 
 An agent that has to change the command MUST change Section 4.8 in the same change. Two command lines for one check diverge, and an agent that runs the documented command then gets a result different from the recipe's.
 
-The commands of Section 4.8 that run Clippy, build the documentation, run the doctests, run the tests, and measure coverage pass `--workspace` and `--all-features`, so each of these checks covers every member and the code of every Cargo feature. Only the recipe `update-golden` narrows one of these commands, under the exception of TOOL-7. `check-features` builds each combination of features separately, with the feature powerset of cargo hack.
+The commands of Section 4.8 that run Clippy, build the documentation, run the doctests, run the tests, and measure coverage pass `--workspace` and `--all-features`, so each of these checks covers every member and the code of every Cargo feature. The coverage report alone leaves out the test support crate `escher-reference` (TEST-15 of the coding standard). Only the recipe `update-golden` narrows one of these commands, under the exception of TOOL-7. `check-features` builds each combination of features separately, with the feature powerset of cargo hack.
 
 The formatting command of Section 4.8 ends with the list of every Rust file that git tracks or does not ignore. `fmt` and `check-fmt` compute that list with `git ls-files`, and it is part of the command, not an addition.
 

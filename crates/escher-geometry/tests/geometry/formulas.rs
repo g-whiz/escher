@@ -11,9 +11,10 @@ use crate::common::{
     SphereDomain, SphereFactor, Triangle, pair, point_off_wall, polar_point, table_points,
     table_vectors, tangent_basis, wall_normal,
 };
-use crate::reference::{
-    Reference, Vector, Worst, add, difference, div, epsilon, error, int, max, mul, num, scale,
-    sqrt, sub, vector,
+use crate::reference::epsilon;
+use escher_reference::{
+    Reference, Vector, Worst, add, difference, div, dot, error, form as exact_form, int, max, mul,
+    num, scale, sqrt, sub, vector,
 };
 
 const DISTANCE_SEPARATED_MINIMUM: usize = 8_000;
@@ -54,15 +55,9 @@ fn terms_bound(x: &Vector, y: &Vector) -> BigFloat {
 fn check_form(worst: &mut Worst, x: DVec3, y: DVec3) {
     let (rx, ry) = (big(x), big(y));
     let scale = mul(&epsilon(), &terms_bound(&rx, &ry));
-    worst.record(
-        &error(form(x, y), &form_reference(&rx, &ry)),
-        &scale,
-        || format!("{x:?} {y:?}"),
-    );
-}
-
-fn form_reference(x: &Vector, y: &Vector) -> BigFloat {
-    crate::reference::form(x, y)
+    worst.record(&error(form(x, y), &exact_form(&rx, &ry)), &scale, || {
+        format!("{x:?} {y:?}")
+    });
 }
 
 fn check_side(worst: &mut Worst, normal: DVec3, x: DVec3) {
@@ -82,7 +77,7 @@ fn check_side(worst: &mut Worst, normal: DVec3, x: DVec3) {
 fn form_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
     let table = table_vectors();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "form, scaled by eps * sum |x_i y_i|",
         table.len() * table.len() + CASES,
     );
@@ -103,7 +98,7 @@ fn form_is_within_its_bound_of_the_reference() {
 #[test]
 fn side_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut triangles = Worst::new(
+    let mut triangles = Worst::of_the_scale(
         "side on the domain triangles, scaled by eps * sum |c_i x_i|",
         DOMAIN_TRIPLES.len() * 12,
     );
@@ -116,7 +111,7 @@ fn side_is_within_its_bound_of_the_reference() {
         }
     }
     triangles.assert_at_most(&mut reference, 8.0);
-    let mut random = Worst::new(
+    let mut random = Worst::of_the_scale(
         "side on random walls and points, scaled by eps * sum |c_i x_i|",
         CASES,
     );
@@ -130,7 +125,7 @@ fn side_is_within_its_bound_of_the_reference() {
 
 fn check_normalize(worst: &mut Worst, x: DVec3) {
     let rx = big(x);
-    let q = form_reference(&rx, &rx).neg();
+    let q = exact_form(&rx, &rx).neg();
     assert!(
         q.is_positive() && !q.is_zero(),
         "the exact form of {x:?} is not negative"
@@ -149,7 +144,7 @@ fn check_normalize(worst: &mut Worst, x: DVec3) {
 #[test]
 fn normalize_point_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "normalize_point, scaled by eps * kappa * y3",
         6 * REFERENCE_CASES,
     );
@@ -177,8 +172,11 @@ struct DistanceWorst {
 impl DistanceWorst {
     fn new(pairs: usize, separated: usize) -> Self {
         Self {
-            square_root: Worst::new("distance, scaled by sqrt(eps * x3 y3)", pairs),
-            with_result: Worst::new("distance, scaled by eps * (x3 y3 / sinh d + d)", separated),
+            square_root: Worst::of_the_scale("distance, scaled by sqrt(eps * x3 y3)", pairs),
+            with_result: Worst::of_the_scale(
+                "distance, scaled by eps * (x3 y3 / sinh d + d)",
+                separated,
+            ),
         }
     }
 
@@ -232,7 +230,7 @@ fn distance_of_two_points_is_within_its_bound_of_the_reference() {
 #[test]
 fn distance_of_a_point_to_itself_is_at_least_zero_and_within_its_bound() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("distance(x, x), scaled by sqrt(eps) * x3", CASES);
+    let mut worst = Worst::of_the_scale("distance(x, x), scaled by sqrt(eps) * x3", CASES);
     let mut check = |x: DVec3| {
         let computed = distance(x, x);
         assert!(computed >= 0.0, "distance({x:?}, {x:?}) is {computed}");
@@ -262,8 +260,8 @@ impl WallWorst {
         most_degenerate: usize,
     ) -> Self {
         Self {
-            orthogonality: Worst::new(name, 2 * measured),
-            norm: Worst::new(norm, measured),
+            orthogonality: Worst::of_the_scale(name, 2 * measured),
+            norm: Worst::of_the_scale(norm, measured),
             degenerate: 0,
             most_degenerate,
         }
@@ -283,11 +281,11 @@ impl WallWorst {
         let input = || format!("{first:?} {second:?}");
         let orthogonality_scale = mul(&mul(&epsilon(), &k), &max(&ra[2], &rb[2]));
         for point in [&ra, &rb] {
-            let value = crate::reference::form(&ru, point).abs();
+            let value = exact_form(&ru, point).abs();
             self.orthogonality
                 .record(&value, &orthogonality_scale, input);
         }
-        let norm = sub(&crate::reference::form(&ru, &ru), &int(1)).abs();
+        let norm = sub(&exact_form(&ru, &ru), &int(1)).abs();
         self.norm.record(&norm, &mul(&epsilon(), &k), input);
     }
 
@@ -351,7 +349,7 @@ fn relative_error(value: f64, exact: &BigFloat) -> (BigFloat, BigFloat) {
 #[test]
 fn boost_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "boost entries, relative to eps * |cosh l| or |sinh l|",
         4 * REFERENCE_CASES,
     );
@@ -394,7 +392,7 @@ fn boost_entries_are_within_their_bound_of_the_reference() {
 #[test]
 fn rotation_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("rotation entries, absolute", 4 * REFERENCE_CASES);
+    let mut worst = Worst::of_the_scale("rotation entries, absolute", 4 * REFERENCE_CASES);
     let mut rng = Rng::new(9);
     let edges = [0.0, 1000.0, -1000.0, core::f64::consts::PI, 1e-300];
     let random: Vec<f64> = (0..REFERENCE_CASES)
@@ -438,11 +436,11 @@ fn record_terms(worst: &mut Worst, computed: DVec3, terms: &[[BigFloat; 2]; 3], 
 #[test]
 fn boost_and_rotation_of_a_point_match_the_componentwise_maps() {
     let mut reference = Reference::new();
-    let mut boosts = Worst::new(
+    let mut boosts = Worst::of_the_scale(
         "boost(l) * x against the componentwise map, scaled by eps * s",
         3 * REFERENCE_CASES,
     );
-    let mut rotations = Worst::new(
+    let mut rotations = Worst::of_the_scale(
         "rotation(angle) * x against the componentwise map, scaled by eps * s",
         3 * REFERENCE_CASES,
     );
@@ -503,7 +501,7 @@ fn check_translation(reference: &mut Reference, worst: &mut Worst, target: DVec3
 #[test]
 fn translation_maps_the_origin_to_its_target_within_its_bound() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "translation(t) * ORIGIN, scaled by eps * (1 + r) * p3",
         3 * REFERENCE_CASES,
     );
@@ -584,7 +582,7 @@ fn translation_radius(rng: &mut Rng, index: usize, largest: f64) -> f64 {
 #[test]
 fn translation_maps_points_off_the_axis_as_its_composition_does() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "translation(t) * p against its composition, scaled by eps * (1 + r) * cosh(rho) * p3",
         3 * REFERENCE_CASES,
     );
@@ -613,7 +611,7 @@ fn translation_maps_points_off_the_axis_as_its_composition_does() {
 #[test]
 fn translation_is_an_isometry_within_the_bound_of_longer_boosts() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "isometry_defect of translation, scaled by eps * cosh(rho)^2",
         CASES,
     );
@@ -633,7 +631,7 @@ fn translation_is_an_isometry_within_the_bound_of_longer_boosts() {
 #[test]
 fn inverse_of_translation_maps_its_target_to_the_origin() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "inverse(translation(t)) * t against ORIGIN, scaled by eps * (1 + r) * t3^2",
         3 * CASES,
     );
@@ -654,7 +652,7 @@ fn inverse_of_translation_maps_its_target_to_the_origin() {
 
 fn reflection_reference(u: &Vector, x: &Vector) -> (Vector, Vector) {
     let c = [u[0].clone(), u[1].clone(), u[2].neg()];
-    let twice = mul(&int(2), &crate::reference::form(u, x));
+    let twice = mul(&int(2), &exact_form(u, x));
     let image = difference(x, &scale(&twice, u));
     let sum = add(
         &add(&mul(&c[0], &x[0]).abs(), &mul(&c[1], &x[1]).abs()),
@@ -694,8 +692,8 @@ fn check_reflected_normal(worst: &mut Worst, normal: DVec3) {
 #[test]
 fn reflection_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
-    let mut points = Worst::new("reflection(u) * x, scaled by eps * sigma_i", 3 * CASES);
-    let mut normals = Worst::new(
+    let mut points = Worst::of_the_scale("reflection(u) * x, scaled by eps * sigma_i", 3 * CASES);
+    let mut normals = Worst::of_the_scale(
         "reflection(u) * u against -u, scaled by eps |u_i| (1 + 2 sum u_j^2)",
         3 * CASES,
     );
@@ -730,7 +728,7 @@ fn check_to_disk(worst: &mut Worst, x: DVec3) {
 #[test]
 fn to_disk_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("to_disk, relative to eps * |reference|", 2 * CASES);
+    let mut worst = Worst::of_the_scale("to_disk, relative to eps * |reference|", 2 * CASES);
     check_to_disk(&mut worst, ORIGIN);
     check_to_disk(&mut worst, polar_point(38.0, 0.3));
     let mut rng = Rng::new(13);
@@ -767,7 +765,7 @@ fn check_from_disk(worst: &mut Worst, z: DVec2) {
 #[test]
 fn from_disk_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("from_disk, relative to eps / (1 - |z|^2)", 3 * CASES);
+    let mut worst = Worst::of_the_scale("from_disk, relative to eps / (1 - |z|^2)", 3 * CASES);
     check_from_disk(&mut worst, DVec2::ZERO);
     check_from_disk(&mut worst, DVec2::new(1.0 - 1e-12, 0.0));
     check_from_disk(&mut worst, DVec2::new(1.0 - 1e-9, 0.0));
@@ -781,8 +779,10 @@ fn from_disk_is_within_its_bound_of_the_reference() {
 #[test]
 fn disk_round_trips_are_within_their_bounds() {
     let mut reference = Reference::new();
-    let mut from_then_to = Worst::new("from_disk then to_disk, absolute in eps", 2 * (CASES + 2));
-    let mut to_then_from = Worst::new("to_disk then from_disk, scaled by eps * x3^2", 3 * CASES);
+    let mut from_then_to =
+        Worst::of_the_scale("from_disk then to_disk, absolute in eps", 2 * (CASES + 2));
+    let mut to_then_from =
+        Worst::of_the_scale("to_disk then from_disk, scaled by eps * x3^2", 3 * CASES);
     let mut rng = Rng::new(15);
     let mut check_position = |z: DVec2| {
         let Some(back) = from_disk(z).map(to_disk) else {
@@ -829,8 +829,8 @@ fn domain_triangle_inputs_are_within_the_bounds_of_each_row() {
         sides,
         0,
     );
-    let mut translations = Worst::new("translation on the domain triangles", sides);
-    let mut reflections = Worst::new("reflection on the domain triangles", 3 * 4 * sides);
+    let mut translations = Worst::of_the_scale("translation on the domain triangles", sides);
+    let mut reflections = Worst::of_the_scale("reflection on the domain triangles", 3 * 4 * sides);
     for orders in DOMAIN_TRIPLES {
         let triangle = Triangle::of(orders);
         check_translation(&mut reference, &mut translations, triangle.target);
@@ -854,7 +854,8 @@ fn domain_triangle_inputs_are_within_the_bounds_of_each_row() {
 #[test]
 fn to_disk_radius_at_distances_37_and_38_point_2_is_near_its_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("to_disk radius at distance 37 and 38.2, absolute in eps", 2);
+    let mut worst =
+        Worst::of_the_scale("to_disk radius at distance 37 and 38.2, absolute in eps", 2);
     for distance in [37.0_f64, 38.2] {
         let point = DVec3::new(distance.sinh(), 0.0, distance.cosh());
         let radius = to_disk(point).length();
@@ -862,34 +863,6 @@ fn to_disk_radius_at_distances_37_and_38_point_2_is_near_its_reference() {
         worst.record(&error(radius, &exact), &epsilon(), || format!("{distance}"));
     }
     worst.assert_at_most(&mut reference, 4.0);
-}
-
-#[test]
-fn reference_arithmetic_reproduces_known_values() {
-    let mut reference = Reference::new();
-    let tolerance = reference.parse("1e-70");
-    let pi = reference.pi();
-    let literal = reference.parse(
-        "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899",
-    );
-    let third = div(&pi, &int(3));
-    let root = sqrt(&int(2));
-    let inner = reference.acosh(&int(2));
-    let checks = [
-        ("pi", sub(&pi, &literal)),
-        (
-            "cos(pi / 3)",
-            sub(&reference.cos(&third), &div(&int(1), &int(2))),
-        ),
-        ("cosh(acosh(2))", sub(&reference.cosh(&inner), &int(2))),
-        ("sqrt(2)^2", sub(&mul(&root, &root), &int(2))),
-    ];
-    for (name, difference) in checks {
-        let size = difference.abs();
-        let shown = reference.approximate(&size);
-        println!("{name}: error {shown:e}");
-        assert!(size <= tolerance, "{name}: error {shown:e}");
-    }
 }
 
 fn euclidean_reflection_reference(c: &Vector, x: &Vector) -> (Vector, Vector) {
@@ -915,21 +888,14 @@ fn plane_length(x: &Vector) -> BigFloat {
     sqrt(&add(&mul(&x[0], &x[0]), &mul(&x[1], &x[1])))
 }
 
-fn line_value(c: &Vector, x: &Vector) -> BigFloat {
-    add(
-        &add(&mul(&c[0], &x[0]), &mul(&c[1], &x[1])),
-        &mul(&c[2], &x[2]),
-    )
-}
-
 #[test]
 fn euclidean_reflection_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
-    let mut points = Worst::new(
+    let mut points = Worst::of_the_scale(
         "euclidean reflection(c) * x, scaled by eps * sigma_i",
         3 * CASES,
     );
-    let mut defects = Worst::new(
+    let mut defects = Worst::of_the_scale(
         "euclidean isometry_defect(reflection(c)), scaled by eps",
         CASES,
     );
@@ -954,15 +920,15 @@ fn euclidean_reflection_is_within_its_bounds_of_the_reference() {
 #[test]
 fn euclidean_wall_through_and_distance_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
-    let mut orthogonality = Worst::new(
+    let mut orthogonality = Worst::of_the_scale(
         "euclidean wall_through, |c . p| and |c . q|, scaled by eps * (1 + |p| + |q| + |p| |q| / |p - q|)",
         2 * REFERENCE_CASES,
     );
-    let mut norm = Worst::new(
+    let mut norm = Worst::of_the_scale(
         "euclidean wall_through, |c_1^2 + c_2^2 - 1|, scaled by eps",
         REFERENCE_CASES,
     );
-    let mut distances = Worst::new(
+    let mut distances = Worst::of_the_scale(
         "euclidean distance, relative error, scaled by eps",
         REFERENCE_CASES,
     );
@@ -984,8 +950,8 @@ fn euclidean_wall_through_and_distance_are_within_their_bounds_of_the_reference(
             panic!("no line through {first:?} {second:?}");
         };
         let rc = big(line);
-        orthogonality.record(&line_value(&rc, &rp).abs(), &scale, input);
-        orthogonality.record(&line_value(&rc, &rq).abs(), &scale, input);
+        orthogonality.record(&dot(&rc, &rp).abs(), &scale, input);
+        orthogonality.record(&dot(&rc, &rq).abs(), &scale, input);
         let squares = add(&mul(&rc[0], &rc[0]), &mul(&rc[1], &rc[1]));
         norm.record(&sub(&squares, &int(1)).abs(), &epsilon(), input);
         distances.record(
@@ -997,13 +963,6 @@ fn euclidean_wall_through_and_distance_are_within_their_bounds_of_the_reference(
     orthogonality.assert_at_most(&mut reference, EUCLIDEAN_ORTHOGONALITY_TOLERANCE);
     norm.assert_at_most(&mut reference, EUCLIDEAN_NORM_TOLERANCE);
     distances.assert_at_most(&mut reference, EUCLIDEAN_DISTANCE_TOLERANCE);
-}
-
-fn dot(x: &Vector, y: &Vector) -> BigFloat {
-    add(
-        &add(&mul(&x[0], &y[0]), &mul(&x[1], &y[1])),
-        &mul(&x[2], &y[2]),
-    )
 }
 
 fn unit(x: &Vector) -> Vector {
@@ -1024,7 +983,7 @@ fn record_vector(worst: &mut Worst, computed: DVec3, exact: &Vector, input: &dyn
 #[test]
 fn spherical_side_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("spherical side, scaled by eps * sum |u_i x_i|", CASES);
+    let mut worst = Worst::of_the_scale("spherical side, scaled by eps * sum |u_i x_i|", CASES);
     let mut check = |normal: DVec3, point: DVec3, name: &str| {
         let (ru, rx) = (big(normal), big(point));
         let scale = mul(&epsilon(), &terms_bound(&ru, &rx));
@@ -1051,7 +1010,7 @@ fn spherical_side_is_within_its_bound_of_the_reference() {
 #[test]
 fn spherical_normalize_point_is_within_its_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "spherical normalize_point, each coordinate, scaled by eps",
         3 * CASES,
     );
@@ -1080,12 +1039,13 @@ fn spherical_normalize_point_is_within_its_bound_of_the_reference() {
 #[test]
 fn spherical_distance_and_wall_through_are_within_their_bounds_of_the_reference() {
     let mut reference = Reference::new();
-    let mut distances = Worst::new("spherical distance, scaled by eps / sin d", REFERENCE_CASES);
-    let mut orthogonality = Worst::new(
+    let mut distances =
+        Worst::of_the_scale("spherical distance, scaled by eps / sin d", REFERENCE_CASES);
+    let mut orthogonality = Worst::of_the_scale(
         "spherical wall_through, |u . a| and |u . b|, scaled by eps / sin d",
         2 * REFERENCE_CASES,
     );
-    let mut norm = Worst::new(
+    let mut norm = Worst::of_the_scale(
         "spherical wall_through, |u . u - 1|, scaled by eps",
         REFERENCE_CASES,
     );
@@ -1118,7 +1078,7 @@ fn spherical_distance_and_wall_through_are_within_their_bounds_of_the_reference(
 #[test]
 fn spherical_distance_of_a_point_to_itself_is_at_least_zero_and_within_its_bound() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("spherical distance(x, x), scaled by sqrt(eps)", CASES);
+    let mut worst = Worst::of_the_scale("spherical distance(x, x), scaled by sqrt(eps)", CASES);
     let mut rng = Rng::new(33);
     let points: Vec<DVec3> = (0..CASES).map(|_| rng.sphere_point()).collect();
     for point in core::iter::once(spherical::ORIGIN).chain(points) {
@@ -1132,7 +1092,7 @@ fn spherical_distance_of_a_point_to_itself_is_at_least_zero_and_within_its_bound
 #[test]
 fn spherical_boost_entries_are_within_their_bound_of_the_reference() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new("spherical boost entries, absolute", 4 * REFERENCE_CASES);
+    let mut worst = Worst::of_the_scale("spherical boost entries, absolute", 4 * REFERENCE_CASES);
     let mut rng = Rng::new(34);
     let edges = [0.0, 1000.0, -1000.0, core::f64::consts::PI, 1e-300];
     let random: Vec<f64> = (0..REFERENCE_CASES)
@@ -1196,15 +1156,15 @@ fn sphere_translation_composition(target: &Vector, x: &Vector) -> Vector {
 #[test]
 fn spherical_translation_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
-    let mut images = Worst::new(
+    let mut images = Worst::of_the_scale(
         "spherical translation(t) * ORIGIN, each coordinate, scaled by eps",
         3 * REFERENCE_CASES,
     );
-    let mut composed = Worst::new(
+    let mut composed = Worst::of_the_scale(
         "spherical translation(t) * x, each coordinate, scaled by eps",
         3 * REFERENCE_CASES,
     );
-    let mut defects = Worst::new(
+    let mut defects = Worst::of_the_scale(
         "spherical isometry_defect(translation(t)), scaled by eps",
         REFERENCE_CASES,
     );
@@ -1243,11 +1203,11 @@ fn spherical_translation_is_within_its_bounds_of_the_reference() {
 #[test]
 fn spherical_reflection_is_within_its_bounds_of_the_reference() {
     let mut reference = Reference::new();
-    let mut points = Worst::new(
+    let mut points = Worst::of_the_scale(
         "spherical reflection(u) * x, scaled by eps * sigma_i",
         3 * CASES,
     );
-    let mut defects = Worst::new(
+    let mut defects = Worst::of_the_scale(
         "spherical isometry_defect(reflection(u)), scaled by eps",
         CASES,
     );
@@ -1285,7 +1245,7 @@ fn spherical_reflection_is_within_its_bounds_of_the_reference() {
 #[test]
 fn spherical_isometry_defect_of_products_is_within_its_bound() {
     let mut reference = Reference::new();
-    let mut worst = Worst::new(
+    let mut worst = Worst::of_the_scale(
         "spherical isometry_defect of a product, scaled by eps",
         CASES,
     );

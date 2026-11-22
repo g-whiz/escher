@@ -693,7 +693,7 @@ The tests form these layers:
 | Property tests and sweeps | Deterministic sweeps of 100,000 cases, and `proptest` on 256 cases, of relations that hold in exact arithmetic: a reflection is an involution, fixes the points of its wall, and has a small `isometry_defect`, a product of isometries preserves `form` and `distance`, `distance(ORIGIN, boost(l) * ORIGIN)` is $\lvert l \rvert$, `distance` agrees with the disk formula of [RAT], Theorem 4.5.1, both disk round trips return their input, the product of the reflections in two walls at the angle $\pi/n$ raised to the power $n$ is the identity, and swapping the arguments of each `wall_through` negates its result exactly. Below the separation floors of Sections 8.4 and 8.6, and beyond distance 15 for `normalize_point`, the tests assert only a finite result or the error | A formula that holds on the reference inputs but breaks a law elsewhere in its range |
 | Exact cases | Unit tests of the values that IEEE 754 arithmetic gives exactly: dyadic reflections, copies, negations, the identity from `spherical::translation` of `spherical::ORIGIN` and of every zero vector, the transpose, `rotation` of each module equal bit for bit to `hyperbolic::rotation`, and the last row of `euclidean::reflection`. Further unit tests assert `isometry_defect` within $10^{-12}$ of its value on six matrices that each break one of its equations | A wrong sign, a wrong constant, and a special case that rounds |
 | Failure paths and any input | `NotAPoint` and `DegenerateWall` for every input that Sections 5.1, 5.3 to 5.5, and 8.1 name, including underflow and overflow, the results of Section 8.1 for non-finite input, the rows of the table of Section 7.3, and the error texts of Section 9.2. A property test passes any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value to every function and asserts no panic and the invariants of GEO-2, GEO-20, GEO-21, and GEO-23 to GEO-26 | A missing check, a panic, and a changed text |
-| Other tests | A compile-time assertion that `Error` and `ErrorKind` are `Send`, `Sync`, and `'static`, the doctests, and a self-check of the reference arithmetic: $\pi$ against a literal with 80 digits after the decimal point, $\cos(\pi/3) = 1/2$, $\cosh(\operatorname{arcosh} 2) = 2$, and $\sqrt{2}^2 = 2$, each to $10^{-70}$ | A wrong auto trait, a stale example, and a wrong precision or rounding argument of the reference |
+| Other tests | A compile-time assertion that `Error` and `ErrorKind` are `Send`, `Sync`, and `'static`, and the doctests | A wrong auto trait and a stale example |
 
 Each reference test and sweep that asserts a bound prints its largest error, in the form of the bound, with its margin and the input that gave it. The test harness captures that output for a test that passes. The tests of `docs/design/domain.md` check its triangles themselves.
 
@@ -701,13 +701,11 @@ A unit test asserts that `euclidean::isometry_defect` exceeds $10^{-9}$, the tol
 
 The property tests commit their regression files (TEST-9 of the coding standard). They run with the default configuration of `proptest`.
 
-The self-check of the reference arithmetic does not test correct rounding, which Section 12 treats under `UNV-25`.
-
 GEO-17. Withdrawn on 2026-11-19.
 
 ### 10.2. Reference Arithmetic
 
-The reference arithmetic uses the crate `astro-float-num`, the number crate of the astro-float project (Section 11).
+The reference arithmetic uses the crate `astro-float-num`, the number crate of the astro-float project (Section 11). The tests take the shared core, including the reference distance, from the test support crate `escher-reference` (Section 7.1 of the architecture). The module `reference` in `tests/geometry/reference.rs` adds only $\varepsilon$.
 
 GEO-15. The module `reference` MUST implement each formula componentwise from the reference, in the high-precision type, and MUST call no function of this crate and none of `glam`, because the reference arithmetic is an independent implementation (Section 7.1 of the architecture), and shared code would share a transcription error with the code under test.
 
@@ -716,7 +714,7 @@ These rules apply to the module:
 - Precision: 256 bits, with the rounding mode `RoundingMode::ToEven`. The largest amplification of an error in the tests of this crate is that of $\operatorname{arcosh}$ near 1 for points $10^{-8}$ apart, about $10^{8}$, and of $1 / (1 - \lvert z \rvert^2)$ at radius $1 - 10^{-12}$, about $5 \times 10^{11}$, which leaves more than 60 correct digits.
 - Points are arrays of three numbers of the high-precision type.
 - Comparison: `astro-float-num` has no public conversion from its number type `BigFloat` to `f64`, while `BigFloat::from_f64` is public and `BigFloat` implements `PartialEq` and `PartialOrd`. A test therefore converts each `f64` result of the crate into the high-precision type, which is exact, computes the difference there, and compares it with the tolerance with `PartialOrd`. A test that prints a measured error formats the number with `format`.
-- Constants and functions: `Consts` provides $\pi$, and the number type provides `add`, `sub`, `mul`, `div`, `sqrt`, `cos`, `sin`, `cosh`, `sinh`, `acosh`, `asinh`, and `acos`, each with a precision and a rounding mode. The tests of the module `spherical` use `acos` for the reference distance. `BigFloat::parse` reads the decimal literals of the self-check. The module converts each `f64` input with `BigFloat::from_f64`, which is exact, and imports nothing from this crate or from `glam`.
+- Inputs and functions: `num` converts each `f64` input with `BigFloat::from_f64`, which is exact, and the tests of the module `spherical` use `acos` for the reference distance. The module imports nothing from this crate or from `glam`.
 
 ### 10.3. Tolerances
 
@@ -744,6 +742,7 @@ The crate declares these dependencies, each from one entry in the `[workspace.de
 | `thiserror` | Normal | As the workspace, default features | Derives `Display` and `std::error::Error`, in the pattern of `escher-signature` |
 | `proptest` | Dev | As the workspace | The property tests (Section 7.1 of the architecture) |
 | `astro-float-num` | Dev | `0.3.7`, a caret requirement, `default-features = false`, with `std` only | The reference arithmetic of `DEC-3` (Section 10.2). Its default features are `std`, `random`, and `serde`, and this crate turns off `random` and `serde` |
+| `escher-reference` | Dev | As the workspace | The shared core of the reference arithmetic (Section 10.2) |
 
 The crate sets `publish = false` (`DEC-22`), inherits the workspace fields and lints, and declares no Cargo feature.
 
@@ -763,7 +762,7 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | --- | --- | --- | --- |
 | `UNV-26` | The normal through two points with the time coordinate last, $w = J(a \times b)$ with $J = \operatorname{diag}(1, 1, -1)$, where [RAT] states the Lorentzian cross product with the time coordinate first (Section 7.4 of the reference). Also the Euclidean reflection of [RAT] (4.1.1) as the matrix of `euclidean::reflection` on the plane $x_3 = 1$ | 5.3, 6.6 | Uses the formula of the normal only to compute a candidate, checks that its form is positive and finite, and normalizes it. The tests check the three properties of Section 5.3 on the result, which are what callers rely on. They compare the Euclidean reflection applied to points with (4.1.1) in the reference arithmetic, and check that it is an involution that fixes the points of its line. The second part of `UNV-26`, the relation between normals and the corner angle, is not used by this crate |
 | None | The line through two points as a normalized cross product, item 24 of Section 15.1 of the reference | 5.4 | Uses the formula only to compute a candidate. The tests check the three properties of Section 5.4 on the result |
-| `UNV-25` | Correct rounding of the reference-arithmetic crate, in tests only | 10.2 | Works at 256 bits against tolerances of a few multiples of $\varepsilon$ at the tightest, so a wrong last bit of the reference cannot change a verdict. The self-check of Section 10.1 checks the precision and rounding arguments. A comparison of six values with the MPFR library 4.2.2 at 200 bits, called through its C interface, agreed exactly to more than 60 significant digits, and item 2 of Section 13.3 asks the owner whether it closes `UNV-25` |
+| `UNV-25` | Correct rounding of the reference-arithmetic crate, in tests only | 10.2 | Works at 256 bits against tolerances of a few multiples of $\varepsilon$ at the tightest, so a wrong last bit of the reference cannot change a verdict. The self-check of `escher-reference` (Section 7.1 of the architecture) checks the precision and rounding arguments. A comparison of six values with the MPFR library 4.2.2 at 200 bits, called through its C interface, agreed exactly to more than 60 significant digits, and item 2 of Section 13.3 asks the owner whether it closes `UNV-25` |
 | `UNV-4` | The precision of the disk map near the limit circle | 7.3, 8.4 | States the loss of `from_disk` and the distance beyond which the radius of `to_disk` is within rounding of 1 (Section 7.3), and tests both against the reference arithmetic at radius up to $1 - 10^{-12}$. The effect on an image is measured by the renderer |
 
 `UNV-28` does not apply. No test of this crate uses SymmHub's triangle as an oracle.

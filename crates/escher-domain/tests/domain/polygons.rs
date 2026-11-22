@@ -11,11 +11,11 @@ use proptest::sample::select;
 use proptest::strategy::Strategy;
 
 use crate::common::{big, largest_coordinate_error, signature};
-use crate::reference::{
-    Cuts, FeatureKind, Reference, ReflectionPolygon, Worst, add, div, error, form, int,
-    largest_magnitude, mul, num, sub, vector,
-};
+use crate::reference::{Cuts, FeatureKind, ReferenceExt, ReflectionPolygon};
 use crate::shared::{NAMED_POLYGONS, corner_orders, small_polygons};
+use escher_reference::{
+    Reference, Vector, Worst, add, div, error, form, int, largest_magnitude, mul, num, sub, vector,
+};
 
 const VERTEX_BOUND: f64 = 4e-15;
 
@@ -615,10 +615,7 @@ fn polygons_are_within_their_bounds_of_the_reference() {
     assert!(built > 900, "{built}");
 }
 
-fn slice_walls(
-    vertices: &[crate::reference::Vector],
-    side: usize,
-) -> [&crate::reference::Vector; 2] {
+fn slice_walls(vertices: &[Vector], side: usize) -> [&Vector; 2] {
     let count = vertices.len();
     [&vertices[(side + count - 1) % count], &vertices[side]]
 }
@@ -788,7 +785,7 @@ fn default_shape_of(reference: &mut Reference, polygon: &Signature, record: &mut
 pub(crate) fn exact_defaults(
     reference: &mut Reference,
     orders: &[u32],
-    vertices: &[crate::reference::Vector],
+    vertices: &[Vector],
 ) -> Vec<BigFloat> {
     let cuts = Cuts::of(orders);
     let mut exact = vec![int(0); cuts.pairs + cuts.slice_walls.len()];
