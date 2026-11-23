@@ -28,7 +28,7 @@ Options:
           With --arrangement, write the mask of the polygon of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732, to the --output file itself
 
       --arrangement <ID>
-          With --wythoff on a regular tiling, put one picture on every polygon, turned or mirrored as the arrangement with this id says, such as 12a, which the command info --wythoff lists. --colours then gives one colour or one image:FILE painted over the mask that render-masks writes for the same arrangement
+          With --wythoff on a regular tiling, border each edge of the mask to show how it meets its neighbour in the arrangement with this id, such as 12a, which the command info --wythoff lists
 
       --set <NAME=VALUE>
           Set a shape parameter, as NAME=VALUE, such as aspect=1.5.

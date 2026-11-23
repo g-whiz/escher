@@ -8,8 +8,9 @@ usage: readme-images
 Builds escher in release mode, then runs each escher render and escher
 render-masks command that the README shows, with the options it shows, inside
 docs/images/, so that each image there is the file that its command writes.
-It then removes the masks that the README does not show, which the render
-with image fills has read.
+Two of the renders read masks that it wrote as image fills, one the polygon
+masks and one the face mask. It then removes the masks that the README does
+not show.
 EOF
 }
 

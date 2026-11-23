@@ -16,11 +16,13 @@ const FILL_DISPLAY_ORDER: usize = 3;
 
 const SET_DISPLAY_ORDER: usize = 15;
 
-const WYTHOFF_HELP: &str = "Draw the Wythoff construction of a reflection triangle instead of its tiles, as three digits, one for each corner of the signature in the order that info prints, where 1 turns on the mirror opposite that corner, such as 010 for the regular tiling {7,3} of *732. --colours then gives one colour for each face type, in the order of the corners";
+const WYTHOFF_HELP: &str = "Draw the Wythoff construction of a reflection triangle instead of its tiles, as three digits, one for each corner of the signature in the order that info prints, where 1 turns on the mirror opposite that corner, such as 010 for the regular tiling {7,3} of *732. --colours then gives one colour for each face type, in the order of the corners that have a face";
 
 const MASKS_WYTHOFF_HELP: &str = "With --arrangement, write the mask of the polygon of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732, to the --output file itself";
 
 const ARRANGEMENT_HELP: &str = "With --wythoff on a regular tiling, put one picture on every polygon, turned or mirrored as the arrangement with this id says, such as 12a, which the command info --wythoff lists. --colours then gives one colour or one image:FILE painted over the mask that render-masks writes for the same arrangement";
+
+const MASKS_ARRANGEMENT_HELP: &str = "With --wythoff on a regular tiling, border each edge of the mask to show how it meets its neighbour in the arrangement with this id, such as 12a, which the command info --wythoff lists";
 
 const SET_HELP: &str = "Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature";
 
@@ -110,7 +112,8 @@ pub(crate) enum Command {
     Render(Box<RenderArgs>),
     #[command(
         about = "Write one PNG mask for each colour of a colouring: the tile as a flat polygon in white, over which to paint the image fill of that colour for render, with each edge bordered in the same colour as every edge that it can meet in the tiling",
-        mut_arg("wythoff", |arg| arg.help(MASKS_WYTHOFF_HELP))
+        mut_arg("wythoff", |arg| arg.help(MASKS_WYTHOFF_HELP)),
+        mut_arg("arrangement", |arg| arg.help(MASKS_ARRANGEMENT_HELP))
     )]
     RenderMasks(Box<MasksArgs>),
 }

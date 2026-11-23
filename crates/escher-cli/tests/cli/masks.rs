@@ -431,6 +431,32 @@ fn render_masks_refuses_a_face_mask_with_the_diagnostic_of_render_and_changes_no
             &["*632", "--wythoff", "010"],
             "error: cannot render the masks of *632: --wythoff needs --arrangement\n",
         ),
+        (
+            "masks_face_size",
+            &[
+                "*632",
+                "--wythoff",
+                "010",
+                "--arrangement",
+                "12a",
+                "--size",
+                "0x16",
+            ],
+            "error: cannot render the masks of *632\n  caused by: cannot build render options: the image size 0x16 is empty\n",
+        ),
+        (
+            "masks_face_set",
+            &[
+                "*632",
+                "--wythoff",
+                "010",
+                "--arrangement",
+                "12a",
+                "--set",
+                "aspect=2",
+            ],
+            "error: cannot render the masks of *632: the signature has no shape parameter aspect, nor any other\n",
+        ),
     ] {
         assert_eq!(
             failure_with_no_file_change("render-masks", test, args),
