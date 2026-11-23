@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-22 |
+| Date | 2026-11-23 |
 | Applies to | The choice of the polygons that the Escher renderer colours, and the computation of their colours and of the available numbers of colours |
 
 ## Abstract
@@ -89,7 +89,13 @@ This section is non-normative. The document uses no requirement key words, so it
 - Schreier generator: A generator of a subgroup formed from a coset representative, a generator of the group, and the representative of their product (Section 7.18).
 - representative set: The set of polygons, one from each class of polygons that the Escher renderer colours alike, whose size the first deliverable reports to the user as the available number of colours. This is a project term, and no source defines it.
 - face orbit: The set of the images of one face of a tiling under its symmetry group.
-- Wythoff construction: The construction of a uniform tiling from a reflection triangle and a generator point inside the triangle or on its boundary (Section 10) [WP-WYTHOFF-SYMBOL].
+- Wythoff construction: The construction of a polyhedron or tiling whose vertices are the images of one point of a reflection triangle under the group that the reflections in its sides generate (Section 10.1) [CLM1954, p. 406] [HAREL1993, p. 6].
+- generator point: The point of the fundamental triangle whose images under the group are the vertices of a Wythoff tiling (Section 10.1). [CLM1954] and [HAREL1993] call it C, and Har'El calls it the point object [HAREL1993, p. 6]. Martelli calls it the seed point [MARTELLI2026, Section 5.3].
+- active mirror: A mirror of the fundamental triangle that does not contain the generator point. Its node is the one that [CBGS2008, p. 389] rings (Sections 10.1 and 10.2).
+- Wythoff symbol: One of the symbols `p | q r`, `p q | r`, `p q r |`, and `| p q r`, each of which fixes the position of the generator point in the triangle with the angles $\pi/p$, $\pi/q$, and $\pi/r$ (Section 10.1) [CLM1954, pp. 406-408].
+- ringed node: A node of a Coxeter-Dynkin diagram that is circled because the generator point does not lie on its mirror (Section 10.2) [CBGS2008, p. 389] [SCHULTE2016, Section 3.2]. Martelli says encircled [MARTELLI2026, Section 5.3].
+- vertex configuration: The cyclic list of the numbers of sides of the faces at a vertex, in the order in which they occur around it [HAREL1993, p. 2]. [CLM1954] gives the same list as the labels of the sides of a vertex figure (p. 404).
+- Coxeter-Wythoff subdiagram: A subdiagram of a ringed diagram in which each connected component contains at least one ringed node (Section 10.2) [MARTELLI2026, Proposition 38].
 - isohedral tiling type: One of the 93 classes of tilings whose symmetry group acts transitively on the tiles, in the classification of Grunbaum and Shephard (Section 9.1) [KAPLAN2025].
 - Delaney-Dress symbol: The combinatorial description of a periodic tiling that Section 9.2 defines [TEGULA2020, Section 4] [BALKE1996, Section 3, p. 95].
 - colour type: The class of a colouring in the classification of Conway, Burgiel, and Goodman-Strauss, determined by a homomorphism from the symmetry group to a group of permutations of the colours (Section 3.3) [CBGS2008, pp. 136 and 154].
@@ -106,12 +112,16 @@ This section is non-normative. The document uses no requirement key words, so it
 - The word curvature: Balke and Huson prove that the curvature of a Delaney-Dress symbol is twice the orbifold Euler characteristic [BALKE1996, Theorem 4.1, p. 97]. The quantity that [EPINET-ORB] calls curvature is stated for a signature, and its relation to that curvature is open (Section 9.2).
 - Coset tables: the sources differ on the numbering of cosets, the storage of the columns, the standard form, and the meanings of HLT and of a deduction. Section 7.21 lists the differences.
 - Tiling symbols: Frettloh writes `(p^q)` for the regular tiling by $p$-gons with $q$ at each vertex, following Grunbaum and Shephard [FRETTLOH2008, p. 2]. So `(7^3)` is the heptagonal tiling.
+- The order of the numbers in a Wythoff symbol: [CLM1954] states that the order on each side of the bar does not matter (Section 10.1). Its tables and those of [HAREL1993] print the 2 first after the bar, as in `3 | 2 5`, and its general statements print it in either place, as in `q | p 2` (p. 406) and `p | 2 q` (p. 413). This document writes a general symbol as [CLM1954] states it and quotes a table row as printed.
+- The order of a vertex configuration: the lists that [HAREL1993] prints in its formulas and in its tables differ for some forms, such as `(p.2r.q.2r)` on p. 8 and `(6. 6. 3)` for `2 3|3` on p. 15, and the paper does not comment. [CLM1954] gives the order in a drawing of the vertex figure (p. 434). This document quotes each list in the order of its source.
 
 ### 2.4. Spelling of Names and Symbols
 
 Names with accented letters are written in ASCII transliteration: Frettloh, Grunbaum, De Las Penas, Gorner, Dobcsanyi, Neubuser, Schlafli, Poincare, and Mobius. Orbifold signatures, Schlafli symbols, vertex configurations, tiling symbols, and Wythoff symbols are written as code spans, such as `*642`, `{7,3}`, `3.3.p.3.q`, `(7^3)`, and `p | q r`.
 
-Quoted text keeps the spelling of its source, and its mathematical symbols are written in ASCII, such as "in" for the element sign. Where a source title or a web address contains a spelling that the prose checker rejects, it is written as a code span.
+[CLM1954] prints the symbol of a quasi-regular polyhedron with $p$ above $q$ inside braces. This document writes it `{p;q}`, as in `r{3;4}` and `s{3;5}`. [CBGS2008] writes angle brackets and a centred dot in its archifold symbols, written here as `<` and `>` and as `.`, as in `<0>*p^q` and `[0][1][2].(2p,2q,4)`.
+
+Quoted text keeps the spelling of its source, and its mathematical symbols are written in ASCII, such as "in" for the element sign and "pi" for the Greek letter. Where a source title or a web address contains a spelling that the prose checker rejects, it is written as a code span.
 
 ## 3. Colourings and Colour Symmetry
 
@@ -1091,55 +1101,261 @@ Kolbe and Evans extend Delaney-Dress symbols to isotopy classes [KOLBE-EVANS] (s
 
 ## 10. Design (c): The Wythoff Construction
 
-Every source in this section except Sections 10.6 and 10.7 is secondary. The primary sources were not read (Section 14.3).
+This section draws on four kinds of source, and Section 10.7 gives the grade of each part:
+
+- Primary texts read directly: Coxeter, Longuet-Higgins, and Miller [CLM1954], read in full from a scan as page images, Har'El [HAREL1993], read in full from a typescript through its text layer, and Chapters 19 to 21 and pp. 389-390 of Conway, Burgiel, and Goodman-Strauss [CBGS2008], read as page images. Section 14.3 lists the parts of each that were read.
+- Primary texts read through a summarizing tool: Coxeter's "Regular Polytopes" [COXETER1973], through the OCR text layer of a scan, and the arXiv preprints [SCHULTE2016], [MARTELLI2026], [WHITEHEAD2020], [MONSON2011], [DDS2004], and [DATTA2018].
+- Source code: pywonderland [ZHAO-HELPERS] [ZHAO-TILING], mattz's spherical shader [MATTZ-WYTHOFF] and hyperbolic shader [ZUCKER], and knighty's Fragmentarium shader [KNIGHTY-FRAG].
+- Secondary sources: Wikipedia, the Polytope Wiki, Egan's notes, and Freire's site. This section cites one only to corroborate a primary source, or where no primary source was read, and says so each time.
+
+[CLM1954] and [HAREL1993] state the construction for spherical triangles. [CLM1954] extends its notation to the Euclidean plane (Section 10.3), and neither paper mentions the hyperbolic plane. [CBGS2008] states the Wythoff triangle for the group `*2pq` without naming a geometry (Section 10.1). A statement below that rests on [CLM1954] or [HAREL1993] therefore holds on the sphere, and in the Euclidean plane only where Section 10.3 says so. Its use for a hyperbolic triangle is open (Section 14.1, item 10).
+
+The quotations of [CLM1954] and [CBGS2008] were transcribed by eye from page images, so a slip of one character is possible, and [CLM1954] prints its fractions in small print. The quotations of [HAREL1993] come from a text layer extracted by a script, which rebuilt the Greek letters from their font codes and the stacked fractions from the positions of their glyphs. The quotations from web sources and from the code of [ZUCKER] passed through a summarizing fetch tool that limits a quotation to about 125 characters, and nobody checked them character by character. An implementer checks a quotation against its source before relying on its exact wording.
 
 ### 10.1. Generator Position and Wythoff Symbol
 
-In a Wythoff symbol, "The p, q, r values are listed before the bar if the corresponding mirror is active" [WP-WYTHOFF-SYMBOL, Description]. The position of the bar places the generator point [WP-WYTHOFF-SYMBOL, Description]:
+[CLM1954] builds the construction on the spherical triangle `(p q r)`, "whose angles are pi/p, pi/q, pi/r" [CLM1954, p. 405], and ascribes it to Wythoff, "because it was he who first successfully exploited it (in four dimensions)" [CLM1954, p. 406]. Har'El places "a point object C in the Schwarz triangle PQR", which "is now reflected repeatedly to produce a polyhedron, whose vertices are the images of the point object" [HAREL1993, p. 6].
 
-- `p | q r`: "the generator lies on the corner p".
-- `p q | r`: the generator lies "on the edge between p and q".
-- `p q r |`: the generator lies "in the interior".
-- `| p q r`: the snub, where "odd-numbered reflected images are ignored".
+Both papers attach the same position of the generator point to each Wythoff symbol:
 
-"This point must be chosen at equal distance from all edges that it does not lie on" [WP-WYTHOFF-SYMBOL, Description].
+| Symbol | Position of the generator point | [CLM1954] | [HAREL1993] |
+| --- | --- | --- | --- |
+| `p \| q r` | The vertex $P$, where the angle is $\pi/p$ | "the images of one vertex, say the vertex P of the triangle PQR", p. 406 | "C is at the vertex P of PQR", pp. 7-8 |
+| `p q \| r` | The point where the bisector of the angle at $R$ meets the side $PQ$ | "the initial point C must be chosen on the bisector of the angle pi/r at R", with C on the side PQ, p. 407 | "C is at the intersection of the side PQ with bisector of the opposite angle R", p. 8 |
+| `p q r \|` | The incentre | "the initial point must be precisely the in-centre of the triangles", p. 407 | "C is at the incenter of PQR", p. 8 |
+| `\| p q r` | A point in each triangle of one colour, for the snub (Section 10.4) | p. 408 | pp. 8-9 |
+
+[CLM1954] gives the reason for the bisector and the incentre: "In order that these two edges may have the same length" and "In order that these three edges may all have the same length" [CLM1954, p. 407]. Neither paper states in words what the bar means [CLM1954, pp. 406-408] [HAREL1993, pp. 7-9].
+
+The order of the numbers on each side of the bar does not matter in [CLM1954]: "p | q r, which is, of course, the same as p | r q" (p. 406), "p q | r or q p | r" (p. 407), "the numbers p, q, r may be freely permuted" for `p q r |` (p. 407), and "with free permutation again" for `| p q r` (p. 408). [HAREL1993] does not discuss the order. [CLM1954] adds a condition for `p | q r` with rational angles: the sides $PQ$ and $PR$ are "both <= 1/2 pi, so that P is a vertex of faces {q} and {r} whose centres are Q and R (rather than the antipodes of those points)" [CLM1954, p. 413]. It extends the four symbols from triangles with integer $p$, $q$, and $r$ to the Schwarz triangles with rational ones (p. 410). This document uses integers only.
+
+[CBGS2008] states the construction for the group `*2pq` and names no geometry. The orbifold of `*2pq` "is of course a triangle", and the book labels its corners 2, p, and "qs", which looks like a misprint for q [CBGS2008, p. 289]. "Metrically, the triangle has vertex angles pi/2, pi/p, and pi/q, determining its geometry", and "Topologically, there are just seven distinct classes of points on this orbifold: the three vertices, a point on one of the three edges, and an interior point. In each case, there is a canonical representative that is the vertex of an equilateral tiling by regular polygons" [CBGS2008, p. 290]. The book shows which class gives which tiling only in Figure 21.2 (p. 290) and the figure on p. 291, and states no metric rule for the representative. In general, "The vertices of the typical polytope produced from a Coxeter diagram by Wythoff's construction are just the images of a suitably chosen point" [CBGS2008, p. 389].
+
+The preprints define the generator point by its distances to the mirrors. Whitehead chooses "the unique point of unit length that lies on every mirror of S, and is of equal non-zero distance from every mirror not in S" [WHITEHEAD2020, Section 3]. In the compact case, Martelli takes as seed point "the well positioned point in the face that is the intersection of the facets corresponding to the unencircled nodes", which "is thus equidistant from the facets corresponding to the encircled nodes" [MARTELLI2026, Section 5.3]. His Proposition 31 ties this choice to uniformity: "A tessellation obtained from the Wythoff construction is uniform if and only if the seed p is well positioned" [MARTELLI2026, Proposition 31]. For an ideal vertex he writes "In the ideal case, we set p=v", with one encircled node only [MARTELLI2026, Sections 5.3 to 5.5].
+
+Deza, Dutour, and Shpectorov take "a point v in S such that v in H_i if and only if i not in T", with no condition of equal distance [DDS2004, Section 3]. Wikipedia, a secondary source, states that "the one where the generator point is on all the mirrors is impossible" [WP-WYTHOFF-SYMBOL]. No primary source read states that case. [CBGS2008] lists seven classes of point and no class on all three mirrors (p. 290).
+
+That such a point exists and is unique is stated without proof. Martelli states, as Exercise 30, "Every face f of P contains a unique point p that is equidistant from all the facets of P not containing f", and the text gives no proof [MARTELLI2026, Section 5.3]. On the sphere, [CLM1954] and [HAREL1993] fix the point by the bisector and the incentre instead. That these are Martelli's points of equal distance is the research's reading, and Section 14.1, item 30, records it.
+
+The edges join the generator point to its mirror images. For `p | q r`, "The vertex P is joined by an edge to its image by reflexion in the opposite side QR, and the other edges meeting at P are derived from this one by the mirrors PQ and PR" [CLM1954, p. 406]. For `p q | r`, "This vertex C of the new polyhedron is joined by edges to its images by reflexion in the sides PR and QR" (p. 407). For `p q r |`, "This point is joined by edges of the polyhedron to its images by reflexion in the three sides of the triangle" (p. 407). Har'El states the rule for edges and faces together: "two vertices are considered adjacent if they belong to triangles which share an edge, and several vertices are incident to the same face if they belong to triangles which share a vertex" [HAREL1993, p. 6]. Coxeter and Whitehead state the edge rule for any dimension [COXETER1973, Section 11.6, pp. 196-198] [WHITEHEAD2020, Section 5].
+
+For the sphere, both papers state the faces of each symbol and the corners at which they are centred:
+
+| Symbol | Faces and their centres in [CLM1954] | Vertex configuration in [HAREL1993], pp. 7-9 |
+| --- | --- | --- |
+| `p \| q r` | "a face {q} with centre Q, and a face {r} with centre R", if $q$ and $r$ exceed 2 (p. 406). "each vertex of p \| q r is surrounded by {q}'s and {r}'s, arranged alternately, the number of each being the numerator of the rational number p" (p. 413) | "(q.r.q.r. ... .q.r) (2n terms)", where $p = n/d$, with the face centres $A_1$ and $A_2$ at $Q$ and $R$ |
+| `p q \| r` | "a face {2r} with centre R. There is also a face {p} with centre P if p>2, and a face {q} with centre Q if q>2" (p. 407). At a vertex, "{p}, {2r}, {q}, {2r}" (p. 414) | "(p.2r.q.2r)", with the face centres at $Q$, $R$, and $P$ |
+| `p q r \|` | "a {2p} with centre P, a {2q} with centre Q, and a {2r} with centre R" (p. 407) | "(2p.2q.2r)", with these centres (p. 9) |
+| `\| p q r` | "the faces are {p}'s, {q}'s and {r}'s, each entirely surrounded by triangles" (p. 408) | "(3.p.3.q.3.r)", with "a {p}, a {q} and a {r} with centers at P, Q and R" and three snub triangles |
+
+Neither paper names a face with its centre at $P$ for `p | q r`, where the generator point lies. A face at a corner with a right angle is a digon and drops out. For `p | q 2`, "the 'face' with centre R is a mere digon, which collapses to form an edge" [CLM1954, p. 406], and in Har'El's words, "in all the cases, the occurrence of alpha = pi/2 implies that the corresponding tile is a {2}, i.e., a digon, and may be discarded" [HAREL1993, p. 9]. In each face equation of [HAREL1993], $\alpha_i$ is the angle at the centre $A_i$ of a fundamental right triangle, with $n_i \alpha_i = \pi$ for an $n_i$-gon (p. 2).
+
+The printed formulas and the table rows of [HAREL1993] differ in the order of their lists for some forms, and Section 2.3 states the order this document follows.
 
 ### 10.2. Ring Diagrams
 
-In a Coxeter-Dynkin diagram, "A node is circled if the generator point is not on the mirror", and "A mirror is active (creates reflections) only with respect to points not on it" [WP-COXETER-DYNKIN, "Application to uniform polytopes"]. "There are 7 reflective uniform constructions within a general triangle", and "Uniform polytopes with one ring correspond to generator points at the corners" [WP-COXETER-DYNKIN]. "A truncated alternation is called a snub" [WP-COXETER-DYNKIN].
+[CBGS2008] defines the diagram and the ring. "The Coxeter diagram for a reflection group has a node for each mirror of the kaleidoscope that outlines its fundamental region. If a pair of mirrors meets at angle pi/n, n >= 4, the corresponding nodes are connected by a line marked n", and the book omits the mark for $n = 3$ and the line for $n = 2$. The suitably chosen point of Section 10.1 "is sufficiently well indicated by ringing just those nodes corresponding to mirrors not containing the point" [CBGS2008, p. 389]. The caption of Figure 21.2 says that the Wythoff-Coxeter symbol under each triangle "indicates on which sides of the kaleidoscope the point lies" [CBGS2008, p. 290].
+
+Coxeter introduces the ring for one node: "By drawing a ring around one of the nodes, we obtain a convenient symbol for the tessellation or polyhedron ... whose vertices are all the transforms of the corresponding vertex of the fundamental region" [COXETER1973, Section 5.7, p. 86]. He adds that "the graphs for the polyhedra and honeycombs automatically contain the graphs for the various faces and cells" [COXETER1973, Section 5.7, p. 86]. Section 5.7 names `{p,q}` and `{q,p}` by ringed graphs, but the OCR text layer garbles the graphs, so which ringed node gives which tiling could not be read there. Section 10.3 takes the symbols of both tilings from [CLM1954] instead.
+
+Section 11.6 of [COXETER1973] states the rules for one ring:
+
+- "the removal of an unringed node from the symbol for a polytope or honeycomb leaves the symbol for an element" (p. 197).
+- "there is a cell for each free end, i.e., for each unringed node that belongs to only one branch" (p. 197).
+- "the symbol for a vertex is derived by removing the ringed node" (p. 198).
+
+Coxeter calls rings on several nodes the general case: "The general case ..., where the typical vertex of the polytope may have other positions in the fundamental region, is symbolized by ringing any number of nodes" [COXETER1973, historical remarks of Chapter XI].
+
+For Schulte and Williams, a primary source, a node is ringed exactly when the generator point lies off its mirror: "a node of the diagram for P^I is ringed if and only if its label belongs to I", where the base vertex $v$ satisfies "rho_i(v) != v for i in I and rho_i(v) = v for i not in I" [SCHULTE2016, Section 3.2]. The stabilizer of $v$ is $\langle r_i \mid i \notin I \rangle$ [SCHULTE2016, Section 4.2].
+
+Neither [CLM1954] nor [HAREL1993] uses a diagram. This table, the research's combination of the positions of Section 10.1 with the ring rule of [CBGS2008, p. 389], gives the rings of each Wythoff symbol:
+
+| Symbol | Mirrors that contain the generator point | Ringed nodes |
+| --- | --- | --- |
+| `p \| q r` | The sides $PQ$ and $PR$ through the vertex $P$ | The node of $QR$ only |
+| `p q \| r` | The side $PQ$ | The nodes of $PR$ and $QR$ |
+| `p q r \|` | None | All three |
+
+The Polytope Wiki states the first row in a secondary source: "a | b c has a single ringed node, the node opposite the a edge" [POLYTOPE-WIKI].
+
+Two preprints read the faces off subdiagrams. Martelli states that "The encircled nodes determine a seed point p in P", and that the $h$-faces of the tessellation, up to the group, "are in natural bijection with the Coxeter-Wythoff subdiagrams of D with h nodes", a subdiagram $D'$ in which "each connected component of D' contains at least one encircled node" [MARTELLI2026, Proposition 38]. The fetch tool paraphrased the wording after Proposition 38, so that quotation is not exact. Whitehead marks a mirror that contains the point with a cross, not a ring, and states that "(n-k)-faces are obtained by deleting k vertices from a {0,1}-decorated Coxeter diagram", and that "to be non-degenerate it must be the case that each connected component does not have decoration identically zero" [WHITEHEAD2020, Sections 3 and 5, Theorem 9]. He credits the rule to Champagne, Kjiri, Patera, and Sharp [CKPS1995], which was not read. Monson and Schulte state the case of one ring: the stabilizer of a face has "a connected 'active' part, which has j nodes including the ringed node" [MONSON2011, Section 3].
+
+For two mirrors at the angle $\pi/q$, Har'El states the polygon for each position of the point. "when the point object is located on one of the mirrors, we get regular n-gon, with density d, customarily denoted by {n/d}, i. e., {q}", and when the denominator $d$ is odd and the point lies on the bisector, "it traces a single regular 2n-gon with density d, i.e., a single {2q}" [HAREL1993, p. 6]. For integer $q$, $d = 1$. Freire's site states the same rule for two ringed nodes in a secondary source [FREIRE], and Whitehead adds that "In two dimensions, the uniform polygons are exactly the regular polygons" [WHITEHEAD2020, Section 5].
+
+M23 of `docs/design/poc-plan.md` needs a face rule at each corner of the triangle. The sources state the faces symbol by symbol, and this table, the research's tabulation, restates the faces of Section 10.1 by the mirrors through each corner:
+
+| Mirrors through a corner with the angle $\pi/n$ | Face centred at the corner | Where the sources state it |
+| --- | --- | --- |
+| Neither active, so the corner is the generator point | No face is named with this centre | The vertex $P$ of `p \| q r` [CLM1954, pp. 406 and 413] [HAREL1993, pp. 7-8] |
+| Exactly one active | A regular $n$-gon, or a digon that drops out when $n = 2$ | $Q$ and $R$ of `p \| q r`, and $P$ and $Q$ of `p q \| r` [CLM1954, pp. 406-407] [HAREL1993, pp. 7-9] |
+| Both active | A regular $2n$-gon | $R$ of `p q \| r`, and every corner of `p q r \|` [CLM1954, p. 407] [HAREL1993, pp. 8-9] |
+
+[CBGS2008] states the doubling for truncation in general: "truncation means cutting off the corners in such a way that each regular n-gonal face is replaced by a regular 2n-gonal one" [CBGS2008, p. 284]. In Chapter 19 it ties the size of a face to the order of a point of the orbifold in its doily construction, as in "The yellow face has seven edges and so will be a (7a)-gon in the tiling. The purple face has just one edge and so will be a b-gon in the tiling" [CBGS2008, p. 255]. The chapter covers hyperbolic tilings too (Section 10.3), and it calls the doily "a generalization of the Wythoff triangle" (p. 289), but the pages read do not tie its faces to the marks of a Wythoff triangle.
+
+The table holds on the sphere, on the authority of [CLM1954] and [HAREL1993]. No source read states it for a Euclidean or hyperbolic triangle, and Section 14.1, item 10, keeps its use there open.
 
 ### 10.3. Families and Vertex Configurations
 
-"Each symmetry family contains 7 uniform tilings, defined by a Wythoff symbol or Coxeter-Dynkin diagram", and "An 8th represents an alternation operation, deleting alternate vertices from the highest form with all mirrors active" [WP-UNIFORM-HYP].
+[CLM1954] writes "{p, q} for the regular polyhedron, whose face and vertex figure are {p} and {q}", so that "the cube is {4, 3}" [CLM1954, p. 403]. [CBGS2008] defines the Schlafli symbol in the same way, as "the Platonic solid whose faces are regular p-gons and whose vertex figures are regular q-gons" [CBGS2008, p. 269].
 
-This table gives the vertex configurations of the `(p q 2)` family. It comes from a summarized table on the page "Uniform tiling" and is not verbatim [WP-UNIFORM-TILING].
+[CLM1954] relates the two notations. "But if r = 2, as in figure 2, the 'face' with centre R is a mere digon, which collapses to form an edge, and the polyhedron is regular: p | q 2 = {q, p}", and so "{p, q} is q | p 2 (or alternatively if q is even, 1/2 q | p p)" [CLM1954, p. 406]. Its Section 7 repeats this as "p | 2 q = {q, p}" (p. 413). So `{p,q}` is `q | p 2`: the generator point is the corner with the angle $\pi/q$, the faces `{p}` are centred at the corner with the angle $\pi/p$, the right angle gives the digon that collapses, and the node of the side opposite the generator point is the only ring (Section 10.2). The dual of a regular polyhedron has the reversed symbol: "we can read off the symbol of the dual of a polyhedron just by reversing its own symbol" [CBGS2008, p. 273]. The dual of `{p,q}` is therefore `{q,p}`, which [CLM1954] writes `p | q 2`.
 
-| Form | Vertex configuration |
-| --- | --- |
-| Regular | `p^q` |
-| Truncated | `q.2p.2p` |
-| Rectified | `(p.q)^2` |
-| Bitruncated | `p.2q.2q` |
-| Birectified | `q^p` |
-| Cantellated | `p.4.q.4` |
-| Omnitruncated | `4.2p.2q` |
-| Snub, `sr{p,q}` | `3.3.p.3.q` |
+The tables print these symbols with the 2 first after the bar. [HAREL1993] gives `3|2 4` for the cube and `4|2 3` for the octahedron (Table 6, p. 16), and `3|2 5` for the dodecahedron and `5|2 3` for the icosahedron (Table 7, p. 17). [CLM1954] gives `4 | 2 3 = {3, 4}` and `3 | 2 4 = {4, 3}` (Table 7, p. 434). By p. 406 of [CLM1954], the order after the bar does not matter (Section 10.1).
 
-The row for the general `(p q r)` family was inconsistent in the extraction and is omitted. No source read states which faces of each form belong to which face orbit (Section 14.1).
+[CBGS2008] names the group of the Wythoff triangle "a kaleidoscopic group *2pq" (p. 289). Its table of Chapter 19 lists the group `*na2` with the symbol `<0>*(a)^n` and the example "all regular tilings" (p. 259). Neither sentence states that the group of `{p,q}` is `*pq2` in those words.
+
+This table gives the forms of the `(p q 2)` family. The second and third columns are the general statements of [CLM1954] for the sphere. The last two columns come from Figure 21.2 and the figure on p. 291 of [CBGS2008], which shows the forms of the family of the dodecahedron, $p = 5$ and $q = 3$, labelled with the letters $p$ and $q$. The labels were read from the drawings at twice the size, and the rings were counted by eye. The figure pairs each archifold symbol with a polyhedron, and the research joined that polyhedron by name to the [CLM1954] form in the column Form.
+
+| Form | Wythoff symbol in [CLM1954] | Faces in [CLM1954], in their order at a vertex where it is stated | Archifold symbol in [CBGS2008] | Vertex figure in [CBGS2008], p. 291 |
+| --- | --- | --- | --- | --- |
+| `{p,q}` | `q \| p 2` (p. 406) | Faces `{p}` and vertex figure `{q}` (p. 403) | `<0>*p^q` (p. 291) | A triangle with sides labelled p and "(q)" inside |
+| `{q,p}` | `p \| q 2` (p. 406) | Faces `{q}` and vertex figure `{p}` (p. 403) | `<0>*q^p` (Figure 21.2) | Not in the figure |
+| `{p;q}` | `2 \| p q` (p. 406) | `{p}, {q}, {p}, {q}` (p. 410) | `[0]*(pq)^2` (p. 291) | A rectangle p, q, p, q |
+| `t{p,q}` | `2 q \| p` (p. 407) | `{2r}, {q}, {2r}` for `2 q \| r = t{r, q}` (p. 414) | `[0]*(2p,q)` (p. 291) | A triangle 2p, 2p, q |
+| `t{q,p}` | `2 p \| q`, the row above with $p$ and $q$ exchanged | The row above with $p$ and $q$ exchanged | `[0]*(2q,p)` (Figure 21.2) | Not in the figure |
+| `r{p;q}` | `p q \| 2` (p. 407) | `{p}, {4}, {q}, {4}` (p. 415) | `[0][1]*(p,4,q,4)` (p. 291) | A quadrilateral p, 4, q, 4 |
+| `t{p;q}` | `2 p q \|` (p. 407) | `{2q}`, `{4}`, and `{2p}`, in Table 2 (p. 404) | `[0][1][2].(2p,2q,4)` (p. 291) | A triangle 2p, 4, 2q |
+| `s{p;q}` | `\| 2 p q` (p. 408) | `{q}`, `{3}`, and `{p}` for $p, q > 2$, in Table 2 (p. 404) | None, because the snub "does not receive a Wythoff-Coxeter symbol" (p. 290) | A pentagon with the labels 3, p, and q visible |
+
+Wikipedia's table of the family gives the same symbols, with other orders of the numbers and other names for the forms [WP-UNIFORM-LISTS].
+
+These rows of [HAREL1993] are the convex members of the octahedral and icosahedral families on the sphere, with [CLM1954]'s row for each. The tetrahedral family has two convex rows in each table, `3|2 3 (3. 3. 3)` for the tetrahedron and `2 3|3 (6. 6. 3)` for the truncated tetrahedron [HAREL1993, Table 5, p. 15]. [CLM1954] places another symbol of `(3 3 2)` in another family: "3 3 2 | or 2 3 3 | is the truncated octahedron" (p. 419).
+
+| Name in [HAREL1993] | Symbol and vertex configuration in [HAREL1993] | Row of Table 7 of [CLM1954], p. 434 |
+| --- | --- | --- |
+| octahedron | `4\|2 3 (3. 3. 3. 3)` | `4 \| 2 3 = {3, 4}` |
+| cube | `3\|2 4 (4. 4. 4)` | `3 \| 2 4 = {4, 3}` |
+| cuboctahedron | `2\|3 4 (3. 4. 3. 4)` | `2 \| 3 4 = {3;4}` |
+| truncated octahedron | `2 4\|3 (6. 6. 4)` | `2 4 \| 3 = t{3, 4}` |
+| truncated cube | `2 3\|4 (8. 8. 3)` | `2 3 \| 4 = t{4, 3}` |
+| rhombicuboctahedron | `3 4\|2 (4. 3. 4. 4)` | `3 4 \| 2 = r{3;4}` |
+| truncated cuboctahedron | `2 3 4\| (4. 6. 8)` | `2 3 4 \| = t{3;4}` |
+| snub cube | `\|2 3 4 (3. 3. 3. 3. 4)` | `\| 2 3 4 = s{3;4}` |
+| icosahedron | `5\|2 3 (3. 3. 3. 3. 3)` | `5 \| 2 3 = {3, 5}` |
+| dodecahedron | `3\|2 5 (5. 5. 5)` | `3 \| 2 5 = {5, 3}` |
+| icosidodecahedron | `2\|3 5 (3. 5. 3. 5)` | `2 \| 3 5 = {3;5}` |
+| truncated icosahedron | `2 5\|3 (6. 6. 5)` | `2 5 \| 3 = t{3, 5}` |
+| truncated dodecahedron | `2 3\|5 (10. 10. 3)` | `2 3 \| 5 = t{5, 3}` |
+| rhombicosidodecahedron | `3 5\|2 (4. 3. 4. 5)` | `3 5 \| 2 = r{3;5}` |
+| truncated icosidodecahedron | `2 3 5\| (4. 6. 10)` | `2 3 5 \| = t{3;5}` |
+| snub dodecahedron | `\|2 3 5 (3. 3. 3. 3. 5)` | `\| 2 3 5 = s{3;5}` |
+
+[HAREL1993] prints the name of the truncated icosidodecahedron as "truncated icosidodechedon", and the table above corrects it. The rows of [HAREL1993] were read from the positions of glyphs in its text layer. Table 7 of [CLM1954] is printed turned by 90 degrees, and it gives each vertex configuration only as a drawing of the vertex figure, so this table does not repeat those drawings.
+
+[CLM1954] extends its notation to the Euclidean plane: "Our notation extends readily to tessellations filling the Euclidean plane", and "Our list, which we believe to be complete, is given in table 8" [CLM1954, p. 430]. It states no angle condition for a Euclidean triangle. These rows of Table 8 [CLM1954, p. 438] are the tessellations whose symbols have only integers or infinity, which the table prints as a sign and this document writes `inf`. The research joined each row by name to the name and face code of [CBGS2008, p. 288] in the last column.
+
+| Row of Table 8 of [CLM1954] | Kepler's figure in Table 8 | Name and face code in [CBGS2008], p. 288 |
+| --- | --- | --- |
+| `4 \| 2 4 = {4, 4}` | E | quadrille, `4444` |
+| `2 4 \| 4 = t{4, 4}` | V | tr. quadrille, `488` |
+| `\| 2 4 4 = s{4;4}` | N | snub quadrille, `43343` |
+| `6 \| 2 3 = {3, 6}` | D | deltille, `333333` |
+| `3 \| 2 6 = {6, 3}` | F | hextille, `666` |
+| `2 \| 3 6 = {3;6}` | P | hexadeltille, `3636` |
+| `2 3 \| 6 = t{6, 3}` | S | tr. hextille, `3 12 12` |
+| `3 6 \| 2 = r{3;6}` | Ii | rhombihexadeltille, `3464` |
+| `2 3 6 \| = t{3;6}` | Mm | tr. hexadeltille, `4 6 12` |
+| `\| 2 3 6 = s{3;6}` | L | snub hextille, `63333` |
+| `2 inf \| 2 = t{2, inf}` | None | Not in the table |
+| `\| 2 2 inf = s{2;inf}` | None | Not in the table |
+
+Table 8 is printed turned by 90 degrees and was read at 300 dots per inch. Its last rows, the two "nameless tessellations" that alternate strips of squares and triangles (p. 430), have no symbol, and their Kepler and Badoureau entries may be misaligned by one row. [CBGS2008] lists an isosnub quadrille with the face code `44333`, and the research did not record which nameless row it matches.
+
+In the hyperbolic plane, the infoboxes of the Wikipedia pages of the forms of `{7,3}` give these symbols, in a secondary source [WP-732]. Their names are Wikipedia's, in which `r{7,3}` is the form `{p;q}` and `rr{7,3}` is the form `r{p;q}` of [CLM1954].
+
+| Form in [CLM1954] notation | Member of `(7 3 2)` | Wythoff symbol in its infobox | Vertex configuration in its infobox |
+| --- | --- | --- | --- |
+| `{p,q}` | `{7,3}` | `3 \| 7 2` | `7^3` |
+| `t{p,q}` | `t{7,3}` | `2 3 \| 7` | `3.14.14` |
+| `{p;q}` | `r{7,3}` | `2 \| 7 3` | `(3.7)^2` |
+| `t{q,p}` | `t{3,7}` | `2 7 \| 3` | `7.6.6` |
+| `{q,p}` | `{3,7}` | Not recorded | Not recorded |
+| `r{p;q}` | `rr{7,3}` | `3 \| 7 2`, which conflicts with the convention of [CLM1954] (Section 13) | `3.4.7.4` |
+| `t{p;q}` | `tr{7,3}` | `2 7 3 \|` | `4.6.14` |
+| `s{p;q}` | `sr{7,3}` | `\| 7 3 2` | `3.3.3.3.7` |
+
+The research compared these symbols with the general symbols of the first table with $p = 7$ and $q = 3$, and they agree up to the order of the numbers, except for `rr{7,3}`. No primary source read states the symbols or the vertex configurations of a hyperbolic family (Section 14.1, item 32).
+
+The infoboxes cite Chapter 19 of [CBGS2008] and Chapter 10 of Coxeter's "The Beauty of Geometry" [COXETER1999]. Chapter 19 was read. Its section "The Hyperbolic Archimedean Tessellations" counts the permutation symbols of each rank and shows twelve tilings in the Poincare disk [CBGS2008, pp. 261-266]. It lists no forms of `(7 3 2)` and gives no Wythoff symbol. The chapter argues that a hyperbolic tiling exists for a face code, unique for its symbol, because one edge length makes the angles of the regular polygons at a vertex add to a full turn, and "With trivial modifications the argument works also in the Euclidean and spherical cases" (p. 256). [COXETER1999] was not read. Datta and Gupta state in a preprint that the triangle groups $(\pi/2, \pi/p, \pi/q)$ "generate a uniform tiling with vertex-type [p^q] whenever 1/p + 1/q < 1/2", and give no Wythoff symbols [DATTA2018, Section 1].
+
+For a spherical triangle `(p q r)` without a right angle, Section 10.1 gives the faces of each symbol. No source read lists the forms of a hyperbolic triangle `(p q r)` (Section 14.1, item 10).
 
 ### 10.4. Snubs
 
-"Snubbing is an operation of alternate truncation of the omnitruncated form" [WP-UNIFORM-TILING]. Snubs "have chiral symmetry with two forms" [WP-SNUB], and "The resulting figure has rotational symmetry only" [WP-WYTHOFF-SYMBOL].
+[CLM1954] builds the snub from the rotations: "The remaining Archimedean solids are obtained by taking, instead of the whole group generated by reflexions, the subgroup of index 2 consisting of rotations". The spherical triangles are "alternately white and black", and the vertices lie in the white triangles, "so situated that the points in the three white triangles surrounding any black one form an equilateral triangle" [CLM1954, p. 408]. It writes `| 2 p q = s{p;q}` (p. 408). Its eq. (10.1) places the vertex, where $C$ is the corresponding point in the black triangle (pp. 420-421):
+
+$$\sin PC \, \sin(\pi/p) = \sin QC \, \sin(\pi/q) = \sin RC \, \sin(\pi/r)$$
+
+It adds that "we can describe C as the point whose orthogonal projections form an equilateral triangle" (p. 421). Har'El takes "only images under an even number of reflections" and builds the vertex from the Fermat point of the triangle, "assuming it exists", whose existence a footnote argues "by a continuity argument" [HAREL1993, p. 8]. Both state this for the sphere.
+
+[CBGS2008] keeps the snub out of the Wythoff triangle: "(The snub is chiral and does not arise from the Wythoff triangle, so does not receive a Wythoff-Coxeter symbol.)" [CBGS2008, p. 290]. Section 13 records the difference. M23 of `docs/design/poc-plan.md` leaves snubs out.
 
 ### 10.5. Quadrilateral Domains
 
-"The only possible fundamental domain in Euclidean 2-space that is not a simplex is the rectangle (infinity 2 infinity 2)", and "All forms generated from it become a square tiling" [WP-UNIFORM-TILING]. "Further symmetry groups exist in the hyperbolic plane with quadrilateral fundamental domains starting with (2 2 2 3)", and the page gives no construction rule [WP-UNIFORM-TILING]. The source writes the infinity sign as a symbol, replaced here by the word.
+[CLM1954] and [HAREL1993] treat triangles only. [CBGS2008] enumerates the Archimedean tilings of groups with more corners through permutation symbols and face codes, such as `[0][1]*(a,2b,c,2b)^n` for `*nabc`, and does not call that enumeration a Wythoff construction [CBGS2008, pp. 259-260]. The pages read do not say which reflection polygons, such as `*3333`, give tilings by a Wythoff construction.
+
+Wikipedia states, in a secondary source, that "The only possible fundamental domain in Euclidean 2-space that is not a simplex is the rectangle (infinity 2 infinity 2)", and "All forms generated from it become a square tiling" [WP-UNIFORM-TILING]. "Further symmetry groups exist in the hyperbolic plane with quadrilateral fundamental domains starting with (2 2 2 3)", and the page gives no construction rule [WP-UNIFORM-TILING]. The source writes the infinity sign as a symbol, replaced here by the word.
 
 ### 10.6. Per-Pixel Rendering
 
-Zhao Liang's renderer reflects the point "repeatedly ... off mirrors until it falls within the fundamental region", and colours the pixel "based on q's position within the fundamental domain", which "allows for parallel computation on all pixels" [ZHAO]. For drawing faces from the group instead of per pixel, "The stabilizing subgroup of f_0 is the standard parabolic subgroup <i,j>", and the edges of type $i$ are obtained "by applying the coset representatives in G/H" [ZHAO].
+#### 10.6.1. The Fold
 
-The page gives no explicit classification of a pixel into a face, no count of face types, and no rule for snubs [ZHAO]. Its shader is "exported from Matt Zucker's excellent work on shadertoy" [ZHAO] [ZUCKER], which could not be read.
+Zhao Liang's renderer reflects the point "repeatedly ... off mirrors until it falls within the fundamental region", and colours the pixel "based on q's position within the fundamental domain", which "allows for parallel computation on all pixels" [ZHAO]. The page calls this the "inverse pixel method" and describes it in prose only [ZHAO]. For drawing faces from the group instead of per pixel, "The stabilizing subgroup of f_0 is the standard parabolic subgroup <i,j>", and the edges of type $i$ are obtained "by applying the coset representatives in G/H" [ZHAO].
+
+The page gives no explicit classification of a pixel into a face, no count of face types, and no rule for snubs [ZHAO]. It credits "a shader program exported from Matt Zucker's excellent work" at Shadertoy 3tsSzM [ZHAO]. That Shadertoy page could not be read. Section 10.6.3 reads instead the shader "Hyperbolic Wythoff explorer v2" by mattz in pywonderland [ZUCKER], and no source read states that it is the shader of 3tsSzM.
+
+#### 10.6.2. The Generator Point
+
+pywonderland computes the generator point by one linear solve on the mirror normals, in all three geometries [ZHAO-HELPERS] [ZHAO-TILING]. Its function `get_point_from_distance` takes the normals "stored as row vectors in `M`" and "a tuple of non-negative floats `d`", and computes "the vector `v` whose distance vector to the mirrors is `d`" [ZHAO-HELPERS]. The steps, as the code states them:
+
+1. The rows of `M` are the normals of the mirrors, a lower-triangular factor of the Gram matrix built from `C = -np.cos(np.pi / coxeter_matrix)`. In the hyperbolic case the last diagonal entry is `-np.sqrt(abs(...))` [ZHAO-HELPERS].
+2. An entry of `d` is zero exactly for a mirror that is not active. The comment `# a mirror is active iff the initial point is not on it` stands above `self.active = tuple(bool(x) for x in init_dist)` [ZHAO-TILING].
+3. In the spherical and Euclidean cases the point is `p = np.linalg.solve(M, d)` [ZHAO-HELPERS].
+4. In the hyperbolic case the code negates the last column first and normalizes after the solve: `N = M.copy()`, `N[:, -1] *= -1`, `p = np.linalg.solve(N, d)`, and `p = hnormalize(p)` [ZHAO-HELPERS].
+5. In the Euclidean case the point is divided by its last coordinate, `return p / p[-1]`. In the hyperbolic case the code rejects an ideal point with `assert not helpers.is_ideal(v), "The initial point cannot be ideal"` [ZHAO-TILING].
+
+Three shaders build the point from weights on the corners of the triangle, with no derivation. mattz's spherical shader writes `poly_vertex = normalize(sphere_from_bary(bary_poly_vertex.xyz));` [MATTZ-WYTHOFF]. His hyperbolic shader writes `vec3 generator = hyperNormalizeP(verts * gbary);` under the comment "compute generator position from barycentric coords", and its keys "1-7 Set generator point" choose the weights [ZUCKER]. knighty's writes `p=hnormalizew(U*pA+V*pB+W*pC);` in the hyperbolic plane [KNIGHTY-FRAG].
+
+[CLM1954] and [HAREL1993] give no coordinates for the point of `p q | r` or `p q r |` beyond the bisector and the incentre (Section 10.1). [HAREL1993] solves instead for the angles at the point through the fundamental right triangles, with $n_i \alpha_i = \pi$, $\sum \gamma_i = \pi$, and $\cos a = \cos \alpha_i / \sin \gamma_i$, by a Newton iteration on the sphere (pp. 2-5). Only the snub has a locating equation in [CLM1954] (Section 10.4).
+
+No source read states the generator point in trilinear or barycentric coordinates for a general triangle `(p q r)` in all three geometries, or as a closed formula through the inverse of the Gram matrix (Section 14.1, item 33). No source read states that the uniform construction sets every active entry of `d` to one constant (Section 14.1, item 34).
+
+#### 10.6.3. Assigning a Point to a Face
+
+No paper or book read states how to assign a folded point to a face of a Wythoff tiling, or which regions of the fundamental triangle belong to which face. [CBGS2008] shows such regions only in figures. In the second column of the figure on p. 291, each Wythoff triangle is shaded in regions coloured like the faces of the polyhedron beside it, and Figure 21.2 (p. 290) draws blue segments from the marked point to the sides. The text gives no rule for the boundaries of the regions and does not say that the segments are perpendiculars [CBGS2008, pp. 290-291].
+
+Two implementations by one author, mattz, assign a point to a face, one on the sphere and one in the hyperbolic plane. Both are under CC BY-NC-SA 3.0, so this document copies no code from them beyond short quotations.
+
+The shader "Wythoff explorer", Shadertoy Md3yRB, covers the sphere and three-dimensional polyhedra [MATTZ-WYTHOFF]. It was read from two third-party copies, not from Shadertoy. Its steps, as the code states them:
+
+1. Fold the point into the triangle with `Q.M = tile_sphere(pos);`.
+2. Build one cut plane for each edge of the triangle with `poly_edges[i] = normalize(cross(poly_vertex, tri_edges[i]));` in `common.glsl`. The comment in `construct()` describes it as "polyhedron edge cut plane (passes thru origin and V, perpendicular to triangle edge)", where V is the generator point.
+3. For each cut plane, take the sign of `float poly_edge_dist = dot(pos, poly_edge);` and select the "triangle vertex on the same side of face edge as point" with `int vidx = (eidx + (poly_edge_dist > 0. ? 2 : 1)) % 3;`.
+4. Test the point against `vec3 bisector = cross(poly_vertex, poly_edge - other_poly_edge);`, and when `bisector_dist > 0.`, record the edge and the corner as `Q.eidx = eidx; Q.vidx = vidx;`.
+
+The header of the spherical shader credits knighty's "Polyhedron again", Shadertoy XlX3zB.
+
+The shader "Hyperbolic Wythoff explorer v2", by mattz, was read on 2026-11-23 in the copy `src/shader-playground/glsl/wythoff_hyperbolic/main.frag` of pywonderland [ZUCKER]. Section 4.4 of `docs/research/rendering.md` gives its fold. Its steps for the face, as the code states them:
+
+1. Set up the triangle in the hyperboloid model, with one vector for each mirror, `edges = setupTriangle(pqr.xyz);`, and its corners, `mat3 verts = hyperTriVerts(edges);`.
+2. Fold by reflecting the triangle toward the point, "repeated reflections of triangle till it lands on x", in `flipTriangleToPoint`, which treats `hyperDot(x, edges[i]) < 0.` as inside and keeps only the parity of the flips.
+3. Build the generator point from barycentric weights (Section 10.6.2), and one perpendicular for each mirror, under the comment "compute perpendiculars thru generator to edges".
+4. In `computeFace`, measure the point against each perpendicular with `pdists = -hyperConj(x) * perps` and `pdistsTrue = asinh(abs(pdists))`. For each perpendicular that has a length, build the line `vec3 l = geodesicPerpThruPoint(perps[i], generator);`, "the line perpendicular to perps[i] passing thru generator", and take `float d = hyperDot(x, l)*hyperDot(verts[i], l) > 0. ? gdist : pdistsTrue[i];`, under the comment "if x is over that line, take distance to generator, otherwise distance to perp". The perpendicular with the least `d` is `face.x`.
+5. Set `face.y = TRI_NEXT(face.x)` and `face.z = TRI_LAST(face.x, face.y)`. When the flag `BIT_PERP_SPLITS_EDGE` is set, choose by the side test `if (pdists[face.x]*hyperDot(verts[face.y], perps[face.x]) > 0.) { face = face.xzy; } else { face = face.xyz; }`. When the flag `BIT_VERT_IS_FACE` is set for `face.y`, take `face = face.xyy;`, "was a mirror edge so choose the only valid vertex along it", and otherwise `face = face.xzz;`. The reading did not record how the two flag tests nest.
+6. In `mainImage`, blend the fill of the face `face.y` with that of `face.z` by the signed value `float pmin = fparity*hyperDot(x, perps[face.x]);`, where `float fparity = hyperDot(verts[face.y], perps[face.x]) < 0. ? -1. : 1.;`, through `smoothstep(-0.5, 0.5, pmin*lengthScale*0.5)`. The code does not explain the sign convention.
+
+The header of `computeFace` states its result: "return integers such that x is nearest perpendicular," "y is nearest face, and z is second-nearest face," and "note that y == z if the perpendicular is a mirror (i.e. lies on an edge incident to a right angle)". The code indexes `verts` with `face.y`, so each face is named by a corner of the triangle. The flags `BIT_PERP_HAS_LENGTH`, `BIT_PERP_SPLITS_EDGE`, and `BIT_VERT_IS_FACE`, and the helpers `setupTriangle`, `hyperTriVerts`, `reflectPG`, `geodesicPerpThruPoint`, and `hyperDistPP`, are defined in another file, which this reading did not read.
+
+The research reads both shaders as cutting the triangle by the perpendiculars from the generator point to the mirrors into up to three regions, one around each corner, and assigning the point to the face centred at the corner of its region. Neither file states this rule in prose beyond the header of `computeFace`, and no paper read states the decomposition (Section 14.1, item 11). No implementation read assigns a point to a face in the Euclidean plane.
+
+These sources were checked and give no face rule:
+
+- knighty's Fragmentarium shader folds each pixel with `t=-2.*min(0.,hdot(pos,nb)); pos+=t*nb;` and picks only the nearest edge or vertex, with `float d=min(min(da,db),min(dc,dv));` [KNIGHTY-FRAG].
+- Egan's notes [EGAN].
+- Nelson and Segerman, arXiv:1511.02851, which builds three-dimensional honeycombs by sphere inversions from dihedral angles.
+- Arcus's polyjs, the repositories `postmath/hyperbolic-tiling`, `mountain/hyperbolic-wythoff`, and `neozhaoliang/Hyperbolic-Honeycombs`, and Don Hatch's page. Their addresses are not recorded.
+
+#### 10.6.4. SymmHub
 
 SymmHub has no input for a Wythoff symbol or a Coxeter diagram [SYMMHUB]. No such input was found in a reading of its group-construction code.
 
@@ -1147,17 +1363,26 @@ SymmHub has no input for a Wythoff symbol or a Coxeter diagram [SYMMHUB]. No suc
 
 | Part | Status |
 | --- | --- |
-| Generator positions and Wythoff symbols (Section 10.1) | Secondary source only |
-| Ring diagrams (Section 10.2) | Secondary source only |
-| Seven forms and the snub per family (Section 10.3) | Secondary source only |
-| Vertex configurations of `(p q 2)` (Section 10.3) | Secondary source, summarized, not verbatim |
-| Vertex configurations of `(p q r)` | Not available |
-| Snubs (Section 10.4) | Secondary source only |
-| Quadrilateral domains (Section 10.5) | Secondary source only, no construction rule |
-| Face-orbit rule per ring pattern | No source (Section 14.1) |
-| Per-pixel face classification | No source (Section 14.1) |
-| Per-pixel fold into the triangle (Section 10.6) | Primary web source [ZHAO] |
-| Perfect colourings of Wythoff faces | No source beyond Lemma 3.2 for the regular and Laves tilings (Section 14.1) |
+| Generator positions and Wythoff symbols (Section 10.1) | Primary, read directly: [CLM1954] pp. 406-408 and [HAREL1993] pp. 7-9, for the sphere. [CBGS2008] p. 290 names the seven classes of point for `*2pq` without naming a geometry and shows the placements only in figures |
+| The generator point by equal distances to the active mirrors (Section 10.1) | Primary preprints [WHITEHEAD2020] and [MARTELLI2026], read through a summarizing tool. On the sphere, the bisector and the incentre of [CLM1954] and [HAREL1993]. Their identification with the point of equal distance, and the existence and uniqueness of the point, are open (Section 14.1, item 30) |
+| Edges join the generator point to its mirror images (Section 10.1) | Primary, read directly: [CLM1954] pp. 406-407 and [HAREL1993] p. 6, for the sphere. [COXETER1973] and [WHITEHEAD2020] corroborate |
+| Faces and their centres for each Wythoff symbol, and the digons that drop out (Section 10.1) | Primary, read directly: [CLM1954] pp. 406-408, 413-414, and 418, and [HAREL1993] pp. 6-9, for the sphere |
+| What a ring means (Section 10.2) | Primary, read directly: [CBGS2008] p. 389. [COXETER1973] for one ring and [SCHULTE2016] for any number corroborate |
+| The rings of each Wythoff symbol (Section 10.2) | The research's combination of [CLM1954] and [CBGS2008] p. 389 |
+| Faces from subdiagrams (Section 10.2) | Primary preprints [MARTELLI2026] and [WHITEHEAD2020], read through a summarizing tool. The wording after Proposition 38 was paraphrased by the tool |
+| Face rule at a corner of the triangle (Section 10.2) | On the sphere, the research's tabulation of the statements of [CLM1954] and [HAREL1993] for each symbol. Not stated for the hyperbolic plane (Section 14.1, item 10) |
+| `{p,q}` as `q \| p 2` and its dual `p \| q 2` (Section 10.3) | Primary, read directly: [CLM1954] pp. 406 and 413, with the tables of [HAREL1993] pp. 16-17 and [CLM1954] p. 434, for the sphere, and Table 8 of [CLM1954] for the Euclidean plane. The dual by [CBGS2008] p. 273 |
+| The forms of the `(p q 2)` family with their faces (Section 10.3) | Primary, read directly: [CLM1954] pp. 403-415, for the sphere, with the figures of [CBGS2008] pp. 290-291 read from drawings |
+| The convex uniform polyhedra (Section 10.3) | Primary, read directly: Tables 5 to 7 of [HAREL1993] and Table 7 of [CLM1954] |
+| The Euclidean tessellations (Section 10.3) | Primary, read directly: [CLM1954] p. 430 and Table 8, read from a page printed turned. The names and face codes of [CBGS2008] p. 288 joined by the research |
+| The forms of `(7 3 2)` (Section 10.3) | Wikipedia only, summarized. One conflict for `rr{7,3}`, judged against [CLM1954] (Section 13 and Section 14.1, item 32) |
+| The forms of a hyperbolic `(p q r)` (Section 10.3) | Not available (Section 14.1, item 10) |
+| Snubs (Section 10.4) | Primary, read directly: [CLM1954] pp. 408 and 420-421 and [HAREL1993] p. 8, for the sphere. [CBGS2008] p. 290 keeps the snub out of the Wythoff triangle (Section 13) |
+| Quadrilateral domains (Section 10.5) | No construction rule in a primary source read. Wikipedia only for the remarks (Section 14.1, item 12) |
+| Per-pixel fold into the triangle (Section 10.6.1) | Primary web source [ZHAO] |
+| The generator point by a linear solve (Section 10.6.2) | Source code only [ZHAO-HELPERS], for all three geometries. No closed formula sourced (Section 14.1, items 33 and 34) |
+| Assigning a folded point to a face (Section 10.6.3) | Source code only: two shaders by one author, on the sphere [MATTZ-WYTHOFF] and in the hyperbolic plane [ZUCKER]. No paper or book states a rule, and [CBGS2008] shows the regions in a figure only (Section 14.1, item 11) |
+| Perfect colourings of Wythoff faces | No source beyond Lemma 3.2 for the regular and Laves tilings (Section 14.1, item 5) |
 
 ## 11. Existing Tools
 
@@ -1188,9 +1413,9 @@ This table compares the three designs, limited to what the sources establish. It
 | Published values | Bulatov's example captions (Section 4.4). No closed rule. | None. | Frettloh's Tables 1 and 2 for nine hyperbolic tilings, the cube, and the icosahedron (Sections 5.6 to 5.8). No closed rule. |
 | Proved scope | Lemma 2.1 for $T_{p,q}$ under $G_{p,q}$, said to hold more generally without detail (Section 4.2). | None. | Lemmas 3.1, 3.2, and 4.1 for `(p^q)`, `(q^p)`, and `[p.q.p.q]` under $G_{p,q}$ and $\bar{G}_{p,q}$ only (Section 5). |
 | Equal colour frequencies | Not stated for this tiling. | Not stated. | Stated for regular and Laves tilings (Lemma 3.1), and stated not to hold in general for other tilings. |
-| Machinery | A presentation of $G$, a low-index subgroup enumeration, and the fold loop carrying a permutation or a coset class (Sections 7 and 8). SymmHub implements this design. | Not established by any source. | A presentation of $G_{p,q}$, a low-index subgroup enumeration filtered by stabilizer generators (Section 5.5), and a classification of each pixel into a face, for which no source gives a method (Section 10.6). |
-| Software precedent | SymmHub (Section 11). | None found. | KaleidoTile draws Wythoff tilings, with an undocumented colour scheme. Zhao Liang's renderer folds into the triangle. |
-| Gaps left open | Correspondence between colourings and subgroups for arbitrary orbifold groups, and which indices occur (Section 14.1, items 1, 2, and 9). | Every question about colour counts and perfection (Section 14.1, item 14). | The face-orbit rule, the per-pixel face classification, perfect colourings beyond regular and Laves tilings, groups that are not triangle groups, snubs, and Euclidean counts (Section 14.1, items 5, 10, 11, 12, and 15). |
+| Machinery | A presentation of $G$, a low-index subgroup enumeration, and the fold loop carrying a permutation or a coset class (Sections 7 and 8). SymmHub implements this design. | Not established by any source. | A presentation of $G_{p,q}$, a low-index subgroup enumeration filtered by stabilizer generators (Section 5.5), and a classification of each pixel into a face, for which two shaders by one author, one spherical and one hyperbolic, give a method and no paper or book does (Section 10.6.3). The faces of each Wythoff symbol are sourced on the sphere (Section 10.1). |
+| Software precedent | SymmHub (Section 11). | None found. | KaleidoTile draws Wythoff tilings, with an undocumented colour scheme. Zhao Liang's renderer folds into the triangle. mattz's spherical and hyperbolic shaders assign a folded point to a face (Section 10.6.3). |
+| Gaps left open | Correspondence between colourings and subgroups for arbitrary orbifold groups, and which indices occur (Section 14.1, items 1, 2, and 9). | Every question about colour counts and perfection (Section 14.1, item 14). | The face rule at a corner of a hyperbolic triangle, the per-pixel face classification in a paper or book, perfect colourings beyond regular and Laves tilings, groups that are not triangle groups, snubs, and Euclidean counts (Section 14.1, items 5, 10, 11, 12, and 15). |
 
 ## 13. Conflicts Between Sources
 
@@ -1198,7 +1423,13 @@ This table compares the three designs, limited to what the sources establish. It
 - The year of Frettloh's paper: Crossref gives volume 223 with an issue dated December 2008 and online publication on 2009-09-25, and the MIT tilingsearch database cites 2009. This document uses the volume year, 2008.
 - The date of Felix and Loquias's paper: the arXiv posting is dated 2010-02-02, and the paper appeared in 2008 in Z. Kristallogr. 223. This document uses 2008.
 - The number of isohedral types: 93 types, of which 81 are the isohedral tiling types [KAPLAN2025]. The Tactile README calls the other 12 "boring" without a reason [TACTILE], and Kaplan's 2025 page gives the reason, mirror edges.
-- Coverage of the Wythoff construction: the Wikipedia page "Wythoff construction" covers only triangles, and the page "Uniform tiling" mentions quadrilateral domains without a rule.
+- Whether the snub belongs to the Wythoff construction: [CLM1954] gives the snub the fourth Wythoff symbol `| p q r` (p. 408), and [HAREL1993] calls it the fourth position of the point (p. 8). [CBGS2008] states that the snub "does not arise from the Wythoff triangle, so does not receive a Wythoff-Coxeter symbol" (p. 290). This document follows [CLM1954] for the symbol and treats the snub apart, as Section 10.4 does, and M23 of `docs/design/poc-plan.md` leaves it out.
+- The Wythoff symbol of `rr{7,3}`: the infobox of the Wikipedia page "Rhombitriheptagonal tiling" gives "3 | 7 2", and the table of the `(p q 2)` family on Wikipedia gives `p q | 2`, which is `7 3 | 2` here [WP-732] [WP-UNIFORM-LISTS]. In the convention of [CLM1954], `3 | 7 2` is the symbol of `{7,3}` (p. 406), and the form `r{p;q}` is `p q | 2` (p. 407), as in `3 4 | 2 = r{3;4}` in its Table 7 (p. 434). This document therefore follows the table and reads the infobox as wrong. [CLM1954] states its convention for the sphere and the Euclidean plane, so its use for `(7 3 2)` rests on item 10 of Section 14.1 (Section 10.3).
+- The vertex configuration of `a b | c` on the Polytope Wiki: the fetch tool returned "a.2b.a.2b" and noted that it contradicts the page's own example [POLYTOPE-WIKI]. The primary sources settle it: the faces at a vertex of `p q | r` are "{p}, {2r}, {q}, {2r}" [CLM1954, p. 414], and its vertex configuration is "(p.2r.q.2r)" [HAREL1993, p. 8] (Section 10.1).
+- The DOI of [HAREL1993]: the Springer record gives 10.1007/BF01263494, and MathWorld cites 10.1007/BF01263495. The copy read prints no DOI, so it does not settle the conflict.
+- The author and origin of the hyperbolic shader [ZUCKER]: the header of the copy in pywonderland names the author "mattz" only and says that the shader "is basically https://www.shadertoy.com/view/wtj3Ry with a few improvements". [ZHAO] credits Matt Zucker for the shader at Shadertoy 3tsSzM. No source read joins the name "mattz" to Matt Zucker or either Shadertoy page to the copy read, and neither Shadertoy page was read. This document and `docs/research/rendering.md` give the author as mattz, identified as Zucker, M. only through the credit of [ZHAO].
+- Access to [COXETER1973]: two readers read the OCR text at the address of Section 15, and a third reported the copy as lending only, with no text. The address of Section 15 returned text.
+- The versions of [MARTELLI2026]: v2 of 2026-01-16 and v3 of 2026-05-01 were read by different readers, who reported no difference in content.
 - The factor between curvature and Euler characteristic in [BALKE1996]: the caption of Table I (p. 91) says that the Euler characteristic is twice the curvature, while Theorem 4.1 (p. 97) and the introduction (p. 90) say that the curvature is twice the Euler characteristic. This document reports both (Section 9.2).
 - The locator of the spherical counts: a condensed extraction of Frettloh's paper placed the cube and the icosahedron in Sections 1 and 2, and the full PDF places the cube on p. 4. The icosahedron was not re-checked in the PDF.
 - The order of a subgroup in the handbook: Example 5.6 calls the order of $\langle b, c \mid b^2, c^3, (bc)^3 \rangle$ 24 and concludes $\lvert G \rvert = 5 \lvert H \rvert = 60$, while p. 172 gives the same presentation order 12 [HOLT2005, pp. 172 and 178]. This document reads 24 as a misprint (Section 7.20).
@@ -1218,9 +1449,22 @@ Each item below is a candidate statement that needs a source or a machine-checke
 7. Hall's formula at $k = 2$: substituting into Section 7.5 gives $a_2 = |\mathrm{Hom}(G, S_2)| - 1$. A searcher made this substitution, and no source states it.
 8. The theorem of Edmonds, Ewing, and Kulkarni: the exact statement of the achievable indices of torsion-free subgroups, and Izquierdo's version for NEC groups.
 9. Achievable indices in general: which composite indices occur for the wallpaper groups, and which indices occur for hyperbolic groups. For prime indices of the plane and spherical groups, Section 7.6 gives the tables of [CBGS2008]. The other sourced data are Frettloh's tables and Bulatov's examples.
-10. The face-orbit rule for Wythoff tilings: a rule such as "a face of size p or 2p around corner p exists if and only if a mirror there is active", and the face list of snubs, with rotation-centre faces and snub triangles and a generator equidistant under the rotations. No source read states either.
-11. Per-pixel classification for Wythoff tilings: no method found. Zucker's shader [ZUCKER] and the KaleidoTile source [KALEIDOTILE] are the leads.
-12. The Wythoff construction beyond triangles: polygonal kaleidoscopes such as `*2222` and `*abcd`, and mixed orbifolds such as `3*3` and `2*22`.
+10. The face rule of Wythoff tilings: closed for the sphere, open for the Euclidean and hyperbolic planes. On the sphere, [CLM1954] and [HAREL1993] state for each Wythoff symbol the faces with their centres at the corners, and that a face at a right angle is a digon that drops out [CLM1954, pp. 406-408, 413-414, and 418] [HAREL1993, pp. 6-9] (Section 10.1). The general rule is stated in primary form by preprints: the faces of each dimension correspond, up to the group, to the subdiagrams in which each connected component contains a ringed node [MARTELLI2026, Proposition 38] [WHITEHEAD2020, Theorem 9] (Section 10.2). These remain open:
+    - The rule at a corner of a hyperbolic triangle with the angle $\pi/n$: a regular $n$-gon when exactly one of the two mirrors through the corner is active, a $2n$-gon when both are, and no face when neither is. The table of Section 10.2 restates the spherical statements by corner, which is the research's tabulation. No source read states it for a hyperbolic triangle. [CBGS2008] states the seven classes of point for `*2pq` without naming a geometry and gives the tilings of each class only in figures (pp. 290-291), and the face sizes of its doily construction are not tied to the marks of a Wythoff triangle in the pages read (p. 255). Applying the spherical statements to a hyperbolic triangle is the research's reading.
+    - The Euclidean faces: [CLM1954] extends its notation to the Euclidean plane and lists the tessellations in Table 8, but does not restate the faces for a Euclidean triangle (p. 430).
+    - The exact wording of Proposition 38 of [MARTELLI2026], which the fetch tool paraphrased, and the geometries that it covers, which the research did not record.
+    - The forms of a hyperbolic family at a primary source (item 32).
+    - The face list of snubs in the hyperbolic plane. [CLM1954] and [HAREL1993] state it for the sphere (Section 10.4). M23 of `docs/design/poc-plan.md` leaves snubs out.
+
+    Would close it: a primary text that states the construction or its faces for a hyperbolic triangle, such as Chapter 10 of [COXETER1999], Johnson's "Geometries and Transformations" of 2018, or [CKPS1995], or [MARTELLI2026] read directly if its Proposition 38 covers the hyperbolic plane, or Lean.
+11. Per-pixel classification for Wythoff tilings: partly closed for the sphere and the hyperbolic plane, by source code only, and open for the Euclidean plane. Two shaders by one author assign a folded point to a face. The spherical one cuts the folded triangle by planes through the generator point, perpendicular to each edge of the triangle, and assigns the point to the corner on its side [MATTZ-WYTHOFF]. The hyperbolic one finds the nearest of the perpendiculars from the generator point to the mirrors and assigns the point to a corner by its side of that perpendicular, with the corner index naming the face [ZUCKER] (Section 10.6.3). These remain open:
+    - The decomposition of the triangle into up to three regions, one for each face around a corner, in any paper or book. [CBGS2008] shows the regions in the figure on p. 291 only and states no rule for their boundaries.
+    - Whether the regions of either shader are the faces of the tiling for every pattern of active mirrors, which is the research's reading of the code.
+    - The helpers and flags of the hyperbolic shader that are defined in another file, `geodesicPerpThruPoint` and `BIT_PERP_SPLITS_EDGE` among them, and how its two flag tests nest.
+    - The same assignment in the Euclidean plane, for which no implementation was read.
+
+    Would close it: a paper that states the decomposition, the other file of the hyperbolic shader read line by line, the source of [KALEIDOTILE], or Lean.
+12. The Wythoff construction beyond triangles: polygonal kaleidoscopes such as `*2222` and `*abcd`, and mixed orbifolds such as `3*3` and `2*22`. Martelli states the seed point and the face correspondence for a Coxeter polyhedron in general [MARTELLI2026, Section 5.3 and Proposition 38], and the research did not record whether those statements cover the reflection polygons of the plane. [CLM1954] and [HAREL1993] treat triangles only. [CBGS2008] enumerates the Archimedean tilings of groups such as `*nabc`, `2*nab`, and `a*n2` by permutation symbols and face codes, and does not say which of them a Wythoff construction gives (pp. 259-260, Section 10.5). No source read states a Wythoff construction for the mixed orbifolds.
 13. Normal subgroups: whether a subgroup is normal exactly when $G/H$ acts regularly on the colours, and how the kernel $K$ relates to the core of the colour group.
 14. Design (b): no source read addresses the colouring of a fundamental domain cut into several polygons, or the numbers of colours it offers.
 15. Euclidean perfect colourings: the counts for Euclidean regular and Laves tilings, deferred by Frettloh to [SCHWARZENBERGER1984]. [CBGS2008] tabulates the twofold and prime-fold colour types of the 17 plane groups (Sections 6 and 7.6), but not counts for regular and Laves tilings in Frettloh's sense.
@@ -1244,6 +1488,11 @@ Each item below is a candidate statement that needs a source or a machine-checke
 27. The count of `low_index` for the free group of rank 3: a summarizing tool reported 653 results for the README example at index 4, and the number does not appear in the text that the tool quoted (Section 7.3). Neither book addresses it. Sims's Proposition 9.3 counts complete standard tables, which are subgroups and not classes, for another group only [SIMS1994, p. 207]. Would close it: the README read directly, or a run of the package.
 28. Valid colourings and side generators: whether, in the coset colouring of a fundamental-domain tiling by a subgroup $S$, two tiles that share a side have the same colour exactly when the generator of that side lies in $S$, so that no two tiles that share a side have the same colour exactly when $S$ contains no side generator, which in a coset table is no side generator that fixes the coset of $S$. The closest sourced statement is that "c(fF) = c(f'F) is equivalent to f and f' being in the same left coset", proved for $T_{p,q}$ under $G_{p,q}$ only [FRETTLOH2008, p. 3] (Sections 4.1 and 4.2). No source read states the criterion in terms of the side generators, or for the groups beyond the scope of Lemma 2.1. The project records it as `UNV-35` of `docs/design/poc-plan.md` and checks it on samples. Would close it: a source that states it, or Lean.
 29. One valid colouring with 2 colours: whether a fundamental-domain tiling has at most one coset colouring with 2 colours in which no two tiles that share a side have the same colour. No source read states it. The project records it as `UNV-36` of `docs/design/poc-plan.md` and checks it by a test. Would close it: a source that states it, or Lean.
+30. Existence and uniqueness of the generator point: that each face of the fundamental region holds exactly one point equidistant from the facets that do not contain the face. Martelli states it as Exercise 30 with no proof in the text [MARTELLI2026, Section 5.3], and Whitehead calls the point "the unique point" without a proof that the research recorded [WHITEHEAD2020, Section 3] (Section 10.1). On the sphere, [CLM1954] and [HAREL1993] fix the point of `p q | r` on the bisector of the angle at $R$ and the point of `p q r |` at the incentre, so that its edges have the same length [CLM1954, p. 407] [HAREL1993, p. 8]. That these are the points of equal distance of Martelli and Whitehead is the research's reading, and no source read states the positions for a hyperbolic triangle. Would close it: a source that proves it, or Lean.
+31. The symbols of the regular tiling and its dual: closed for the sphere and the Euclidean plane. [CLM1954] states "p | q 2 = {q, p}" and "{p, q} is q | p 2" (p. 406), and its Table 8 gives `4 | 2 4 = {4, 4}`, `6 | 2 3 = {3, 6}`, and `3 | 2 6 = {6, 3}` (p. 438). The order of the numbers after the bar does not matter, as "p | q r, which is, of course, the same as p | r q" states [CLM1954, p. 406]. The tables of [HAREL1993] and [CLM1954] print the 2 first (Section 10.3). That only the mirror opposite the generator point is active is the research's combination of these positions with the ring rule of [CBGS2008, p. 389] (Section 10.2). The use of the same symbols for a hyperbolic tiling such as `{7,3}` rests on item 10.
+32. The table of the forms of the `(p q 2)` family: closed for the sphere and the Euclidean plane, open for the hyperbolic plane. [CLM1954] states the symbol and the faces at a vertex of each form for general $p$ and $q$ (pp. 403-415), Tables 5 to 7 of [HAREL1993] and Table 7 of [CLM1954] give the convex polyhedra, Table 8 of [CLM1954] gives the Euclidean tessellations, and the figure on p. 291 of [CBGS2008] labels the vertex figures with $p$ and $q$ (Section 10.3). The conflict on `rr{7,3}` is judged against [CLM1954] (Section 13). What remains open is the `(7 3 2)` members and every other hyperbolic family, which rest on Wikipedia only. The section of Chapter 19 of [CBGS2008] that the infoboxes cite gives counts and pictures and no list of forms (pp. 261-266). Would close it: Chapter 10 of [COXETER1999], or another primary source that lists the forms of a hyperbolic family.
+33. Closed forms of the generator point: its trilinear or barycentric coordinates for a general triangle `(p q r)` in all three geometries, and a formula that writes it as a sum of the active distances times the dual basis of the mirror normals, through the inverse of the Gram matrix. A reader of the research derived the second from the solve of [ZHAO-HELPERS], and no source states it. mattz's two shaders and knighty's shader use weights on the corners without a derivation (Section 10.6.2). [CLM1954] and [HAREL1993] give no coordinates for the point of `p q | r` or `p q r |`. [HAREL1993] solves for the angles at the point on the sphere by a Newton iteration (pp. 2-5), and [CLM1954] gives an equation only for the snub (pp. 420-421). Would close it: a source that states a formula, or Lean.
+34. The distances in the linear solve: that the uniform construction sets every active entry of `d` in the solve of [ZHAO-HELPERS] to one constant, so that the solve gives the well-positioned point of [MARTELLI2026, Proposition 31]. The docstring asks only for "non-negative floats", and no source joins the two. [CLM1954] and [HAREL1993] state the condition as edges of equal length (item 30), not as distances to the mirrors. What quantity each entry of `d` is in each geometry, a distance or another function of it, is also not stated, because the docstring calls `d` a distance vector and the code solves a linear system in it. Would close it: a source that states the relation, or Lean.
 
 ### 14.2. Claims Resting on Secondary Sources or Inference
 
@@ -1267,16 +1516,23 @@ Each item below is a candidate statement that needs a source or a machine-checke
 - Section 8.4: the reason that SymmHub's code comment gives for the reverse composition, which is the code's own claim.
 - Section 9.1: the meanings of the indices in Tactile's `getColour`, inferred from code.
 - Section 9.2: the work of Kolbe and Evans, from a search summary.
-- Section 10, except Sections 10.6 and 10.7: Wikipedia only.
+- Section 10.1: that the bisector and the incentre of [CLM1954] and [HAREL1993] are the points of equal distance of [MARTELLI2026] and [WHITEHEAD2020], which is the research's reading (Section 14.1, item 30). The remark that no point lies on all three mirrors, from Wikipedia only.
+- Section 10.2: the rings of each Wythoff symbol, which combine the positions of [CLM1954] with the ring rule of [CBGS2008, p. 389], and the table of faces at a corner, which restates the statements of [CLM1954] and [HAREL1993] for each symbol by the mirrors through each corner. Both are the research's. The use of either for a hyperbolic triangle reads a statement made for the sphere as holding there (Section 14.1, item 10).
+- Section 10.3: the `(7 3 2)` members, from Wikipedia only, and the research's comparison of them with the general symbols of [CLM1954]. The join of the forms of [CLM1954] with the archifold symbols of [CBGS2008] and of the rows of Table 8 with the names and face codes of [CBGS2008, p. 288], both by name, is the research's. The vertex figures of [CBGS2008, p. 291] were read from drawings, and the rows of Table 8 of [CLM1954] from a page printed turned, where the last rows may be misaligned.
+- Section 10.5: the remarks on quadrilateral domains, from Wikipedia only.
+- Section 10.6.2: the generator point by a linear solve, from the code of [ZHAO-HELPERS] and [ZHAO-TILING] only.
+- Section 10.6.3: the assignment of a folded point to a face, from the code of two shaders by one author only, the spherical one read from third-party copies [MATTZ-WYTHOFF] and the hyperbolic one from the copy in pywonderland through a summarizing tool [ZUCKER]. That the shaders cut the triangle into up to three regions, one for each face around a corner, is the research's reading of the code.
+- Section 10: the quotations of [COXETER1973], which come from the text layer of an OCR scan through a summarizing tool, and of the arXiv preprints [SCHULTE2016], [MARTELLI2026], [WHITEHEAD2020], [MONSON2011], [DDS2004], and [DATTA2018], read through the same tool. The research did not record whether any of them appeared in a refereed journal.
+- Section 10: the quotations of [CLM1954] and [CBGS2008], transcribed by eye from page images, with the small-print fractions of [CLM1954], and those of [HAREL1993], from a text layer whose Greek letters and stacked fractions a script rebuilt. The page images of [HAREL1993] were not viewed.
 - Section 11: the rows for Morenaments and iOrnament, from search summaries, and the paraphrase for Kali.
 - The source [ARXIV1806.06911]: its author and title were not recorded.
-- The quotations from web sources throughout passed through a fetch tool that condensed the text and capped quotations at about 125 characters (Section 7.8), except those from [FRETTLOH2008], [KAPLAN2019], and [BULATOV2014], which come from the full PDFs.
+- The quotations from web sources throughout passed through a fetch tool that condensed the text and capped quotations at about 125 characters (Section 7.8), except those from [FRETTLOH2008], [KAPLAN2019], and [BULATOV2014], which come from the full PDFs, and those from [CLM1954], [HAREL1993], and [CBGS2008], which come from the copies that Section 15 describes. This includes the other quotations and code fragments of Section 10, none of which was checked character by character against its source.
 
 ### 14.3. Sources Not Read in Full
 
 These sources were not read in full and are recorded in `docs/research/source-requests.md`, with what the project needs from each:
 
-- [CBGS2008]: read in part, for the chapters on colourings and the passages cited here. Chapters 19 to 26 were not read. A passage on Wythoff triangles in chapter 21, pp. 289-290, may bear on Section 10 and items 4, 5, 10, 11, and 12.
+- [CBGS2008]: read in part, for the chapters on colourings and the passages cited here. Of Chapters 19 to 26, the research read Chapter 19 in full (pp. 251-266), pp. 269-273 and 277-278 of Chapter 20, pp. 283-292 of Chapter 21, pp. 389-390 of Chapter 26, and the index (pp. 423-426). It did not read pp. 274-276 and 279-281 of Chapter 20, pp. 293-300 of Chapter 21, with the three-dimensional tables, or the rest of Chapters 22 to 26. No open item of this document waits on those pages.
 - [GS1987]: chapter 8 on coloured patterns and chapter 6 on isohedral types.
 - [EEK1982], [BURNS1983], and [IZQUIERDO1993]: the theorems on achievable indices. Needed for item 8.
 - [SCHWARZENBERGER1984]: Euclidean perfect colourings and its Section 8 on colourings that share a colour group. Needed for items 3 and 15.
@@ -1288,8 +1544,13 @@ These sources were not read in full and are recorded in `docs/research/source-re
 - [CONDER2005]: applications and adaptations of the low-index procedure. Medium priority.
 - [TODD-COXETER1936]: the original method. Low priority, historical.
 - [HAVAS-RAMSAY2000]: a case study in coset enumeration, cited by [CHR2007]. Low priority.
-- [CLM1954] and [HAREL1993]: the primary rules of the Wythoff construction. Needed for item 10.
-- [ZUCKER], [KALEIDOTILE], and [NELSON2019]: per-pixel rendering of Wythoff tilings. Needed for item 11.
+- [COXETER1973]: Sections 5.7, pp. 86-88, and 11.6 and 11.7, pp. 196-201, read only in short fragments of an OCR text layer through a summarizing tool. The graphs of Section 5.7 are garbled in that layer. [CLM1954] and [CBGS2008] now carry the claims that it corroborates, so no open item waits on it, and it is not in `docs/research/source-requests.md`.
+- [COXETER1999], Chapters 3 and 10, and Coxeter's "Wythoff's construction for uniform polytopes", Proc. London Math. Soc., 1935: not read. Needed for items 10 and 32, for the hyperbolic plane.
+- [CKPS1995]: the face rule that [WHITEHEAD2020] credits to it. Not read. Needed for item 10.
+- Coxeter and Moser, "Generators and Relations", Coxeter's "Regular Complex Polytopes", Johnson's "Geometries and Transformations" of 2018, Johnson's thesis of 1966, Section 8.2, pp. 226-237, and Shephard's "A construction for Wythoffian polytopes", Canad. J. Math.: primary texts on the construction that the research could not read. A PDF of Johnson's book could not be extracted, and Cambridge Core returned HTTP 403 for Shephard's paper. They may bear on items 10, 30, and 33.
+- [ZUCKER]: the file `main.frag` was read in full through a summarizing tool. The file that defines its helpers and flags was not read for this document, and the Shadertoy originals 3tsSzM and wtj3Ry returned HTTP 403. The helpers are needed for item 11. They are free to read in pywonderland, so they are not a request, and `docs/research/rendering.md` cites `common.frag` of the same directory for `reflectPG` and its distances.
+- [KALEIDOTILE] and [NELSON2019]: per-pixel rendering of Wythoff tilings. Jeff Weeks's documentation of KaleidoTile was not retrieved. Needed for item 11.
+- knighty's posts on fractalforums: not retrieved. A lead for item 11.
 - [BALOGLOU]: two-colour wallpaper patterns. Needed for item 6.
 - [SENECHAL1988] and [COXETER1986]: conventions and the historical method.
 - [LUBOTZKY2003]: the primary text for Hall's formula.
@@ -1299,9 +1560,14 @@ These sources were not read in full and are recorded in `docs/research/source-re
 - The paper by Conway and Huson on orbifold notation (2002), held locally by the project and not read.
 - [TESS]: the tool's documentation.
 
+The owner supplied [CLM1954] and [HAREL1993], and both were read in full:
+
+- [CLM1954]: every page of the scan, pp. 401-450 and Plates 1 to 6, read as page images. Tables 7 and 8 are printed turned by 90 degrees. The vertex figures of Table 7 and of Table 8 are drawings, and Section 10.3 does not transcribe them. The rows of Table 7 for the prisms, the antiprisms, and the star polyhedra (pp. 435-437) were not transcribed.
+- [HAREL1993]: all 46 pages of a typescript, through its text layer. The page images were not viewed, so the layout was not checked. The rows of Tables 6 and 7 for the non-convex polyhedra were not transcribed.
+
 ## 15. References
 
-Every web address was accessed on 2026-11-15, except those of the sources of Sections 7.8 to 7.21, which were accessed on 2026-11-17. Page numbers of [FRETTLOH2008] refer to arXiv:0807.4630v1.
+Every web address was accessed on 2026-11-15, except those of the sources of Sections 7.8 to 7.21, which were accessed on 2026-11-17, and those whose entry gives the access date 2026-11-23. Page numbers of [FRETTLOH2008] refer to arXiv:0807.4630v1.
 
 - [ACE] Gamble, G., manual of the GAP package ACE, the coset enumerator of G. Havas and C. Ramsay, dated January 2012 as the web pass recorded it, Chapters 1, 3, 4, and 5 and Appendices A and B, <https://docs.gap-system.org/pkg/ace/htm/CHAP003.htm>. Read through a summarizing tool.
 - [ARTLANDIA] Artlandia, glossary entry titled `Two-Color Symmetries`, <https://artlandia.com/wonderland/glossary/TwoColorSymmetries.html>.
@@ -1314,27 +1580,34 @@ Every web address was accessed on 2026-11-15, except those of the sources of Sec
 - [BULATOV2014] Bulatov, V., "Inversive Kaleidoscopes and their Visualization", Proceedings of Bridges 2014, pp. 329-332, 2014.
 - [BURNS1983] Burns and Solitar, Proc. Amer. Math. Soc. 89 (1983) 414-418. Title not recorded.
 - [CANNON-HAVAS1992] Cannon, J. and G. Havas, "Algorithms for Groups", The Australian Computer Journal 24(2), pp. 51-60, May 1992, arXiv:math/9406203v1, 1994-06-15, <https://arxiv.org/abs/math/9406203>. Read in full from a local copy of the arXiv version. Page numbers are the PDF pages of that version.
-- [CBGS2008] Conway, Burgiel, and Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5, <https://www.routledge.com/The-Symmetries-of-Things/Conway-Burgiel-Goodman-Strauss/p/book/9781568812205>. Read in part. Page numbers are the printed pages.
+- [CBGS2008] Conway, Burgiel, and Goodman-Strauss, "The Symmetries of Things", A K Peters, 2008, ISBN 978-1-56881-220-5, <https://www.routledge.com/The-Symmetries-of-Things/Conway-Burgiel-Goodman-Strauss/p/book/9781568812205>. Read in part, from a copy that the owner supplied. Chapters 19 to 21 and pp. 389-390 of Chapter 26 were read as page images rendered from a scan without a text layer and transcribed by eye, and Section 14.3 lists the pages. Page numbers are the printed pages, which for these chapters are the PDF pages minus 17.
 - [CDHW1973] Cannon, J. J., Dimino, L. A., Havas, G., and J. M. Watson, "Implementation and analysis of the Todd-Coxeter algorithm", Math. Comp. 27(123) (1973) 463-490. Not read. The web pass found two conflicting DOIs and verified neither.
 - [CHR2007] Campbell, C. M., Havas, G., and E. F. Robertson, "Addendum to an elementary introduction to coset table methods in computational group theory", in Groups St Andrews 1981, London Mathematical Society Lecture Note Series 71, pp. 361-364, dated 2007 in the reference list of [BROWN2011]. Read in full from a local copy, whose running headers give pp. 362-364 and whose text dates itself after July 2006. The address of the copy is not recorded.
-- [CLM1954] Coxeter, Longuet-Higgins, and Miller, "Uniform polyhedra", Phil. Trans. R. Soc. A 246 (1954) 401-450.
+- [CKPS1995] Champagne, Kjiri, Patera, and Sharp, Can. J. Phys. 73 (1995) 566-584, as [WHITEHEAD2020] cites it. Title not recorded. Not read.
+- [CLM1954] Coxeter, H. S. M., Longuet-Higgins, M. S., and J. C. P. Miller, "Uniform Polyhedra", Philosophical Transactions of the Royal Society of London, Series A, Mathematical and Physical Sciences 246(916), pp. 401-450, received 25 June 1953, published 13 May 1954, DOI 10.1098/rsta.1954.0003 as the web pass recorded it. Read in full from a scan that the owner supplied, a JSTOR copy of 57 pages without a text layer, as page images. The copy was not checked for a printed DOI. An image-only scan is also at <https://roice3.org/ruen/1954_uniform_polyhedra_paper.pdf>. Page numbers are the journal pages, which are the PDF pages plus 399. The fractions in small print were read at 300 dots per inch or more.
 - [CONDER2005] Conder, M. and P. Dobcsanyi, "Applications and adaptations of the low index subgroups procedure", Math. Comp. 74(249) (2005). Not read. The title is as the web pass recorded it. [SYMPY-FPG], lines 770-771, spells it "Adaptions".
+- [COXETER1973] Coxeter, H. S. M., "Regular Polytopes", 3rd edition, Dover, 1973, Section 5.7, p. 86, Section 11.6, pp. 196-198, and the historical remarks of Chapter XI, <https://archive.org/stream/regular-polytopes-coxeter/Regular%20Polytopes%20-%20Coxeter_djvu.txt>. Primary. Read only through the OCR text layer of a scan, through a summarizing tool, in short fragments. Accessed 2026-11-23.
 - [COXETER1986] Coxeter, "Coloured symmetry", in "M. C. Escher: Art and Science", North-Holland, 1986, pp. 15-33, ISBN 978-0-444-70011-7.
+- [COXETER1999] Coxeter, H. S. M., "The Beauty of Geometry", 1999, Chapters 3 and 10, as the Wikipedia pages of Section 10.3 cite it. Not read.
+- [DATTA2018] Datta and Gupta, "Uniform tilings of the hyperbolic plane", arXiv:1806.11393, 2018, Section 1. Preprint. Read through a summarizing tool. Accessed 2026-11-23.
+- [DDS2004] Deza, Dutour, and Shpectorov, "Hypercube embedding of Wythoffians", arXiv:math/0407527, 2004, v5 2008, Section 3. Preprint. Read through a summarizing tool. Accessed 2026-11-23.
 - [DDL2009] De Las Penas, Decena, and Laigo, arXiv:0906.3412, 2009-06-18, abstract. Title and address not recorded.
 - [DLP2006] De Las Penas, Felix, and Laigo, "Colorings of hyperbolic plane crystallographic patterns", Z. Kristallogr. 221(10) (2006) 665-672, DOI 10.1524/zkri.2006.221.10.665, <https://api.crossref.org/works/10.1524/zkri.2006.221.10.665>.
 - [DPFP2007] De Las Penas, Felix, and Provido, "On index 2 subgroups of hyperbolic symmetry groups", Z. Kristallogr., 2007.
 - [DRESS] Dress, 1984, and Dress and Huson, 1987, on Delaney-Dress symbols, as cited in [TEGULA2020]. Titles not recorded.
 - [EEK1982] Edmonds, Ewing, and Kulkarni, Invent. Math. 69 (1982) 331-346, DOI 10.1007/BF01389358. Title not recorded.
 - [EEK1982-BULL] Edmonds, Ewing, and Kulkarni, announcement, Bull. Amer. Math. Soc. 6 (1982) 456-458, DOI 10.1090/S0273-0979-1982-15014-5.
+- [EGAN] Egan, G., "Wythoff (Technical Notes)", undated, spherical triangles only, <https://gregegan.net/APPLETS/26/WythoffNotes.html>. Secondary. Accessed 2026-11-23.
 - [EPINET-DD] EPINET, "Delaney-Dress symbols", <https://epinet.anu.edu.au/page/epinet2_mathematics_delaney_dress>.
 - [EPINET-ORB] EPINET, "Orbifold notation", <https://epinet.anu.edu.au/page/epinet2_mathematics_orbifold_notation>.
 - [EWS] EPFL, "Escher Web Sketch", <https://www.epfl.ch/schools/sb/research/iphys/teaching/crystallography/escher-web-sketch/>.
 - [FELIX2008] Felix, R. P. and M. J. C. Loquias, "Enumerating and identifying semiperfect colorings of symmetrical patterns", Z. Kristallogr. 223 (2008) 483-491, DOI 10.1524/zkri.2008.0053, arXiv:1002.0536v1, <https://ar5iv.labs.arxiv.org/html/1002.0536>.
+- [FREIRE] Freire, P., "9. The Wythoff construction", Paulo's polytope site, undated, <https://www3.mpifr-bonn.mpg.de/staff/pfreire/polyhedra/wythoff.htm>. Secondary. It cites [COXETER1973] and Wenninger's book of 1974. Accessed 2026-11-23.
 - [FRETTLOH2008] Frettloh, D., "Counting perfect colourings of plane regular tilings", Z. Kristallogr. 223(11-12) (2008) 773-776, DOI 10.1524/zkri.2008.1044, arXiv:0807.4630v1, 2008-07-29, <https://ar5iv.labs.arxiv.org/html/0807.4630>.
 - [GAP] The GAP Group, "GAP Reference Manual", Chapter 47, "Finitely Presented Groups", <https://docs.gap-system.org/doc/ref/chap47.html>, read in full from a local copy, and Section 39.19-6, read through a summary. The local copy states no release or date. The web pass read "GAP Release 4.16.1", dated 2026-08-23, on the front page of the manual through a summarizing tool, so the release is unverified. Line numbers refer to the local copy.
 - [GS1987] Grunbaum and Shephard, "Tilings and Patterns", Freeman, 1987, ISBN 978-0-7167-1193-3, and Dover, 2nd edition, 2016, ISBN 978-0-486-46981-2. Chapter 8 is titled `Colored Patterns and Tilings`.
 - [HALL1949] Hall, M., Canad. J. Math. 1 (1949) 187-190.
-- [HAREL1993] Har'El, "Uniform solution for uniform polyhedra", Geom. Dedicata 47 (1993).
+- [HAREL1993] Har'El, Z., "Uniform Solution for Uniform Polyhedra", Department of Mathematics, Technion - Israel Institute of Technology, Geometriae Dedicata 47, pp. 57-110, 1993, as the footnote of its first page prints it, DOI 10.1007/BF01263494 as the Springer record gives it. MathWorld cites 10.1007/BF01263495 (Section 13). Read in full from a copy that the owner supplied, a typescript of 46 pages with a text layer, which prints no DOI and no publisher. Page numbers are the typescript's own, printed as "-N-" from p. 2 and equal to the PDF pages, and they are not the journal's pages, which the copy does not print. The text was extracted by a script, which rebuilt the Greek letters from the codes of a symbol font and the stacked fractions from the positions of their glyphs. The page images were not viewed. The free copies at `math.technion.ac.il/~rl/docs/uniform.pdf` and `harel.org.il` failed their TLS certificate checks on 2026-11-23.
 - [HAVAS1991] Havas, G., "Coset enumeration strategies", Proceedings of ISSAC '91, ACM Press, pp. 191-199, 1991, arXiv:math/9406202v1, 1994-06-15, <https://arxiv.org/abs/math/9406202>. Read in full from a local copy of the arXiv version. Page numbers are the printed pages, which are the PDF pages plus 190.
 - [HAVAS-RAMSAY2000] Havas, G. and C. Ramsay, "Proving a group trivial made easy: a case study in coset enumeration", Bull. Austral. Math. Soc. 62 (2000) 105-118, as [CHR2007] cites it. Not read.
 - [HOLT2005] Holt, D. F., Eick, B., and E. A. O'Brien, "Handbook of Computational Group Theory", Chapman and Hall/CRC, 2005, ISBN 978-1-58488-372-2, DOI 10.1201/9781420035216. Read from a PDF copy that the owner supplied: Chapter 5, pp. 149-198, and pp. 18, 22-24, 37, 43, and 84-87. The text layer drops Greek letters, superscripts, set symbols, and most presentations, so the research checked the pages with pseudocode, symbols, or tables against page images, with the exceptions that follow. Pages 150-158, 160, 161, 163-168, 172-175, 177, 178, 182-184, 187, 191-194, and 196 were checked against images, and pp. 149, 159, 162, 169-171, 176, 179-181, 185, 186, 188-190, 195, 197, and 198 were read from the text layer only. The text-layer pages include the pseudocode REWRITE and the table of Example 5.5 on p. 176 and the tables of Example 5.10 on p. 195. The presentations of the costs on pp. 169-170 and of the example of order 16 on p. 172 were not read from the images. The text layer of the whole book was searched for "Mendelsohn", which does not occur. Page numbers are the printed pages, which are the PDF pages minus 14.
@@ -1349,6 +1622,7 @@ Every web address was accessed on 2026-11-15, except those of the sources of Sec
 - [KAPLAN2009] Kaplan, "Introductory Tiling Theory for Computer Graphics", Morgan and Claypool, 2009.
 - [KAPLAN2019] Kaplan, "Animated Isohedral Tilings", Proceedings of Bridges 2019, pp. 99-106, 2019.
 - [KAPLAN2025] Kaplan, C. S., "Isohedral Tiles, Tilings, and Notations", 2025-09-01, <https://isohedral.ca/?p=2780>.
+- [KNIGHTY-FRAG] knighty, Fragmentarium, "Knighty Collection", `hyperbolic-tesselation-2Din3D-colored-02.frag`, undated, `https://raw.githubusercontent.com/Syntopia/Fragmentarium/master/Fragmentarium-Source/Examples/Knighty%20Collection/hyperbolic-tesselation-2Din3D-colored-02.frag`. Source code. Licence not recorded. Accessed 2026-11-23.
 - [KOLBE-EVANS] Kolbe and Evans, Geom. Dedicata, DOI 10.1007/s10711-020-00554-2. Title and year not recorded.
 - [LOWINDEX] Culler, M., Dunfield, N., and M. Gorner, `low_index`, README, <https://github.com/3-manifolds/low_index>, read through a summarizing tool, and "LOW INDEX, Revisited and Implemented", the LaTeX source `doc/lowindex.tex`, <https://raw.githubusercontent.com/3-manifolds/low_index/master/doc/lowindex.tex>, read in full from a local copy. The file states no date. The web pass found commits of the file authored from 2022-06-22 to 2022-07-01. Sections are those of the note.
 - [LPD2008] Laigo, Puzon, and De Las Penas, Proceedings of Bridges Leeuwarden 2008, pp. 311-318, 2008, titled `Coxeter Groups in Colored Tilings and Patterns`, <https://archive.bridgesmathart.org/2008/bridges2008-311.html>.
@@ -1356,10 +1630,15 @@ Every web address was accessed on 2026-11-15, except those of the sources of Sec
 - [MAGMA] Magma Handbook, low index subgroups, <https://magma.maths.usyd.edu.au/magma/handbook/text/898>, and an older mirror of its pages on coset enumeration and low index subgroups, <https://www.math.ru.nl/magma/text237.html>, `text239.html`, and `text243.html`, version not stated. Read through a summarizing tool.
 - [MENDELSOHN1964] Mendelsohn, N. S., "An algorithmic solution for a word problem in group theory", Canad. J. Math. 16 (1964) 509-516, with a correction in 17 (1965) 505, as the bibliography of [SIMS1994], p. 591, lists it. Not read. Cited as "Mendelsohn, 1964" by [HULPKE2010], p. 77, without an entry.
 - [MALINC] Christersson, M., "Image Tiling", 2015-04-19, <https://www.malinc.se/m/ImageTiling.php>.
+- [MARTELLI2026] Martelli, B., "An introduction to Coxeter polyhedra", arXiv:2601.07552, v2 of 2026-01-16 and v3 of 2026-05-01, Sections 1.6 and 5.3 to 5.5, Exercise 30, Proposition 31, and Proposition 38, <https://arxiv.org/html/2601.07552>. Preprint, in the style of lecture notes. Read through a summarizing tool. Accessed 2026-11-23.
 - [MATEI2002] Matei, D. and A. Suciu, "Hall invariants, homology of subgroups, and characteristic varieties", Int. Math. Res. Not. 2002, arXiv:math/0010046, Section 8.1, eq. (8.2), read through its ar5iv rendering.
+- [MATTZ-WYTHOFF] mattz (Zucker, M., as for [ZUCKER]), "Wythoff explorer", Shadertoy Md3yRB, CC BY-NC-SA 3.0, functions `construct()` and `tile_sphere`, and the file `common.glsl`. Source code for the sphere and three-dimensional polyhedra. Not read on Shadertoy. Read from two third-party copies: `ShaderOfWeek/WythoffExplorerB.glsl` of ruofeidu/DuEngine at commit `101cf4a`, 2018-03-07, <https://github.com/ruofeidu/DuEngine/blob/master/ShaderOfWeek/WythoffExplorerB.glsl>, and a gist by andybak of 2018-08-18, <https://gist.github.com/andybak/e0ac5557362c4611fc4d9a4b1591189e>. Its header credits knighty's "Polyhedron again", Shadertoy XlX3zB. Accessed 2026-11-23.
+- [MONSON2011] Monson and Schulte, "Semiregular Polytopes and Amalgamated C-groups", arXiv:1109.1337, 2011, Section 3. Preprint. Address not recorded. Read through a summarizing tool. Accessed 2026-11-23.
 - [MORENAMENTS] "Morenaments", exhibit sheet, <https://exponate.phaeno.de/media/pages/experimente/4916/f19b5bd2f0-1714643520/4916_Morenaments_en.pdf>.
 - [NELSON2019] Nelson, R., slides, ICERM, 2019. Title not recorded.
 - [NEUBUSER1982] Neubuser, J., "An elementary introduction to coset table methods in computational group theory", in Groups St Andrews 1981, London Mathematical Society Lecture Note Series 71, Cambridge University Press, 1982, pp. 1-45. Not read.
+- [POLYTOPE-WIKI] Polytope Wiki, "Wythoff symbol", <https://polytope.miraheze.org/wiki/Wythoff_symbol>. Secondary. It cites [HAREL1993]. Accessed 2026-11-23.
+- [SCHULTE2016] Schulte, E. and A. Williams, "Wythoffian Skeletal Polyhedra in Ordinary Space, I", arXiv:1610.03168, 2016, Sections 3.2 and 4.2, <https://ar5iv.labs.arxiv.org/html/1610.03168>. Preprint. Read through a summarizing tool. Accessed 2026-11-23.
 - [SCHWARZENBERGER1984] Schwarzenberger, R. L. E., "Colour symmetry", Bull. London Math. Soc. 16 (1984) 209-240.
 - [SENECHAL1988] Senechal, Comput. Math. Applic. 16 (1988) 545-553, DOI 10.1016/0898-1221(88)90244-1, titled `Color symmetry`.
 - [SIMS1994] Sims, C. C., "Computation with Finitely Presented Groups", Encyclopedia of Mathematics and its Applications 48, Cambridge University Press, 1994, ISBN 978-0-521-43213-7, DOI 10.1017/CBO9780511574702. Read from a PDF copy that the owner supplied, through its text layer: Section 3.8, pp. 130-140, Sections 4.1, 4.2, 4.4 to 4.7, and 4.9, pp. 151-165, 171-196, and 203-210, Chapter 5, pp. 217-267, the Appendix, pp. 576-577, and the bibliography entries for Mendelsohn on p. 591. Pages 195, 205-207, 209, 223, 228, 248, and 255-257 were also read from page images, for the matrices, the tables, and the definition of a coset enumeration procedure. Pages 166-170 and 197-202 were not read, and Sections 4.10 and 4.11, pp. 210-215, were only skimmed. The text layer turns Greek letters into Latin ones, flattens exponents, and loses the blank cells of tables, so the positions of the entries of Tables 4.5.x, 5.1.x, 5.4.x, and 5.7.x are unreliable. Page numbers are the printed pages, which are the PDF pages minus 16.
@@ -1374,12 +1653,14 @@ Every web address was accessed on 2026-11-15, except those of the sources of Sec
 - [TESS] Tess, peda.com. The site refused the connection.
 - [TODD-COXETER1936] Todd, J. A. and H. S. M. Coxeter, "A practical method for enumerating cosets of a finite abstract group", Proc. Edinburgh Math. Soc. (2) 5 (1936) 26-34, DOI 10.1017/S0013091500008221. Not read.
 - [VONGAGERN2009] von Gagern and Richter-Gebert, "Hyperbolization of euclidean ornaments", Electron. J. Combin. 16 R2, 2009.
-- [WP-COXETER-DYNKIN] Wikipedia, "Coxeter-Dynkin diagram", section "Application to uniform polytopes", <https://en.wikipedia.org/wiki/Coxeter%E2%80%93Dynkin_diagram>.
+- [WHITEHEAD2020] Whitehead, S., "Classifying Regular Polyhedra and Polytopes using Wythoff's Construction", arXiv:2001.09364, 2020, v2 2021, Sections 3 and 5 and Theorem 9, <https://ar5iv.labs.arxiv.org/html/2001.09364>. Preprint. Read through a summarizing tool. Accessed 2026-11-23.
+- [WP-732] Wikipedia, "Order-3 heptagonal tiling", <https://en.wikipedia.org/wiki/Order-3_heptagonal_tiling>, and the pages of the other forms of `{7,3}` that it links, such as "Rhombitriheptagonal tiling", infoboxes only. Accessed 2026-11-23.
 - [WP-INDEX] Wikipedia, "Index of a subgroup", <https://en.wikipedia.org/wiki/Index_of_a_subgroup>.
 - [WP-POLYCHROMATIC] Wikipedia, "Polychromatic symmetry", <https://en.wikipedia.org/wiki/Polychromatic_symmetry>.
-- [WP-SNUB] Wikipedia, "Snub (geometry)". Address not recorded.
-- [WP-UNIFORM-HYP] Wikipedia, "Uniform tilings in hyperbolic plane", <https://en.wikipedia.org/wiki/Uniform_tilings_in_hyperbolic_plane>.
+- [WP-UNIFORM-LISTS] Wikipedia, "Lists of uniform tilings on the sphere, plane, and hyperbolic plane", with its table of the `(p q 2)` family, <https://en.wikipedia.org/wiki/Lists_of_uniform_tilings_on_the_sphere,_plane,_and_hyperbolic_plane>. Accessed 2026-11-23.
 - [WP-UNIFORM-TILING] Wikipedia, "Uniform tiling", <https://en.wikipedia.org/wiki/Uniform_tiling>.
 - [WP-WYTHOFF-SYMBOL] Wikipedia, "Wythoff symbol", section "Description", <https://en.wikipedia.org/wiki/Wythoff_symbol>.
-- [ZHAO] Zhao Liang, "Coxeter groups, automata and uniform tilings", undated, <https://neozhaoliang.github.io/uniform-tilings>.
-- [ZUCKER] Zucker, M., Shadertoy 3tsSzM, <https://www.shadertoy.com/view/3tsSzM>.
+- [ZHAO] Zhao Liang, "Coxeter groups, automata and uniform tilings", blog of pywonderland, dated 2019-12-19 as the reading of 2026-11-23 recorded, <https://neozhaoliang.github.io/uniform-tilings>.
+- [ZHAO-HELPERS] Zhao Liang, pywonderland, `src/uniform-tilings/helpers.py`, function `get_point_from_distance`, branch `master`, copyright 2019, <https://raw.githubusercontent.com/neozhaoliang/pywonderland/master/src/uniform-tilings/helpers.py>. Source code. The research recorded no licence for the file, and Section 6.7 of `docs/research/prior-art.md` gives MIT for the repository. Accessed 2026-11-23.
+- [ZHAO-TILING] Zhao Liang, pywonderland, `src/uniform-tilings/tiling.py`, branch `master`, 2019, <https://raw.githubusercontent.com/neozhaoliang/pywonderland/master/src/uniform-tilings/tiling.py>. Source code, with the licence of [ZHAO-HELPERS]. Accessed 2026-11-23.
+- [ZUCKER] mattz (Zucker, M., only through the credit of [ZHAO]), "Hyperbolic Wythoff explorer v2", CC BY-NC-SA 3.0, the copy in pywonderland, `src/shader-playground/glsl/wythoff_hyperbolic/main.frag`, branch `master`, functions `flipTriangleToPoint`, `computeFace`, and `mainImage`, <https://raw.githubusercontent.com/neozhaoliang/pywonderland/master/src/shader-playground/glsl/wythoff_hyperbolic/main.frag>. Source code. Read in full on 2026-11-23 through a summarizing fetch tool, which returned the whole file of 28,252 characters and kept its quotations short. The quotations were not checked character by character. The header says that the shader "is basically https://www.shadertoy.com/view/wtj3Ry with a few improvements" and does not mention pywonderland. [ZHAO] links Shadertoy 3tsSzM. Neither Shadertoy page was read, because Shadertoy returned HTTP 403. `docs/research/rendering.md` cites the same file under the same tag (Section 13).

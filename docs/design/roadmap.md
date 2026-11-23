@@ -118,7 +118,7 @@ This phase lets the user make "truncated versions of tilings" with adjustable pa
 
 The planning proposes to read it as the Wythoff construction with a movable generator point. In a reflection triangle, the position of the generator point selects the regular, truncated, rectified, and other uniform forms of the family (Sections 10.1 to 10.3 of `colourings.md`), and the adjustable parameter is that position. The owner confirms or replaces this reading before the design of the phase starts. The first version of the Wythoff constructions, with on or off marks on the mirrors, is milestone `M23` of the proof of concept (Section 4.2). Whether the work beyond it is this phase is open.
 
-On this reading, the phase starts from Section 10 of `colourings.md`. Its Section 10.7 records that most of the construction rests on secondary sources only, and that no source gives the faces that each position produces or a per-pixel classification of the faces (items 10 and 11 of Section 14.1). Item 12 of that section records the construction beyond triangles as open.
+On this reading, the phase starts from Section 10 of `colourings.md`. Its Section 10.7 gives the status of each part. The face rule at a corner of the triangle has primary sources for the sphere only, and the per-pixel classification of the faces has none (items 10 and 11 of Section 14.1). Item 12 of that section records the construction beyond triangles as open.
 
 ### 3.6. First Release
 
