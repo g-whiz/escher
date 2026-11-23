@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/masks.rs
+expression: "masks_snapshot(&[\"*22\"], &output)"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render the masks of *22
+  caused by: cannot build masks: the domain has no mask polygon
+--- end

@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "snapshot(&[\"render\", \"*732\", \"--colours\", &colours, \"-o\", NEVER_WRITTEN])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the image of colour 1 of --colours cannot be used
+  caused by: cannot decode image: the image size 16385x1 is larger than 16384 pixels on a side
+--- end

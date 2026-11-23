@@ -15,7 +15,7 @@ The workspace holds the command-line tool, five libraries, and a test support cr
 
 | Crate | Use it to |
 | --- | --- |
-| [escher-cli](https://github.com/g-whiz/escher/tree/main/crates/escher-cli) | Run the command-line tool `escher`, with its commands `info` and `render`. |
+| [escher-cli](https://github.com/g-whiz/escher/tree/main/crates/escher-cli) | Run the command-line tool `escher`, with its commands `info`, `render`, and `render-masks`. |
 | [escher-render](https://github.com/g-whiz/escher/tree/main/crates/escher-render) | Render the tiling of a fundamental domain into an image and encode it as a PNG file. |
 | [escher-domain](https://github.com/g-whiz/escher/tree/main/crates/escher-domain) | Build and verify the fundamental domain of a signature and the side pairings of its group. |
 | [escher-group](https://github.com/g-whiz/escher/tree/main/crates/escher-group) | Work with group presentations, run coset enumeration, and search for the colourings of a tiling. |
@@ -38,7 +38,7 @@ cargo build --release -p escher-cli
 ./target/release/escher --help
 ```
 
-The help shows the two commands:
+The help shows the three commands:
 
 ```text
 Command-line program of Escher, a tool for symmetry-based graphics.
@@ -46,8 +46,9 @@ Command-line program of Escher, a tool for symmetry-based graphics.
 Usage: escher <COMMAND>
 
 Commands:
-  info    Print the canonical form, the geometry, and other properties of a signature in orbifold notation
-  render  Render the tiling of a signature in orbifold notation and write it to a PNG file
+  info          Print the canonical form, the geometry, and other properties of a signature in orbifold notation
+  render        Render the tiling of a signature in orbifold notation and write it to a PNG file
+  render-masks  Write one PNG mask for each colour of a colouring: the tile as a flat polygon in white, over which to paint the image fill of that colour for render, with each edge bordered in the same colour as every edge that it can meet in the tiling
 
 Options:
   -h, --help     Print help
@@ -155,6 +156,22 @@ escher render '*642' --colouring 4a --colours '#dc143c,#ffd700,#000080,#2e8b57' 
 
 ![The same four-colour tiling in crimson, gold, navy, and sea green.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/four-colours.png)
 
+`escher render-masks` writes one PNG mask for each colour of a colouring, to paint an image over. A mask shows the tile as a flat white polygon on black, with each edge bordered in the same colour as every edge that it can meet in the tiling. This command writes `mask-0.png` to `mask-3.png` for the colouring `4a`:
+
+```sh
+escher render-masks '*642' --colouring 4a -o mask.png
+```
+
+![A white right triangle on black, with a green, a lime, and a red border, one on each edge, each black near one end.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/mask-0.png)
+
+An item `image:FILE` of `--colours` fills the tiles of its colour with a PNG image. To fill the tiles with your own design, paint over each mask in an image editor, then pass the painted files in the order of the colours. This command passes the unpainted masks instead, so the coloured borders show how the tiles meet:
+
+```sh
+escher render '*642' --colouring 4a --colours 'image:mask-0.png,image:mask-1.png,image:mask-2.png,image:mask-3.png' -o masked.png
+```
+
+![White triangles fill the Poincare disk, with coloured borders that meet across each shared edge.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/masked.png)
+
 `escher info` prints one `Parameter` line for each shape parameter of a signature. For `*2222`, the line is:
 
 ```text
@@ -204,6 +221,8 @@ These signatures take shape parameters through `--set`:
 - A reflection polygon `*p1...pn` takes one length for each corner beyond three. Its rotation signature takes none.
 
 Escher refuses a few rotation signatures of polygons with 8 orders, several of them high, because it cannot build their domains accurately.
+
+`escher render-masks` and the `image:FILE` items of `--colours` also need a mask polygon. A domain with fewer than three sides, such as the lune of `*22`, has none yet, and neither do the domain of `*222` and the two domains built on it.
 
 ## Documentation
 

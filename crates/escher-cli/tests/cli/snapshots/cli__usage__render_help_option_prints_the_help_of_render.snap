@@ -25,7 +25,7 @@ Options:
           One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise
 
       --colours <COLOURS>
-          The fill colours, separated by commas, each as #rgb or #rrggbb, one for each colour of the colouring. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'
+          The fill colours, separated by commas, one for each colour of the colouring, each as #rgb, #rrggbb, or image:FILE for a PNG image painted over the mask of that colour that render-masks writes. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,image:fill-1.png'
 
       --border-width <WIDTH>
           The border width, in the unit of --border-unit. 0 draws no border. The default is 1 for pixels and 0.05 for intrinsic
@@ -52,7 +52,7 @@ Options:
           [default: 1500]
 
       --background <COLOUR>
-          The colour outside the model of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb
+          The colour outside the model of a hyperbolic tiling or the ball of a spherical tiling, and where an image fill is transparent or has no pixel, as #rgb or #rrggbb
 
           [default: #ffffff]
 

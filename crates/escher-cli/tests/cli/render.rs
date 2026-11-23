@@ -1,5 +1,5 @@
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use escher_cli::{Status, run};
 use escher_domain::FundamentalDomain;
@@ -7,9 +7,10 @@ use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings_of_index};
 use escher_render::{Colour, CosetFill, Fill, Paint, RenderOptions, Renderer, encode_png};
 use escher_signature::Signature;
 
-use crate::common::{FailingWriter, NEVER_WRITTEN, output_path, path_text, run_args, snapshot};
-
-const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+use crate::common::{
+    FailingWriter, NEVER_WRITTEN, PNG_SIGNATURE, assert_png_bytes, output_path, path_text,
+    run_args, snapshot, write_image,
+};
 
 fn render_snapshot(test: &str, args: &[&str]) -> String {
     let output = output_path(test);
@@ -358,27 +359,6 @@ fn render_statistics_of_a_spherical_tiling_hold_the_samples_and_masked_values() 
     ));
 }
 
-fn read_u32(bytes: &[u8], start: usize) -> u32 {
-    let field = bytes
-        .get(start..start + 4)
-        .expect("the file holds the field");
-    u32::from_be_bytes(field.try_into().expect("the field has four bytes"))
-}
-
-fn chunk_types(file: &[u8]) -> Vec<[u8; 4]> {
-    let mut types = Vec::new();
-    let mut start = PNG_SIGNATURE.len();
-    while start < file.len() {
-        let length = usize::try_from(read_u32(file, start)).expect("a chunk length fits a usize");
-        let chunk_type = file
-            .get(start + 4..start + 8)
-            .expect("the file holds the chunk type");
-        types.push(chunk_type.try_into().expect("a chunk type has four bytes"));
-        start += 12 + length;
-    }
-    types
-}
-
 #[test]
 fn render_writes_a_png_file_of_the_requested_size() {
     let output = output_path("written_file");
@@ -401,23 +381,6 @@ fn render_writes_a_png_file_of_the_requested_size() {
 fn assert_png_header(output: &Path, width: u32, height: u32) {
     let file = std::fs::read(output).expect("the output file is written");
     assert_png_bytes(&file, width, height);
-}
-
-fn assert_png_bytes(file: &[u8], width: u32, height: u32) {
-    assert_eq!(file.get(..8), Some(PNG_SIGNATURE));
-    assert_eq!(read_u32(file, 8), 13);
-    assert_eq!(file.get(12..16), Some(&b"IHDR"[..]));
-    assert_eq!(read_u32(file, 16), width);
-    assert_eq!(read_u32(file, 20), height);
-    assert_eq!(file.get(24), Some(&8));
-    assert_eq!(file.get(25), Some(&2));
-    let types = chunk_types(file);
-    let srgb = types.iter().position(|chunk| chunk == b"sRGB");
-    let idat = types.iter().position(|chunk| chunk == b"IDAT");
-    assert!(
-        matches!((srgb, idat), (Some(srgb), Some(idat)) if srgb < idat),
-        "{types:?}"
-    );
 }
 
 #[test]
@@ -1322,7 +1285,7 @@ fn render_with_a_colour_name_returns_failure() {
         first_error_line(&["*732", "--colours", "#e9c46a,red"]),
         (
             Status::Failure,
-            "error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb"
+            "error: cannot render *732: colour 2 of --colours is not of the form #rgb, #rrggbb, or image:FILE"
                 .to_owned()
         )
     );
@@ -1537,4 +1500,201 @@ fn render_with_the_intrinsic_border_unit_and_no_width_draws_the_width_0_05() {
         &["*732", "--border-unit", "intrinsic"],
     );
     assert_eq!(default, given);
+}
+
+fn image_file(test: &str, name: &str) -> (PathBuf, String) {
+    let output = output_path(test);
+    let image = output.with_file_name(name);
+    let item = format!("image:{}", path_text(&image));
+    (image, item)
+}
+
+fn image_item(test: &str, rgb: [u8; 3]) -> String {
+    let (image, item) = image_file(&format!("{test}_image"), "fill.png");
+    write_image(&image, 6, 4, rgb);
+    item
+}
+
+#[test]
+fn render_diagnostic_says_an_image_item_without_a_path_is_not_a_colour() {
+    insta::assert_snapshot!(render_snapshot(
+        "image_without_path",
+        &["*732", "--colours", "image:,#e9c46a"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_an_image_file_that_does_not_exist_cannot_be_opened() {
+    let (_, item) = image_file("missing_image", "missing.png");
+    let colours = format!("#e9c46a,{item}");
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "--colours",
+        &colours,
+        "-o",
+        NEVER_WRITTEN
+    ]));
+}
+
+#[test]
+fn render_diagnostic_says_a_file_that_is_not_a_png_image_cannot_be_used() {
+    let (image, item) = image_file("image_not_png", "fill.png");
+    std::fs::write(&image, b"not a PNG image").expect("the file is written");
+    let colours = format!("#e9c46a,{item}");
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "--colours",
+        &colours,
+        "-o",
+        NEVER_WRITTEN
+    ]));
+}
+
+#[test]
+fn render_diagnostic_gives_the_cause_of_an_image_over_the_size_limit() {
+    let (image, item) = image_file("image_size_limit", "wide.png");
+    write_image(&image, 16385, 1, [0, 0, 0]);
+    let colours = format!("{item},#e9c46a");
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "--colours",
+        &colours,
+        "-o",
+        NEVER_WRITTEN
+    ]));
+}
+
+#[test]
+fn render_diagnostic_says_the_lune_has_no_mask_polygon_for_an_image_item() {
+    let item = image_item("image_lune", [0x2a, 0x9d, 0x8f]);
+    let colours = format!("{item},#e9c46a");
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*22",
+        "--colours",
+        &colours,
+        "-o",
+        NEVER_WRITTEN
+    ]));
+}
+
+#[test]
+fn render_with_an_image_item_and_a_colour_writes_a_file() {
+    let item = image_item("image_and_colour", [0x2a, 0x9d, 0x8f]);
+    let colours = format!("#e9c46a,{item}");
+    let file = rendered(
+        "image_and_colour",
+        &[
+            "*732",
+            "--colours",
+            &colours,
+            "--size",
+            "48x32",
+            "--samples",
+            "2",
+        ],
+    );
+    assert_png_bytes(&file, 48, 32);
+}
+
+#[test]
+fn render_with_an_image_item_draws_one_and_parity_through_the_coset_fill() {
+    let one = image_item("image_one", [0x91, 0x36, 0x71]);
+    let file = small_png(
+        "image_one",
+        &["*632", "--colouring", "one", "--colours", &one],
+    );
+    let solid = small_png(
+        "image_one_solid",
+        &["*632", "--colouring", "one", "--colours", "#913671"],
+    );
+    assert_eq!(file, solid);
+    let parity = image_item("image_parity", [0x91, 0x36, 0x71]);
+    let colours = format!("{parity},#e9c46a");
+    let file = small_png(
+        "image_parity",
+        &["*632", "--colouring", "parity", "--colours", &colours],
+    );
+    let solid = small_png(
+        "image_parity_solid",
+        &[
+            "*632",
+            "--colouring",
+            "parity",
+            "--colours",
+            "#913671,#e9c46a",
+        ],
+    );
+    assert_eq!(file, solid);
+}
+
+#[test]
+fn render_draws_the_parity_colouring_with_image_items_as_parity() {
+    for (test, signature) in [
+        ("image_parity_reflection", "*632"),
+        ("image_parity_rotation", "442"),
+    ] {
+        let first = image_item(&format!("{test}_first"), [0x91, 0x36, 0x71]);
+        let second = image_item(&format!("{test}_second"), [0x3b, 0x70, 0xc2]);
+        let colours = format!("{first},{second}");
+        let id = small_png(
+            &format!("{test}_id"),
+            &[signature, "--colouring", "2a", "--colours", &colours],
+        );
+        let alias = small_png(
+            &format!("{test}_alias"),
+            &[signature, "--colouring", "parity", "--colours", &colours],
+        );
+        assert_eq!(id, alias, "{signature}");
+    }
+}
+
+#[test]
+fn render_with_an_image_that_cannot_be_read_changes_no_file() {
+    let (image, item) = image_file("image_unreadable_source", "fill.png");
+    std::fs::write(&image, b"not a PNG image").expect("the file is written");
+    let colours = format!("#e9c46a,{item}");
+    assert_no_file_changes("image_unreadable_file", &["*732", "--colours", &colours]);
+    let (_, missing) = image_file("image_missing_source", "missing.png");
+    let colours = format!("{missing},#e9c46a");
+    assert_no_file_changes("image_missing_file", &["*732", "--colours", &colours]);
+    let (wide, item) = image_file("image_wide_source", "wide.png");
+    write_image(&wide, 16385, 1, [0, 0, 0]);
+    let colours = format!("{item},#e9c46a");
+    assert_no_file_changes("image_wide_file", &["*732", "--colours", &colours]);
+}
+
+#[test]
+fn render_with_parity_and_image_items_for_a_domain_without_a_valid_colouring_with_two_colours_returns_failure()
+ {
+    let first = image_item("image_parity_missing_first", [0x91, 0x36, 0x71]);
+    let second = image_item("image_parity_missing_second", [0x3b, 0x70, 0xc2]);
+    let colours = format!("{first},{second}");
+    assert_eq!(
+        first_error_line(&["732", "--colouring", "parity", "--colours", &colours]),
+        (
+            Status::Failure,
+            "error: cannot render 732: the colouring parity does not exist, because the signature has no colouring with 2 colours"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_reports_an_image_that_cannot_be_opened_before_the_search_for_an_id() {
+    let (_, missing) = image_file("image_before_search", "missing.png");
+    let mut items = vec!["#e9c46a"; 11];
+    items.push(&missing);
+    let colours = items.join(",");
+    assert_eq!(
+        first_error_line(&["*(12)(12)6", "--colouring", "12a", "--colours", &colours]),
+        (
+            Status::Failure,
+            "error: cannot render *(12)(12)6: the image of colour 12 of --colours cannot be opened"
+                .to_owned()
+        )
+    );
 }

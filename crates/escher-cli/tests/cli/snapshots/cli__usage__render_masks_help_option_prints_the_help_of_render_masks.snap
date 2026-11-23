@@ -1,0 +1,59 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "long_help_snapshot(\"render-masks\")"
+---
+status: Success
+--- stdout
+Write one PNG mask for each colour of a colouring: the tile as a flat polygon in white, over which to paint the image fill of that colour for render, with each edge bordered in the same colour as every edge that it can meet in the tiling
+
+Usage: escher render-masks [OPTIONS] --output <FILE> <SIGNATURE>
+
+Arguments:
+  <SIGNATURE>
+          The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'
+
+Options:
+  -o, --output <FILE>
+          The file name from which the masks are named: mask.png gives mask-0.png, mask-1.png, and so on, one for each colour. Existing files are replaced
+
+      --size <WIDTHxHEIGHT>
+          The image size in pixels, as WIDTHxHEIGHT
+
+          [default: 512x512]
+
+      --colouring <COLOURING>
+          One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise
+
+      --set <NAME=VALUE>
+          Set a shape parameter, as NAME=VALUE, such as aspect=1.5.
+
+          A shape parameter is a number that changes the shape of the tiles without
+          changing their symmetry. Which parameters exist depends on the signature:
+
+            aspect
+                The ratio of the sides of the rectangle or the parallelogram, for
+                *2222, 2222, o, **, xx, *x, 22*, 22x, and 2*22.
+            skew
+                The shear of the parallelogram of o and of the two rectangles of 2222.
+            cornerpair<k>.length
+                For a hyperbolic reflection polygon *p1...pn with 4 to 8 corners, the
+                length of the side between the two right angles of its k-th pair of
+                adjacent corners of order 2.
+            slice<i>.length
+                For the same polygons, the length of the i-th cut across the polygon,
+                a common perpendicular of two of its sides. A polygon with n corners
+                has n - 3 lengths, corner pairs first.
+
+          Every other signature has no shape parameter. escher info <SIGNATURE>
+          prints one Parameter line for each parameter of the signature, with its
+          range and default.
+
+          Give the option once for each parameter, as in:
+
+            escher render o --set aspect=2 --set skew=0.25 -o /tmp/torus.png
+            escher render '*3333' --set slice1.length=2 -o /tmp/square.png
+
+  -h, --help
+          Print help (see a summary with '-h')
+--- stderr
+--- end

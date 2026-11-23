@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "snapshot(&[\"render\", \"*22\", \"--colours\", &colours, \"-o\", NEVER_WRITTEN])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *22
+  caused by: cannot build renderer: the domain has no mask polygon
+--- end

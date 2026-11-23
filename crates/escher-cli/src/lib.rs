@@ -53,15 +53,23 @@
 //! one, and one colour otherwise, as for the domain of `632`. For an id, it
 //! gives each tile the colour of its coset in that colouring. The option
 //! `--colours` gives one colour for each colour of the colouring, and without
-//! it the command takes the first colours of a built-in list of 12. It fails
-//! for a signature without a domain, for a setting that the domain does not
-//! accept, for the colouring `parity` of a domain without a valid colouring
-//! with two colours, for an id that names no valid colouring of the domain,
-//! for a colouring whose search stops at a limit, for an id with more than 12
-//! colours without `--colours`, and for a number of colours that differs from
-//! that of the colouring. It prints nothing on standard output unless the
-//! option `--stats` is given, which prints statistics of the rendering after
-//! the file is written.
+//! it the command takes the first colours of a built-in list of 12. An item
+//! `image:FILE` of `--colours` fills the tiles of its colour with a PNG image
+//! instead of a colour. It fails for a signature without a domain, for a
+//! setting that the domain does not accept, for the colouring `parity` of a
+//! domain without a valid colouring with two colours, for an id that names no
+//! valid colouring of the domain, for a colouring whose search stops at a
+//! limit, for an id with more than 12 colours without `--colours`, for a
+//! number of colours that differs from that of the colouring, and for an image
+//! that cannot be read. It prints nothing on standard output unless the option
+//! `--stats` is given, which prints statistics of the rendering after the file
+//! is written.
+//!
+//! The command `escher render-masks --output <FILE> <SIGNATURE>` writes one
+//! PNG mask for each colour of a colouring, named from the output file, such
+//! as `mask-0.png` and `mask-1.png` for `mask.png`. A mask shows the tile as a
+//! flat polygon in white, with a coloured border on each edge, over which the
+//! user paints the image of that colour for `render`.
 //!
 //! ```
 //! use escher_cli::{Status, run};
@@ -91,6 +99,7 @@
 mod args;
 mod diagnostic;
 mod info;
+mod masks;
 mod render;
 
 use std::ffi::OsString;
@@ -127,8 +136,9 @@ pub enum Status {
     /// The signature is not valid, a write to standard output failed, the
     /// option `--check` found a failed check or no domain to verify, the
     /// option `--presentation` counted a group order that differs from that of
-    /// the signature, or the command `render` could not render the signature
-    /// or write its file.
+    /// the signature, the command `render` could not render the signature
+    /// or write its file, or the command `render-masks` could not render or
+    /// write a mask.
     Failure,
     /// The command line itself is wrong, such as an unknown subcommand or a
     /// missing argument.
@@ -152,14 +162,14 @@ impl From<Status> for ExitCode {
 /// Use this to run the program with streams that the caller chooses, such as a
 /// `Vec<u8>` in a test. The function writes the output to `stdout` and the
 /// diagnostics to `stderr`, and to no other stream. The command `render` also
-/// writes its output file. `args` holds the program name first, as
-/// [`std::env::args_os`] gives it. The function flushes
-/// `stdout` after it writes to it, and it never panics or exits the process. A
-/// failed write to `stdout` gives [`Status::Failure`], with a diagnostic on
-/// `stderr` unless the reader closed the pipe. A failed write to `stderr` is
-/// ignored. In the help, version, and usage text that the argument parser
-/// produces, the function replaces each control character other than the line
-/// feed with `?`.
+/// writes its output file, and the command `render-masks` its mask files.
+/// `args` holds the program name first, as [`std::env::args_os`] gives it. The
+/// function flushes `stdout` after it writes to it, and it never panics or
+/// exits the process. A failed write to `stdout` gives [`Status::Failure`],
+/// with a diagnostic on `stderr` unless the reader closed the pipe. A failed
+/// write to `stderr` is ignored. In the help, version, and usage text that the
+/// argument parser produces, the function replaces each control character
+/// other than the line feed with `?`.
 ///
 /// # Examples
 ///
@@ -212,6 +222,9 @@ fn run_args(args: Vec<OsString>, stdout: &mut dyn Write, stderr: &mut dyn Write)
             .err()
             .into_iter()
             .collect(),
+        Command::RenderMasks(masks_args) => {
+            masks::render_masks(&masks_args).err().into_iter().collect()
+        }
     };
     if errors.is_empty() {
         Status::Success

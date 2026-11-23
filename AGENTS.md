@@ -82,16 +82,19 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Project Status
 
-As of 2026-11-23, the tool `escher` has two commands:
+As of 2026-11-23, the tool `escher` has three commands:
 
 - `escher info` reports on a signature: its canonical form, geometry, Euler characteristic, classification, the Schlafli symbols of its regular tiling and of the dual where the signature has one, and, for a signature with a fundamental domain, its shape parameters, a summary of the domain, and the count of its valid colourings, those in which no two tiles that share a side have the same colour, with one for each conjugacy class. `--colourings` lists them by id, `--presentation` prints the group presentations, and `--check` prints the verification of the domain.
-- `escher render` writes the tiling of a domain to a PNG file: a hyperbolic domain in the Poincare disk, a Euclidean domain in the plane, and a spherical domain as a lit ball. `--model` draws a hyperbolic domain in the half-plane, the band, or the Klein disk instead, and `--border-unit intrinsic` measures the border width in the geometry of the tiling instead of in pixels. By default it draws the valid colouring with 2 colours where the domain has one, and one colour otherwise. It can instead draw a colouring given by its id, in default or user-given colours, and `--set` sets the shape parameters.
+- `escher render` writes the tiling of a domain to a PNG file: a hyperbolic domain in the Poincare disk, a Euclidean domain in the plane, and a spherical domain as a lit ball. `--model` draws a hyperbolic domain in the half-plane, the band, or the Klein disk instead, and `--border-unit intrinsic` measures the border width in the geometry of the tiling instead of in pixels. By default it draws the valid colouring with 2 colours where the domain has one, and one colour otherwise. It can instead draw a colouring given by its id, in default or user-given colours, and `--set` sets the shape parameters. `--colours` also accepts `image:FILE` items, which fill the tiles of their colour with a PNG image, such as a painted mask of that colour.
+- `escher render-masks` writes, for a signature and a colouring, one PNG mask for each colour: a flat polygon that stands for the tile, with a coloured border on each edge that shows which edges can meet.
 
-Both commands support these signatures, with corner orders up to 100:
+`info` and `render` support these signatures, with corner orders up to 100:
 
 - Hyperbolic: the compact reflection triangles `*pqr` and the compact reflection polygons with four to eight corners, such as `*3333`, and the rotation signature of each, such as `732` and `3333`.
 - Euclidean: all 17 groups.
 - Spherical: every spherical signature, which is `*332`, `*432`, `*532`, `*n22`, `*nn`, the rotation signature of each, `3*2`, `2*n`, `n*`, `nx`, `*`, `x`, and `1`, with orders up to 100, and up to 50 for `n` in `2*n`.
+
+`render-masks` and the image fills of `render` support the same signatures, except those whose domain has no mask polygon, which Section 5.22 of `docs/design/render.md` lists.
 
 `docs/design/cli.md` specifies the commands, and `docs/design/domain.md` lists the supported signatures and their parameters.
 
@@ -105,11 +108,11 @@ Both commands support these signatures, with corner orders up to 100:
 | `escher-render` | Renders the tiling of a domain per pixel and encodes it as PNG | `docs/design/render.md` |
 | `escher-reference` | Test support: the shared reference arithmetic of the accuracy tests | `docs/design/architecture.md` |
 
-Milestones `M1` to `M13`, `M20`, and `M21` of `docs/design/poc-plan.md` are complete, `M22` is in progress in the branches of Section 5.22 of that document, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
+Milestones `M1` to `M13` and `M20` to `M22` of `docs/design/poc-plan.md` are complete, `M23` is in progress in the branches of Section 5.23 of that document, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
 
 What does not exist yet:
 
-- Every command of `escher` other than `info` and `render`.
+- Every command of `escher` other than `info`, `render`, and `render-masks`.
 - The design document of each component other than the crates above, which its milestone writes before the code of the component.
 - A Lean development.
 
@@ -235,7 +238,7 @@ Run the checks that match the change, and `just check` before every merge. `just
 | A workflow under `.github/` changed | `just check-workflows`, `just check-workflow-pins` |
 | Code, configuration, a script, the `justfile`, or a rule table of a document changed | `just check-doc-references` |
 | A shell script or a recipe changed | `just check-shell` |
-| An `escher render` command of `README.md` or the output of `escher render` changed (commit the changed images) | `just readme-images` |
+| An `escher render` or `escher render-masks` command of `README.md`, or the output of either command, changed (commit the changed images) | `just readme-images` |
 | A checker, `scripts/rust_lexer.py`, or its cases under `scripts/fixtures/` changed | `just check-<checker>-self-test`, for `prose`, `rust-comments`, `doc-headings`, `doctest-attributes`, `feature-docs`, `workflow-pins`, and `doc-references` |
 | `scripts/check-commit-message` changed | `just check-commit-message-self-test` |
 | Cargo features changed | `just check-features` |

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-22 |
+| Date | 2026-11-23 |
 | Applies to | The repository's configuration, recipes, hooks, and continuous integration |
 
 ## Abstract
@@ -153,7 +153,7 @@ This table lists every recipe, what it runs, and whether `check` runs it. The co
 | `check-doctest` | `checks` | The doctest command of Section 4.8 | Yes, through `check-rust` |
 | `test` | `rust` | The nextest command of Section 4.8 with the `default` profile | Yes, through `check-rust` |
 | `update-golden` | `rust` | Only the golden image test of `escher-render`, `images::golden_images_match_the_committed_files`, through the command of `test` with `-p escher-render` in place of `--workspace` and that test as the filter of `-E`, with `ESCHER_UPDATE_GOLDEN=1` in its environment, so that the test writes each image it renders over its committed PNG file (Section 14.9) | No |
-| `readme-images` | `rust` | `scripts/readme-images`, which builds `escher` in release mode and runs each `escher render` command that `README.md` shows, with its options, in `docs/images/`, so that each image there is the file that its command writes | No |
+| `readme-images` | `rust` | `scripts/readme-images`, which builds `escher` in release mode and runs each `escher render` and `escher render-masks` command that `README.md` shows, with its options, in `docs/images/`, so that each image there is the file that its command writes. One `render` command reads the masks as image fills, and the script then removes the masks that `README.md` does not show | No |
 | `check-deny` | `checks` | The cargo-deny command of Section 4.8 | Yes, through `check-rust` |
 | `check-rust-comments` | `checks` | The comment checker of Section 6.2 | Yes, through `check-rust` |
 | `check-doc-headings` | `checks` | The heading checker of Section 6.3 | Yes, through `check-rust` |

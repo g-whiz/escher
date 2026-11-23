@@ -5,5 +5,5 @@ expression: "render_snapshot(\"colour_name\", &[\"*732\", \"--colours\", \"#e9c4
 status: Failure
 --- stdout
 --- stderr
-error: cannot render *732: colour 2 of --colours is not of the form #rgb or #rrggbb
+error: cannot render *732: colour 2 of --colours is not of the form #rgb, #rrggbb, or image:FILE
 --- end

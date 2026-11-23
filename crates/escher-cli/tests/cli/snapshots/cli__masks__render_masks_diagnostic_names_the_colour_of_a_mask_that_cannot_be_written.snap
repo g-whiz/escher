@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/masks.rs
+expression: "masks_snapshot(&[\"*732\", \"--size\", \"16x16\"], &output)"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot write the mask of colour 0
+  caused by: No such file or directory (os error 2)
+--- end

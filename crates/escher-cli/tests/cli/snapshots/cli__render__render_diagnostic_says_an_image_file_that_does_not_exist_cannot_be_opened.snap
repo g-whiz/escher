@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "snapshot(&[\"render\", \"*732\", \"--colours\", &colours, \"-o\", NEVER_WRITTEN])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the image of colour 2 of --colours cannot be opened
+  caused by: No such file or directory (os error 2)
+--- end

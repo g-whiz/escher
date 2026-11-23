@@ -5,6 +5,8 @@ mod common;
 mod diagnostics;
 mod info;
 #[cfg(test)]
+mod masks;
+#[cfg(test)]
 mod process;
 #[cfg(test)]
 mod render;

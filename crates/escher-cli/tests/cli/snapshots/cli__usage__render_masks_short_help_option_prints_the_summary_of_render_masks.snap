@@ -1,0 +1,21 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render-masks\", \"-h\"])"
+---
+status: Success
+--- stdout
+Write one PNG mask for each colour of a colouring: the tile as a flat polygon in white, over which to paint the image fill of that colour for render, with each edge bordered in the same colour as every edge that it can meet in the tiling
+
+Usage: escher render-masks [OPTIONS] --output <FILE> <SIGNATURE>
+
+Arguments:
+  <SIGNATURE>  The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'
+
+Options:
+  -o, --output <FILE>          The file name from which the masks are named: mask.png gives mask-0.png, mask-1.png, and so on, one for each colour. Existing files are replaced
+      --size <WIDTHxHEIGHT>    The image size in pixels, as WIDTHxHEIGHT [default: 512x512]
+      --colouring <COLOURING>  One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise
+      --set <NAME=VALUE>       Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature
+  -h, --help                   Print help (see more with '--help')
+--- stderr
+--- end

@@ -1,0 +1,14 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render-masks\", \"*732\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: the following required arguments were not provided:
+  --output <FILE>
+
+Usage: escher render-masks --output <FILE> <SIGNATURE>
+
+For more information, try '--help'.
+--- end

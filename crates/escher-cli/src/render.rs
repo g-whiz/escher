@@ -1,14 +1,17 @@
-use core::fmt::Display;
+use core::fmt::{self, Display};
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use escher_domain::{FundamentalDomain, Orientation, ParameterSpec, ShapeParameters, parameters};
-use escher_group::{ColouringId, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index};
+use escher_group::{
+    ColouringId, ColouringSet, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index,
+};
 use escher_render::{
-    Colour, CosetFill, Fill, Paint, RenderOptions, RenderStats, Renderer, Shading, encode_png,
+    Colour, CosetFill, Fill, Image, Paint, RenderOptions, RenderStats, Renderer, Shading,
+    encode_png,
 };
 use escher_signature::Signature;
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
@@ -35,6 +38,8 @@ const DEFAULT_COLOURS: [[u8; 3]; 12] = [
     [0x4f, 0x51, 0xaa],
 ];
 
+const IMAGE_PREFIX: &str = "image:";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Statistics {
     Skip,
@@ -47,57 +52,44 @@ impl Statistics {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Task<'a> {
+    Render(&'a Signature),
+    Masks(&'a Signature),
+}
+
+impl Task<'_> {
+    pub(crate) fn failed(self) -> String {
+        match self {
+            Self::Render(signature) => format!("cannot render {signature}"),
+            Self::Masks(signature) => format!("cannot render the masks of {signature}"),
+        }
+    }
+}
+
 pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Result<()> {
     let statistics = Statistics::from_flag(args.stats);
-    let signature: Signature = args
-        .signature
-        .parse()
-        .map_err(|error| SignatureError::new(&args.signature, error))?;
-    let border_colour = parse_colour(&args.border_colour).ok_or_else(|| {
-        cannot_render(
-            &signature,
-            "--border-colour is not of the form #rgb or #rrggbb",
-        )
-    })?;
-    let background = parse_colour(&args.background).ok_or_else(|| {
-        cannot_render(
-            &signature,
-            "--background is not of the form #rgb or #rrggbb",
-        )
-    })?;
-    let parameters =
-        shape_parameters(&args.set).map_err(|detail| cannot_render(&signature, detail))?;
-    let domain = FundamentalDomain::build_with(&signature, &parameters).map_err(|error| {
-        if matches!(
-            error.kind(),
-            escher_domain::ErrorKind::UnknownParameter
-                | escher_domain::ErrorKind::ParameterOutOfRange
-        ) && let Some(detail) = setting_text(&signature, &args.set)
-        {
-            return cannot_render(&signature, detail);
-        }
-        let context = if error.kind() == escher_domain::ErrorKind::UnsupportedSignature {
-            format!("cannot render {signature}: rendering this signature is not supported")
-        } else {
-            format!("cannot render {signature}")
-        };
-        anyhow::Error::new(error).context(context)
-    })?;
+    let signature = parse_signature(&args.tiling.signature)?;
+    let task = Task::Render(&signature);
+    let border_colour = parse_colour(&args.border_colour)
+        .ok_or_else(|| cannot_render(task, "--border-colour is not of the form #rgb or #rrggbb"))?;
+    let background = parse_colour(&args.background)
+        .ok_or_else(|| cannot_render(task, "--background is not of the form #rgb or #rrggbb"))?;
+    let domain = build_domain(task, &signature, &args.tiling.set)?;
     let (colouring, found_parity) =
-        chosen_colouring(&domain, &signature, args.colouring, SearchBudget::DEFAULT)?;
-    let colours = fill_colours(colouring, args.colours.as_deref())
-        .map_err(|detail| cannot_render(&signature, detail))?;
-    let options_with = |fill| {
-        render_options(args, fill, border_colour, background)
-            .with_context(|| format!("cannot render {signature}"))
-    };
+        chosen_colouring(&domain, task, args.tiling.colouring, SearchBudget::DEFAULT)?;
+    let items = fill_items(colouring, args.colours.as_deref())
+        .map_err(|detail| cannot_render(task, detail))?;
+    let paints = read_paints(task, items)?;
+    let options_with =
+        |fill| render_options(args, fill, border_colour, background).with_context(|| task.failed());
     options_with(Fill::One(border_colour))?;
     let fill = fill(
         &domain,
-        &signature,
+        task,
         colouring,
         found_parity,
-        colours,
+        paints,
         SearchBudget::DEFAULT,
     )?;
     let options = options_with(fill)?;
@@ -105,17 +97,15 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .build()
-        .map_err(|error| thread_pool_error(&signature, &error))?;
+        .map_err(|error| thread_pool_error(task, &error))?;
     let (width, height) = (options.width(), options.height());
-    let renderer =
-        Renderer::new(&domain, options).with_context(|| format!("cannot render {signature}"))?;
+    let renderer = Renderer::new(&domain, options).with_context(|| task.failed())?;
     let start = Instant::now();
     let (pixels, stats) = pool
         .install(|| render_bands(&renderer, width, height))
-        .with_context(|| format!("cannot render {signature}"))?;
+        .with_context(|| task.failed())?;
     let elapsed = start.elapsed();
-    let png =
-        encode_png(width, height, &pixels).with_context(|| format!("cannot render {signature}"))?;
+    let png = encode_png(width, height, &pixels).with_context(|| task.failed())?;
     std::fs::write(&args.output, png).context("cannot write the output file")?;
     match statistics {
         Statistics::Skip => Ok(()),
@@ -133,6 +123,37 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
     }
 }
 
+pub(crate) fn parse_signature(text: &str) -> anyhow::Result<Signature> {
+    text.parse()
+        .map_err(|error| anyhow::Error::new(SignatureError::new(text, error)))
+}
+
+pub(crate) fn build_domain(
+    task: Task<'_>,
+    signature: &Signature,
+    settings: &[Setting],
+) -> anyhow::Result<FundamentalDomain> {
+    let parameters = shape_parameters(settings).map_err(|detail| cannot_render(task, detail))?;
+    FundamentalDomain::build_with(signature, &parameters).map_err(|error| {
+        if matches!(
+            error.kind(),
+            escher_domain::ErrorKind::UnknownParameter
+                | escher_domain::ErrorKind::ParameterOutOfRange
+        ) && let Some(detail) = setting_text(signature, settings)
+        {
+            return cannot_render(task, detail);
+        }
+        if error.kind() == escher_domain::ErrorKind::UnsupportedSignature {
+            anyhow::Error::new(error).context(format!(
+                "{}: rendering this signature is not supported",
+                task.failed()
+            ))
+        } else {
+            anyhow::Error::new(error).context(task.failed())
+        }
+    })
+}
+
 fn render_options(
     args: &RenderArgs,
     fill: Fill,
@@ -141,7 +162,7 @@ fn render_options(
 ) -> escher_render::Result<RenderOptions> {
     let [yaw, pitch, roll] = args.rotation;
     RenderOptions::builder(fill)
-        .size(args.size.width, args.size.height)
+        .size(args.tiling.size.width, args.tiling.size.height)
         .samples(args.samples)
         .border_width(
             args.border_width
@@ -208,10 +229,10 @@ fn default_threads() -> usize {
         .min(MAX_THREADS)
 }
 
-fn thread_pool_error(signature: &Signature, error: &dyn Display) -> anyhow::Error {
+fn thread_pool_error(task: Task<'_>, error: &dyn Display) -> anyhow::Error {
     anyhow::anyhow!("{error}")
         .context("cannot start the thread pool")
-        .context(format!("cannot render {signature}"))
+        .context(task.failed())
 }
 
 fn setting_text(signature: &Signature, settings: &[Setting]) -> Option<String> {
@@ -249,12 +270,12 @@ fn setting_text(signature: &Signature, settings: &[Setting]) -> Option<String> {
     })
 }
 
-fn cannot_render(signature: &Signature, detail: impl Display) -> anyhow::Error {
-    anyhow::anyhow!("cannot render {signature}: {detail}")
+pub(crate) fn cannot_render(task: Task<'_>, detail: impl Display) -> anyhow::Error {
+    anyhow::anyhow!("{}: {detail}", task.failed())
 }
 
 #[derive(Clone, Debug)]
-enum Parity {
+pub(crate) enum Parity {
     Reversals,
     Cosets(escher_group::Colouring),
 }
@@ -269,46 +290,73 @@ fn is_all_reversing(domain: &FundamentalDomain) -> bool {
 
 fn parity(
     domain: &FundamentalDomain,
-    signature: &Signature,
+    task: Task<'_>,
     budget: SearchBudget,
 ) -> anyhow::Result<Option<Parity>> {
     if is_all_reversing(domain) {
         return Ok(Some(Parity::Reversals));
     }
-    let found = search(domain, signature, 2, budget)?;
+    Ok(parity_cosets(domain, task, budget)?.map(Parity::Cosets))
+}
+
+fn parity_cosets(
+    domain: &FundamentalDomain,
+    task: Task<'_>,
+    budget: SearchBudget,
+) -> anyhow::Result<Option<escher_group::Colouring>> {
+    let found = search(domain, task, crate::COLOURING_SET, 2, budget)?;
     match found.list().first() {
-        Some(colouring) => Ok(Some(Parity::Cosets(colouring.clone()))),
+        Some(colouring) => Ok(Some(colouring.clone())),
         None if found.is_complete() => Ok(None),
-        None => Err(cannot_render(signature, stopped_text("parity"))),
+        None => Err(cannot_render(task, stopped_text("parity"))),
     }
 }
 
-fn chosen_colouring(
+fn missing_parity(task: Task<'_>) -> anyhow::Error {
+    cannot_render(
+        task,
+        "the colouring parity does not exist, because the signature has no colouring with 2 colours",
+    )
+}
+
+pub(crate) fn chosen_colouring(
     domain: &FundamentalDomain,
-    signature: &Signature,
+    task: Task<'_>,
     requested: Option<Colouring>,
     budget: SearchBudget,
 ) -> anyhow::Result<(Colouring, Option<Parity>)> {
     if let Some(colouring) = requested {
         return Ok((colouring, None));
     }
-    Ok(match parity(domain, signature, budget)? {
+    Ok(match parity(domain, task, budget)? {
         Some(found) => (Colouring::Parity, Some(found)),
         None => (Colouring::One, None),
     })
 }
 
+#[derive(Debug)]
+enum Paints {
+    Solid(Vec<Colour>),
+    Images(Vec<Paint>),
+}
+
 fn fill(
     domain: &FundamentalDomain,
-    signature: &Signature,
+    task: Task<'_>,
     colouring: Colouring,
     found_parity: Option<Parity>,
-    colours: Vec<Colour>,
+    paints: Paints,
     budget: SearchBudget,
 ) -> anyhow::Result<Fill> {
+    let colours = match paints {
+        Paints::Solid(colours) => colours,
+        Paints::Images(paints) => {
+            return coset_fill(domain, task, colouring, found_parity, paints, budget);
+        }
+    };
     let wrong_count = |colours: Vec<Colour>| {
         cannot_render(
-            signature,
+            task,
             format!(
                 "internal error: the colouring {colouring} was given {} colours",
                 colours.len()
@@ -320,16 +368,11 @@ fn fill(
         Colouring::Id(id) if is_one_colour(id) => {
             return one_colour(colours).map_err(wrong_count);
         }
-        Colouring::Id(id) => resolve(domain, signature, id, budget)?,
+        Colouring::Id(id) => resolve(domain, task, id, budget)?,
         Colouring::Parity => {
             let found = match found_parity {
                 Some(found) => found,
-                None => parity(domain, signature, budget)?.ok_or_else(|| {
-                    cannot_render(
-                        signature,
-                        "the colouring parity does not exist, because the signature has no colouring with 2 colours",
-                    )
-                })?,
+                None => parity(domain, task, budget)?.ok_or_else(|| missing_parity(task))?,
             };
             match found {
                 Parity::Reversals => {
@@ -341,14 +384,76 @@ fn fill(
             }
         }
     };
+    cosets(
+        domain,
+        task,
+        found,
+        colours.into_iter().map(Paint::Solid).collect(),
+    )
+}
+
+fn coset_fill(
+    domain: &FundamentalDomain,
+    task: Task<'_>,
+    colouring: Colouring,
+    found_parity: Option<Parity>,
+    paints: Vec<Paint>,
+    budget: SearchBudget,
+) -> anyhow::Result<Fill> {
+    let found = coset_colouring(domain, task, colouring, found_parity, budget)?;
+    cosets(domain, task, found, paints)
+}
+
+fn cosets(
+    domain: &FundamentalDomain,
+    task: Task<'_>,
+    colouring: escher_group::Colouring,
+    paints: Vec<Paint>,
+) -> anyhow::Result<Fill> {
     Ok(Fill::Cosets(
-        CosetFill::new(
-            domain,
-            found,
-            colours.into_iter().map(Paint::Solid).collect(),
-        )
-        .with_context(|| format!("cannot render {signature}"))?,
+        CosetFill::new(domain, colouring, paints).with_context(|| task.failed())?,
     ))
+}
+
+pub(crate) fn coset_colouring(
+    domain: &FundamentalDomain,
+    task: Task<'_>,
+    colouring: Colouring,
+    found_parity: Option<Parity>,
+    budget: SearchBudget,
+) -> anyhow::Result<escher_group::Colouring> {
+    match colouring {
+        Colouring::One => trivial_colouring(domain, task, colouring, budget),
+        Colouring::Id(id) if is_one_colour(id) => {
+            trivial_colouring(domain, task, colouring, budget)
+        }
+        Colouring::Id(id) => resolve(domain, task, id, budget),
+        Colouring::Parity => match found_parity {
+            Some(Parity::Cosets(found)) => Ok(found),
+            Some(Parity::Reversals) | None => {
+                parity_cosets(domain, task, budget)?.ok_or_else(|| missing_parity(task))
+            }
+        },
+    }
+}
+
+fn trivial_colouring(
+    domain: &FundamentalDomain,
+    task: Task<'_>,
+    colouring: Colouring,
+    budget: SearchBudget,
+) -> anyhow::Result<escher_group::Colouring> {
+    let found = search(domain, task, ColouringSet::All, 1, budget)?;
+    match found.list().first() {
+        Some(trivial) => Ok(trivial.clone()),
+        None if found.is_complete() => Err(cannot_render(
+            task,
+            format!(
+                "the colouring {colouring} does not exist, because the signature has no colouring with 1 colour"
+            ),
+        )),
+        None => Err(cannot_render(task, stopped_text(colouring))),
+    }
 }
 
 fn is_one_colour(id: ColouringId) -> bool {
@@ -361,24 +466,24 @@ fn one_colour(colours: Vec<Colour>) -> Result<Fill, Vec<Colour>> {
 
 fn search(
     domain: &FundamentalDomain,
-    signature: &Signature,
+    task: Task<'_>,
+    set: ColouringSet,
     colours: u32,
     budget: SearchBudget,
 ) -> anyhow::Result<ColouringsOfIndex> {
-    let context = || format!("cannot render {signature}");
-    let presentation = domain.side_presentation().with_context(context)?;
-    let colours = IndexLimit::new(colours).with_context(context)?;
-    colourings_of_index(&presentation, crate::COLOURING_SET, colours, budget).with_context(context)
+    let presentation = domain.side_presentation().with_context(|| task.failed())?;
+    let colours = IndexLimit::new(colours).with_context(|| task.failed())?;
+    colourings_of_index(&presentation, set, colours, budget).with_context(|| task.failed())
 }
 
 fn resolve(
     domain: &FundamentalDomain,
-    signature: &Signature,
+    task: Task<'_>,
     id: ColouringId,
     budget: SearchBudget,
 ) -> anyhow::Result<escher_group::Colouring> {
-    let found = search(domain, signature, id.colours(), budget)?;
-    found_colouring(&found, id).map_err(|detail| cannot_render(signature, detail))
+    let found = search(domain, task, crate::COLOURING_SET, id.colours(), budget)?;
+    found_colouring(&found, id).map_err(|detail| cannot_render(task, detail))
 }
 
 fn found_colouring(
@@ -408,7 +513,13 @@ fn missing_text(id: ColouringId, count: usize) -> String {
     )
 }
 
-fn fill_colours(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Colour>, String> {
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Item<'a> {
+    Colour(Colour),
+    Image(&'a str),
+}
+
+fn fill_items(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Item<'_>>, String> {
     let needed = colouring.colours();
     let Some(text) = colours else {
         return usize::try_from(needed)
@@ -417,7 +528,7 @@ fn fill_colours(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Colou
             .map(|entries| {
                 entries
                     .iter()
-                    .map(|&[red, green, blue]| Colour::from_srgb8(red, green, blue))
+                    .map(|&[red, green, blue]| Item::Colour(Colour::from_srgb8(red, green, blue)))
                     .collect()
             })
             .ok_or_else(|| {
@@ -438,14 +549,99 @@ fn fill_colours(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Colou
     items
         .iter()
         .enumerate()
-        .map(|(position, item)| fill_colour(position + 1, item))
+        .map(|(position, item)| fill_item(position + 1, item))
         .collect()
 }
 
-fn fill_colour(position: usize, text: &str) -> Result<Colour, String> {
-    parse_colour(text)
-        .ok_or_else(|| format!("colour {position} of --colours is not of the form #rgb or #rrggbb"))
+fn fill_item(position: usize, text: &str) -> Result<Item<'_>, String> {
+    if let Some(path) = text.strip_prefix(IMAGE_PREFIX)
+        && !path.is_empty()
+    {
+        return Ok(Item::Image(path));
+    }
+    parse_colour(text).map(Item::Colour).ok_or_else(|| {
+        format!("colour {position} of --colours is not of the form #rgb, #rrggbb, or image:FILE")
+    })
 }
+
+fn read_paints(task: Task<'_>, items: Vec<Item<'_>>) -> anyhow::Result<Paints> {
+    let solid: Option<Vec<Colour>> = items
+        .iter()
+        .map(|item| match item {
+            Item::Colour(colour) => Some(*colour),
+            Item::Image(_) => None,
+        })
+        .collect();
+    if let Some(colours) = solid {
+        return Ok(Paints::Solid(colours));
+    }
+    let paints = items
+        .into_iter()
+        .enumerate()
+        .map(|(index, item)| match item {
+            Item::Colour(colour) => Ok(Paint::Solid(colour)),
+            Item::Image(path) => open_image(task, index + 1, path).map(Paint::Image),
+        })
+        .collect::<anyhow::Result<Vec<Paint>>>()?;
+    Ok(Paints::Images(paints))
+}
+
+fn open_image(task: Task<'_>, position: usize, path: &str) -> anyhow::Result<Image> {
+    let file = std::fs::File::open(path).with_context(|| {
+        format!(
+            "{}: the image of colour {position} of --colours cannot be opened",
+            task.failed()
+        )
+    })?;
+    decode_image(task, position, &mut std::io::BufReader::new(file))
+}
+
+fn decode_image(task: Task<'_>, position: usize, reader: &mut dyn Read) -> anyhow::Result<Image> {
+    Image::decode_png(reader).map_err(|error| {
+        anyhow::Error::new(ImageError::new(error)).context(format!(
+            "{}: the image of colour {position} of --colours cannot be used",
+            task.failed()
+        ))
+    })
+}
+
+#[derive(Debug)]
+struct ImageError {
+    error: escher_render::Error,
+    cause: Option<PrintableText>,
+}
+
+impl ImageError {
+    fn new(error: escher_render::Error) -> Self {
+        let cause = core::error::Error::source(&error)
+            .map(|source| PrintableText(source.to_string().chars().map(echoed).collect()));
+        Self { error, cause }
+    }
+}
+
+impl Display for ImageError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.error, formatter)
+    }
+}
+
+impl core::error::Error for ImageError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        let cause: &PrintableText = self.cause.as_ref()?;
+        Some(cause)
+    }
+}
+
+#[derive(Debug)]
+struct PrintableText(String);
+
+impl Display for PrintableText {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl core::error::Error for PrintableText {}
 
 fn given(count: usize) -> String {
     if count == 1 {
@@ -516,12 +712,13 @@ mod tests {
 
     use escher_domain::FundamentalDomain;
     use escher_group::SearchBudget;
-    use escher_render::Colour;
+    use escher_render::{Colour, Fill, Paint, RenderOptions, Renderer};
     use escher_signature::Signature;
 
     use super::{
-        DEFAULT_COLOURS, Parity, chosen_colouring, fill, fill_colours, missing_text, parse_colour,
-        resolve, setting_text, shape_parameters, statistics_text, thread_pool_error,
+        DEFAULT_COLOURS, Item, Paints, Parity, Task, chosen_colouring, coset_colouring, coset_fill,
+        decode_image, fill, fill_item, fill_items, missing_text, parse_colour, resolve,
+        setting_text, shape_parameters, statistics_text, thread_pool_error,
     };
     use crate::Status;
     use crate::args::{Colouring, Setting};
@@ -548,7 +745,10 @@ mod tests {
         let signature = "*732".parse().expect("the signature is valid");
         let error = PoolBuildError(std::io::Error::other("no thread can be started"));
         let mut stderr = Vec::new();
-        let status = report(&thread_pool_error(&signature, &error), &mut stderr);
+        let status = report(
+            &thread_pool_error(Task::Render(&signature), &error),
+            &mut stderr,
+        );
         assert_eq!(status, Status::Failure);
         assert_eq!(
             String::from_utf8(stderr).expect("standard error is UTF-8"),
@@ -588,15 +788,27 @@ mod tests {
         }
     }
 
+    fn fill_colours(colouring: Colouring, text: Option<&str>) -> Result<Vec<Colour>, String> {
+        fill_items(colouring, text).map(|items| {
+            items
+                .into_iter()
+                .map(|item| match item {
+                    Item::Colour(colour) => colour,
+                    Item::Image(path) => panic!("the item names the image {path}"),
+                })
+                .collect()
+        })
+    }
+
     #[test]
     fn fill_colours_reports_the_position_of_the_first_bad_colour() {
         assert_eq!(
             fill_colours(Colouring::Parity, Some("red,#e9c")),
-            Err("colour 1 of --colours is not of the form #rgb or #rrggbb".to_owned())
+            Err("colour 1 of --colours is not of the form #rgb, #rrggbb, or image:FILE".to_owned())
         );
         assert_eq!(
             fill_colours(Colouring::Parity, Some("#e9c,")),
-            Err("colour 2 of --colours is not of the form #rgb or #rrggbb".to_owned())
+            Err("colour 2 of --colours is not of the form #rgb, #rrggbb, or image:FILE".to_owned())
         );
     }
 
@@ -714,9 +926,14 @@ mod tests {
     fn resolved(text: &str, colouring: &str, steps: u64) -> Result<String, String> {
         let signature: Signature = text.parse().expect("the signature is valid");
         let budget = SearchBudget::new(steps).expect("the budget is valid");
-        resolve(&domain(text), &signature, colouring_id(colouring), budget)
-            .map(|found| found.id().to_string())
-            .map_err(|error| error.to_string())
+        resolve(
+            &domain(text),
+            Task::Render(&signature),
+            colouring_id(colouring),
+            budget,
+        )
+        .map(|found| found.id().to_string())
+        .map_err(|error| error.to_string())
     }
 
     #[test]
@@ -739,7 +956,7 @@ mod tests {
     fn default_colouring(text: &str, steps: u64) -> Result<String, String> {
         let signature: Signature = text.parse().expect("the signature is valid");
         let budget = SearchBudget::new(steps).expect("the budget is valid");
-        match chosen_colouring(&domain(text), &signature, None, budget) {
+        match chosen_colouring(&domain(text), Task::Render(&signature), None, budget) {
             Ok((colouring, None)) => Ok(colouring.to_string()),
             Ok((colouring, Some(Parity::Reversals))) => Ok(format!("{colouring} by reversals")),
             Ok((colouring, Some(Parity::Cosets(found)))) => {
@@ -796,10 +1013,10 @@ mod tests {
         let colours = fill_colours(Colouring::Parity, None).expect("parity has default colours");
         fill(
             &domain(text),
-            &signature,
+            Task::Render(&signature),
             Colouring::Parity,
             None,
-            colours,
+            Paints::Solid(colours),
             budget,
         )
         .map(drop)
@@ -811,12 +1028,19 @@ mod tests {
         let text = "442";
         let signature: Signature = text.parse().expect("the signature is valid");
         let domain = domain(text);
-        let (colouring, found) = chosen_colouring(&domain, &signature, None, SearchBudget::DEFAULT)
-            .expect("the search of 442 completes");
+        let (colouring, found) = chosen_colouring(
+            &domain,
+            Task::Render(&signature),
+            None,
+            SearchBudget::DEFAULT,
+        )
+        .expect("the search of 442 completes");
         let colours = fill_colours(colouring, None).expect("parity has default colours");
         let budget = SearchBudget::new(1).expect("the budget is valid");
         assert!(matches!(found, Some(Parity::Cosets(_))));
-        assert!(fill(&domain, &signature, colouring, found, colours, budget).is_ok());
+        let task = Task::Render(&signature);
+        let paints = Paints::Solid(colours);
+        assert!(fill(&domain, task, colouring, found, paints, budget).is_ok());
     }
 
     #[test]
@@ -837,6 +1061,24 @@ mod tests {
     fn parity_claims_nothing_when_its_search_stops_at_a_limit() {
         assert_eq!(
             parity_fill("442", 1),
+            Err("cannot render 442: the search for the colouring parity stopped at a limit before it found it".to_owned())
+        );
+    }
+
+    #[test]
+    fn coset_colouring_of_parity_claims_nothing_when_its_search_stops_at_a_limit() {
+        let text = "442";
+        let signature: Signature = text.parse().expect("the signature is valid");
+        let budget = SearchBudget::new(1).expect("the budget is valid");
+        let found = coset_colouring(
+            &domain(text),
+            Task::Render(&signature),
+            Colouring::Parity,
+            None,
+            budget,
+        );
+        assert_eq!(
+            found.map(|colouring| colouring.id().to_string()).map_err(|error| error.to_string()),
             Err("cannot render 442: the search for the colouring parity stopped at a limit before it found it".to_owned())
         );
     }
@@ -988,5 +1230,89 @@ mod tests {
     fn setting_text_is_none_for_settings_that_escher_domain_accepts() {
         assert_eq!(text_of("*2222", &[setting("aspect", 8.0)]), None);
         assert_eq!(text_of("o", &[]), None);
+    }
+
+    #[test]
+    fn fill_item_reads_an_image_item_with_its_path_as_given() {
+        assert_eq!(fill_item(1, "image:fill.png"), Ok(Item::Image("fill.png")));
+        assert_eq!(fill_item(1, "image:~/a.png"), Ok(Item::Image("~/a.png")));
+        assert_eq!(
+            fill_item(1, "image:$HOME/*.png"),
+            Ok(Item::Image("$HOME/*.png"))
+        );
+        assert_eq!(fill_item(1, "image: a.png"), Ok(Item::Image(" a.png")));
+    }
+
+    #[test]
+    fn fill_item_reads_image_without_a_path_as_a_bad_colour() {
+        for text in ["image:", "Image:a.png", " image:a.png", "image"] {
+            assert_eq!(
+                fill_item(3, text),
+                Err(
+                    "colour 3 of --colours is not of the form #rgb, #rrggbb, or image:FILE"
+                        .to_owned()
+                ),
+                "{text:?}"
+            );
+        }
+    }
+
+    struct FailingReader;
+
+    impl std::io::Read for FailingReader {
+        fn read(&mut self, _buffer: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("bad \u{1b}[31m\u{e9}\u{221e} text"))
+        }
+    }
+
+    #[test]
+    fn decode_image_replaces_each_character_outside_printable_ascii_in_the_decoder_line() {
+        let signature: Signature = "*732".parse().expect("the signature is valid");
+        let Err(error) = decode_image(Task::Render(&signature), 2, &mut FailingReader) else {
+            panic!("a reader that fails gives no image");
+        };
+        let mut stderr = Vec::new();
+        assert_eq!(report(&error, &mut stderr), Status::Failure);
+        assert_eq!(
+            String::from_utf8(stderr).expect("standard error is UTF-8"),
+            "error: cannot render *732: the image of colour 2 of --colours cannot be used\n  \
+             caused by: cannot decode image: the image cannot be read\n  \
+             caused by: bad ?[31m?\u{221e} text\n"
+        );
+    }
+
+    fn rendered(domain: &FundamentalDomain, fill: Fill) -> Vec<u8> {
+        let options = RenderOptions::builder(fill)
+            .size(48, 32)
+            .samples(1)
+            .build()
+            .expect("the options are valid");
+        Renderer::new(domain, options)
+            .expect("the renderer is built")
+            .render()
+            .0
+    }
+
+    #[test]
+    fn coset_fill_of_one_colour_draws_the_bytes_of_one() {
+        let colour = Colour::from_srgb8(0x91, 0x36, 0x71);
+        for text in ["*732", "732", "*2222"] {
+            let signature: Signature = text.parse().expect("the signature is valid");
+            let domain = domain(text);
+            let one = rendered(&domain, Fill::One(colour));
+            for colouring in [Colouring::One, id("1a")] {
+                let fill = coset_fill(
+                    &domain,
+                    Task::Render(&signature),
+                    colouring,
+                    None,
+                    vec![Paint::Solid(colour)],
+                    SearchBudget::DEFAULT,
+                )
+                .expect("the trivial colouring is found");
+                assert!(matches!(fill, Fill::Cosets(_)), "{text} {colouring}");
+                assert_eq!(rendered(&domain, fill), one, "{text} {colouring}");
+            }
+        }
     }
 }

@@ -183,9 +183,8 @@ fn usage_error_keeps_usage_when_standard_error_fails() {
     assert_eq!(stdout, b"");
 }
 
-#[test]
-fn render_help_option_prints_the_help_of_render() {
-    let text = snapshot(&["render", "--help"]);
+fn long_help_snapshot(command: &str) -> String {
+    let text = snapshot(&[command, "--help"]);
     let trailing: Vec<&str> = text
         .lines()
         .filter(|line| line.ends_with(char::is_whitespace) && !line.trim().is_empty())
@@ -196,7 +195,27 @@ fn render_help_option_prints_the_help_of_render() {
         trimmed.push_str(line.trim_end());
         trimmed.push('\n');
     }
-    insta::assert_snapshot!(trimmed);
+    trimmed
+}
+
+#[test]
+fn render_help_option_prints_the_help_of_render() {
+    insta::assert_snapshot!(long_help_snapshot("render"));
+}
+
+#[test]
+fn render_masks_help_option_prints_the_help_of_render_masks() {
+    insta::assert_snapshot!(long_help_snapshot("render-masks"));
+}
+
+#[test]
+fn render_masks_short_help_option_prints_the_summary_of_render_masks() {
+    insta::assert_snapshot!(snapshot(&["render-masks", "-h"]));
+}
+
+#[test]
+fn render_masks_missing_output_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&["render-masks", "*732"]));
 }
 
 #[test]

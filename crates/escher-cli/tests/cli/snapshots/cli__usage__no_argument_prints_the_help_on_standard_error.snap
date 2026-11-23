@@ -10,8 +10,9 @@ Command-line program of Escher, a tool for symmetry-based graphics.
 Usage: escher <COMMAND>
 
 Commands:
-  info    Print the canonical form, the geometry, and other properties of a signature in orbifold notation
-  render  Render the tiling of a signature in orbifold notation and write it to a PNG file
+  info          Print the canonical form, the geometry, and other properties of a signature in orbifold notation
+  render        Render the tiling of a signature in orbifold notation and write it to a PNG file
+  render-masks  Write one PNG mask for each colour of a colouring: the tile as a flat polygon in white, over which to paint the image fill of that colour for render, with each edge bordered in the same colour as every edge that it can meet in the tiling
 
 Options:
   -h, --help     Print help

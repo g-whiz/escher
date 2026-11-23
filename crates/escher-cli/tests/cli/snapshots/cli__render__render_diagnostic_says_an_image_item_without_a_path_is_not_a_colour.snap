@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"image_without_path\",\n&[\"*732\", \"--colours\", \"image:,#e9c46a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: colour 1 of --colours is not of the form #rgb, #rrggbb, or image:FILE
+--- end

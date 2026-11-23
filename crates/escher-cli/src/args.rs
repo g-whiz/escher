@@ -8,6 +8,12 @@ use escher_render::{BorderUnit, HyperbolicModel};
 
 const SIGNATURE_HELP: &str = "The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'";
 
+const SIZE_HELP: &str = "The image size in pixels, as WIDTHxHEIGHT";
+
+const COLOURING_HELP: &str = "One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise";
+
+const SET_DISPLAY_ORDER: usize = 13;
+
 const SET_HELP: &str = "Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature";
 
 const SET_LONG_HELP: &str = "Set a shape parameter, as NAME=VALUE, such as aspect=1.5.
@@ -87,12 +93,58 @@ pub(crate) enum Command {
         about = "Render the tiling of a signature in orbifold notation and write it to a PNG file"
     )]
     Render(Box<RenderArgs>),
+    #[command(
+        about = "Write one PNG mask for each colour of a colouring: the tile as a flat polygon in white, over which to paint the image fill of that colour for render, with each edge bordered in the same colour as every edge that it can meet in the tiling"
+    )]
+    RenderMasks(Box<MasksArgs>),
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct TilingArgs {
+    #[arg(help = SIGNATURE_HELP)]
+    pub(crate) signature: String,
+    #[arg(
+        long,
+        value_name = "WIDTHxHEIGHT",
+        default_value = "512x512",
+        value_parser = parse_size,
+        help = SIZE_HELP
+    )]
+    pub(crate) size: Size,
+    #[arg(
+        long,
+        value_name = "COLOURING",
+        value_parser = parse_colouring,
+        help = COLOURING_HELP
+    )]
+    pub(crate) colouring: Option<Colouring>,
+    #[arg(
+        long,
+        value_name = "NAME=VALUE",
+        value_parser = parse_setting,
+        action = ArgAction::Append,
+        display_order = SET_DISPLAY_ORDER,
+        help = SET_HELP,
+        long_help = SET_LONG_HELP
+    )]
+    pub(crate) set: Vec<Setting>,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct MasksArgs {
+    #[arg(
+        short = 'o',
+        long,
+        value_name = "FILE",
+        help = "The file name from which the masks are named: mask.png gives mask-0.png, mask-1.png, and so on, one for each colour. Existing files are replaced"
+    )]
+    pub(crate) output: PathBuf,
+    #[command(flatten)]
+    pub(crate) tiling: TilingArgs,
 }
 
 #[derive(Debug, Args)]
 pub(crate) struct RenderArgs {
-    #[arg(help = SIGNATURE_HELP)]
-    pub(crate) signature: String,
     #[arg(
         short = 'o',
         long,
@@ -100,24 +152,11 @@ pub(crate) struct RenderArgs {
         help = "The PNG file to write. An existing file is replaced"
     )]
     pub(crate) output: PathBuf,
+    #[command(flatten)]
+    pub(crate) tiling: TilingArgs,
     #[arg(
         long,
-        value_name = "WIDTHxHEIGHT",
-        default_value = "512x512",
-        value_parser = parse_size,
-        help = "The image size in pixels, as WIDTHxHEIGHT"
-    )]
-    pub(crate) size: Size,
-    #[arg(
-        long,
-        value_name = "COLOURING",
-        value_parser = parse_colouring,
-        help = "One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise"
-    )]
-    pub(crate) colouring: Option<Colouring>,
-    #[arg(
-        long,
-        help = "The fill colours, separated by commas, each as #rgb or #rrggbb, one for each colour of the colouring. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'"
+        help = "The fill colours, separated by commas, one for each colour of the colouring, each as #rgb, #rrggbb, or image:FILE for a PNG image painted over the mask of that colour that render-masks writes. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,image:fill-1.png'"
     )]
     pub(crate) colours: Option<String>,
     #[arg(
@@ -159,7 +198,7 @@ pub(crate) struct RenderArgs {
         long,
         value_name = "COLOUR",
         default_value = "#ffffff",
-        help = "The colour outside the model of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb"
+        help = "The colour outside the model of a hyperbolic tiling or the ball of a spherical tiling, and where an image fill is transparent or has no pixel, as #rgb or #rrggbb"
     )]
     pub(crate) background: String,
     #[arg(
@@ -173,16 +212,8 @@ pub(crate) struct RenderArgs {
     pub(crate) stats: bool,
     #[arg(
         long,
-        value_name = "NAME=VALUE",
-        value_parser = parse_setting,
-        action = ArgAction::Append,
-        help = SET_HELP,
-        long_help = SET_LONG_HELP
-    )]
-    pub(crate) set: Vec<Setting>,
-    #[arg(
-        long,
         value_enum,
+        display_order = SET_DISPLAY_ORDER + 1,
         default_value_t = ModelChoice::Disk,
         help = "The model in which a hyperbolic tiling is drawn: the Poincare disk, the upper half-plane, the band, or the Klein disk"
     )]
@@ -190,6 +221,7 @@ pub(crate) struct RenderArgs {
     #[arg(
         long,
         value_name = "YAW,PITCH,ROLL",
+        display_order = SET_DISPLAY_ORDER + 2,
         default_value = "0,0,0",
         value_parser = parse_triple,
         allow_hyphen_values = true,
@@ -199,6 +231,7 @@ pub(crate) struct RenderArgs {
     #[arg(
         long,
         value_name = "X,Y,Z",
+        display_order = SET_DISPLAY_ORDER + 3,
         default_value = "-1,1,2",
         value_parser = parse_triple,
         allow_hyphen_values = true,
@@ -209,6 +242,7 @@ pub(crate) struct RenderArgs {
         long,
         value_enum,
         default_value_t = ShadingChoice::Phong,
+        display_order = SET_DISPLAY_ORDER + 4,
         help = "Phong shading of the ball of a spherical tiling, or none"
     )]
     pub(crate) shading: ShadingChoice,
