@@ -153,6 +153,7 @@ fn render_options(
             ShadingChoice::Phong => Shading::Phong,
             ShadingChoice::Flat => Shading::Flat,
         })
+        .model(args.model.model())
         .build()
 }
 

@@ -1,12 +1,13 @@
 use escher_domain::{FundamentalDomain, ShapeParameters, parameters};
+use escher_geometry::hyperbolic::{disk_from_band, disk_from_half_plane, disk_from_klein};
 use escher_group::{
     Colouring, ColouringId, ColouringSet, IndexLimit, SearchBudget, colourings_of_index,
 };
 use escher_signature::Signature;
-use glam::{DMat3, DVec2};
+use glam::{DMat2, DMat3, DVec2};
 
-use crate::reference::ReferenceExt;
-use crate::{Colour, CosetFill, Fill, RenderOptions, Renderer, Shading};
+use crate::reference::{self, ReferenceExt};
+use crate::{Colour, CosetFill, Fill, HyperbolicModel, RenderOptions, Renderer, Shading};
 use escher_reference::Reference;
 
 pub(crate) struct GoldenImage {
@@ -14,6 +15,7 @@ pub(crate) struct GoldenImage {
     pub(crate) settings: &'static [(&'static str, f64)],
     pub(crate) rotation: [f64; 3],
     pub(crate) shading: Shading,
+    pub(crate) model: HyperbolicModel,
     pub(crate) colouring: Option<&'static str>,
     pub(crate) file: &'static str,
 }
@@ -37,6 +39,7 @@ impl GoldenImage {
             .border_width(1.0)
             .rotation(yaw, pitch, roll)
             .shading(self.shading)
+            .model(self.model)
             .build()
         {
             Ok(options) => options,
@@ -55,8 +58,20 @@ const fn golden(
         settings,
         rotation: [0.0; 3],
         shading: Shading::Phong,
+        model: HyperbolicModel::Disk,
         colouring: None,
         file,
+    }
+}
+
+const fn in_model(
+    signature: &'static str,
+    model: HyperbolicModel,
+    file: &'static str,
+) -> GoldenImage {
+    GoldenImage {
+        model,
+        ..golden(signature, &[], file)
     }
 }
 
@@ -75,12 +90,13 @@ const fn coset_with(
         settings,
         rotation: [0.0; 3],
         shading: Shading::Phong,
+        model: HyperbolicModel::Disk,
         colouring: Some(id),
         file,
     }
 }
 
-pub(crate) const GOLDEN_IMAGES: [GoldenImage; 33] = [
+pub(crate) const GOLDEN_IMAGES: [GoldenImage; 36] = [
     golden("*732", &[], "7-3-2.png"),
     golden("*542", &[], "5-4-2.png"),
     golden("*433", &[], "4-3-3.png"),
@@ -98,6 +114,7 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 33] = [
         settings: &[],
         rotation: [20.0, 35.0, 0.0],
         shading: Shading::Phong,
+        model: HyperbolicModel::Disk,
         colouring: None,
         file: "5-3-2-rotated.png",
     },
@@ -106,6 +123,7 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 33] = [
         settings: &[],
         rotation: [0.0; 3],
         shading: Shading::Flat,
+        model: HyperbolicModel::Disk,
         colouring: None,
         file: "5-3-2-flat.png",
     },
@@ -121,6 +139,7 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 33] = [
         settings: &[("slice1.length", 2.5)],
         rotation: [0.0; 3],
         shading: Shading::Phong,
+        model: HyperbolicModel::Disk,
         colouring: None,
         file: "3-3-3-3-slice-2.5.png",
     },
@@ -135,6 +154,59 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 33] = [
     golden("3*3", &[], "wp-3-s-3.png"),
     golden("2222", &[("skew", 0.25)], "rot-2-2-2-2-skew-0.25.png"),
     golden("3*2", &[], "sg-3-s-2.png"),
+    in_model("*732", HyperbolicModel::HalfPlane, "7-3-2-half-plane.png"),
+    in_model("*732", HyperbolicModel::Band, "7-3-2-band.png"),
+    in_model("*732", HyperbolicModel::Klein, "7-3-2-klein.png"),
+];
+
+pub(crate) struct ModelMap {
+    pub(crate) model: HyperbolicModel,
+    pub(crate) exact: reference::Model,
+    pub(crate) to_disk: fn(DVec2) -> Option<(DVec2, DMat2)>,
+    pub(crate) offset: DVec2,
+    pub(crate) fills_height: bool,
+}
+
+impl ModelMap {
+    pub(crate) fn pixel(&self, width: u32, height: u32) -> f64 {
+        if self.fills_height {
+            2.0 / f64::from(height)
+        } else {
+            2.0 / (15.0 / 16.0 * f64::from(width.min(height)))
+        }
+    }
+
+    pub(crate) fn position(&self, width: u32, height: u32, column: u32, row: u32) -> DVec2 {
+        let pixel = self.pixel(width, height);
+        DVec2::new(
+            (f64::from(column) + 0.5 - f64::from(width) / 2.0) * pixel,
+            (f64::from(height) / 2.0 - (f64::from(row) + 0.5)) * pixel,
+        ) + self.offset
+    }
+}
+
+pub(crate) const MODEL_MAPS: [ModelMap; 3] = [
+    ModelMap {
+        model: HyperbolicModel::HalfPlane,
+        exact: reference::Model::HalfPlane,
+        to_disk: disk_from_half_plane,
+        offset: DVec2::Y,
+        fills_height: true,
+    },
+    ModelMap {
+        model: HyperbolicModel::Band,
+        exact: reference::Model::Band,
+        to_disk: disk_from_band,
+        offset: DVec2::ZERO,
+        fills_height: true,
+    },
+    ModelMap {
+        model: HyperbolicModel::Klein,
+        exact: reference::Model::Klein,
+        to_disk: disk_from_klein,
+        offset: DVec2::ZERO,
+        fills_height: false,
+    },
 ];
 
 pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 18] = [

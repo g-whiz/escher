@@ -5,8 +5,9 @@
 
 use astro_float_num::BigFloat;
 use escher_reference::{
-    Matrix, Reference, Vector, add, apply, cross, difference, div, dot, int, max, mul, normalize,
-    num, product, scale, sqrt, sub, vector,
+    Complex, Matrix, Reference, Vector, add, apply, cross, difference, disk_to_half_plane,
+    disk_to_klein, div, dot, half_plane_to_disk, int, klein_to_disk, max, mul, normalize, num,
+    product, scale, sqrt, sub, vector,
 };
 
 pub(crate) fn from_disk(position: [f64; 2]) -> Vector {
@@ -22,6 +23,13 @@ pub(crate) fn from_disk_exact(first: &BigFloat, second: &BigFloat) -> Vector {
         div(&mul(&int(2), second), &denominator),
         div(&add(&int(1), &squared), &denominator),
     ]
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Model {
+    HalfPlane,
+    Band,
+    Klein,
 }
 
 pub(crate) fn plane_distance(x: &Vector, y: &Vector) -> BigFloat {
@@ -157,6 +165,12 @@ pub(crate) trait ReferenceExt {
 
     fn tangents(&mut self, position: [f64; 2], pixel: f64) -> [Vector; 2];
 
+    fn model_to_disk(&mut self, model: Model, w: &Complex) -> Complex;
+
+    fn disk_to_model(&mut self, model: Model, z: [f64; 2]) -> [f64; 2];
+
+    fn model_tangents(&mut self, model: Model, position: [f64; 2], pixel: f64) -> [Vector; 2];
+
     fn srgb_decode(&mut self, byte: u8) -> BigFloat;
 
     fn srgb_decode_unit(&mut self, encoded: &BigFloat) -> BigFloat;
@@ -272,6 +286,49 @@ impl ReferenceExt for Reference {
 
     fn tangents(&mut self, position: [f64; 2], pixel: f64) -> [Vector; 2] {
         central_differences(self, position, pixel, from_disk_exact)
+    }
+
+    fn model_to_disk(&mut self, model: Model, w: &Complex) -> Complex {
+        match model {
+            Model::HalfPlane => half_plane_to_disk(w),
+            Model::Band => self.band_to_disk(w),
+            Model::Klein => klein_to_disk(w),
+        }
+    }
+
+    fn disk_to_model(&mut self, model: Model, z: [f64; 2]) -> [f64; 2] {
+        let z = z.map(num);
+        let exact = match model {
+            Model::HalfPlane => disk_to_half_plane(&z),
+            Model::Band => self.disk_to_band(&z),
+            Model::Klein => disk_to_klein(&z),
+        };
+        exact.map(|coordinate| self.approximate(&coordinate))
+    }
+
+    fn model_tangents(&mut self, model: Model, position: [f64; 2], pixel: f64) -> [Vector; 2] {
+        let step = self.parse("1e-40");
+        let half = div(&num(pixel), &mul(&int(2), &step));
+        let [first, second] = position.map(num);
+        let mut embed = |w: Complex| {
+            let [z1, z2] = self.model_to_disk(model, &w);
+            from_disk_exact(&z1, &z2)
+        };
+        let mut partial = |ahead: Complex, behind: Complex| {
+            let plus = embed(ahead);
+            let minus = embed(behind);
+            scale(&half, &difference(&plus, &minus))
+        };
+        [
+            partial(
+                [add(&first, &step), second.clone()],
+                [sub(&first, &step), second.clone()],
+            ),
+            partial(
+                [first.clone(), add(&second, &step)],
+                [first, sub(&second, &step)],
+            ),
+        ]
     }
 
     fn srgb_decode(&mut self, byte: u8) -> BigFloat {

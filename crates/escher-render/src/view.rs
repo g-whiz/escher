@@ -1,9 +1,11 @@
-use escher_geometry::hyperbolic::from_disk;
+use escher_geometry::hyperbolic::{
+    disk_from_band, disk_from_half_plane, disk_from_klein, from_disk,
+};
 use escher_geometry::spherical;
 use escher_signature::Geometry;
-use glam::{DMat3, DVec2, DVec3};
+use glam::{DMat2, DMat3, DVec2, DVec3};
 
-use crate::options::RenderOptions;
+use crate::options::{HyperbolicModel, RenderOptions};
 
 const MARGIN: f64 = 1.0 / 32.0;
 
@@ -13,6 +15,7 @@ const PLANE_SPAN: f64 = 8.0;
 enum Model {
     Disk {
         pixel: f64,
+        model: HyperbolicModel,
         placement: Option<DMat3>,
     },
     Plane {
@@ -45,7 +48,13 @@ impl View {
         let disk = 2.0 / ((1.0 - 2.0 * MARGIN) * shorter);
         let model = match geometry {
             Geometry::Hyperbolic => Model::Disk {
-                pixel: disk,
+                pixel: match options.model {
+                    HyperbolicModel::Disk | HyperbolicModel::Klein => disk,
+                    HyperbolicModel::HalfPlane | HyperbolicModel::Band => {
+                        2.0 / f64::from(options.height)
+                    }
+                },
+                model: options.model,
                 placement: None,
             },
             Geometry::Euclidean => Model::Plane {
@@ -82,9 +91,19 @@ impl View {
 
     pub(crate) fn point(&self, position: DVec2) -> Option<Lift> {
         match self.model {
-            Model::Disk { pixel, placement } => {
-                let point = from_disk(position)?;
-                let carried = tangents(position, pixel);
+            Model::Disk {
+                pixel,
+                model,
+                placement,
+            } => {
+                let (point, carried) = match model {
+                    HyperbolicModel::Disk => (from_disk(position)?, tangents(position, pixel)),
+                    HyperbolicModel::HalfPlane => {
+                        through_model(disk_from_half_plane(position + DVec2::Y)?, pixel)?
+                    }
+                    HyperbolicModel::Band => through_model(disk_from_band(position)?, pixel)?,
+                    HyperbolicModel::Klein => through_model(disk_from_klein(position)?, pixel)?,
+                };
                 let (point, tangents) = match placement {
                     None => (point, carried),
                     Some(placement) => (
@@ -113,6 +132,14 @@ impl View {
             }
         }
     }
+}
+
+fn through_model((disk, jacobian): (DVec2, DMat2), pixel: f64) -> Option<(DVec3, [DVec3; 2])> {
+    let point = from_disk(disk)?;
+    let [first, second] = tangents(disk, 1.0);
+    let carried = [jacobian.x_axis, jacobian.y_axis]
+        .map(|column| (first * column.x + second * column.y) * pixel);
+    Some((point, carried))
 }
 
 pub(crate) fn viewing_matrix([yaw, pitch, roll]: [f64; 3]) -> DMat3 {
@@ -204,12 +231,13 @@ mod tests {
 
     use glam::DMat3;
 
-    use super::{Model, View, lift, tangents, viewing_matrix};
+    use super::{Model, View, from_disk, lift, tangents, through_model, viewing_matrix};
     use crate::colour::{Colour, Fill};
     use crate::golden_images::{
-        ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_SIZE, PLAN_TRIPLES, TRANSLATION_TOLERANCE, compare,
-        domain_with_aspect, linear_table, renderer, shifted_pairs, translation,
+        ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_SIZE, MODEL_MAPS, PLAN_TRIPLES, TRANSLATION_TOLERANCE,
+        compare, domain_with_aspect, linear_table, renderer, shifted_pairs, translation,
     };
+    use crate::options::HyperbolicModel;
     use crate::options::RenderOptions;
     use crate::options::Shading;
     use crate::reference::ReferenceExt;
@@ -364,6 +392,7 @@ mod tests {
             disk.model,
             Model::Disk {
                 pixel,
+                model: HyperbolicModel::Disk,
                 placement: None
             }
         );
@@ -431,6 +460,331 @@ mod tests {
             "*2222 aspect 1.618 in the periodic view, shifted by {columns} pixels along the first axis: {comparison:?}, allowed {ALLOWED_PIXELS} differing pixels"
         );
         assert!(comparison.within_allowance(), "{comparison:?}");
+    }
+
+    fn model_view(model: HyperbolicModel, width: u32, height: u32, grid: u32) -> View {
+        View::canonical(
+            &options(
+                RenderOptions::builder(Fill::One(Colour::WHITE))
+                    .size(width, height)
+                    .samples(grid)
+                    .model(model),
+            ),
+            Geometry::Hyperbolic,
+        )
+    }
+
+    const VIEW_SIZES: [(u32, u32); 5] = [(64, 64), (128, 32), (32, 128), (192, 192), (256, 128)];
+
+    #[test]
+    fn view_of_a_hyperbolic_domain_holds_the_model_of_the_options_and_its_scale() {
+        for (width, height) in VIEW_SIZES {
+            let disk = model_view(HyperbolicModel::Disk, width, height, 2);
+            assert_eq!(
+                disk.model,
+                Model::Disk {
+                    pixel: 2.0 / (15.0 / 16.0 * f64::from(width.min(height))),
+                    model: HyperbolicModel::Disk,
+                    placement: None
+                }
+            );
+            for map in &MODEL_MAPS {
+                let view = model_view(map.model, width, height, 1);
+                assert_eq!(
+                    view.model,
+                    Model::Disk {
+                        pixel: map.pixel(width, height),
+                        model: map.model,
+                        placement: None
+                    }
+                );
+                for (column, row) in [(0, 0), (width / 2, height / 2), (width - 1, height - 1)] {
+                    let model_position = map.position(width, height, column, row);
+                    let expected = (map.to_disk)(model_position)
+                        .and_then(|(disk, _)| from_disk(disk))
+                        .map(|point| point.to_array());
+                    let found = view
+                        .point(view.position(column, row, 0, 0))
+                        .map(|lift| lift.point.to_array());
+                    assert_eq!(
+                        found, expected,
+                        "{:?} at {width} by {height}: pixel ({column}, {row}) at the model position {model_position:?}",
+                        map.model
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn band_and_half_plane_views_span_the_image_height_with_two_model_units() {
+        for (width, height) in VIEW_SIZES {
+            for model in MODEL_MAPS
+                .iter()
+                .filter(|map| map.fills_height)
+                .map(|map| map.model)
+            {
+                let view = model_view(model, width, height, 2);
+                let half_height = view.pixel() * f64::from(height) / 2.0;
+                assert!(
+                    (half_height - 1.0).abs() <= f64::EPSILON,
+                    "{model:?} at {width} by {height}: half the image height is {half_height} model units"
+                );
+                let top = view.position(width / 2, 0, 0, 0);
+                let bottom = view.position(width / 2, height - 1, 1, 1);
+                assert_eq!(top.y, -bottom.y, "{model:?} at {width} by {height}");
+                assert!(
+                    1.0 - top.y <= view.pixel(),
+                    "{model:?} at {width} by {height}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn centre_of_each_model_view_shows_the_centre_of_the_disk_the_same_way_up() {
+        for map in &MODEL_MAPS {
+            let view = model_view(map.model, 64, 64, 1);
+            let model = map.model;
+            let Some(centre) = view.point(DVec2::ZERO) else {
+                panic!("{model:?}: the centre of the image has no point");
+            };
+            assert_eq!(centre.point, DVec3::Z, "{model:?}");
+            let [first, second] = centre.tangents;
+            assert!(
+                first.x > 0.0 && first.y == 0.0 && first.z == 0.0,
+                "{model:?}"
+            );
+            assert!(
+                second.y > 0.0 && second.x == 0.0 && second.z == 0.0,
+                "{model:?}"
+            );
+            for (offset, expected) in [
+                (DVec2::new(0.0, 0.25), DVec2::new(0.0, 1.0)),
+                (DVec2::new(0.25, 0.0), DVec2::new(1.0, 0.0)),
+            ] {
+                let Some(moved) = view.point(offset) else {
+                    panic!("{model:?}: {offset:?} has no point");
+                };
+                let direction = DVec2::new(moved.point.x, moved.point.y);
+                assert!(direction.dot(expected) > 0.0, "{model:?}: {offset:?}");
+            }
+        }
+        let view = model_view(HyperbolicModel::HalfPlane, 64, 64, 1);
+        let pixel = view.pixel();
+        let Some(centre) = view.point(DVec2::ZERO) else {
+            panic!("the centre of the half-plane view has no point");
+        };
+        assert_eq!(
+            centre.tangents,
+            [DVec3::new(pixel, 0.0, 0.0), DVec3::new(0.0, pixel, 0.0)]
+        );
+    }
+
+    fn count_region(
+        model: HyperbolicModel,
+        width: u32,
+        height: u32,
+        inside: impl Fn(DVec2) -> Option<bool>,
+    ) -> (usize, usize) {
+        const GRID: u32 = 2;
+        let view = model_view(model, width, height, GRID);
+        let (mut shown, mut outside) = (0, 0);
+        for row in 0..height {
+            for column in 0..width {
+                for down in 0..GRID {
+                    for across in 0..GRID {
+                        let position = view.position(column, row, across, down);
+                        let Some(expected) = inside(position) else {
+                            continue;
+                        };
+                        let found = view.point(position).is_some();
+                        assert_eq!(
+                            found, expected,
+                            "{model:?} at {width} by {height}: the sample {across}, {down} of pixel ({column}, {row}) at {position:?}"
+                        );
+                        if found {
+                            shown += 1;
+                        } else {
+                            outside += 1;
+                        }
+                    }
+                }
+            }
+        }
+        (shown, outside)
+    }
+
+    #[test]
+    fn samples_on_and_beyond_the_edge_of_each_model_are_outside_samples() {
+        for (width, height) in VIEW_SIZES {
+            for model in MODEL_MAPS
+                .iter()
+                .filter(|map| map.fills_height)
+                .map(|map| map.model)
+            {
+                let (shown, outside) = count_region(model, width, height, |_| Some(true));
+                assert_eq!(
+                    (shown, outside),
+                    (4 * usize::try_from(width * height).unwrap_or(usize::MAX), 0),
+                    "{model:?} at {width} by {height}"
+                );
+            }
+            let (shown, outside) =
+                count_region(HyperbolicModel::Klein, width, height, |position| {
+                    let radius = position.length();
+                    if radius >= 1.0 {
+                        Some(false)
+                    } else {
+                        (radius <= 0.99).then_some(true)
+                    }
+                });
+            assert!(shown > 0 && outside > 0, "Klein at {width} by {height}");
+        }
+        let half_plane = model_view(HyperbolicModel::HalfPlane, 64, 64, 1);
+        let quarter = half_plane.pixel() / 4.0;
+        for (position, shown) in [
+            (DVec2::new(0.0, -1.0 + quarter), true),
+            (DVec2::new(0.0, -1.0), false),
+            (DVec2::new(0.0, -1.0 - quarter), false),
+            (DVec2::new(1.0e9, -1.0 + 1.0e-3), false),
+        ] {
+            assert_eq!(
+                half_plane.point(position).is_some(),
+                shown,
+                "half-plane at {position:?}"
+            );
+        }
+        let band = model_view(HyperbolicModel::Band, 128, 32, 1);
+        let quarter = band.pixel() / 4.0;
+        for (position, shown) in [
+            (DVec2::new(0.0, 1.0 - quarter), true),
+            (DVec2::new(0.0, quarter - 1.0), true),
+            (DVec2::new(0.0, 1.0), false),
+            (DVec2::new(0.0, -1.0), false),
+            (DVec2::new(0.0, 1.0 + quarter), false),
+            (DVec2::new(40.0, 0.0), false),
+        ] {
+            assert_eq!(
+                band.point(position).is_some(),
+                shown,
+                "band at {position:?}"
+            );
+        }
+        for map in &MODEL_MAPS {
+            let view = model_view(map.model, 64, 64, 1);
+            for position in [
+                DVec2::new(f64::NAN, 0.0),
+                DVec2::new(0.0, f64::INFINITY),
+                DVec2::new(f64::NEG_INFINITY, 0.0),
+            ] {
+                assert!(
+                    view.point(position).is_none(),
+                    "{:?} at {position:?}",
+                    map.model
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn tangents_of_each_model_agree_with_central_differences_of_the_reference_map() {
+        const POSITIONS: u32 = 2048;
+        const BOUNDS: [(HyperbolicModel, f64); 3] = [
+            (HyperbolicModel::HalfPlane, 4.0e-9),
+            (HyperbolicModel::Band, 4.0e-9),
+            (HyperbolicModel::Klein, 2.0e-3),
+        ];
+        let mut reference = Reference::new();
+        let golden_angle = core::f64::consts::PI * (3.0 - 5.0_f64.sqrt());
+        for map in &MODEL_MAPS {
+            let model = map.model;
+            let Some(&(_, bound)) = BOUNDS.iter().find(|(bounded, _)| *bounded == model) else {
+                panic!("{model:?} has no bound");
+            };
+            let pixel = map.pixel(512, 512);
+            let mut worst = Worst::new(
+                format!(
+                    "{model:?} screen tangent, largest coordinate error over the largest coordinate"
+                ),
+                2 * usize::try_from(POSITIONS + 1).unwrap_or(usize::MAX),
+            );
+            for index in 0..=POSITIONS {
+                let disk = if index == POSITIONS {
+                    DVec2::ZERO
+                } else {
+                    let exponent = -6.0 * f64::from(index) / f64::from(POSITIONS - 1);
+                    let radius = 1.0 - 10.0_f64.powf(exponent);
+                    let angle = golden_angle * f64::from(index);
+                    DVec2::new(radius * angle.cos(), radius * angle.sin())
+                };
+                let position =
+                    DVec2::from_array(reference.disk_to_model(map.exact, disk.to_array()));
+                let Some((_, computed)) =
+                    (map.to_disk)(position).and_then(|mapped| through_model(mapped, pixel))
+                else {
+                    panic!("{model:?}: the model position {position:?} of {disk:?} has no point");
+                };
+                let exact = reference.model_tangents(map.exact, position.to_array(), pixel);
+                for (computed, exact) in computed.iter().zip(&exact) {
+                    let error = largest_magnitude(&difference(&vector(computed.to_array()), exact));
+                    worst.record(&error, &largest_magnitude(exact), || {
+                        format!("model position {position:?} of the disk position {disk:?}")
+                    });
+                }
+            }
+            worst.assert_at_most(&mut reference, bound);
+        }
+    }
+
+    #[test]
+    fn walls_of_the_domain_in_the_klein_view_lie_on_straight_chords() {
+        const SIZE: u32 = 192;
+        const GRID: u32 = 4;
+        const BOUND: f64 = 64.0 * f64::EPSILON;
+        for text in ["*732", "*3333"] {
+            let domain = domain(text);
+            let view = model_view(HyperbolicModel::Klein, SIZE, SIZE, GRID);
+            let covectors: Vec<DVec3> = domain.sides().iter().map(|side| side.covector()).collect();
+            let mut nearest: Option<f64> = None;
+            let mut sides = [0_usize; 2];
+            let mut samples = 0_usize;
+            for row in 0..SIZE {
+                for column in 0..SIZE {
+                    for down in 0..GRID {
+                        for across in 0..GRID {
+                            let position = view.position(column, row, across, down);
+                            let Some(lift) = view.point(position) else {
+                                continue;
+                            };
+                            samples += 1;
+                            let affine = DVec3::new(position.x, position.y, 1.0);
+                            for covector in &covectors {
+                                let wall = covector.dot(lift.point);
+                                let chord = covector.dot(affine);
+                                let scale = covector.abs().element_sum();
+                                let agree =
+                                    (wall > 0.0) == (chord > 0.0) && (wall < 0.0) == (chord < 0.0);
+                                if !agree {
+                                    let ratio = chord.abs() / scale;
+                                    nearest = Some(nearest.map_or(ratio, |found| found.max(ratio)));
+                                    assert!(
+                                        chord.abs() <= BOUND * scale,
+                                        "{text}: the wall value {wall:e} and the chord value {chord:e} differ in sign at {position:?}"
+                                    );
+                                }
+                                sides[usize::from(chord > 0.0)] += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            println!(
+                "{text} in the Klein view at {SIZE} by {SIZE} with {GRID} by {GRID} samples: {samples} samples, {} side values outside and {} inside or on a wall, largest chord value over the covector scale where the signs differ {nearest:?}, bound {BOUND:e}",
+                sides[1], sides[0]
+            );
+            assert!(sides[0] > 0 && sides[1] > 0, "{text}");
+        }
     }
 
     const RIM_DISTANCES: [f64; 7] = [120.0, 24.0, 8.0, 4.0, 2.0, 1.0, 0.5];

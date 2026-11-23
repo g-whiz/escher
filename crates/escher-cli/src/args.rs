@@ -4,6 +4,7 @@ use core::fmt;
 
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use escher_group::{ColouringId, IndexLimit};
+use escher_render::HyperbolicModel;
 
 const SIGNATURE_HELP: &str = "The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'";
 
@@ -151,7 +152,7 @@ pub(crate) struct RenderArgs {
         long,
         value_name = "COLOUR",
         default_value = "#ffffff",
-        help = "The colour outside the disk of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb"
+        help = "The colour outside the model of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb"
     )]
     pub(crate) background: String,
     #[arg(
@@ -172,6 +173,13 @@ pub(crate) struct RenderArgs {
         long_help = SET_LONG_HELP
     )]
     pub(crate) set: Vec<Setting>,
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = ModelChoice::Disk,
+        help = "The model in which a hyperbolic tiling is drawn: the Poincare disk, the upper half-plane, the band, or the Klein disk"
+    )]
+    pub(crate) model: ModelChoice,
     #[arg(
         long,
         value_name = "YAW,PITCH,ROLL",
@@ -243,6 +251,25 @@ pub(crate) enum ShadingChoice {
     Phong,
     #[value(name = "none")]
     Flat,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub(crate) enum ModelChoice {
+    Disk,
+    HalfPlane,
+    Band,
+    Klein,
+}
+
+impl ModelChoice {
+    pub(crate) fn model(self) -> HyperbolicModel {
+        match self {
+            Self::Disk => HyperbolicModel::Disk,
+            Self::HalfPlane => HyperbolicModel::HalfPlane,
+            Self::Band => HyperbolicModel::Band,
+            Self::Klein => HyperbolicModel::Klein,
+        }
+    }
 }
 
 fn parse_size(text: &str) -> Result<Size, &'static str> {
@@ -317,10 +344,33 @@ mod tests {
     use escher_domain::parameters;
     use escher_signature::Signature;
 
+    use clap::ValueEnum;
+    use escher_render::HyperbolicModel;
+
     use super::{
-        Colouring, SET_LONG_HELP, Setting, parse_colouring, parse_max_colours, parse_setting,
-        parse_triple,
+        Colouring, ModelChoice, SET_LONG_HELP, Setting, parse_colouring, parse_max_colours,
+        parse_setting, parse_triple,
     };
+
+    #[test]
+    fn each_model_value_maps_to_the_model_of_the_same_name() {
+        let cases = [
+            ("disk", HyperbolicModel::Disk),
+            ("half-plane", HyperbolicModel::HalfPlane),
+            ("band", HyperbolicModel::Band),
+            ("klein", HyperbolicModel::Klein),
+        ];
+        assert_eq!(ModelChoice::value_variants().len(), cases.len());
+        for (text, model) in cases {
+            match ModelChoice::from_str(text, false) {
+                Ok(choice) => assert_eq!(choice.model(), model, "{text}"),
+                Err(error) => panic!("{text} is rejected: {error}"),
+            }
+        }
+        for text in ["poincare", "Band", "half_plane", ""] {
+            assert!(ModelChoice::from_str(text, false).is_err(), "{text}");
+        }
+    }
 
     const EUCLIDEAN: [&str; 17] = [
         "*632", "*442", "*333", "*2222", "632", "442", "333", "2222", "o", "**", "xx", "*x", "22*",

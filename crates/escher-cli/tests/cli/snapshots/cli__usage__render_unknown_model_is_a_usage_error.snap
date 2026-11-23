@@ -1,0 +1,12 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", NEVER_WRITTEN, \"--model\", \"poincare\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value 'poincare' for '--model <MODEL>'
+  [possible values: disk, half-plane, band, klein]
+
+For more information, try '--help'.
+--- end

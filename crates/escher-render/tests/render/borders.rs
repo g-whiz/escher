@@ -8,7 +8,7 @@ use crate::common::{
     options, viewing_matrix,
 };
 use crate::golden_images::{
-    PLAN_TRIPLES, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings, renderer,
+    MODEL_MAPS, PLAN_TRIPLES, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings, renderer,
 };
 use crate::reference::count_bound;
 
@@ -168,6 +168,49 @@ fn assert_borders_where_the_tile_changes(name: &str, domain: &escher_domain::Fun
     println!(
         "{name}: {changes} pixels where the tile changes and {borders} border pixels within disk radius {RADIUS}"
     );
+}
+
+#[test]
+fn border_pixels_in_each_model_lie_where_the_tile_of_a_sample_changes() {
+    let size = usize::try_from(SIZE).unwrap_or(usize::MAX);
+    for text in ["*732", "732"] {
+        let domain = domain_with_settings(text, &[]);
+        for map in &MODEL_MAPS {
+            let model = map.model;
+            let name = format!("{text} in the {model:?} model");
+            let options = options(
+                RenderOptions::builder(Fill::One(Colour::from_srgb8(70, 130, 180)))
+                    .size(SIZE, SIZE)
+                    .samples(1)
+                    .model(model),
+            );
+            let (pixels, _) = renderer(&domain, options).render();
+            let border: Vec<bool> = pixels
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .map(|pixel| *pixel == Colour::BLACK.to_srgb8())
+                .collect();
+            let mut tiles: Vec<Option<DVec3>> = Vec::with_capacity(size * size);
+            for row in 0..SIZE {
+                for column in 0..SIZE {
+                    let tile = (map.to_disk)(map.position(SIZE, SIZE, column, row))
+                        .map(|(disk, _)| disk)
+                        .filter(|disk| disk.length() <= RADIUS)
+                        .and_then(from_disk)
+                        .and_then(|point| tile_of(&domain, point, inverse));
+                    tiles.push(tile);
+                }
+            }
+            let (changes, borders) =
+                compare_with_tiles(&name, &border, &tiles, size, |here, there| {
+                    distance(here, there) >= SAME_TILE
+                });
+            println!(
+                "{name}: {changes} pixels where the tile changes and {borders} border pixels within disk radius {RADIUS}"
+            );
+        }
+    }
 }
 
 #[test]

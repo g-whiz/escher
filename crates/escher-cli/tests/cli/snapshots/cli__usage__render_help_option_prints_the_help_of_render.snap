@@ -48,7 +48,7 @@ Options:
           [default: 1500]
 
       --background <COLOUR>
-          The colour outside the disk of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb
+          The colour outside the model of a hyperbolic tiling or the ball of a spherical tiling, as #rgb or #rrggbb
 
           [default: #ffffff]
 
@@ -86,6 +86,12 @@ Options:
 
             escher render o --set aspect=2 --set skew=0.25 -o /tmp/torus.png
             escher render '*3333' --set slice1.length=2 -o /tmp/square.png
+
+      --model <MODEL>
+          The model in which a hyperbolic tiling is drawn: the Poincare disk, the upper half-plane, the band, or the Klein disk
+
+          [default: disk]
+          [possible values: disk, half-plane, band, klein]
 
       --rotation <YAW,PITCH,ROLL>
           The rotation of the ball of a spherical tiling, as three angles in degrees. YAW turns the front of the ball to the right, PITCH turns it up, and ROLL turns the image counterclockwise, in this order

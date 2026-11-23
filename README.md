@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/g-whiz/escher/actions/workflows/ci.yml/badge.svg)](https://github.com/g-whiz/escher/actions/workflows/ci.yml)
 
-Escher is a command-line tool that renders symmetric tilings, like those in some works of M. C. Escher, into PNG images. You name a symmetry in Conway's orbifold notation, such as `*632`, and Escher draws its tiling in the Euclidean plane, on a shaded ball for a spherical symmetry, or in the Poincare disk for a hyperbolic one. It also counts and lists the colourings of a tiling that respect its symmetry and give neighbouring tiles different colours, and draws any of them in colours that you choose.
+Escher is a command-line tool that renders symmetric tilings, like those in some works of M. C. Escher, into PNG images. You name a symmetry in Conway's orbifold notation, such as `*632`, and Escher draws its tiling in the Euclidean plane, on a shaded ball for a spherical symmetry, or in the Poincare disk or another model of the hyperbolic plane for a hyperbolic one. It also counts and lists the colourings of a tiling that respect its symmetry and give neighbouring tiles different colours, and draws any of them in colours that you choose.
 
 ## Status
 
@@ -95,13 +95,21 @@ Colourings with 9 colours: 3
 Colourings with 12 colours: 20
 ```
 
-A hyperbolic signature renders in the Poincare disk. This command draws `*732` at 640 by 640 pixels:
+A hyperbolic signature renders in the Poincare disk by default. This command draws `*732` at 640 by 640 pixels:
 
 ```sh
 escher render '*732' --size 640x640 -o disk.png
 ```
 
 ![Teal and sand triangles fill the Poincare disk and shrink toward its boundary circle.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/disk.png)
+
+`--model` draws a hyperbolic signature in the upper half-plane, the band, or the Klein disk instead. This command draws `*732` in the band:
+
+```sh
+escher render '*732' --model band -o band.png
+```
+
+![Teal and sand triangles fill the image and shrink toward its upper and lower edges.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/band.png)
 
 `--colourings` lists each colouring with its id, and `--max-colours` sets the largest number of colours, from 1 to 64. This command lists the colourings of `*642` with up to 4 colours:
 

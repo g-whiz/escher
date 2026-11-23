@@ -11,10 +11,10 @@ use crate::common::{
     SphereDomain, SphereFactor, Triangle, pair, point_off_wall, polar_point, table_points,
     table_vectors, tangent_basis, wall_normal,
 };
-use crate::reference::{central_jacobian, complex, epsilon, squared_modulus};
+use crate::reference::{central_jacobian, complex, epsilon};
 use escher_reference::{
     Reference, Vector, Worst, add, difference, div, dot, error, form as exact_form, int, max, mul,
-    num, scale, sqrt, sub, vector,
+    num, scale, sqrt, squared_modulus, sub, vector,
 };
 
 const DISTANCE_SEPARATED_MINIMUM: usize = 8_000;

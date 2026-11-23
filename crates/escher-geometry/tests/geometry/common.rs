@@ -5,13 +5,12 @@ use escher_geometry::hyperbolic::{
     inverse, normalize_point, reflection, rotation, side, translation, wall_through,
 };
 use escher_geometry::spherical;
-use escher_reference::Reference;
+use escher_reference::{
+    Complex, Reference, disk_to_half_plane, disk_to_klein, half_plane_to_disk, klein_to_disk,
+};
 use glam::{DMat2, DMat3, DVec2, DVec3};
 
-use crate::reference::{
-    Complex, ReferenceExt, complex, disk_to_half_plane, disk_to_klein, half_plane_to_disk,
-    klein_to_disk,
-};
+use crate::reference::complex;
 
 pub(crate) const CASES: usize = 100_000;
 

@@ -1,6 +1,7 @@
-//! Renders the tiling of a fundamental domain, in the Poincare disk for a
-//! hyperbolic domain, in the plane for a Euclidean one, and on a lit ball for
-//! a spherical one, and encodes the image as a PNG file in memory.
+//! Renders the tiling of a fundamental domain, in the Poincare disk or another
+//! model of the hyperbolic plane for a hyperbolic domain, in the plane for a
+//! Euclidean one, and on a lit ball for a spherical one, and encodes the image
+//! as a PNG file in memory.
 //!
 //! The crate draws a [`FundamentalDomain`](escher_domain::FundamentalDomain)
 //! that the crate [`escher_domain`] builds. The domain is the reflection
@@ -49,9 +50,12 @@
 //!
 //! The view follows the geometry of the domain. For a hyperbolic domain, the
 //! Poincare disk is centred in the image, with the centre of the domain at the
-//! centre of the disk. For a Euclidean domain, the tiling fills the image, the
-//! centre of the domain lies at the centre of the image, and the shorter side
-//! of the image spans 8 units of the plane. For a spherical domain, the ball
+//! centre of the disk. The [`HyperbolicModel`] of the options can instead draw
+//! it in the upper half-plane or the band, which fill the image, or in the
+//! Klein disk, which has the size of the disk, each with the centre of the
+//! domain at the centre of the image. For a Euclidean domain, the tiling fills
+//! the image, the centre of the domain lies at the centre of the image, and
+//! the shorter side of the image spans 8 units of the plane. For a spherical domain, the ball
 //! has the size and the place of the disk and shows the front half of the
 //! sphere, turned by the viewing rotation and shaded by the [`Shading`] of the
 //! options. A [`Renderer`] maps each sample of a regular grid in each pixel to
@@ -90,8 +94,8 @@
 //! The crate is pure Rust with no platform-specific code. The fold, the border
 //! test, and the shading use only additions, multiplications, divisions, and
 //! square roots, so an image depends on the platform's mathematical library
-//! only through the domain, the viewing rotation, and the sRGB transfer
-//! function.
+//! only through the domain, the viewing rotation, the complex hyperbolic
+//! tangent of each sample of the band model, and the sRGB transfer function.
 
 mod colour;
 mod encode;
@@ -113,14 +117,14 @@ pub use colour::{Colour, CosetFill, Fill};
 pub use encode::encode_png;
 pub use error::{Error, ErrorKind, Result};
 pub use fold::{Fold, fold};
-pub use options::{RenderOptions, RenderOptionsBuilder, Shading};
+pub use options::{HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
 pub use renderer::{RenderStats, Renderer};
 
 #[cfg(test)]
 mod tests {
     use super::{
-        Colour, CosetFill, Error, ErrorKind, Fill, Fold, RenderOptions, RenderOptionsBuilder,
-        RenderStats, Renderer, Shading,
+        Colour, CosetFill, Error, ErrorKind, Fill, Fold, HyperbolicModel, RenderOptions,
+        RenderOptionsBuilder, RenderStats, Renderer, Shading,
     };
 
     fn assert_auto_traits<T: Send + Sync + 'static>() {}
@@ -133,6 +137,7 @@ mod tests {
         assert_auto_traits::<RenderOptions>();
         assert_auto_traits::<RenderOptionsBuilder>();
         assert_auto_traits::<Shading>();
+        assert_auto_traits::<HyperbolicModel>();
         assert_auto_traits::<Renderer>();
         assert_auto_traits::<RenderStats>();
         assert_auto_traits::<Fold>();

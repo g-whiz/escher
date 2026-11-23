@@ -445,6 +445,18 @@ fn render_unknown_shading_is_a_usage_error() {
 }
 
 #[test]
+fn render_unknown_model_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--model",
+        "poincare"
+    ]));
+}
+
+#[test]
 fn render_repeated_rotation_option_is_a_usage_error() {
     insta::assert_snapshot!(snapshot(&[
         "render",

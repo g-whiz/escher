@@ -1445,3 +1445,32 @@ fn render_reports_a_broken_pipe_on_the_output_file() {
         "error: cannot write the output file\n  caused by: Broken pipe (os error 32)\n"
     );
 }
+
+#[test]
+fn render_with_the_disk_model_writes_the_bytes_of_the_default() {
+    let default = small_png("model_disk_default", &["*732"]);
+    let disk = small_png("model_disk_given", &["*732", "--model", "disk"]);
+    assert_eq!(disk, default);
+}
+
+#[test]
+fn render_in_each_other_model_writes_another_image_of_a_hyperbolic_tiling() {
+    let disk = small_png("model_other_disk", &["*732"]);
+    for model in ["half-plane", "band", "klein"] {
+        let test = format!("model_other_{model}");
+        let file = small_png(&test, &["*732", "--model", model]);
+        assert_ne!(file, disk, "{model}");
+    }
+}
+
+#[test]
+fn render_with_a_model_writes_the_bytes_of_the_default_for_a_euclidean_or_spherical_tiling() {
+    for (signature, name) in [("*632", "euclidean"), ("*532", "spherical")] {
+        let default = small_png(&format!("model_none_{name}_default"), &[signature]);
+        let band = small_png(
+            &format!("model_none_{name}_band"),
+            &[signature, "--model", "band"],
+        );
+        assert_eq!(band, default, "{signature}");
+    }
+}

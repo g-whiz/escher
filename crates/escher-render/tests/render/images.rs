@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use escher_render::{
-    Colour, CosetFill, ErrorKind, Fill, RenderOptions, RenderStats, Renderer, encode_png,
+    Colour, CosetFill, ErrorKind, Fill, HyperbolicModel, RenderOptions, RenderStats, Renderer,
+    encode_png,
 };
 
 use crate::common::{
@@ -10,9 +11,9 @@ use crate::common::{
 };
 use crate::golden_images::{
     ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
-    GoldenImage, POLYGON_DOMAINS, Shape, TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS, colouring,
-    colourings_of, compare, coset_fill, domain_with_aspect, domain_with_settings, golden_colouring,
-    linear_table, renderer, shifted_pairs, translation,
+    GoldenImage, MODEL_MAPS, POLYGON_DOMAINS, Shape, TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS,
+    colouring, colourings_of, compare, coset_fill, domain_with_aspect, domain_with_settings,
+    golden_colouring, linear_table, renderer, shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -1228,5 +1229,64 @@ fn every_euclidean_and_spherical_type_renders_with_every_sample_converged() {
             stats.unconverged()
         );
         assert_eq!(stats.unconverged(), 0, "{text}");
+    }
+}
+
+#[test]
+fn model_changes_only_the_image_of_a_hyperbolic_domain() {
+    let fill =
+        Fill::Parity(GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue)));
+    let render = |text: &str, model: Option<HyperbolicModel>| {
+        let builder = RenderOptions::builder(fill.clone()).size(64, 48).samples(2);
+        let builder = match model {
+            Some(model) => builder.model(model),
+            None => builder,
+        };
+        renderer(&domain_with_settings(text, &[]), options(builder))
+            .render()
+            .0
+    };
+    for text in ["*632", "*532", "*732"] {
+        let default = render(text, None);
+        for model in [HyperbolicModel::Disk]
+            .into_iter()
+            .chain(MODEL_MAPS.iter().map(|map| map.model))
+        {
+            let pixels = render(text, Some(model));
+            let same = pixels == default;
+            let expected = text != "*732" || model == HyperbolicModel::Disk;
+            println!("{text} with {model:?}: the bytes of the default {same}");
+            assert_eq!(same, expected, "{text} with {model:?}");
+        }
+    }
+}
+
+#[test]
+fn band_and_half_plane_images_have_no_pixel_of_the_background() {
+    let background = Colour::from_srgb8(255, 0, 255);
+    let fill =
+        Fill::Parity(GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue)));
+    let domain = domain_with_settings("*732", &[]);
+    for map in MODEL_MAPS.iter().filter(|map| map.fills_height) {
+        for (width, height) in [(192, 192), (256, 128)] {
+            let name = format!("*732 in the {:?} model at {width} by {height}", map.model);
+            let options = options(
+                RenderOptions::builder(fill.clone())
+                    .size(width, height)
+                    .samples(GOLDEN_GRID)
+                    .model(map.model)
+                    .background(background),
+            );
+            let (pixels, stats) = render_image_in_bands(&name, &domain, options);
+            let shown = pixels
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .filter(|pixel| **pixel == background.to_srgb8())
+                .count();
+            println!("{name}: {stats:?}, {shown} pixels of the background");
+            assert_eq!(stats.outside(), 0, "{name}");
+            assert_eq!(shown, 0, "{name}");
+        }
     }
 }

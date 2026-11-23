@@ -2,9 +2,9 @@ use escher_geometry::hyperbolic::{
     ORIGIN, boost, from_disk, normalize_point, rotation, side, translation,
 };
 use escher_geometry::spherical;
-use escher_render::{Fill, RenderOptions, fold};
+use escher_render::{Colour, Fill, HyperbolicModel, RenderOptions, fold};
 use escher_signature::{Geometry, Signature};
-use glam::{DMat3, DVec3};
+use glam::{DMat3, DVec2, DVec3};
 
 use crate::common::{
     BANDS, CONVERGENCE_SIZE, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS,
@@ -19,8 +19,8 @@ use crate::common::{
     spherical_rotation_cases, text, wallpaper_bounds,
 };
 use crate::golden_images::{
-    POLYGON_DOMAINS, WALLPAPER_DOMAINS, colourings_of, domain_with_aspect, domain_with_settings,
-    renderer,
+    MODEL_MAPS, POLYGON_DOMAINS, WALLPAPER_DOMAINS, colourings_of, domain_with_aspect,
+    domain_with_settings, renderer,
 };
 use crate::reference::{self, ReferenceExt, count_bound};
 use escher_reference::{
@@ -658,7 +658,7 @@ fn fold_of_a_spacelike_vector_with_a_positive_last_coordinate_returns_unconverge
 #[test]
 fn fold_with_a_cap_of_zero_leaves_a_point_outside_the_domain_unconverged() {
     let domain = domain([7, 3, 2]);
-    let Some(point) = from_disk(glam::DVec2::new(0.5, 0.25)) else {
+    let Some(point) = from_disk(DVec2::new(0.5, 0.25)) else {
         panic!("the position is inside the disk");
     };
     let result = fold(&domain, point, 0, |_| {});
@@ -670,7 +670,7 @@ fn fold_with_a_cap_of_zero_leaves_a_point_outside_the_domain_unconverged() {
 #[test]
 fn fold_with_a_cap_one_below_the_steps_needed_stops_at_the_cap() {
     let domain = domain([7, 3, 2]);
-    let Some(point) = from_disk(glam::DVec2::new(0.6, -0.3)) else {
+    let Some(point) = from_disk(DVec2::new(0.6, -0.3)) else {
         panic!("the position is inside the disk");
     };
     let needed = fold(&domain, point, DEFAULT_CAP, |_| {});
@@ -737,12 +737,7 @@ fn fold_and_render_beyond_the_range_of_accuracy_return_without_a_panic() {
     let Fill::One(colour) = fill else {
         panic!("the rim test uses one fill colour");
     };
-    let allowed = [
-        colour,
-        escher_render::Colour::BLACK,
-        escher_render::Colour::WHITE,
-    ]
-    .map(escher_render::Colour::to_srgb8);
+    let allowed = [colour, Colour::BLACK, Colour::WHITE].map(Colour::to_srgb8);
     let mut beyond = 0;
     for row in 0..size {
         let edge = pixel_position(size, 0, row).y;
@@ -1680,5 +1675,120 @@ fn images_of_the_centre_under_a_spherical_group_fold_back_near_the_centre() {
             "{name}: angle {:e} exceeds {bound:e}",
             largest.0
         );
+    }
+}
+
+const SAME_TILE_SIZE: (u32, u32) = (48, 32);
+
+const SAME_TILE_CLEARANCE: f64 = 1e-6;
+
+const SAME_TILE_RANGE: f64 = 1e-3;
+
+#[test]
+fn each_pixel_of_a_model_view_shows_the_tile_of_its_disk_position() {
+    let (width, height) = SAME_TILE_SIZE;
+    let colours = [
+        Colour::from_srgb8(245, 222, 179),
+        Colour::from_srgb8(70, 130, 180),
+    ];
+    let background = Colour::from_srgb8(255, 0, 255);
+    let mut reference = Reference::new();
+    let clearance = num(SAME_TILE_CLEARANCE);
+    let domain = domain([7, 3, 2]);
+    let walls = reference_walls(&domain);
+    for map in &MODEL_MAPS {
+        let name = format!("*732 in the {:?} model at {width} by {height}", map.model);
+        let options = options(
+            RenderOptions::builder(Fill::Parity(colours))
+                .size(width, height)
+                .samples(1)
+                .border_width(0.0)
+                .background(background)
+                .model(map.model),
+        );
+        let (pixels, _) = renderer(&domain, options).render();
+        let pixels = pixels.as_chunks::<3>().0;
+        let (mut compared, mut outside) = (0, 0);
+        for row in 0..height {
+            for column in 0..width {
+                let index = usize::try_from(row * width + column).unwrap_or(usize::MAX);
+                let shown = pixels[index];
+                let position = map.position(width, height, column, row);
+                if (map.to_disk)(position).is_none() {
+                    assert_eq!(
+                        shown,
+                        background.to_srgb8(),
+                        "{name}: pixel ({column}, {row}) at the model position {position:?}"
+                    );
+                    outside += 1;
+                    continue;
+                }
+                let exact = reference.model_to_disk(map.exact, &position.to_array().map(num));
+                let disk = DVec2::new(
+                    reference.approximate(&exact[0]),
+                    reference.approximate(&exact[1]),
+                );
+                assert!(
+                    1.0 - disk.length() >= SAME_TILE_RANGE,
+                    "{name}: the disk position {disk:?} of pixel ({column}, {row}) lies beyond the range of the test"
+                );
+                let Some(point) = from_disk(disk) else {
+                    panic!("{name}: the disk position {disk:?} has no point");
+                };
+                let folded = reference::fold(&walls, point.to_array(), DEFAULT_CAP);
+                assert!(
+                    folded.converged
+                        && walls.iter().all(|wall| {
+                            reference.wall_distance(&wall.covector, &folded.point) >= clearance
+                        }),
+                    "{name}: the point of pixel ({column}, {row}) lies within {SAME_TILE_CLEARANCE:e} of a wall, so rounding may decide its tile"
+                );
+                let result = fold(&domain, point, DEFAULT_CAP, |_| {});
+                assert!(
+                    result.converged(),
+                    "{name}: the fold of the disk position {disk:?} does not converge"
+                );
+                let parity = usize::from(!result.reversals().is_multiple_of(2));
+                assert_eq!(
+                    shown,
+                    colours[parity].to_srgb8(),
+                    "{name}: pixel ({column}, {row}) at the model position {position:?}, the disk position {disk:?}"
+                );
+                compared += 1;
+            }
+        }
+        println!(
+            "{name}: {compared} pixels show the parity of the fold of their disk position, {outside} outside the model"
+        );
+        assert!(compared > 0, "{name}");
+    }
+}
+
+#[test]
+fn every_sample_of_a_long_image_in_each_model_takes_a_colour_of_the_image() {
+    let fill = one_fill();
+    let Fill::One(colour) = fill else {
+        panic!("the test uses one fill colour");
+    };
+    let allowed = [colour, Colour::BLACK, Colour::WHITE].map(Colour::to_srgb8);
+    let domain = domain([7, 3, 2]);
+    for map in &MODEL_MAPS {
+        let model = map.model;
+        for (width, height) in [(2048, 64), (64, 2048)] {
+            let options = options(
+                RenderOptions::builder(fill.clone())
+                    .size(width, height)
+                    .samples(1)
+                    .model(model),
+            );
+            let name = format!("*732 in the {model:?} model at {width} by {height}");
+            let (pixels, stats) = crate::common::render_image_in_bands(&name, &domain, options);
+            println!("{name}: {stats:?}");
+            let expected = !map.fills_height || (model == HyperbolicModel::Band && width > height);
+            assert_eq!(stats.outside() > 0, expected, "{name}");
+            for pixel in pixels.as_chunks::<3>().0 {
+                assert!(allowed.contains(pixel), "{name}: {pixel:?}");
+            }
+        }
     }
 }

@@ -42,9 +42,50 @@ pub enum Shading {
     Flat,
 }
 
+/// The model of the hyperbolic plane in which the renderer draws a hyperbolic
+/// domain.
+///
+/// Pass it to [`RenderOptionsBuilder::model`]. The renderer reads it only for
+/// a hyperbolic domain. Every model shows the same tiling, with the centre of
+/// the domain at the centre of the image. The Klein disk has the size of the
+/// Poincare disk. The half-plane and the band fill the image, and the height
+/// of the image spans 2 units of the model.
+///
+/// # Examples
+///
+/// ```
+/// use escher_render::{Colour, Fill, HyperbolicModel, RenderOptions};
+///
+/// let options = RenderOptions::builder(Fill::One(Colour::WHITE)).model(HyperbolicModel::Band).build()?;
+/// assert_eq!(options.width(), 512);
+/// # Ok::<(), escher_render::Error>(())
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum HyperbolicModel {
+    /// The Poincare disk, which shows the whole plane inside a circle, with
+    /// the walls as arcs that meet the circle at right angles.
+    Disk,
+    /// The upper half-plane, which shows the whole plane above a line, the
+    /// real axis, with the walls as half circles centred on that line and as
+    /// vertical half lines. The image of the centre of the disk, the point
+    /// `i`, lies at the centre of the image, and the real axis lies along the
+    /// bottom edge of the image. A wide image shows more of the real axis.
+    HalfPlane,
+    /// The band, which shows the whole plane in a horizontal strip whose two
+    /// edges lie along the top and bottom edges of the image, with the image
+    /// of the centre of the disk at the centre of the image. A wide image
+    /// shows more of the strip.
+    Band,
+    /// The Klein disk, which shows the whole plane inside a circle of the size
+    /// of the Poincare disk, with every wall as a straight chord.
+    Klein,
+}
+
 /// The validated options of a render: the image size, the sample grid, the
-/// border, the colours, the fold cap, and the viewing rotation, the light,
-/// and the shading of the ball of a spherical domain.
+/// border, the colours, the fold cap, the model of a hyperbolic domain, and
+/// the viewing rotation, the light, and the shading of the ball of a spherical
+/// domain.
 ///
 /// Build it with [`RenderOptions::builder`], which starts from the defaults
 /// and checks every limit, so a value of this type always holds options that
@@ -71,6 +112,7 @@ pub struct RenderOptions {
     pub(crate) rotation: [f64; 3],
     pub(crate) light: DVec3,
     pub(crate) shading: Shading,
+    pub(crate) model: HyperbolicModel,
     pub(crate) fill: Fill,
 }
 
@@ -81,8 +123,8 @@ impl RenderOptions {
     /// The defaults are an image of 512 by 512 pixels, a grid of 4 by 4
     /// samples in each pixel, a border 1 pixel wide in
     /// [`Colour::BLACK`], a [`Colour::WHITE`] background, a fold cap of 1500
-    /// steps, no viewing rotation, a light in the direction `(-1, 1, 2)`, and
-    /// [`Shading::Phong`].
+    /// steps, no viewing rotation, a light in the direction `(-1, 1, 2)`,
+    /// [`Shading::Phong`], and [`HyperbolicModel::Disk`].
     pub fn builder(fill: Fill) -> RenderOptionsBuilder {
         RenderOptionsBuilder {
             options: Self {
@@ -96,6 +138,7 @@ impl RenderOptions {
                 rotation: [0.0; 3],
                 light: DEFAULT_LIGHT,
                 shading: Shading::Phong,
+                model: HyperbolicModel::Disk,
                 fill,
             },
         }
@@ -144,9 +187,11 @@ impl RenderOptionsBuilder {
     ///
     /// For a hyperbolic domain, the disk is centred in the image and spans the
     /// shorter side of the image apart from a margin of 1/32 of that side at
-    /// each end. For a Euclidean domain, the tiling fills the image with no
-    /// margin, and the shorter side spans 8 units of the plane. For a spherical
-    /// domain, the ball has the size and the place of the disk.
+    /// each end, and the Klein disk has the same size. The half-plane and the
+    /// band fill the image, and the height of the image spans 2 units of the
+    /// model. For a Euclidean domain, the tiling fills the image with no
+    /// margin, and the shorter side spans 8 units of the plane. For a
+    /// spherical domain, the ball has the size and the place of the disk.
     pub fn size(mut self, width: u32, height: u32) -> Self {
         self.options.width = width;
         self.options.height = height;
@@ -184,7 +229,8 @@ impl RenderOptionsBuilder {
 
     /// Sets the colour of the samples outside the view.
     ///
-    /// For a hyperbolic domain these are the samples outside the disk, and for
+    /// For a hyperbolic domain these are the samples outside the region of its
+    /// model, such as those outside the disk, and for
     /// a spherical domain those on or outside the rim of the ball. The
     /// background is never shaded. A Euclidean domain has no such sample.
     pub fn background(mut self, colour: Colour) -> Self {
@@ -235,6 +281,19 @@ impl RenderOptionsBuilder {
     /// or Euclidean domain.
     pub fn shading(mut self, shading: Shading) -> Self {
         self.options.shading = shading;
+        self
+    }
+
+    /// Sets the model of the hyperbolic plane in which a hyperbolic domain is
+    /// drawn.
+    ///
+    /// Every model is accepted. Samples outside the region of the model, such
+    /// as those outside the Klein disk, take the background colour, and so do
+    /// samples far along a wide band or next to the real axis far from `i`,
+    /// whose position in the Poincare disk rounds onto its edge. The model has
+    /// no effect on a Euclidean or spherical domain.
+    pub fn model(mut self, model: HyperbolicModel) -> Self {
+        self.options.model = model;
         self
     }
 
@@ -303,7 +362,7 @@ impl RenderOptionsBuilder {
 mod tests {
     use glam::DVec3;
 
-    use super::{RenderOptions, RenderOptionsBuilder, Shading};
+    use super::{HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
     use crate::colour::{Colour, Fill};
     use crate::error::ErrorKind;
 
@@ -341,6 +400,7 @@ mod tests {
         let length = 6.0_f64.sqrt() / 2.0;
         assert_eq!(options.light, DVec3::new(-0.5, 0.5, 1.0) / length);
         assert_eq!(options.shading, Shading::Phong);
+        assert_eq!(options.model, HyperbolicModel::Disk);
         assert_eq!(options.fill, Fill::One(Colour::WHITE));
     }
 
@@ -439,6 +499,18 @@ mod tests {
             accepted(builder().shading(Shading::Phong)).shading,
             Shading::Phong
         );
+    }
+
+    #[test]
+    fn model_is_kept() {
+        for model in [
+            HyperbolicModel::Disk,
+            HyperbolicModel::HalfPlane,
+            HyperbolicModel::Band,
+            HyperbolicModel::Klein,
+        ] {
+            assert_eq!(accepted(builder().model(model)).model, model);
+        }
     }
 
     #[test]

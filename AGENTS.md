@@ -85,7 +85,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 As of 2026-11-22, the tool `escher` has two commands:
 
 - `escher info` reports on a signature: its canonical form, geometry, Euler characteristic, and classification, and, for a signature with a fundamental domain, its shape parameters, a summary of the domain, and the count of its valid colourings, those in which no two tiles that share a side have the same colour, with one for each conjugacy class. `--colourings` lists them by id, `--presentation` prints the group presentations, and `--check` prints the verification of the domain.
-- `escher render` writes the tiling of a domain to a PNG file: a hyperbolic domain in the Poincare disk, a Euclidean domain in the plane, and a spherical domain as a lit ball. By default it draws the valid colouring with 2 colours where the domain has one, and one colour otherwise. It can instead draw a colouring given by its id, in default or user-given colours, and `--set` sets the shape parameters.
+- `escher render` writes the tiling of a domain to a PNG file: a hyperbolic domain in the Poincare disk, a Euclidean domain in the plane, and a spherical domain as a lit ball. `--model` draws a hyperbolic domain in the half-plane, the band, or the Klein disk instead. By default it draws the valid colouring with 2 colours where the domain has one, and one colour otherwise. It can instead draw a colouring given by its id, in default or user-given colours, and `--set` sets the shape parameters.
 
 Both commands support these signatures, with corner orders up to 100:
 
@@ -105,7 +105,7 @@ Both commands support these signatures, with corner orders up to 100:
 | `escher-render` | Renders the tiling of a domain per pixel and encodes it as PNG | `docs/design/render.md` |
 | `escher-reference` | Test support: the shared reference arithmetic of the accuracy tests | `docs/design/architecture.md` |
 
-Milestones `M1` to `M11` and `M20` of `docs/design/poc-plan.md` are complete, `M12` is in progress in the branches of its Section 5.12, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
+Milestones `M1` to `M12` and `M20` of `docs/design/poc-plan.md` are complete, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
 
 What does not exist yet:
 

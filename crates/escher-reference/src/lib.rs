@@ -199,6 +199,113 @@ pub fn apply(matrix: &Matrix, x: &Vector) -> Vector {
     })
 }
 
+/// A complex number of two reference values, the real part first.
+pub type Complex = [BigFloat; 2];
+
+/// Returns the sum of two complex numbers.
+#[must_use]
+pub fn complex_add(left: &Complex, right: &Complex) -> Complex {
+    [add(&left[0], &right[0]), add(&left[1], &right[1])]
+}
+
+/// Returns the difference of two complex numbers.
+#[must_use]
+pub fn complex_sub(left: &Complex, right: &Complex) -> Complex {
+    [sub(&left[0], &right[0]), sub(&left[1], &right[1])]
+}
+
+/// Returns the product of two complex numbers.
+#[must_use]
+pub fn complex_mul(left: &Complex, right: &Complex) -> Complex {
+    [
+        sub(&mul(&left[0], &right[0]), &mul(&left[1], &right[1])),
+        add(&mul(&left[0], &right[1]), &mul(&left[1], &right[0])),
+    ]
+}
+
+/// Returns the quotient of two complex numbers, the left one times the
+/// conjugate of the right one, divided by the squared modulus of the right one.
+#[must_use]
+pub fn complex_div(left: &Complex, right: &Complex) -> Complex {
+    let norm = squared_modulus(right);
+    [
+        div(
+            &add(&mul(&left[0], &right[0]), &mul(&left[1], &right[1])),
+            &norm,
+        ),
+        div(
+            &sub(&mul(&left[1], &right[0]), &mul(&left[0], &right[1])),
+            &norm,
+        ),
+    ]
+}
+
+/// Returns a complex number multiplied by a real value.
+#[must_use]
+pub fn complex_scale(factor: &BigFloat, value: &Complex) -> Complex {
+    [mul(factor, &value[0]), mul(factor, &value[1])]
+}
+
+/// Returns the squared modulus of a complex number, the sum of the squares of
+/// its two parts.
+#[must_use]
+pub fn squared_modulus(value: &Complex) -> BigFloat {
+    add(&mul(&value[0], &value[0]), &mul(&value[1], &value[1]))
+}
+
+fn complex_one() -> Complex {
+    [int(1), int(0)]
+}
+
+fn complex_i() -> Complex {
+    [int(0), int(1)]
+}
+
+/// Returns the point `(i w + 1) / (w + i)` of the Poincare disk that
+/// represents the point `w` of the upper half-plane.
+///
+/// The map sends `i` to the centre of the disk. It is the inverse of
+/// [`disk_to_half_plane`].
+#[must_use]
+pub fn half_plane_to_disk(w: &Complex) -> Complex {
+    complex_div(
+        &complex_add(&complex_mul(&complex_i(), w), &complex_one()),
+        &complex_add(w, &complex_i()),
+    )
+}
+
+/// Returns the point `(z + i) / (i z + 1)` of the upper half-plane that
+/// represents the point `z` of the Poincare disk.
+///
+/// It is the inverse of [`half_plane_to_disk`].
+#[must_use]
+pub fn disk_to_half_plane(z: &Complex) -> Complex {
+    complex_div(
+        &complex_add(z, &complex_i()),
+        &complex_add(&complex_mul(&complex_i(), z), &complex_one()),
+    )
+}
+
+/// Returns the point `s / (1 + sqrt(1 - |s|^2))` of the Poincare disk that
+/// represents the point `s` of the Klein disk.
+///
+/// The point must lie inside the unit circle. The map is the inverse of
+/// [`disk_to_klein`].
+#[must_use]
+pub fn klein_to_disk(s: &Complex) -> Complex {
+    let root = sqrt(&sub(&int(1), &squared_modulus(s)));
+    complex_scale(&div(&int(1), &add(&int(1), &root)), s)
+}
+
+/// Returns the point `2 z / (1 + |z|^2)` of the Klein disk that represents
+/// the point `z` of the Poincare disk.
+///
+/// It is the inverse of [`klein_to_disk`].
+#[must_use]
+pub fn disk_to_klein(z: &Complex) -> Complex {
+    complex_scale(&div(&int(2), &add(&int(1), &squared_modulus(z))), z)
+}
+
 /// Computes the transcendental functions and constants at the reference
 /// precision.
 ///
@@ -323,6 +430,64 @@ impl Reference {
             .format(Radix::Dec, ROUNDING, &mut self.consts)
             .expect("the reference formats a number");
         text.parse().unwrap_or(f64::NAN)
+    }
+
+    /// Returns the hyperbolic tangent of a complex number, the quotient of
+    /// `sinh x cos y + i cosh x sin y` and `cosh x cos y + i sinh x sin y` for
+    /// the number `x + i y`.
+    pub fn complex_tanh(&mut self, value: &Complex) -> Complex {
+        let [x, y] = value;
+        let (sinh, cosh) = (self.sinh(x), self.cosh(x));
+        let (sin, cos) = (self.sin(y), self.cos(y));
+        let numerator = [mul(&sinh, &cos), mul(&cosh, &sin)];
+        let denominator = [mul(&cosh, &cos), mul(&sinh, &sin)];
+        complex_div(&numerator, &denominator)
+    }
+
+    /// Returns the principal natural logarithm of a complex number with a
+    /// positive real part, `ln |v| + i atan(y / x)` for the number
+    /// `v = x + i y`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the real part is not positive, where the arc tangent of
+    /// `y / x` is not the argument of the number.
+    pub fn log_of_right_half(&mut self, value: &Complex) -> Complex {
+        let [x, y] = value;
+        assert!(
+            *x > int(0),
+            "internal error: the logarithm of a value with no positive real part"
+        );
+        let modulus = div(&self.ln(&squared_modulus(value)), &int(2));
+        [modulus, self.atan(&div(y, x))]
+    }
+
+    /// Returns the point `tanh(pi w / 4)` of the Poincare disk that
+    /// represents the point `w` of the band, the strip of points whose
+    /// imaginary part lies between -1 and 1.
+    ///
+    /// The map sends 0 to the centre of the disk and the real axis to the
+    /// diameter on the real axis. It is the inverse of
+    /// [`Reference::disk_to_band`].
+    pub fn band_to_disk(&mut self, w: &Complex) -> Complex {
+        let quarter_pi = div(&self.pi(), &int(4));
+        self.complex_tanh(&complex_scale(&quarter_pi, w))
+    }
+
+    /// Returns the point `(2 / pi) (log(1 + z) - log(1 - z))` of the band that
+    /// represents the point `z` of the Poincare disk.
+    ///
+    /// It is the inverse of [`Reference::band_to_disk`].
+    ///
+    /// # Panics
+    ///
+    /// Panics when the real part of `1 + z` or of `1 - z` is not positive,
+    /// which happens only for a point on or outside the unit circle.
+    pub fn disk_to_band(&mut self, z: &Complex) -> Complex {
+        let ahead = self.log_of_right_half(&complex_add(&complex_one(), z));
+        let behind = self.log_of_right_half(&complex_sub(&complex_one(), z));
+        let factor = div(&int(2), &self.pi());
+        complex_scale(&factor, &complex_sub(&ahead, &behind))
     }
 }
 

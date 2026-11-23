@@ -9,19 +9,22 @@ use crate::options::{RenderOptions, Shading};
 use crate::view::{Lift, View};
 
 /// Renders the tiling of a fundamental domain into 8-bit sRGB pixels, in the
-/// Poincare disk for a hyperbolic domain, in the plane for a Euclidean one,
-/// and on a lit ball for a spherical one.
+/// Poincare disk or another hyperbolic model for a hyperbolic domain, in the
+/// plane for a Euclidean one, and on a lit ball for a spherical one.
 ///
 /// Make one per image with [`Renderer::new`], then render the whole image
 /// with [`render`](Renderer::render) or bands of rows with
 /// [`render_rows`](Renderer::render_rows). For a hyperbolic domain the disk is
 /// centred in the image, with the centre of the domain at the centre of the
-/// disk. For a Euclidean domain the tiling fills the image, with the centre of
-/// the domain at the centre of the image and 8 units of the plane across the
-/// shorter side. For a spherical domain the ball has the size and the place of
-/// the disk and shows the front half of the sphere, seen from far away along
-/// its third axis and turned by the viewing rotation of the options. With no
-/// rotation, the centre of the domain lies at the centre of the ball.
+/// disk, or the domain is drawn in the
+/// [`HyperbolicModel`](crate::HyperbolicModel) of the options with its centre
+/// at the centre of the image. For a Euclidean domain the tiling fills the
+/// image, with the centre of the domain at the centre of the image and 8 units
+/// of the plane across the shorter side. For a spherical domain the ball has
+/// the size and the place of the disk and shows the front half of the sphere,
+/// seen from far away along its third axis and turned by the viewing rotation
+/// of the options. With no rotation, the centre of the domain lies at the
+/// centre of the ball.
 ///
 /// A domain whose side pairings are rotations and translations, such as the
 /// domain of `732`, has the view of its reflection domain, which is `*732`,
@@ -72,9 +75,10 @@ impl Renderer {
     /// Returns a renderer of the tiling of a domain with the given options.
     ///
     /// The renderer chooses the view from the geometry of the domain, which is
-    /// the Poincare disk for a hyperbolic domain, the plane for a Euclidean
-    /// one, and the ball for a spherical one. It copies what it needs from the
-    /// sides of the domain, so it keeps no reference to the domain.
+    /// the hyperbolic model of the options for a hyperbolic domain, the plane
+    /// for a Euclidean one, and the ball for a spherical one. It copies what it
+    /// needs from the sides of the domain, so it keeps no reference to the
+    /// domain.
     ///
     /// # Errors
     ///
@@ -315,9 +319,11 @@ impl RenderStats {
     /// Returns the number of samples outside the view, which take the
     /// background colour.
     ///
-    /// For a hyperbolic domain these are the samples outside the disk, and for
-    /// a spherical domain those on or outside the rim of the ball. It is 0 for
-    /// a Euclidean domain, whose view covers the whole image.
+    /// For a hyperbolic domain these are the samples outside the region of its
+    /// model, such as those outside the disk, and those whose point cannot be
+    /// computed, and for a spherical domain those on or outside the rim of the
+    /// ball. It is 0 for a Euclidean domain, whose view covers the whole
+    /// image.
     #[must_use]
     pub fn outside(self) -> u64 {
         self.outside

@@ -32,6 +32,7 @@ cd docs/images
 
 escher render '*632' -o tiling.png
 escher render '*732' --size 640x640 -o disk.png
+escher render '*732' --model band -o band.png
 escher render '*642' --colouring 4a -o four.png
 escher render '*642' --colouring 4a --colours '#dc143c,#ffd700,#000080,#2e8b57' -o four-colours.png
 escher render '*2222' --set aspect=1.618 -o rectangles.png
