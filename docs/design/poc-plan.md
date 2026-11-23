@@ -32,7 +32,7 @@ This document covers the workflow of a milestone, the owner's staging, the resea
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-83`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-91`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the milestones `M14` to `M18` that the owner moved there, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -402,11 +402,11 @@ escher info '*442'
 2. With an external tool, the user uses those masks to produce a set of images to sample from.
 3. The user passes the masked image file names as fill colours, for example `image:/path/to/file.png`, and the render samples from them.
 
-**Command line.** These commands illustrate the flow. The design decides the options and the names of the mask files:
+**Command line.** These commands illustrate the flow. The first writes `mask-0.png` to `mask-3.png`, one for each colour of `4a`, and the second renders the four images that the user painted over them:
 
 ```sh
-escher render-masks '*732' --colouring <id> -o /tmp/masks/mask.png
-escher render '*732' --colouring <id> --colours 'image:/tmp/masks/fill-0.png,image:/tmp/masks/fill-1.png' -o tiling.png
+escher render-masks '*642' --colouring 4a -o /tmp/masks/mask.png
+escher render '*642' --colouring 4a --colours 'image:/tmp/masks/fill-0.png,image:/tmp/masks/fill-1.png,image:/tmp/masks/fill-2.png,image:/tmp/masks/fill-3.png' -o tiling.png
 ```
 
 **Scope.** The owner decided these details:
@@ -415,35 +415,34 @@ escher render '*732' --colouring <id> --colours 'image:/tmp/masks/fill-0.png,ima
 - Image sampling maps the image back through the same projection as the mask, so that an image painted over a mask lands where it was drawn.
 - A tile that is a mirror image of the masked tile shows the image mirrored.
 
-The design settles these open points:
+The design settles the open points of the planning as proposals:
 
-- Which tile of each colour a mask shows, and how the masks are numbered and named.
-- The size, model, and view of a mask, and what a mask of a spherical signature shows on the shaded ball.
-- Whether `--colours` mixes hexadecimal colours and image fills.
-- The image formats that an image fill reads, the colour of a sample that maps outside the image, and the limits on the size of an image.
+- The mask of a colour shows its reference tile, named by the shortest side sequence with that colour, the first in the order of the side indexes, so colour 0 is the domain (`DEC-84`, Section 5.18 of `docs/design/render.md`). The mask of colour $c$ is the file named by the stem of `--output`, `-`, and $c$ from 0, such as `mask-0.png` (`DEC-87`, CLI-58 of `docs/design/cli.md`).
+- A mask has the size of `--size` and the canonical view of its geometry: the Poincare disk, the plane, or the ball with the rotation 0, 0, 0 and no shading, whatever the options of a later render. On the ball it shows the front part of the tile only (`DEC-85`, Section 5.19 of `docs/design/render.md`). It is white on the tile and black elsewhere, antialiased by a fixed 4 by 4 sample grid, with no border (`DEC-86`).
+- `--colours` mixes hexadecimal colours and image items `image:FILE`, one item for each colour. An image item makes `render` draw `one` and `parity` through the coset fills of `1a` and `2a` (`DEC-91`, CLI-61 of `docs/design/cli.md`).
+- An image fill reads every PNG colour type at a bit depth of 8 or less as 8-bit sRGB with alpha, refuses an image with 16 bits per channel, samples bilinearly in linear light over the background colour, and takes the background colour where a position maps outside the image or to the hidden side of the ball (`DEC-88` to `DEC-90`, Sections 5.20 and 5.21 of `docs/design/render.md`). Section 5.21 of `docs/design/render.md` limits each image, and CLI-60 of `docs/design/cli.md` the images of one render.
 
-The planning proposes to define masks and image fills over a general region with a frame, and not only over a fundamental polygon, so that the faces of a Wythoff tiling can use them later (Section 4.2 of `docs/design/roadmap.md`).
+The frame of an image fill, a matrix and an image size, stays private until the faces of a Wythoff tiling need it (`DEC-88`, Section 4.2 of `docs/design/roadmap.md`).
 
 Out of scope: research into external tools, which the owner ruled out (Section 1 of `docs/design/roadmap.md`).
 
-**Design documents.** Extensions of `render.md` and `cli.md`, and the changes to `docs/design/architecture.md` that the design makes to the data flow of its Section 4.1.
+**Design documents.** Sections 5.18 to 5.21 of `render.md` with its other sections that the masks and image fills touch, Sections 4.6, 4.8, and 6.10 of `cli.md` with its other sections that the command touches, the data flow of Section 4.1 of `docs/design/architecture.md` with the labels `DEC-84` to `DEC-91`, and its crate table and Security Considerations.
 
-**Sources.** The per-pixel fold, which gives the point in the domain and the element of the tile (`rendering.md` 4.1). SymmHub's sampling of an image in a pattern box (`rendering.md` 10).
+**Sources.** The per-pixel fold, which gives the point in the domain (`rendering.md` 4.1). The element of the tile comes from the sides that the fold applies, by the rule of GRP-38 of `docs/design/group.md` (`UNV-17`). SymmHub's sampling of an image in a pattern box, and the mirrored texture lookup of Nelson and Zucker, as precedents (`rendering.md` 10).
 
-**Unverified statements relied on.** `UNV-1` and `UNV-2` for the fold, and `UNV-17` for the element that the sides of a fold give.
+**Unverified statements relied on.** `UNV-1` and `UNV-2` for the fold, `UNV-3` for a sample on a wall of a reference tile, and `UNV-17` for the element that the sides of a fold give, on which the reference tiles and the frames rest. The walk that finds the reference tiles and the products that give their matrices are unverified statements of the render design, which its tests check (Section 10 of `docs/design/render.md`). The milestone adds no row to Section 7.
 
-**Tests and acceptance.** The planning proposes these tests, and the design names them:
+**Tests and acceptance.** The tests "Reference sequences", "Reference matrices", "Mask equals render", "Flat image", "Lands where drawn", "Mirrored", "Texture contract", "Same texture in every model", and "Alpha and fallback", the decoding and failure tests, and the golden images of masks and of image fills, of Sections 8.1, 8.2, and 8.4 of `docs/design/render.md`. The snapshots and plain tests of `render-masks` and of the image items in Section 8.1 of `docs/design/cli.md`, which include a missing, malformed, and oversized image file with exit status 1 and no file written.
 
-- An image fill that holds one flat colour over the mask gives the image of that colour as a solid fill, within the allowance of the golden images.
-- An image with an asymmetric mark painted over a mask shows the mark at the same pixels of the masked tile in the render as in the mask, and mirrored in a tile that is its mirror image.
-- A missing, unreadable, or oversized image file gives a diagnostic and exit status 1, and leaves the output file as it was.
-- Golden images of masks and of image fills.
+**Dependencies and `deny.toml` work.** None new. `escher-render` decodes with its existing dependency `png` (Section 9 of `docs/design/render.md`).
 
-**Dependencies and `deny.toml` work.** The planning proposes to decode images with the existing dependency `png`, with no new crate.
+**Risks.** The image file is the first input file that `escher` reads (Section 8). A file that blocks or never ends holds `render`, because no limit applies to the length of the file (Section 12 of `docs/design/cli.md`). Bilinear sampling with no level of detail aliases an image where a tile is much smaller than the image. A render with other settings than the masks keeps the colours but moves the reference tiles, so the images no longer line up.
 
-**Risks.** Resampling of the image, and the first input file that `escher` reads (Section 8).
+**Split.** Three branches, in this order:
 
-**Split.** Left open for the design branch.
+1. Design: the design documents above.
+2. Render library: the reference sequences and matrices, `Masks`, `Paint`, `Image` with `decode_png`, the frames and the sampling, the error kind `Decoding`, and the tests and golden images of `escher-render`.
+3. Command line: `render-masks` and the image items of `--colours` in `escher-cli`, with their snapshots and plain tests, the usage of `render-masks` and of an image fill in `README.md`, and Project Status and Repository Layout in `AGENTS.md` where they change.
 
 ## 6. Documentation Obligations
 
@@ -507,7 +506,7 @@ The table also keeps the rows that serve the roadmap items M14 to M18 (Section 4
 
 This document defines no component, so the threat model is that of the tool it plans. The attacker is assumed to control the input of `escher`: the signature string, every option value, every `name=value` setting, the output path, and from M22 the image files of an image fill. Every milestone that adds such an input states, in the Security Considerations of its design document, the limits that Section 5.9 of `docs/design/architecture.md` requires: the maximum order, the signature length, the image size, the fold cap, and the search budget. Without these limits a crafted signature or option exhausts memory or time, for example through the colouring search of M8, whose cost grows exponentially with the index.
 
-Before M22, the output path is the only file that `escher` writes, and no command reads a file supplied by the user. M22 changes both: `render-masks` writes one file for each colour, and `render` reads the image files of its image fills. Its design states the limits on the size and the number of images that it reads, and which files `render-masks` may write. Every dependency enters through the milestone that first needs it, with the licence and advisory checks of cargo-deny (Section 8 of the tooling design). A native build, such as `rug`, would add code that runs at build time, which is one reason why `DEC-3` chooses the pure-Rust astro-float, used through its crate `astro-float-num`. Code ported from SymmHub, which only roadmap items plan, carries its MIT notice under `DEC-18`, and `UNV-24` tracks the open licence question.
+Before M22, the output path is the only file that `escher` writes, and no command reads a file supplied by the user. M22 changes both: `render-masks` writes one file for each colour, and `render` reads the image files of its image fills. Section 13 of `docs/design/render.md` and Section 12 of `docs/design/cli.md` state the limits on the size and the number of images that it reads, and which files `render-masks` may write. Every dependency enters through the milestone that first needs it, with the licence and advisory checks of cargo-deny (Section 8 of the tooling design). A native build, such as `rug`, would add code that runs at build time, which is one reason why `DEC-3` chooses the pure-Rust astro-float, used through its crate `astro-float-num`. Code ported from SymmHub, which only roadmap items plan, carries its MIT notice under `DEC-18`, and `UNV-24` tracks the open licence question.
 
 Attacks on the repository itself, such as a malicious change to a document or a compromised CI runner, are out of scope, because `AGENTS.md` and the tooling design govern the repository and its workflow. The residual risk is that a limit chosen in a design document is too high for the machine that runs the tool, that a crafted image file exhausts memory in the decoder, and that an unverified statement of Section 7 makes the tool draw a wrong image without any error.
 
