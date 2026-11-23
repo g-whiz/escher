@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the shape parameters, the summary of the fundamental domain, the number of valid colourings for each colour count with the options `--max-colours` and `--colourings`, the result of each check of the option `--check`, and the presentations and the group order by coset enumeration of the option `--presentation`, the options of the command `render`, including the settings of shape parameters, the colouring by an id with its default colours, the unit of the border width, the PNG file that it writes and the statistics that it prints, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
+This document specifies the package `escher-cli`, which provides the command-line program `escher`. It defines the public surface of the library target, the thin binary that calls it, the commands and options, the exact text that the command `info` prints for each kind of signature, including the Schlafli symbols of a regular tiling, the shape parameters, the summary of the fundamental domain, the number of valid colourings for each colour count with the options `--max-colours` and `--colourings`, the result of each check of the option `--check`, and the presentations and the group order by coset enumeration of the option `--presentation`, the options of the command `render`, including the settings of shape parameters, the colouring by an id with its default colours, the unit of the border width, the PNG file that it writes and the statistics that it prints, the format of every diagnostic, the exit statuses, the tests, and the dependencies.
 
 ## 1. Introduction
 
@@ -26,7 +26,7 @@ The primary readers are the coding agents that implement or extend `escher-cli`.
 
 ### 1.4. Scope
 
-This document covers the command `info` with its argument and its options `--check`, `--presentation`, `--colourings`, and `--max-colours`, the command `render` with its argument and its options, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. It prints the shape parameters of the signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, the number of its valid colourings for each colour count, with `--colourings` one valid colouring for each conjugacy class with its id, and with `--check` the result of each check of its verification. With `--presentation`, it prints the Conway presentation of the signature and the side presentation of its domain, and for a spherical signature the group order that coset enumeration finds for each.
+This document covers the command `info` with its argument and its options `--check`, `--presentation`, `--colourings`, and `--max-colours`, the command `render` with its argument and its options, the options `--help` and `--version`, the diagnostics, the exit statuses, the tests of the crate, and its dependencies. `info` parses, validates, canonicalizes, and classifies any signature. It prints the Schlafli symbols of the regular tiling of the signature and of its dual where the signature has one, and the shape parameters of the signature. For a signature that `escher-domain` constructs, it also prints a summary of the fundamental domain, the number of its valid colourings for each colour count, with `--colourings` one valid colouring for each conjugacy class with its id, and with `--check` the result of each check of its verification. With `--presentation`, it prints the Conway presentation of the signature and the side presentation of its domain, and for a spherical signature the group order that coset enumeration finds for each.
 
 `render` draws, with `escher-render`, the tiling of a signature that `escher-domain` constructs with the shape parameters that the option `--set` gives, in one colour, in its valid colouring with two colours, or in the colouring that an id names. It draws a hyperbolic tiling in the Poincare disk, or in the upper half-plane, the band, or the Klein disk that the option `--model` names, a Euclidean tiling in the Euclidean plane, and a spherical tiling as a lit ball, with the viewing rotation, the light, and the shading of its options, with borders whose width is in pixels or, with `--border-unit intrinsic`, in the metric of the geometry, and writes it to a PNG file. With `--stats`, it also prints statistics of the rendering.
 
@@ -63,6 +63,8 @@ This document uses the terms of Section 2.2 of `docs/writing-documentation.md` a
 - shape parameter: A named number that changes the shape of the domain of a signature, which `parameters` of `escher-domain` lists with its range and its default, such as `aspect` of `*2222`.
 - setting: One value of the option `--set` of `render`, a parameter name and a number joined by `=` (Section 4.6).
 - parameter lines: The lines of the information text that list the shape parameters, row 10 of Section 5.1.
+- Schlafli symbol: The symbol $\{p, q\}$ of the regular tiling by $p$-gons with $q$ meeting at each vertex, written `{p,q}` in the information text (Section 2.2 of `docs/research/geometry-models.md`).
+- regular tiling line: The line `Regular tiling` of the information text, row 35 of Section 5.1 (Section 5.9).
 - domain summary: The lines of the information text that describe the domain, rows 11 to 16 of Section 5.1 (Section 5.5).
 - check: One numeric condition that `verify()` of `escher-domain` evaluates, with a residual and a tolerance (Section 2.1 of `docs/design/domain.md`).
 - colouring: A colouring of the side presentation of the domain, as `escher-group` finds it: one subgroup of finite index $k$ with its coset table, whose $k$ cosets give the $k$ colours of the tiles (Section 5.12 of `docs/design/render.md`). `escher-group` gives every subgroup a colouring of its own, conjugate subgroups included.
@@ -502,7 +504,7 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 
 ### 5.1. Lines
 
-`info` writes the lines of this table, in this order. Each line is the label, a colon, one space, and the value, followed by a line feed. No other line, blank line, or trailing space appears. The accessors of rows 1 to 9 are those of `Signature` (Sections 3.1 and 9.1 of `docs/design/signature.md`). Row 10 takes its values from `parameters` and `ParameterSpec`, rows 11 to 16 and 28 to 34 from `FundamentalDomain`, `Side`, `Verification`, and `Check` (Section 3.1 of `docs/design/domain.md`), rows 17 to 19 from the colouring search of `escher-group` on `side_presentation()` (Section 5.8), and rows 20 to 27 from `escher-group` and `side_presentation()` (Section 5.7). "A domain is built" means that `FundamentalDomain::build` returned `Ok`.
+`info` writes the lines of this table, in this order. Each line is the label, a colon, one space, and the value, followed by a line feed. No other line, blank line, or trailing space appears. The accessors of rows 1 to 9 and 35 are those of `Signature` (Sections 3.1 and 9.1 of `docs/design/signature.md`). Row 10 takes its values from `parameters` and `ParameterSpec`, rows 11 to 16 and 28 to 34 from `FundamentalDomain`, `Side`, `Verification`, and `Check` (Section 3.1 of `docs/design/domain.md`), rows 17 to 19 from the colouring search of `escher-group` on `side_presentation()` (Section 5.8), and rows 20 to 27 from `escher-group` and `side_presentation()` (Section 5.7). "A domain is built" means that `FundamentalDomain::build` returned `Ok`.
 
 | Order | Label | Printed when | Value |
 | --- | --- | --- | --- |
@@ -515,6 +517,7 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 | 7 | `Group order` | `group_order()` returns a value, which it does for a spherical signature | The integer in decimal |
 | 8 | `Area` | `area_over_pi()` returns a value, which it does for a spherical or hyperbolic signature | The form of Section 5.2 |
 | 9 | `Deformation dimension` | `deformation_dimension()` returns a value, which it does for a compact hyperbolic signature | The integer in decimal |
+| 35 | `Regular tiling` | The canonical signature is `*pq2` or `pq2` with finite orders $p \ge q \ge 3$ (Section 5.9) | The Schlafli symbols of the tiling and of its dual, such as `{7,3}, dual {3,7}`, or `{4,4}, self-dual` when $p = q$, in the form of Section 5.9 |
 | 10 | `Parameter` | Once for each item that `parameters` returns for the signature, in its order | The name, `, range `, the minimum, ` to `, the maximum, `, default `, and the default value, with the numbers in the form of Section 5.2, such as `aspect, range 0.125 to 8, default 1` |
 | 11 | `Domain` | Always | `no sides` when the domain has no side, `<n> mirror sides` when every side is a mirror, `<n> sides in <k> pairs` when no side is, with `pair` when $k = 1$, as in `2 sides in 1 pair`, `<n> sides, <m> mirror sides and <k> pairs` when the domain has both, and `none, ` followed by the `Display` text of the error when no domain is built (Section 5.5, CLI-51, CLI-53) |
 | 12 | `Mirror sides`, then `Side pairs` | A domain with a paired side is built. The `Mirror sides` line appears only when that domain also has a mirror side | Two lines in this order. `Mirror sides` lists the mirror sides, such as `2 and 5`, and `Side pairs` each pair of partner sides once, such as `0 and 1 by rotation, 2 and 3 by rotation`, in the forms of Section 5.5 |
@@ -541,11 +544,11 @@ CLI-25. `render` MUST write nothing to standard output without `--stats`, and wi
 | 33 | `Check area` | As row 28 | The result of `area()` of `Verification` |
 | 34 | `Verification` | As row 28 | `passed` when `Verification::passed()` is true, and otherwise `failed` |
 
-Row 12 holds two labels, and row 13 stays withdrawn, so that the numbers of the other rows stay those that other sections cite.
+Row 12 holds two labels, row 13 stays withdrawn, and row 35 stands between rows 9 and 10, so that the numbers of the other rows stay those that other sections cite. The order of the rows in the table is the order of the lines.
 
-CLI-6. `info` MUST print exactly the lines of this table, in this order and under these conditions, with the colouring lines for every built domain, the `Colouring` lines only with `--colourings`, the presentation lines only with `--presentation`, and the verification lines only with `--check`, because the snapshots of Section 8 and every reader of the text rely on one layout, and an extra or missing line changes what a reader concludes about the signature. The table has no name of the group in another notation, such as an IUC or Schoenflies name, because `DEC-20` omits them until a primary source is read.
+CLI-6. `info` MUST print exactly the lines of this table, in this order and under these conditions, with the colouring lines for every built domain, the `Colouring` lines only with `--colourings`, the presentation lines only with `--presentation`, and the verification lines only with `--check`, because the snapshots of Section 8 and every reader of the text rely on one layout, and an extra or missing line changes what a reader concludes about the signature. The table has no name of the group in another notation, such as an IUC or Schoenflies name, because `DEC-20` omits them until a primary source is read. Row 35 names a tiling and not the group, so `DEC-20` does not cover it.
 
-So a signature without a domain gets the lines of rows 1 to 10 that apply to it, the `Domain` line of row 11, no colouring line, and with `--presentation` the lines of rows 20 to 23 that apply to it, with or without `--check`. Rows 28 to 34 follow the order of the checks of Section 8.2 of `docs/design/domain.md`.
+So a signature without a domain gets the lines of rows 1 to 10 and 35 that apply to it, the `Domain` line of row 11, no colouring line, and with `--presentation` the lines of rows 20 to 23 that apply to it, with or without `--check`. Rows 28 to 34 follow the order of the checks of Section 8.2 of `docs/design/domain.md`.
 
 ### 5.2. Number Formats
 
@@ -591,6 +594,7 @@ Euler characteristic: -1/84
 Compact: yes
 Area: pi/42
 Deformation dimension: 0
+Regular tiling: {7,3}, dual {3,7}
 Domain: 3 mirror sides
 Corner angles in degrees: 25.714286, 60.000000, 90.000000
 Side lengths: 0.545275, 0.620672, 0.283128
@@ -608,7 +612,7 @@ Check area: passed, residual <residual>, tolerance 1.0e-9
 Verification: passed
 ```
 
-Standard error is empty and the status is `Success`. The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. The tolerances are those of Section 8.4 of `docs/design/domain.md`. `Domain area` is the area of the triangle measured from its angles, and `Area` is the exact value from the Euler characteristic.
+Standard error is empty and the status is `Success`. The Euler characteristic comes from the defect rule of ON 6.1, the area from ON 7.3, and the dimension from ON 10.1. The regular tiling line follows the rule of Section 5.9. The tolerances are those of Section 8.4 of `docs/design/domain.md`. `Domain area` is the area of the triangle measured from its angles, and `Area` is the exact value from the Euler characteristic.
 
 This example shows a spherical signature with a mirror boundary and a cone point, whose domain is a kite with mirror sides beside paired sides:
 
@@ -718,7 +722,7 @@ Domain: none, cannot build fundamental domain: the signature *(inf)22 is not sup
 
 An infinite order sorts above every finite order in the canonical form, so the canonical signature is `*(inf)22` (Section 11.3).
 
-For a supported signature whose largest corner order is above the limit of `escher-domain`, such as `*(101)32`, rows 1 to 9 apply as for `*732`, and the last line is `Domain: none, cannot build fundamental domain: order 101 is larger than 100`, as Section 10.2 of `docs/design/domain.md` fixes it. A reflection polygon with more than 8 corners, such as `*222222222`, and its rotation signature, such as `222222222`, print no `Parameter` line, because `parameters` gives none for them, and their last line is `Domain: none, cannot build fundamental domain: the signature has 9 orders, more than 8`, with the number of orders in place of `9` (DOM-38 and Section 10.2 of `docs/design/domain.md`). That limit applies before the limit on the corner order, so `*(101)22222222` gets the same text. `2*n` has a limit of its own, $n$ up to 50 (DOM-63 of `docs/design/domain.md`, `DEC-59`), so `2*(51)` prints the group order 204 and the last line `Domain: none, cannot build fundamental domain: order 51 is larger than 50`, while `(101)*` and `(101)x` print the text of the limit of 100.
+For a supported signature whose largest corner order is above the limit of `escher-domain`, such as `*(101)32`, rows 1 to 9 and 35 apply as for `*732`, with `Regular tiling: {101,3}, dual {3,101}`, and the last line is `Domain: none, cannot build fundamental domain: order 101 is larger than 100`, as Section 10.2 of `docs/design/domain.md` fixes it. A reflection polygon with more than 8 corners, such as `*222222222`, and its rotation signature, such as `222222222`, print no `Parameter` line, because `parameters` gives none for them, and their last line is `Domain: none, cannot build fundamental domain: the signature has 9 orders, more than 8`, with the number of orders in place of `9` (DOM-38 and Section 10.2 of `docs/design/domain.md`). That limit applies before the limit on the corner order, so `*(101)22222222` gets the same text. `2*n` has a limit of its own, $n$ up to 50 (DOM-63 of `docs/design/domain.md`, `DEC-59`), so `2*(51)` prints the group order 204 and the last line `Domain: none, cannot build fundamental domain: order 51 is larger than 50`, while `(101)*` and `(101)x` print the text of the limit of 100.
 
 ### 5.4. Stability and Omissions
 
@@ -917,6 +921,35 @@ Colourings: <n>, complete to <m> colours, the search stopped at a limit before <
 ```
 
 The status stays as it is without the colouring lines (CLI-47). Up to 12 colours, such a stop happens for signatures with high corner orders, such as `*(100)(100)(100)`, which reaches the step budget. The reflection polygons have more sides, so their side presentations have more generators, and their searches reach the step budget at lower colour counts.
+
+### 5.9. Regular Tiling Line
+
+`info` prints row 35 of Section 5.1 when the canonical signature names the symmetry group of a regular tiling, or its rotation group (`DEC-67`). The line depends on the canonical signature alone, so it appears with or without a domain, and every spelling of one signature, such as `*237`, `*372`, and `*732`, gets the same line. A private function of the module `info` computes it from `handles()`, `crosscaps()`, `cone_orders()`, `boundaries()`, `Boundary::corner_orders()`, and `Order::finite()` of `escher-signature`, which needs no change (`DEC-83`).
+
+The line appears exactly when the canonical signature meets all of these conditions (`DEC-81`):
+
+1. `handles()` and `crosscaps()` are 0.
+2. Either `cone_orders()` is empty and `boundaries()` holds one boundary with three corner orders, or `boundaries()` is empty and `cone_orders()` holds three orders. These are the orders $p$, $q$, and $r$, in the order of the canonical form.
+3. All three orders are finite.
+4. $r$ is 2 and $q$ is at least 3.
+
+The canonical form writes the three orders of such a signature in descending order, by steps 3 and 4 of Section 7.2 of `docs/design/signature.md`, which turn `*236` into `*632`. So $p \ge q \ge r$, and the conditions select `*pq2` and `pq2` with $p \ge q \ge 3$. The conditions are the same in all three geometries. They fail for `*n22` and `n22`, whose second order is 2, for `*333`, which has no corner of order 2, for `*2222`, which has four corners, for `3*2`, which has a cone point and a mirror boundary, and for `*(inf)32`, which has an infinite order.
+
+The value is `{p,q}, dual {q,p}` when $p > q$, and `{p,p}, self-dual` when $p = q$, with each order in decimal (`DEC-82`). The first symbol names the tiling by $p$-gons, where $p$ is the larger order, and the second names its dual. Both tilings have the same symmetry group (Section 5.1 of `docs/research/colourings.md`), so no source makes one of them the tiling of the signature. The larger order comes first, as in the canonical signature. The orders carry no parentheses, which the canonical form puts around an order of 10 or more, so `*(101)32` gives `{101,3}, dual {3,101}`.
+
+| Signature | Line |
+| --- | --- |
+| `*732`, `*237`, `732` | `Regular tiling: {7,3}, dual {3,7}` |
+| `*632`, `632` | `Regular tiling: {6,3}, dual {3,6}` |
+| `*442`, `442` | `Regular tiling: {4,4}, self-dual` |
+| `*532`, `532` | `Regular tiling: {5,3}, dual {3,5}` |
+| `*432`, `432` | `Regular tiling: {4,3}, dual {3,4}` |
+| `*332`, `332` | `Regular tiling: {3,3}, self-dual` |
+| `*722`, `*333`, `*2222`, `3*2`, `*(inf)32` | No line |
+
+Three statements of this section are unverified and form `UNV-37` (Section 10): that `*pq2` names the symmetry group of $\{p, q\}$, with the corner of order $p$ at the centre of a tile, that `pq2` names its rotation group, and that $\{q, p\}$ is its dual. The line never changes the status and writes no diagnostic.
+
+CLI-57. `info` MUST print row 35 exactly for the canonical signatures that meet the conditions of this section, with the value of this section, and MUST compute it from the canonical signature alone, because a line that depended on the spelling of the argument or on the domain would give one group two descriptions, and a symbol for any other signature would name a tiling that no source read ties to its group.
 
 ## 6. Diagnostics
 
@@ -1220,6 +1253,8 @@ For `--model`, the snapshots of `render --help` and `render -h` show the option 
 
 For `--border-unit`, the snapshots of `render --help` and `render -h` show the option with its help, its default, and its possible values, and the help of `--border-width` with the value name `WIDTH`. One usage snapshot shows the usage error of `--border-unit px`, and one diagnostic snapshot shows `escher render '*732' --border-unit intrinsic --border-width 1025`. The plain tests cover these cases: `--border-unit pixels` gives the bytes of the same command without the option, and `--border-unit intrinsic --border-width 0.05` on `*732`, `*632`, and `*532` each writes a PNG file of the size of `--size` whose bytes differ from those of the same command without `--border-unit`, and `--border-unit intrinsic` without `--border-width` gives the bytes of the same command with `--border-width 0.05` (CLI-56). A unit test in `args` checks that each value maps to the variant of the same name.
 
+For the regular tiling line, the snapshots of `info` cover `*732`, `732`, `*442`, `*632`, `*532`, `*237` as a spelling that is not canonical, and `*(101)32` as a signature that gets the line without a domain, and, without the line, `*333`, `*2222`, and `*722`, whose second order is 2. An input that already has a snapshot keeps it, and the snapshot changes where the input gets the line (CLI-7). Each input follows the colour limit of its kind of domain (CLI-50, CLI-52, CLI-54). The unit tests of the private function of Section 5.9 cover each condition of that section on valid signatures: `*pq2` and `pq2` with $p > q \ge 3$ and with $p = q$, $q = 2$ with $p \ge 3$ and with $p = 2$, three orders without a 2, four orders, a handle, a crosscap, a cone point beside a boundary, two boundaries, an infinite order among the three, and the largest order, `u32::MAX`, which gives its digits in decimal (CLI-57).
+
 A snapshot holds the status, the standard output, and the standard error of one `run` call, in this form, which a helper in the module `common` builds (rule TEST-12 of `docs/rust-coding-standards.md`):
 
 ```text
@@ -1350,7 +1385,7 @@ Section 10.1 of `docs/design/architecture.md` records, under `DEC-21`, that Miri
 
 ## 10. Unverified Statements
 
-This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-6`, `UNV-7`, `UNV-10`, `UNV-11`, `UNV-22`, `UNV-26`, `UNV-27`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, `UNV-32`, `UNV-33`, and `UNV-34` through `escher-domain`, on `UNV-17`, `UNV-19`, `UNV-22`, `UNV-35`, and `UNV-36` through `escher-group`, on `UNV-13` and `UNV-14` through `escher-geometry`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-13`, `UNV-14`, `UNV-15`, `UNV-16`, `UNV-17`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
+This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-6`, `UNV-7`, `UNV-10`, `UNV-11`, `UNV-22`, `UNV-26`, `UNV-27`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, `UNV-32`, `UNV-33`, and `UNV-34` through `escher-domain`, on `UNV-17`, `UNV-19`, `UNV-22`, `UNV-35`, and `UNV-36` through `escher-group`, on `UNV-37` directly, on `UNV-13` and `UNV-14` through `escher-geometry`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-13`, `UNV-14`, `UNV-15`, `UNV-16`, `UNV-17`, and `UNV-18` through `escher-render`, whose design states how it relies on each.
 
 | Id | How this crate relies on it |
 | --- | --- |
@@ -1379,6 +1414,7 @@ This section lists the unverified statements of Section 7 of `docs/design/poc-pl
 | `UNV-18` | The colouring `parity` of an all-reversing domain, which includes a domain whose sides are paired by glide reflections or rotary reflections, colours the tiles by the parity of the fold with `Fill::Parity`, and gives the bytes of the coset fill of `2a` (CLI-48) |
 | `UNV-35` | `info` counts and lists, and `render` resolves, only the colourings that `escher-group` finds valid by the condition on the side generators of GRP-42 of `docs/design/group.md`, so a colouring in which two tiles that share a side have the same colour reaches the user only if that condition is wrong |
 | `UNV-36` | The alias `parity` names `2a`, as the only valid colouring with 2 colours. If a domain had two, `parity` would name the first of them, and the second would keep its own id |
+| `UNV-37` | `info` prints the regular tiling line for `*pq2` and `pq2` with $p \ge q \ge 3$, as the Schlafli symbol `{p,q}` and that of its dual, `{q,p}`, which rests on these signatures naming the symmetry group and the rotation group of $\{p, q\}$ (Section 5.9). The line is computed from the signature alone, so no check of the domain tests it, and its tests pin only which signature gets which symbols |
 
 ## 11. Assumptions, Choices, and Open Questions
 
@@ -1415,6 +1451,7 @@ These choices are made here, and no other document dictates them. Each one is ea
 14. `1a` stays accepted on every domain as the colouring with one colour, although `info` lists it only for `1`, so that command lines with `1a` keep working (Section 4.6). The alternative accepts only `one`.
 15. The line `Parity colouring` is withdrawn, because rows 18 and 19 show whether `parity` exists (row 13 of Section 5.1). The alternative keeps it with a new condition, which needs the search of 2 colours on every domain that is not all-reversing.
 16. `--border-unit` is an option of its own beside `--border-width`, and the width keeps its limits in both units (`DEC-78`), so the parser of the width stays as it is. The alternative is a unit suffix in the value of the width, such as `0.05i`, which needs a private parser (Section 4.6).
+17. The regular tiling line is computed in this crate from the public accessors of `Signature`, so `escher-signature` keeps its public surface (`DEC-83`, Section 5.9). The alternative is a public method of `Signature`, which a later caller other than `info` could share.
 
 ### 11.3. Points for the Owner
 
@@ -1460,6 +1497,8 @@ None of these blocks the implementation. Points 1, 3, 4, 5, 8, and 36 belong to 
 38. The pictures of the spherical groups (`DEC-61` of `docs/design/architecture.md`). With the default colouring, `5x` renders the image of `*55` and `x` that of `*`, and with `--colouring one`, `3*2` renders the image of `432`. For the orders that Section 5.15 of `docs/design/render.md` treats, no picture of a colouring id tells `n*` from `n22` or `nx` from `*nn`. The default images of `*`, `x`, and `1` differ only in a thin rim, so a user who renders `*` sees no mirror until `--rotation` turns the ball. Points 42 and 43 of Section 12.3 of `docs/design/render.md` hold the alternatives.
 39. Withdrawn on 2026-11-22, when the owner decided that `--model` has no effect on a Euclidean or spherical signature and gives no diagnostic (`DEC-77`).
 40. Withdrawn on 2026-11-23, when the owner decided that the default border width is 0.05 with `--border-unit intrinsic` and stays 1 with `pixels` (`DEC-79`).
+41. The regular tiling line only for `*pq2` and `pq2` with finite $p \ge q \ge 3$ (`DEC-81`, Section 5.9), the range for which Section 5.1 of `docs/research/colourings.md` states the symmetry group of the tiling. The alternative also prints `{n,2}, dual {2,n}` for `*n22` and `n22`, and a symbol with an infinite order, such as `{(inf),3}` for `*(inf)32`.
+42. The larger order first, as `{7,3}, dual {3,7}` for `*732`, and `self-dual` when the two orders are equal (`DEC-82`, Section 5.9). The alternative puts the smaller order first, or prints `{4,4}, dual {4,4}` for `*442`.
 
 ## 12. Security Considerations
 
@@ -1590,3 +1629,4 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-54 | 8.1 | A snapshot of `info` on a spherical group domain uses the default colour limit of 12 and holds only inputs whose printed values meet the rounding condition of CLI-20. |
 | CLI-55 | 4.6 | `--model` accepts exactly `disk`, `half-plane`, `band`, and `klein`, defaults to `disk`, and passes the variant of the same name to `escher-render` for every signature. |
 | CLI-56 | 4.6 | `--border-unit` accepts exactly `pixels` and `intrinsic`, defaults to `pixels`, makes the default width 1 with `pixels` and 0.05 with `intrinsic`, and passes the variant of the same name to `escher-render` for every signature. |
+| CLI-57 | 5.9 | `info` prints the regular tiling line exactly for the canonical signatures `*pq2` and `pq2` with finite $p \ge q \ge 3$, with the value of Section 5.9, computed from the canonical signature alone. |

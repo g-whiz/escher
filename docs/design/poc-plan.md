@@ -32,7 +32,7 @@ This document covers the workflow of a milestone, the owner's staging, the resea
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-80`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-83`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the milestones `M14` to `M18` that the owner moved there, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -53,7 +53,7 @@ This document uses the terms that Section 2.2 of `docs/writing-documentation.md`
 - design branch: A branch named `feature/<name>-design` that changes only documents. It writes or extends the design documents of a milestone, and the research documents where a research prerequisite applies.
 - code branch: A branch in its own worktree that changes code together with its tests and the document updates that Hard Rule 1 of `AGENTS.md` requires.
 - research prerequisite: A design branch, labelled `RP-1` to `RP-5`, that adds to a research document what a milestone needs before its code can start (Section 4).
-- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-36` (Section 7).
+- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-37` (Section 7).
 - stage: One of the stages of the owner's staging (Section 3.2).
 - proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`. Section 10.1 of that document states the defaults that the owner has decided, which keep their labels.
 - reference arithmetic: The independent high-precision implementation of a few formulas inside a test suite, which Section 7 of `docs/design/architecture.md` defines.
@@ -133,7 +133,7 @@ The owner set the order of the remaining work on 2026-11-22 (`DEC-63`). A cleanu
 | M20 | Valid colourings | Colouring counts, listings, and ids restricted to the valid colourings, one for each conjugacy class, with the colouring with one colour still available | `escher-group`, `escher-cli`, `escher-render` (tests and golden images) | M8, M9, M10, M11 |
 | M12 | Half-plane, band, and Klein models | `--model` | `escher-geometry`, `escher-render`, `escher-cli` | M3 |
 | M13 | Intrinsic border width | `--border-unit intrinsic` | `escher-render`, `escher-geometry`, `escher-cli` | M3, with M4 and M5 for the other geometries and M12 for one test |
-| M21 | Schlafli symbols in `escher info` | The Schlafli symbol of the regular tiling of a signature and of its dual | `escher-cli`, and `escher-signature` if the design puts the symbol there | M1 |
+| M21 | Schlafli symbols in `escher info` | The Schlafli symbol of the regular tiling of a signature and of its dual | `escher-cli` | M1 |
 | M22 | Polygon masks and image fills | `escher render-masks`, and image fills in `escher render` | `escher-render`, `escher-cli` | M8 |
 | M19 | Completion audit | None | All six | M11, M12, M13, M20, M21, M22 |
 
@@ -372,24 +372,27 @@ escher info 732
 escher info '*442'
 ```
 
-- `escher info '*732'` prints `{7,3}` and `{3,7}`. `docs/design/cli.md` defines the exact line.
-- The planning proposes that `escher info 732` prints the same symbols as `*732`, and that `escher info '*442'` prints `{4,4}`, which is its own dual.
+- `escher info '*732'` prints the line `Regular tiling: {7,3}, dual {3,7}`.
+- `escher info 732` prints the same line as `*732`, and `escher info '*442'` prints `Regular tiling: {4,4}, self-dual`.
 
-**Scope.** The owner's scope is regular tilings only. The planning proposes that the line appears for `*pq2` and its rotation signature `pq2` in all three geometries, and for no other signature. The design decides which order of `p` and `q` names the tiling and which names the dual, the text of the line, and whether the spherical signatures `*n22` and `n22`, whose symbols contain a 2, get the line. The milestone names tilings and draws nothing new.
+**Scope.** The line `Regular tiling` of `escher info` (Section 5.9 of `docs/design/cli.md`). It appears for the signatures whose canonical form is `*pq2` or `pq2` with finite $p \ge q \ge 3$, in all three geometries, and for no other signature (`DEC-81`). So `*n22`, `n22`, and every signature with an infinite order print no such line. The larger order names the tiling and the smaller its dual, and a tiling with $p = q$ is marked self-dual (`DEC-82`). The line follows the deformation dimension, needs no domain, and is computed in `escher-cli` from the public accessors of `Signature`, so `escher-signature` does not change (`DEC-83`). The milestone names tilings and draws nothing new.
 
-**Design documents.** Extensions of `cli.md`, and of `signature.md` if `escher-signature` computes the symbol.
+**Design documents.** Extensions of `cli.md`, the labels `DEC-81` to `DEC-83` of `docs/design/architecture.md`, and item 16 of Section 12 of `orbifold-notation.md`.
 
-**Sources.** `geometry-models.md` 10.1 splits a polygon of $\{p, q\}$ into $2p$ right triangles. The design branch cites a source for the regular tiling whose symmetry group is `*pq2` in `orbifold-notation.md`, or records the statement there as unverified, and then adds it to Section 7.
+**Sources.** For $p, q \ge 3$, the symmetry group of the regular tiling $\{p, q\}$ and of $\{q, p\}$ is the reflection group of the right triangle with the angles $\pi/2$, $\pi/p$, and $\pi/q$, and its rotation group has index 2 (`colourings.md` 5.1 and 5.4). The $p$-gon of $\{p, q\}$ divides into $2p$ right triangles (`geometry-models.md` 10.1, `colourings.md` 5.1). `fundamental-domains.md` 9.1 states the reflection triangle group `*pqr` with its presentation. No source read names that group `*pq2`, places the corners of orders $p$ and $q$, names the rotation group `pq2`, or calls $\{q, p\}$ the dual (`UNV-37`, `orbifold-notation.md` 12 item 16).
 
-**Unverified statements relied on.** None yet.
+**Unverified statements relied on.** `UNV-37`, and `UNV-20` through the canonical form of `escher-signature`, on which the rule of the line is stated.
 
-**Tests and acceptance.** The planning proposes snapshots of `escher info` for `*pq2` and `pq2` in each geometry, such as `*732`, `732`, `*442`, and `*532`, and for a signature without the line, such as `*333`.
+**Tests and acceptance.** The snapshots and unit tests of the line in Section 8.1 of `docs/design/cli.md`.
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Small.
+**Risks.** Small. Every snapshot of `info` whose signature gets the line changes, and so does the example of `*632` in `README.md`.
 
-**Split.** Left open for the design branch.
+**Split.** Two branches, in this order:
+
+1. Design: the design documents above.
+2. Command line: the line of `escher-cli` with its unit tests, the new and updated snapshots, the example of `escher info` in `README.md`, and Project Status in `AGENTS.md`.
 
 ### 5.22. M22: Polygon Masks and Image Fills
 
@@ -498,6 +501,7 @@ The table also keeps the rows that serve the roadmap items M14 to M18 (Section 4
 | UNV-34 | The domains and pairings of the spherical group domains of M11 that no source states: the kites of `3*2` and `2*n` on the doubles of `432` and `(2n)22`, the kite of `n*` on the double of `n22` with its split mirror side, the lune of `nx` with its pairings by rotary reflections, the lunes of order 1 of `*` and `x`, and the domain with no side of `1`. Also the walk of the vertex cycles of DOM-55 on a lune whose pairings reverse orientation, and the values of the census of DOM-64 of `docs/design/domain.md`, such as the number of reflections of each group and whether it holds minus the identity, which a prototype outside the repository computed and no research document states. The orbifolds of `3*2` and `*` and the presentation of `n*` are sourced (p. 187 of [CBG], p. 248 of [CH], and p. 130 of [CBG]) | `fundamental-domains.md` 9.6.2 and 13.3 items 19 and 20, `geometry-models.md` 15.1 item 33 | M11 | A source that states them, or Lean. Until then the guard of DOM-60 of `docs/design/domain.md`, which returns every new domain except that of `*` only when it passes `verify()`, and the certificate of DOM-64, with its order, its census, and its exactly-once tiling, bound the reliance |
 | UNV-35 | In a coset colouring, under the colour rule of `UNV-17`, two tiles that share a side have the same colour exactly when the generator of that side lies in the subgroup of the colouring, which in the coset table is the generator fixing the base coset, so that the criterion of `DEC-65` can be tested on the side generators and the base coset of each listed subgroup (GRP-42 of `docs/design/group.md`) | `colourings.md` 14.1 item 28 | M20 | A source that states it, or Lean. The test "Valid neighbours" of `docs/design/render.md` checks it on samples |
 | UNV-36 | A domain has at most one valid colouring with 2 colours, so that the alias `parity` names one colouring (Section 4.6 of `docs/design/cli.md`) | `colourings.md` 14.1 item 29 | M20 | A source that states it, or Lean. The test "One valid 2-colouring" of `docs/design/group.md` checks it on its inputs |
+| UNV-37 | The regular tiling $\{p, q\}$ with $p, q \ge 3$ has the symmetry group that `*pq2` names, with the corner of order $p$ at the centre of a tile and the corner of order $q$ at a vertex, its group of orientation-preserving symmetries is the group that `pq2` names, and its dual is $\{q, p\}$. A source states the symmetry group as the reflection group of the right triangle with the angles $\pi/2$, $\pi/p$, and $\pi/q$, which is also the group of $\{q, p\}$, and the rotation group as a subgroup of index 2 (`colourings.md` 5.1 and 5.4) | `orbifold-notation.md` 12 item 16 | M21 | A source that states it in orbifold notation, or Lean. No test can check the name of a tiling. The check of the angles of `escher-domain` checks that the domain of `*pq2` has the angles of that triangle, and the tests of Section 8.1 of `docs/design/cli.md` pin which signature gets which symbols |
 
 ## 8. Security Considerations
 
