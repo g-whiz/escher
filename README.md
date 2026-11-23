@@ -188,6 +188,37 @@ escher render '*632' --wythoff 111 -o dodecagons.png
 
 ![Sand dodecagons, teal hexagons, and purple squares tile the plane, one of each at every vertex.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/dodecagons.png)
 
+On a regular tiling, such as the heptagons of `*732` above, `--arrangement` puts one picture of your own on every polygon. An arrangement is one way of doing this: a rule for which edge of a polygon meets which edge of its neighbour, and whether the neighbour shows the picture turned or mirrored. With `--wythoff`, `escher info` lists the arrangements of the tiling by id. This command lists those of the heptagons of `*732`:
+
+```sh
+escher info '*732' --wythoff 010
+```
+
+After the properties and the counts, it prints the number of arrangements and one line for each. A line pairs up the edges of a heptagon: `1 and 5 turned` means that edge 1 meets edge 5 of a neighbour that shows the picture turned, and `0 turned` means that edge 0 meets edge 0 of its neighbour. Edge 0 is the edge that the mask below marks with a black tick, and the other edges are numbered counterclockwise from it:
+
+```text
+Arrangements: 3
+Arrangement: 14a, turned only, edges 0 turned, 1 and 5 turned, 2 turned, 3 and 4 turned, 6 turned
+Arrangement: 14b, with mirrored neighbours, edges 0 turned, 1 and 4 turned, 2 and 3 mirrored, 5 and 6 turned
+Arrangement: 14c, with mirrored neighbours, edges 0 turned, 1 and 3 mirrored, 2 and 6 mirrored, 4 and 5 turned
+```
+
+With `--wythoff` and `--arrangement`, `escher render-masks` writes the mask of one polygon to the output file: a flat white polygon on black with a coloured border on each edge. Edges with the same border colour meet in the tiling, and a black tick marks edge 0. This command writes the mask of `14a`:
+
+```sh
+escher render-masks '*732' --wythoff 010 --arrangement 14a -o heptagon.png
+```
+
+![A white heptagon on black, with a coloured border on each edge and a short black tick across the middle of the red edge at the left.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/heptagon.png)
+
+Paint any picture over the mask in an image editor. Nothing inside the polygon has to be symmetric. Then pass the painted file to `escher render` as one `image:FILE` item. In an image drawn without `--model` or `--rotation`, the picture is the same way up as you painted it at the centre of one polygon, and the other polygons show it turned or mirrored as the arrangement says. This command passes the unpainted mask instead, so the borders and the tick show how the heptagons meet:
+
+```sh
+escher render '*732' --wythoff 010 --arrangement 14a --colours 'image:heptagon.png' -o heptagon-tiling.png
+```
+
+![White heptagons fill the Poincare disk, each with the coloured borders and the tick of the mask, turned so that borders of the same colour meet across every edge.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/heptagon-tiling.png)
+
 `escher info` prints one `Parameter` line for each shape parameter of a signature. For `*2222`, the line is:
 
 ```text

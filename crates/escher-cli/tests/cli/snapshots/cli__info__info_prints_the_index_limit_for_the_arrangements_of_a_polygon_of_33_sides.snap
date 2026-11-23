@@ -1,0 +1,27 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*(33)32\", \"--wythoff\", \"010\"])"
+---
+status: Success
+--- stdout
+Signature: *(33)32
+Geometry: hyperbolic
+Euler characteristic: -3/44
+Compact: yes
+Area: 3pi/22
+Deformation dimension: 0
+Regular tiling: {33,3}, dual {3,33}
+Domain: 3 mirror sides
+Corner angles in degrees: 5.454545, 60.000000, 90.000000
+Side lengths: 2.344128, 2.485682, 0.540167
+Domain area: 0.428399
+Colourings: 12, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 3 colours: 1
+Colourings with 6 colours: 3
+Colourings with 8 colours: 1
+Colourings with 11 colours: 2
+Colourings with 12 colours: 4
+Arrangements: none, cannot search subgroups: the index limit 66 is not between 1 and 64
+--- stderr
+--- end

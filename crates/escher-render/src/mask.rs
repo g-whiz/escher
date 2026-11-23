@@ -18,6 +18,14 @@ const BORDER_FRACTION: f64 = 1.0 / 64.0;
 
 const MARK_FRACTION: f64 = 0.25;
 
+const TICK_LENGTH: f64 = 4.0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Tick {
+    Absent,
+    OnEdgeZero,
+}
+
 /// The polygon masks of a colouring of a fundamental domain, one for each
 /// colour.
 ///
@@ -157,6 +165,7 @@ impl Masks {
         draw_mask(
             &self.polygon,
             self.edge_styles_of(colour),
+            Tick::Absent,
             width,
             height,
             grid,
@@ -167,6 +176,7 @@ impl Masks {
 pub(crate) fn draw_mask(
     polygon: &[DVec2],
     styles: &[EdgeStyle],
+    tick: Tick,
     width: u32,
     height: u32,
     grid: u32,
@@ -192,7 +202,12 @@ pub(crate) fn draw_mask(
                         f64::from(row) + (f64::from(down) + 0.5) / f64::from(grid),
                     );
                     let point = placement.point(position);
-                    let value = sample_colour(&edges, point, border / placement.scale());
+                    let depth = border / placement.scale();
+                    let value = if tick == Tick::OnEdgeZero && in_tick(&edges, point, depth) {
+                        Colour::BLACK
+                    } else {
+                        sample_colour(&edges, point, depth)
+                    };
                     for (total, channel) in sum.iter_mut().zip(value.linear()) {
                         *total += channel;
                     }
@@ -259,6 +274,16 @@ fn sample_colour(edges: &[Edge], point: DVec2, border: f64) -> Colour {
         }
         _ => Colour::WHITE,
     }
+}
+
+fn in_tick(edges: &[Edge], point: DVec2, border: f64) -> bool {
+    let Some(edge) = edges.first() else {
+        return false;
+    };
+    let width = border.min(edge.length / 4.0);
+    edges.iter().all(|other| other.distance(point) >= 0.0)
+        && edge.distance(point) < TICK_LENGTH * border
+        && ((edge.fraction(point) - 0.5) * edge.length).abs() <= width / 2.0
 }
 
 #[expect(
@@ -617,18 +642,19 @@ mod tests {
     use proptest::prelude::{ProptestConfig, any, prop, prop_assert, proptest};
 
     use super::{
-        EdgeStyle, MASK_GRID, MaskMap, Masks, code_colour, draw_mask, neighbour_pairs, seam_classes,
+        EdgeStyle, MASK_GRID, MaskMap, Masks, Tick, code_colour, draw_mask, neighbour_pairs,
+        seam_classes,
     };
     use crate::colour::{Colour, CosetFill, Fill, Paint, decode_table};
     use crate::fold::fold;
     use crate::golden_images::{
-        GOLDEN_SIZE, MASK_GOLDEN_IMAGES, arrangements, colouring, domain_with_settings, exact_mask,
-        face_triangle_mask, golden_colouring, gradient, marks_text, mask_domains, mask_rule,
-        renderer, whole_face,
+        GOLDEN_SIZE, MASK_GOLDEN_IMAGES, arrangements, colouring, domain_with_settings, exact_face,
+        exact_mask, face_triangle_mask, golden_colouring, gradient, marks_text, mask_domains,
+        mask_rule, renderer, texel_index, whole_face,
     };
     use crate::image::{Image, Placement, sample};
     use crate::options::RenderOptions;
-    use crate::reference::{ExactMask, MaskRule};
+    use crate::reference::{ExactMask, ExactPlacement, Flat, MaskRule};
     use crate::whole_face::{WHOLE_FACE_SET, face_mask_styles};
     use escher_reference::{Reference, num, vector};
 
@@ -1206,6 +1232,7 @@ mod tests {
                         &name,
                         &masks.polygon,
                         masks.edge_styles_of(colour),
+                        Tick::Absent,
                         &pixels,
                         [width, height],
                         &mut content,
@@ -1241,10 +1268,22 @@ mod tests {
         }
     }
 
+    fn near_tick(polygon: &[DVec2], point: DVec2, border: f64, pixel_size: f64) -> bool {
+        let count = polygon.len();
+        let start = polygon[count - 1];
+        let edge = polygon[0] - start;
+        let length = edge.length();
+        let along = (point - start).dot(edge) / length - length / 2.0;
+        let width = border.min(length / 4.0);
+        edge.perp_dot(point - start) / length < 4.0 * border + pixel_size
+            && along.abs() <= width / 2.0 + pixel_size
+    }
+
     fn check_mask_content(
         name: &str,
         polygon: &[DVec2],
         styles: &[EdgeStyle],
+        tick: Tick,
         pixels: &[u8],
         [width, height]: [u32; 2],
         content: &mut Content,
@@ -1273,6 +1312,12 @@ mod tests {
                     .fold(f64::INFINITY, f64::min);
                 let found = pixel(pixels, width, column, row);
                 let name = format!("{name} at {width}x{height} column {column} row {row}");
+                if tick == Tick::OnEdgeZero
+                    && nearest >= -pixel_size
+                    && near_tick(polygon, point, border, pixel_size)
+                {
+                    continue;
+                }
                 if nearest < -pixel_size {
                     assert_eq!(found, [0; 3], "{name}");
                     content.black += 1;
@@ -1309,9 +1354,12 @@ mod tests {
     #[test]
     fn face_mask_shows_the_flat_face_with_one_code_colour_for_each_pair_of_edges_and_its_marks() {
         let mut content = Content::default();
-        let (mut masks, mut alone, mut both) = (0, 0, 0);
+        let mut reference = Reference::new();
+        let (mut masks, mut alone, mut both, mut ticks) = (0, 0, 0, 0);
         for &(text, marks) in &WHOLE_FACE_SET {
-            let face = whole_face(&domain_with_settings(text, &[]), marks);
+            let domain = domain_with_settings(text, &[]);
+            let face = whole_face(&domain, marks);
+            let exact = exact_face(&mut reference, text, &domain, marks);
             for arrangement in arrangements(&face) {
                 let name = format!("{text} {} {}", marks_text(marks), arrangement.id());
                 let edges = face
@@ -1358,21 +1406,86 @@ mod tests {
                     }
                 }
                 for size in MASK_SIZES {
-                    let pixels = draw_mask(face.polygon(), &styles, size[0], size[1], 1);
-                    check_mask_content(&name, face.polygon(), &styles, &pixels, size, &mut content);
+                    let pixels = draw_mask(
+                        face.polygon(),
+                        &styles,
+                        Tick::OnEdgeZero,
+                        size[0],
+                        size[1],
+                        1,
+                    );
+                    check_mask_content(
+                        &name,
+                        face.polygon(),
+                        &styles,
+                        Tick::OnEdgeZero,
+                        &pixels,
+                        size,
+                        &mut content,
+                    );
                 }
+                let pixels = draw_mask(
+                    face.polygon(),
+                    &styles,
+                    Tick::OnEdgeZero,
+                    TICK_SIZE,
+                    TICK_SIZE,
+                    1,
+                );
+                ticks += check_tick(&mut reference, &name, &exact.polygon, &styles, &pixels);
                 masks += 1;
             }
         }
         content.report();
-        println!("{masks} face masks, {alone} edges paired with themselves, {both} of them turned");
+        println!(
+            "{masks} face masks, {alone} edges paired with themselves, {both} of them turned, {ticks} tick pixels"
+        );
         assert_eq!((masks, alone, both), (114, 250, 120));
+        assert!(ticks >= 3 * masks);
         assert!(
             content.white >= 500_000
                 && content.black >= 500_000
                 && content.coded >= 10_000
                 && content.marked >= 4000
         );
+    }
+
+    const TICK_SIZE: u32 = 512;
+
+    fn check_tick(
+        reference: &mut Reference,
+        name: &str,
+        polygon: &[Flat],
+        styles: &[EdgeStyle],
+        pixels: &[u8],
+    ) -> usize {
+        let placement = ExactPlacement::new(polygon, TICK_SIZE, TICK_SIZE);
+        let border = f64::from(TICK_SIZE) / 64.0;
+        let count = polygon.len();
+        let mut ticked = 0;
+        for (edge, style) in styles.iter().enumerate() {
+            let ends = [&polygon[(edge + count - 1) % count], &polygon[edge]];
+            for (depth, beyond_border) in [(0.5, false), (2.0, true), (3.0, true)] {
+                let [across, down] = placement.inside_edge(reference, ends, 0.5, depth * border);
+                let found = pixel(
+                    pixels,
+                    TICK_SIZE,
+                    texel_index(across, TICK_SIZE),
+                    texel_index(down, TICK_SIZE),
+                );
+                let wanted = match (edge, beyond_border) {
+                    (0, _) => [0; 3],
+                    (_, false) => style.code,
+                    (_, true) => [u8::MAX; 3],
+                };
+                assert_eq!(
+                    found, wanted,
+                    "{name}: edge {edge} at {depth} border depths"
+                );
+                ticked += usize::from(edge == 0);
+            }
+        }
+        ticked
     }
 
     fn is_normal(colouring: &Colouring, sides: usize) -> bool {

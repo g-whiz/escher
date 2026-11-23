@@ -5,11 +5,15 @@ use escher_cli::Status;
 use escher_domain::FundamentalDomain;
 use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings_of_index};
 use escher_render::{
-    Colour, CosetFill, Fill, Image, Masks, Paint, RenderOptions, Renderer, encode_png,
+    Colour, CosetFill, Fill, Image, Masks, Paint, RenderOptions, Renderer, WholeFace,
+    WholeFaceFill, encode_png,
 };
 use escher_signature::Signature;
 
-use crate::common::{Outcome, assert_png_bytes, output_path, path_text, run_args, snapshot};
+use crate::common::{
+    Outcome, assert_png_bytes, failure_with_no_file_change, output_path, path_text,
+    regular_arrangement, run_args, snapshot,
+};
 
 fn mask_path(test: &str) -> PathBuf {
     output_path(test).with_file_name("mask.png")
@@ -363,4 +367,240 @@ fn render_with_painted_masks_fills_each_tile_with_the_paint_of_its_colour() {
     for index in interior {
         assert_eq!(pixel(&filled, index), pixel(&solid, index), "pixel {index}");
     }
+}
+
+#[test]
+fn render_masks_diagnostic_says_wythoff_needs_an_arrangement() {
+    let output = mask_path("masks_wythoff_without_arrangement").with_file_name("face.png");
+    insta::assert_snapshot!(masks_snapshot(&["*632", "--wythoff", "010"], &output));
+    assert_eq!(file_names(directory(&output)), names(&[]));
+}
+
+#[test]
+fn render_masks_refuses_an_arrangement_without_wythoff() {
+    let output = mask_path("masks_arrangement_without_wythoff");
+    let outcome = render_masks(&["*632", "--arrangement", "12a"], &output);
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot render the masks of *632: --arrangement needs --wythoff\n"
+    );
+    assert_eq!(file_names(directory(&output)), names(&[]));
+}
+
+const HEXAGONS: [bool; 3] = [false, true, false];
+
+#[test]
+fn render_masks_refuses_a_face_mask_with_the_diagnostic_of_render_and_changes_no_file() {
+    for (test, args, diagnostic) in [
+        (
+            "masks_face_missing_id",
+            &["*632", "--wythoff", "010", "--arrangement", "12h"][..],
+            "error: cannot render the masks of *632: the arrangement 12h does not exist, because the tiling has 7 arrangements\n",
+        ),
+        (
+            "masks_face_none",
+            &["*732", "--wythoff", "100", "--arrangement", "6a"],
+            "error: cannot render the masks of *732: the tiling has no arrangement that puts one picture on every polygon\n",
+        ),
+        (
+            "masks_face_index_limit",
+            &["*(33)32", "--wythoff", "010", "--arrangement", "12a"],
+            "error: cannot render the masks of *(33)32\n  caused by: cannot search subgroups: the index limit 66 is not between 1 and 64\n",
+        ),
+        (
+            "masks_face_colouring",
+            &[
+                "*632",
+                "--wythoff",
+                "010",
+                "--arrangement",
+                "12a",
+                "--colouring",
+                "2a",
+            ],
+            "error: cannot render the masks of *632: --wythoff cannot be combined with --colouring\n",
+        ),
+        (
+            "masks_face_not_regular",
+            &["*732", "--wythoff", "111", "--arrangement", "14a"],
+            "error: cannot render the masks of *732\n  caused by: cannot build whole face: the construction is not a regular tiling\n",
+        ),
+        (
+            "masks_face_without_arrangement",
+            &["*632", "--wythoff", "010"],
+            "error: cannot render the masks of *632: --wythoff needs --arrangement\n",
+        ),
+    ] {
+        assert_eq!(
+            failure_with_no_file_change("render-masks", test, args),
+            diagnostic,
+            "{test}"
+        );
+    }
+}
+
+fn hexagon_arrangement(id: &str) -> (FundamentalDomain, WholeFace, escher_group::Colouring) {
+    regular_arrangement("*632", HEXAGONS, id)
+}
+
+fn written_face_mask(output: &Path, id: &str, size: u32) -> Vec<u8> {
+    let size_text = format!("{size}x{size}");
+    let outcome = render_masks(
+        &[
+            "*632",
+            "--wythoff",
+            "010",
+            "--arrangement",
+            id,
+            "--size",
+            &size_text,
+        ],
+        output,
+    );
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(outcome.stderr, "");
+    let (_, face, arrangement) = hexagon_arrangement(id);
+    let pixels = face
+        .render_mask(&arrangement, size, size)
+        .expect("the face mask is rendered");
+    assert_eq!(
+        std::fs::read(output).expect("the face mask is written"),
+        encode_png(size, size, &pixels).expect("the face mask is encoded"),
+        "{id}"
+    );
+    pixels
+}
+
+#[test]
+fn render_masks_writes_exactly_the_face_mask_of_escher_render_to_the_output() {
+    let output = mask_path("masks_face_mask").with_file_name("face.png");
+    std::fs::write(&output, b"old").expect("the existing file is written");
+    written_face_mask(&output, "12a", 40);
+    assert_png_bytes(
+        &std::fs::read(&output).expect("the face mask is written"),
+        40,
+        40,
+    );
+    assert_eq!(file_names(directory(&output)), names(&["face.png"]));
+}
+
+#[test]
+fn render_masks_names_the_face_mask_that_cannot_be_written() {
+    let output = mask_path("masks_face_mask_missing_directory")
+        .with_file_name("missing")
+        .join("face.png");
+    let outcome = render_masks(
+        &[
+            "*632",
+            "--wythoff",
+            "010",
+            "--arrangement",
+            "12a",
+            "--size",
+            "16x16",
+        ],
+        &output,
+    );
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot write the face mask\n  caused by: No such file or directory (os error 2)\n"
+    );
+}
+
+fn picture_over(mask: &[u8], size: u32) -> Vec<u8> {
+    let row = usize::try_from(size).expect("the size fits a usize");
+    mask.as_chunks::<3>()
+        .0
+        .iter()
+        .enumerate()
+        .flat_map(|(index, &pixel)| {
+            let shade =
+                |value: usize| u8::try_from(value * 255 / row).expect("a shade fits a byte");
+            if pixel == WHITE {
+                [shade(index % row), shade(index / row), 0x80]
+            } else {
+                pixel
+            }
+        })
+        .collect()
+}
+
+fn arrangement_listed(id: &str) -> bool {
+    let outcome = run_args(&["info", "*632", "--max-colours", "1", "--wythoff", "010"]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    outcome
+        .stdout
+        .lines()
+        .any(|line| line.starts_with(&format!("Arrangement: {id}, ")))
+}
+
+#[test]
+fn render_with_a_picture_painted_over_the_face_mask_draws_the_whole_face_fill_of_escher_render() {
+    let (mask_size, tiling_size) = (192, 128);
+    let test = "masks_painted_face";
+    let mut files = Vec::new();
+    for id in ["12a", "12e"] {
+        assert!(arrangement_listed(id), "{id}");
+        let mask = mask_path(test).with_file_name(format!("face-{id}.png"));
+        let pixels = written_face_mask(&mask, id, mask_size);
+        let picture = mask.with_file_name(format!("picture-{id}.png"));
+        std::fs::write(
+            &picture,
+            encode_png(mask_size, mask_size, &picture_over(&pixels, mask_size))
+                .expect("the picture is encoded"),
+        )
+        .expect("the picture is written");
+        let tiling = mask.with_file_name(format!("tiling-{id}.png"));
+        let size_text = format!("{tiling_size}x{tiling_size}");
+        let colours = format!("image:{}", path_text(&picture));
+        let outcome = run_args(&[
+            "render",
+            "*632",
+            "--wythoff",
+            "010",
+            "--arrangement",
+            id,
+            "--colours",
+            &colours,
+            "--size",
+            &size_text,
+            "--samples",
+            "1",
+            "--border-width",
+            "0",
+            "-o",
+            path_text(&tiling),
+        ]);
+        assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+        let (domain, face, arrangement) = hexagon_arrangement(id);
+        let image = Image::decode_png(
+            std::fs::read(&picture)
+                .expect("the picture is read")
+                .as_slice(),
+        )
+        .expect("the picture decodes");
+        let fill = WholeFaceFill::new(face, arrangement, vec![Paint::Image(image)])
+            .expect("the fill is valid");
+        let options = RenderOptions::builder(Fill::WholeFace(fill))
+            .size(tiling_size, tiling_size)
+            .samples(1)
+            .border_width(0.0)
+            .build()
+            .expect("the options are valid");
+        let (pixels, _) = Renderer::new(&domain, options)
+            .expect("the renderer is built")
+            .render();
+        let written = std::fs::read(&tiling).expect("the tiling is written");
+        assert_eq!(
+            written,
+            encode_png(tiling_size, tiling_size, &pixels).expect("the tiling is encoded"),
+            "{id}"
+        );
+        files.push(written);
+    }
+    assert_ne!(files[0], files[1]);
 }

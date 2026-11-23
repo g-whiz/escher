@@ -1,0 +1,33 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*632\", \"--wythoff\", \"010\"])"
+---
+status: Success
+--- stdout
+Signature: *632
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Regular tiling: {6,3}, dual {3,6}
+Domain: 3 mirror sides
+Corner angles in degrees: 30.000000, 60.000000, 90.000000
+Side lengths: 1.000000, 1.154701, 0.577350
+Domain area: 0.288675
+Colourings: 39, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 3 colours: 1
+Colourings with 4 colours: 1
+Colourings with 6 colours: 10
+Colourings with 8 colours: 3
+Colourings with 9 colours: 3
+Colourings with 12 colours: 20
+Arrangements: 7
+Arrangement: 12a, turned only, edges 0 turned, 1 and 4 turned, 2 turned, 3 turned, 5 turned
+Arrangement: 12b, with mirrored neighbours, edges 0 turned, 1 and 4 turned, 2 and 3 mirrored, 5 turned
+Arrangement: 12c, with mirrored neighbours, edges 0 turned, 1 and 3 mirrored, 2 and 5 mirrored, 4 turned
+Arrangement: 12d, turned only, edges 0 and 5 turned, 1 and 2 turned, 3 and 4 turned
+Arrangement: 12e, with mirrored neighbours, edges 0 and 1 mirrored, 2 and 5 turned, 3 and 4 mirrored
+Arrangement: 12f, with mirrored neighbours, edges 0 and 3 turned, 1 and 5 mirrored, 2 and 4 mirrored
+Arrangement: 12g, turned only, edges 0 and 3 turned, 1 and 4 turned, 2 and 5 turned
+--- stderr
+--- end

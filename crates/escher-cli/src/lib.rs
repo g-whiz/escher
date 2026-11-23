@@ -208,6 +208,7 @@ fn run_args(args: Vec<OsString>, stdout: &mut dyn Write, stderr: &mut dyn Write)
             presentation,
             colourings,
             max_colours,
+            wythoff,
         } => info::info(
             &signature,
             info::Options {
@@ -215,6 +216,7 @@ fn run_args(args: Vec<OsString>, stdout: &mut dyn Write, stderr: &mut dyn Write)
                 presentations: info::Presentations::from_flag(presentation),
                 listing: info::Listing::from_flag(colourings),
                 max_colours,
+                wythoff,
             },
             stdout,
         ),

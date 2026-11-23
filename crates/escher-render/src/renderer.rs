@@ -167,8 +167,9 @@ impl Renderer {
     /// is accepted. Returns the same kind for a coset fill with an image paint
     /// when the domain has no flat polygon, as
     /// [`Masks::new`](crate::Masks::new) states, and for a
-    /// [`Fill::Wythoff`] whose construction was built for a domain with other
-    /// walls than this one. Every other fill gives no error.
+    /// [`Fill::Wythoff`] or a [`Fill::WholeFace`] whose construction was
+    /// built for a domain with other walls than this one. Every other fill
+    /// gives no error.
     pub fn new(domain: &FundamentalDomain, options: RenderOptions) -> Result<Self> {
         if let Fill::Cosets(fill) = &options.fill
             && domain.side_presentation().ok().as_ref() != Some(fill.presentation())
@@ -317,16 +318,14 @@ impl Renderer {
 
     fn converged_colour(&self, result: Fold, tangents: [DVec3; 2], sides: &[u8]) -> Colour {
         match &self.options.fill {
-            Fill::Wythoff(fill) => {
-                self.face_colour(fill.wythoff(), result.point(), tangents, |face| {
-                    fill.colour(face)
-                })
-            }
-            Fill::WholeFace(fill) => {
-                self.face_colour(fill.wythoff(), result.point(), tangents, |_| {
-                    fill.value(sides, result.point(), self.options.background)
-                })
-            }
+            Fill::Wythoff(fill) => match self.face(fill.wythoff(), result.point(), tangents) {
+                Some(face) => fill.colour(face),
+                None => self.options.border_colour,
+            },
+            Fill::WholeFace(fill) => match self.face(fill.wythoff(), result.point(), tangents) {
+                Some(_) => fill.value(sides, result.point(), self.options.background),
+                None => self.options.border_colour,
+            },
             Fill::One(_) | Fill::Parity(_) | Fill::Cosets(_)
                 if self.side_border(result.point(), tangents) =>
             {
@@ -351,19 +350,9 @@ impl Renderer {
         self.border(self.walls.iter().map(Wall::covector), point, tangents)
     }
 
-    fn face_colour(
-        &self,
-        wythoff: &Wythoff,
-        point: DVec3,
-        tangents: [DVec3; 2],
-        colour: impl FnOnce(usize) -> Colour,
-    ) -> Colour {
+    fn face(&self, wythoff: &Wythoff, point: DVec3, tangents: [DVec3; 2]) -> Option<usize> {
         let face = wythoff.face_of(point);
-        if self.border(wythoff.perpendiculars_of(face), point, tangents) {
-            self.options.border_colour
-        } else {
-            colour(face)
-        }
+        (!self.border(wythoff.perpendiculars_of(face), point, tangents)).then_some(face)
     }
 
     #[expect(

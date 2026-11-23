@@ -4,25 +4,30 @@ use std::path::{Path, PathBuf};
 use anyhow::Context as _;
 use escher_group::SearchBudget;
 use escher_render::{Colour, Fill, Masks, RenderOptions, encode_png};
+use escher_signature::Signature;
 
 use crate::args::MasksArgs;
 use crate::render::{
-    Task, build_domain, cannot_render, chosen_colouring, coset_colouring, parse_signature,
+    ARRANGEMENT_NEEDS_WYTHOFF, Task, arrangement, build_domain, cannot_render, chosen_colouring,
+    coset_colouring, parse_signature, refuse_colouring, whole_face,
 };
 
 pub(crate) fn render_masks(args: &MasksArgs) -> anyhow::Result<()> {
     let signature = parse_signature(&args.tiling.signature)?;
     let task = Task::Masks(&signature);
+    if let Some(marks) = args.tiling.wythoff {
+        return render_face_mask(args, &signature, marks);
+    }
     let names = MaskNames::new(&args.output)
         .ok_or_else(|| cannot_render(task, "the output path names no file"))?;
     let domain = build_domain(task, &signature, &args.tiling.set)?;
+    if args.tiling.arrangement.is_some() {
+        return Err(cannot_render(task, ARRANGEMENT_NEEDS_WYTHOFF));
+    }
     let (colouring, found_parity) =
         chosen_colouring(&domain, task, args.tiling.colouring, SearchBudget::DEFAULT)?;
     let (width, height) = (args.tiling.size.width, args.tiling.size.height);
-    RenderOptions::builder(Fill::One(Colour::WHITE))
-        .size(width, height)
-        .build()
-        .with_context(|| task.failed())?;
+    check_size(task, width, height)?;
     let colouring = coset_colouring(
         &domain,
         task,
@@ -39,6 +44,37 @@ pub(crate) fn render_masks(args: &MasksArgs) -> anyhow::Result<()> {
         std::fs::write(names.name(colour), png)
             .with_context(|| format!("cannot write the mask of colour {colour}"))?;
     }
+    Ok(())
+}
+
+fn render_face_mask(
+    args: &MasksArgs,
+    signature: &Signature,
+    marks: [bool; 3],
+) -> anyhow::Result<()> {
+    let task = Task::Masks(signature);
+    let domain = build_domain(task, signature, &args.tiling.set)?;
+    refuse_colouring(task, args.tiling.colouring)?;
+    let id = args
+        .tiling
+        .arrangement
+        .ok_or_else(|| cannot_render(task, "--wythoff needs --arrangement"))?;
+    let face = whole_face(&domain, marks).with_context(|| task.failed())?;
+    let (width, height) = (args.tiling.size.width, args.tiling.size.height);
+    check_size(task, width, height)?;
+    let arrangement = arrangement(&face, task, id, SearchBudget::DEFAULT)?;
+    let pixels = face
+        .render_mask(&arrangement, width, height)
+        .with_context(|| task.failed())?;
+    let png = encode_png(width, height, &pixels).with_context(|| task.failed())?;
+    std::fs::write(&args.output, png).context("cannot write the face mask")
+}
+
+fn check_size(task: Task<'_>, width: u32, height: u32) -> anyhow::Result<()> {
+    RenderOptions::builder(Fill::One(Colour::WHITE))
+        .size(width, height)
+        .build()
+        .with_context(|| task.failed())?;
     Ok(())
 }
 

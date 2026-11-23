@@ -2,6 +2,8 @@ use std::io;
 
 use escher_cli::{Status, run};
 use escher_domain::{Check, FundamentalDomain};
+use escher_group::{IndexLimit, SearchBudget, free_classes_of_index};
+use escher_render::{EdgeMeeting, WholeFace, Wythoff};
 use escher_signature::Signature;
 
 use crate::common::{FailingWriter, run_args, snapshot};
@@ -845,4 +847,204 @@ fn info_check_gives_failure_and_no_diagnostic_on_a_broken_pipe_for_the_doubled_h
     );
     assert_eq!(status, Status::Failure);
     assert_eq!(stderr, b"");
+}
+
+#[test]
+fn info_lists_the_arrangements_of_the_hexagons() {
+    insta::assert_snapshot!(snapshot(&["info", "*632", "--wythoff", "010"]));
+}
+
+#[test]
+fn info_lists_the_arrangements_of_the_triangles_of_the_dual_of_the_hexagons() {
+    insta::assert_snapshot!(snapshot(&["info", "*632", "--wythoff", "100"]));
+}
+
+#[test]
+fn info_prints_no_arrangement_for_the_squares_of_542() {
+    insta::assert_snapshot!(snapshot(&["info", "*542", "--wythoff", "100"]));
+}
+
+#[test]
+fn info_prints_the_refusal_of_arrangements_on_a_tiling_that_is_not_regular() {
+    insta::assert_snapshot!(snapshot(&["info", "*732", "--wythoff", "111"]));
+}
+
+#[test]
+fn info_prints_the_index_limit_for_the_arrangements_of_a_polygon_of_33_sides() {
+    insta::assert_snapshot!(snapshot(&["info", "*(33)32", "--wythoff", "010"]));
+}
+
+const REGULAR: [bool; 3] = [false, true, false];
+
+const DUAL: [bool; 3] = [true, false, false];
+
+const WHOLE_FACE_SET: [(&str, [bool; 3]); 16] = [
+    ("*632", REGULAR),
+    ("*632", DUAL),
+    ("*442", REGULAR),
+    ("*332", REGULAR),
+    ("*432", REGULAR),
+    ("*432", DUAL),
+    ("*532", REGULAR),
+    ("*532", DUAL),
+    ("*732", REGULAR),
+    ("*832", REGULAR),
+    ("*542", REGULAR),
+    ("*552", REGULAR),
+    ("*642", REGULAR),
+    ("*732", DUAL),
+    ("*542", DUAL),
+    ("*642", DUAL),
+];
+
+fn marks_text(marks: [bool; 3]) -> String {
+    marks.iter().map(|&on| if on { '1' } else { '0' }).collect()
+}
+
+fn arrangement_lines(signature: &str, marks: [bool; 3]) -> Vec<String> {
+    let outcome = run_args(&[
+        "info",
+        signature,
+        "--max-colours",
+        "1",
+        "--wythoff",
+        &marks_text(marks),
+    ]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    let lines: Vec<String> = outcome
+        .stdout
+        .lines()
+        .filter(|line| line.starts_with("Arrangement"))
+        .map(str::to_owned)
+        .collect();
+    let count = lines.len().saturating_sub(1);
+    assert_eq!(
+        lines.first(),
+        Some(&format!("Arrangements: {count}")),
+        "{signature}"
+    );
+    lines
+}
+
+fn pairing_text(edges: &[EdgeMeeting]) -> String {
+    let mut pairs = Vec::new();
+    for (edge, meeting) in (0_u32..).zip(edges) {
+        let kind = if meeting.mirrored() {
+            "mirrored"
+        } else {
+            "turned"
+        };
+        if meeting.partner() == edge {
+            pairs.push(format!("{edge} {kind}"));
+        } else if meeting.partner() > edge {
+            pairs.push(format!("{edge} and {} {kind}", meeting.partner()));
+        }
+    }
+    pairs.join(", ")
+}
+
+#[test]
+fn info_lists_exactly_the_arrangements_of_escher_group_with_the_edges_of_escher_render() {
+    let mut listed = 0;
+    for (text, marks) in WHOLE_FACE_SET {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        let domain = FundamentalDomain::build(&signature).expect("the domain is built");
+        let wythoff = Wythoff::new(&domain, marks).expect("the construction is built");
+        let face = WholeFace::new(&domain, wythoff).expect("the tiling is regular");
+        let found = free_classes_of_index(
+            face.presentation(),
+            face.stabilizer(),
+            IndexLimit::new(face.index()).expect("the index is within the limit"),
+            SearchBudget::DEFAULT,
+        )
+        .expect("the search runs");
+        assert!(found.is_complete(), "{text}");
+        let mut expected = vec![format!("Arrangements: {}", found.list().len())];
+        for arrangement in found.list() {
+            let edges = face.edges(arrangement).expect("the edges are read");
+            let neighbours = if edges.iter().any(|meeting| meeting.mirrored()) {
+                "with mirrored neighbours"
+            } else {
+                "turned only"
+            };
+            expected.push(format!(
+                "Arrangement: {}, {neighbours}, edges {}",
+                arrangement.id(),
+                pairing_text(&edges)
+            ));
+        }
+        assert_eq!(arrangement_lines(text, marks), expected, "{text}");
+        listed += found.list().len();
+    }
+    println!("{listed} arrangements");
+    assert_eq!(listed, 114);
+}
+
+fn turned_only(lines: &[String]) -> usize {
+    lines
+        .iter()
+        .filter(|line| line.contains(", turned only, "))
+        .count()
+}
+
+#[test]
+fn info_lists_the_numbers_of_arrangements_of_the_euclidean_catalogue() {
+    for (text, marks, count, turned) in [
+        ("*632", REGULAR, 7, Some(3)),
+        ("*632", DUAL, 6, Some(2)),
+        ("*442", REGULAR, 16, None),
+    ] {
+        let lines = arrangement_lines(text, marks);
+        assert_eq!(lines.len() - 1, count, "{text}");
+        if let Some(turned) = turned {
+            assert_eq!(turned_only(&lines), turned, "{text}");
+        }
+    }
+}
+
+#[test]
+fn info_lists_turned_only_arrangements_of_hyperbolic_tilings_only_where_the_rotations_allow() {
+    for text in ["*732", "*832", "*542"] {
+        assert!(
+            turned_only(&arrangement_lines(text, REGULAR)) >= 1,
+            "{text}"
+        );
+    }
+    for text in ["*542", "*732"] {
+        assert_no_arrangement_listed(text, DUAL);
+    }
+}
+
+fn assert_no_arrangement_listed(signature: &str, marks: [bool; 3]) {
+    let outcome = run_args(&[
+        "info",
+        signature,
+        "--max-colours",
+        "1",
+        "--wythoff",
+        &marks_text(marks),
+    ]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    let lines: Vec<&str> = outcome.stdout.lines().collect();
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| **line == "Arrangements: 0")
+            .count(),
+        1,
+        "{signature}"
+    );
+    assert!(
+        lines.iter().all(|line| !line.starts_with("Arrangement: ")),
+        "{signature}"
+    );
+    assert_eq!(lines.last(), Some(&"Arrangements: 0"), "{signature}");
+}
+
+#[test]
+fn info_prints_arrangements_0_and_no_arrangement_line_for_the_dual_of_a_triangle_without_arrangements()
+ {
+    for text in ["*732", "*542", "*532"] {
+        assert_no_arrangement_listed(text, DUAL);
+    }
 }

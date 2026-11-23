@@ -43,6 +43,8 @@ escher render '*642' --colouring 4a --colours 'image:mask-0.png,image:mask-1.png
 rm mask-1.png mask-2.png mask-3.png
 escher render '*732' --wythoff 010 -o heptagons.png
 escher render '*632' --wythoff 111 -o dodecagons.png
+escher render-masks '*732' --wythoff 010 --arrangement 14a -o heptagon.png
+escher render '*732' --wythoff 010 --arrangement 14a --colours 'image:heptagon.png' -o heptagon-tiling.png
 escher render '*2222' --set aspect=1.618 -o rectangles.png
 escher render '*3333' --set slice1.length=2.5 -o polygon.png
 escher render '*532' --rotation 20,35,0 -o ball.png

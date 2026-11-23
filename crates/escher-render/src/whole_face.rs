@@ -9,7 +9,7 @@ use glam::{DMat2, DVec2, DVec3};
 use crate::colour::{Colour, Paint, check_colouring, decode_table};
 use crate::error::{EDGE_PAIRING, Error, FACE_MASK, Result, WHOLE_FACE, WHOLE_FACE_FILL};
 use crate::image::{Placement, sample};
-use crate::mask::{EdgeStyle, MASK_GRID, MaskMap, corner_order, draw_mask, seam_classes};
+use crate::mask::{EdgeStyle, MASK_GRID, MaskMap, Tick, draw_mask, seam_classes};
 use crate::options::check_size;
 use crate::wythoff::Wythoff;
 
@@ -81,14 +81,12 @@ const VERTEX_MIRROR: usize = 1;
 #[derive(Clone, Debug, PartialEq)]
 pub struct WholeFace {
     wythoff: Box<Wythoff>,
-    corner: usize,
     order: u32,
     presentation: Presentation,
     words: Vec<Word>,
     matrices: Vec<DMat2>,
     edge_words: Vec<Word>,
     polygon: Vec<DVec2>,
-    triangle: [DVec2; 3],
     map: Option<MaskMap>,
 }
 
@@ -214,21 +212,6 @@ fn nearest_edge(polygon: &[DVec2], point: DVec2) -> usize {
         .unwrap_or(0)
 }
 
-fn regular_corner(domain: &FundamentalDomain, wythoff: &Wythoff) -> Option<(usize, u32)> {
-    let (corner, _) = wythoff.single_face()?;
-    let orders: Vec<u32> = domain
-        .corner_angles()
-        .into_iter()
-        .map(corner_order)
-        .collect();
-    let &[first, second, third] = orders.as_slice() else {
-        return None;
-    };
-    let orders = [first, second, third];
-    let other = 1_usize.checked_sub(corner)?;
-    (third == 2 && orders[corner] >= 3 && orders[other] >= 3).then_some((corner, orders[corner]))
-}
-
 impl WholeFace {
     /// Returns the whole face of a Wythoff construction of a regular tiling
     /// on its domain.
@@ -253,7 +236,7 @@ impl WholeFace {
         if !wythoff.fits(domain) {
             return Err(Error::other_construction());
         }
-        let (corner, order) = regular_corner(domain, &wythoff).ok_or_else(Error::not_regular)?;
+        let (corner, order) = wythoff.regular_face().ok_or_else(Error::not_regular)?;
         let presentation = domain
             .side_presentation()
             .map_err(|error| Error::no_presentation(error).during(WHOLE_FACE))?;
@@ -313,14 +296,12 @@ impl WholeFace {
         let map = MaskMap::onto(domain, triangle.to_vec());
         Ok(Self {
             wythoff: Box::new(wythoff),
-            corner,
             order,
             presentation,
             words,
             matrices,
             edge_words,
             polygon,
-            triangle,
             map,
         })
     }
@@ -384,7 +365,10 @@ impl WholeFace {
     /// marked at its start. Its partner is marked at its end when the
     /// neighbour is turned and at its start when it is mirrored, so the
     /// marked ends meet. An edge that meets itself with a turned neighbour is
-    /// marked at both ends. The buffer holds 8-bit sRGB in the layout of
+    /// marked at both ends. A black tick at the midpoint of edge 0, as wide as
+    /// the border is deep or a quarter of the edge where that is less, runs
+    /// from the edge four border depths into the polygon, so that the edges
+    /// can be counted from edge 0. The buffer holds 8-bit sRGB in the layout of
     /// [`Renderer::render`](crate::Renderer::render), each pixel the mean of
     /// a 4 by 4 grid of samples. The mask reads no render option and starts
     /// no thread.
@@ -401,6 +385,7 @@ impl WholeFace {
         Ok(draw_mask(
             &self.polygon,
             &face_mask_styles(&reading.edges),
+            Tick::OnEdgeZero,
             width,
             height,
             MASK_GRID,
@@ -528,12 +513,12 @@ impl WholeFaceFill {
             .iter()
             .map(|&element| face.matrices[element])
             .collect();
-        let placement = paints.iter().find_map(|paint| match paint {
+        let placement = match &paints[0] {
             Paint::Image(image) => {
                 Some(Placement::new(&face.polygon, image.width(), image.height()))
             }
             Paint::Solid(_) => None,
-        });
+        };
         Ok(Self {
             face: Box::new(face),
             arrangement,
@@ -567,15 +552,14 @@ impl WholeFaceFill {
         let Some(picture) = self.picture(sides, point) else {
             return background;
         };
-        match self.paints.first() {
-            Some(Paint::Solid(colour)) => *colour,
-            Some(Paint::Image(image)) => self
+        match &self.paints[0] {
+            Paint::Solid(colour) => *colour,
+            Paint::Image(image) => self
                 .placement
                 .and_then(|placement| placement.inside(placement.position(picture)))
                 .map_or(background, |position| {
                     Colour::from_linear(sample(image, position, background.linear(), &self.linear))
                 }),
-            None => background,
         }
     }
 }
@@ -634,8 +618,8 @@ mod tests {
         signature_orders, texel_index, whole_face, word_matrix,
     };
     use crate::reference::{
-        ExactFace, ExactMask, ExactPlacement, Flat, FlatMatrix, Measure, flat_apply, oriented,
-        transpose_apply,
+        ExactFace, ExactMask, ExactPlacement, Flat, FlatMatrix, Measure, flat_apply, flat_between,
+        oriented, transpose_apply,
     };
     use crate::renderer::Renderer;
     use crate::wythoff::Wythoff;
@@ -648,8 +632,10 @@ mod tests {
     const SEAM_IMAGE: u32 = 96;
     const MASK_SIZE: u32 = 192;
     const MARK_START: [f64; 3] = [0.1, 0.15, 0.2];
-    const MARK_MIDDLE: [f64; 3] = [0.35, 0.5, 0.65];
+    const MARK_MIDDLE: [f64; 2] = [0.35, 0.65];
     const MARK_END: [f64; 3] = [0.8, 0.85, 0.9];
+    const EDGE_CODE: f64 = 5.0 / 16.0;
+    const EDGE_TICK: f64 = 0.5;
     const FOLD_CAP: u32 = 1500;
 
     pub(crate) const PICTURE_SET: [(&str, [bool; 3]); 5] = [
@@ -664,6 +650,7 @@ mod tests {
         name: String,
         domain: FundamentalDomain,
         face: WholeFace,
+        corner: usize,
         arrangements: Vec<Colouring>,
     }
 
@@ -677,6 +664,7 @@ mod tests {
                     name: format!("{text} {}", crate::golden_images::marks_text(marks)),
                     domain,
                     face,
+                    corner: face_corner(marks),
                     arrangements,
                 }
             })
@@ -1043,7 +1031,7 @@ mod tests {
         for scene in scenes(&WHOLE_FACE_SET) {
             let order = usize::try_from(scene.face.order).unwrap_or(0);
             let text = &scene.name[..scene.name.find(' ').unwrap_or(0)];
-            let corner = scene.face.corner;
+            let corner = scene.corner;
             let at_vertex = signature_orders(text)[1 - corner];
             for arrangement in &scene.arrangements {
                 let name = format!("{} {}", scene.name, arrangement.id());
@@ -1091,7 +1079,7 @@ mod tests {
             let walls = reference_walls(&scene.domain);
             let measure = Measure::of(scene.domain.geometry());
             let vertices = exact_vertices(&scene.domain);
-            let centre = &vertices[scene.face.corner];
+            let centre = &vertices[scene.corner];
             let reflections: Vec<Matrix> = scene
                 .face
                 .edge_words
@@ -1202,13 +1190,6 @@ mod tests {
         )
     }
 
-    fn flat_between(start: &Flat, end: &Flat, fraction: &BigFloat) -> Flat {
-        [0, 1].map(|axis| {
-            let run = escher_reference::sub(&end[axis], &start[axis]);
-            escher_reference::add(&start[axis], &escher_reference::mul(fraction, &run))
-        })
-    }
-
     fn stated_marks(edges: &[EdgeMeeting]) -> Vec<[bool; 2]> {
         let mut marks = vec![[false; 2]; edges.len()];
         for (edge, meeting) in edges.iter().enumerate() {
@@ -1231,13 +1212,13 @@ mod tests {
         [start, end]: [&Flat; 2],
         fraction: f64,
     ) -> &'a [u8] {
-        let on_edge = flat_between(start, end, &num(fraction));
-        let [first, last] = [start, end].map(|point| {
-            DVec2::from_array(point.each_ref().map(|value| reference.approximate(value)))
-        });
-        let inward = (last - first).perp().normalize();
-        let position = DVec2::from_array(placement.position(reference, &on_edge))
-            + DVec2::new(inward.x, -inward.y) * f64::from(MASK_SIZE) / 128.0;
+        let [across, down] = placement.inside_edge(
+            reference,
+            [start, end],
+            fraction,
+            f64::from(MASK_SIZE) / 128.0,
+        );
+        let position = DVec2::new(across, down);
         let offset = 3
             * (texel_index(position.y, MASK_SIZE) * MASK_SIZE + texel_index(position.x, MASK_SIZE));
         let offset = usize::try_from(offset).unwrap_or(usize::MAX);
@@ -1256,25 +1237,26 @@ mod tests {
         let mut read = 0;
         for (edge, marks) in stated_marks(edges).into_iter().enumerate() {
             let ends = [&polygon[(edge + count - 1) % count], &polygon[edge]];
-            let middle = band_pixel(reference, mask, &placement, ends, 0.5);
+            let code = band_pixel(reference, mask, &placement, ends, EDGE_CODE);
             assert!(
-                middle != [0; 3] && middle != [u8::MAX; 3],
-                "{name}: the middle of edge {edge} shows {middle:?}"
+                code != [0; 3] && code != [u8::MAX; 3],
+                "{name}: edge {edge} shows {code:?} at {EDGE_CODE}"
             );
-            for (fractions, marked) in [
-                (MARK_START, marks[0]),
-                (MARK_MIDDLE, false),
-                (MARK_END, marks[1]),
-            ] {
-                for fraction in fractions {
-                    let pixel = band_pixel(reference, mask, &placement, ends, fraction);
-                    let wanted = if marked { &[0; 3][..] } else { middle };
-                    assert_eq!(
-                        pixel, wanted,
-                        "{name}: edge {edge} at {fraction}, marked {marked}"
-                    );
-                    read += 1;
-                }
+            let middle = MARK_MIDDLE.map(|fraction| (fraction, false));
+            for (fraction, black) in MARK_START
+                .map(|fraction| (fraction, marks[0]))
+                .into_iter()
+                .chain(middle)
+                .chain([(EDGE_TICK, edge == 0)])
+                .chain(MARK_END.map(|fraction| (fraction, marks[1])))
+            {
+                let pixel = band_pixel(reference, mask, &placement, ends, fraction);
+                let wanted = if black { &[0; 3][..] } else { code };
+                assert_eq!(
+                    pixel, wanted,
+                    "{name}: edge {edge} at {fraction}, black {black}"
+                );
+                read += 1;
             }
         }
         read
@@ -1339,7 +1321,7 @@ mod tests {
             let exact = exact_face(&mut reference, text, &scene.domain, marks);
             let mask = face_triangle_mask(&mut reference, text, &scene.domain, marks);
             let measure = Measure::of(scene.domain.geometry());
-            let centre = exact_vertices(&scene.domain)[scene.face.corner].clone();
+            let centre = exact_vertices(&scene.domain)[scene.corner].clone();
             let polygon = &exact.polygon;
             let expectations = edge_values(&mut reference, polygon, &picture, &table);
             for arrangement in &scene.arrangements {

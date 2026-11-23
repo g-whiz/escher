@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "arrangement_snapshot(\"arrangement_without_wythoff\",\n&[\"*632\", \"--arrangement\", \"12a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *632: --arrangement needs --wythoff
+--- end

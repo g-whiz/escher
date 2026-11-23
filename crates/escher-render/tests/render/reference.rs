@@ -816,6 +816,28 @@ impl ExactPlacement {
         );
         [reference.approximate(&across), reference.approximate(&down)]
     }
+
+    pub(crate) fn inside_edge(
+        &self,
+        reference: &mut Reference,
+        [start, end]: [&Flat; 2],
+        fraction: f64,
+        depth: f64,
+    ) -> [f64; 2] {
+        let [across, down] = self.position(reference, &flat_between(start, end, &num(fraction)));
+        let [first, last] =
+            [start, end].map(|point| point.each_ref().map(|value| reference.approximate(value)));
+        let run = [last[0] - first[0], last[1] - first[1]];
+        let length = run[0].hypot(run[1]);
+        [
+            across - run[1] / length * depth,
+            down - run[0] / length * depth,
+        ]
+    }
+}
+
+pub(crate) fn flat_between(start: &Flat, end: &Flat, fraction: &BigFloat) -> Flat {
+    [0, 1].map(|axis| add(&start[axis], &mul(fraction, &sub(&end[axis], &start[axis]))))
 }
 
 pub(crate) type FlatMatrix = [[BigFloat; 2]; 2];

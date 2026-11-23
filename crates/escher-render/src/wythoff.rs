@@ -1,5 +1,3 @@
-use core::f64::consts::PI;
-
 use escher_domain::{FundamentalDomain, PairingKind, Side};
 use escher_geometry::{euclidean, hyperbolic, spherical};
 use escher_signature::Geometry;
@@ -7,6 +5,7 @@ use glam::DVec3;
 
 use crate::colour::Colour;
 use crate::error::{Error, Result};
+use crate::mask::corner_order;
 
 /// The Wythoff construction of a reflection triangle for one set of marks,
 /// which turns the tiling by triangles into a tiling by faces.
@@ -57,6 +56,7 @@ pub struct Wythoff {
     perpendiculars: [Option<DVec3>; 3],
     feet: [Option<DVec3>; 3],
     covectors: [DVec3; 3],
+    orders: [u32; 3],
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,11 +113,11 @@ impl Plane {
     }
 }
 
-pub(crate) fn corner_orders(angles: &[f64]) -> Option<[f64; 3]> {
+fn corner_orders(angles: &[f64]) -> Option<[u32; 3]> {
     let &[first, second, third] = angles else {
         return None;
     };
-    Some([first, second, third].map(|angle| (PI / angle).round()))
+    Some([first, second, third].map(corner_order))
 }
 
 const fn next(index: usize) -> usize {
@@ -164,11 +164,6 @@ impl Wythoff {
             return Err(Error::not_triangle());
         };
         let vertices = [v0, v1, v2];
-        #[expect(
-            clippy::float_cmp,
-            reason = "the order is rounded to a whole number, which compares exactly"
-        )]
-        let is_two = |order: f64| order == 2.0;
         let active = [0, 1, 2].map(|side| marks[next(side)]);
         let corners: Vec<(usize, Vec<usize>)> = (0..3)
             .filter_map(|corner| {
@@ -176,7 +171,7 @@ impl Wythoff {
                     .into_iter()
                     .filter(|&side| active[side])
                     .collect();
-                let digon = through.len() == 1 && is_two(orders[corner]);
+                let digon = through.len() == 1 && orders[corner] == 2;
                 (!through.is_empty() && !digon).then_some((corner, through))
             })
             .collect();
@@ -227,6 +222,7 @@ impl Wythoff {
             perpendiculars,
             feet,
             covectors,
+            orders,
         })
     }
 
@@ -264,14 +260,14 @@ impl Wythoff {
             .expect("internal error: a Wythoff construction has a face")
     }
 
-    pub(crate) fn single_face(&self) -> Option<(usize, usize)> {
-        match self.faces.as_slice() {
-            [face] => match face.cuts.as_slice() {
-                [cut] => Some((face.corner, cut.side)),
-                _ => None,
-            },
-            _ => None,
-        }
+    pub(crate) fn regular_face(&self) -> Option<(usize, u32)> {
+        let [face] = self.faces.as_slice() else {
+            return None;
+        };
+        let other = 1_usize.checked_sub(face.corner)?;
+        let order = self.orders[face.corner];
+        (face.cuts.len() == 1 && self.orders[2] == 2 && order >= 3 && self.orders[other] >= 3)
+            .then_some((face.corner, order))
     }
 
     pub(crate) fn perpendiculars_of(&self, face: usize) -> impl Iterator<Item = DVec3> + '_ {
@@ -452,7 +448,7 @@ mod tests {
             let orders = signature_orders(text);
             assert_eq!(
                 corner_orders(&domain.corner_angles()),
-                Some(orders.map(f64::from)),
+                Some(orders),
                 "{text}"
             );
             for marks in MARKINGS {

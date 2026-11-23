@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*632\", \"-o\", NEVER_WRITTEN, \"--wythoff\", \"010\",\n\"--arrangement\", \"12A\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value '12A' for '--arrangement <ID>': expected an arrangement id such as 12a
+
+For more information, try '--help'.
+--- end

@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "arrangement_snapshot(\"arrangement_none\",\n&[\"*732\", \"--wythoff\", \"100\", \"--arrangement\", \"6a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the tiling has no arrangement that puts one picture on every polygon
+--- end

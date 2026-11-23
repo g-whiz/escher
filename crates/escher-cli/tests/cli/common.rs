@@ -3,6 +3,10 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 use escher_cli::{Status, run};
+use escher_domain::FundamentalDomain;
+use escher_group::{Colouring, IndexLimit, SearchBudget, free_classes_of_index};
+use escher_render::{WholeFace, Wythoff};
+use escher_signature::Signature;
 
 pub(crate) struct Outcome {
     pub(crate) status: Status,
@@ -93,6 +97,58 @@ pub(crate) fn output_path(test: &str) -> PathBuf {
     }
     std::fs::create_dir_all(&directory).expect("the directory of the test is created");
     directory.join("tiling.png")
+}
+
+pub(crate) fn failure_with_no_file_change(command: &str, test: &str, args: &[&str]) -> String {
+    let existing = output_path(test);
+    let missing = existing.with_file_name("missing.png");
+    std::fs::write(&existing, b"old").expect("the existing file is written");
+    let diagnostics: Vec<String> = [&existing, &missing]
+        .into_iter()
+        .map(|output| {
+            let mut all = vec![command];
+            all.extend_from_slice(args);
+            all.extend_from_slice(&["-o", path_text(output)]);
+            let outcome = run_args(&all);
+            assert_eq!(outcome.status, Status::Failure, "{args:?}");
+            assert_eq!(outcome.stdout, "", "{args:?}");
+            outcome.stderr
+        })
+        .collect();
+    assert_eq!(
+        std::fs::read(&existing).expect("the existing file stays"),
+        b"old",
+        "{args:?}"
+    );
+    assert!(!missing.exists(), "{args:?}");
+    assert_eq!(diagnostics[0], diagnostics[1], "{args:?}");
+    diagnostics[0].clone()
+}
+
+pub(crate) fn regular_arrangement(
+    signature: &str,
+    marks: [bool; 3],
+    id: &str,
+) -> (FundamentalDomain, WholeFace, Colouring) {
+    let signature: Signature = signature.parse().expect("the signature is valid");
+    let domain = FundamentalDomain::build(&signature).expect("the signature has a domain");
+    let face = WholeFace::new(
+        &domain,
+        Wythoff::new(&domain, marks).expect("the construction is built"),
+    )
+    .expect("the tiling is regular");
+    let id: escher_group::ColouringId = id.parse().expect("the id is valid");
+    let arrangement = free_classes_of_index(
+        face.presentation(),
+        face.stabilizer(),
+        IndexLimit::new(face.index()).expect("the index is within the limit"),
+        SearchBudget::DEFAULT,
+    )
+    .expect("the search runs")
+    .find(id)
+    .expect("the arrangement exists")
+    .clone();
+    (domain, face, arrangement)
 }
 
 pub(crate) fn path_text(path: &std::path::Path) -> &str {

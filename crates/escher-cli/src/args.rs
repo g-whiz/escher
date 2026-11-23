@@ -12,7 +12,15 @@ const SIZE_HELP: &str = "The image size in pixels, as WIDTHxHEIGHT";
 
 const COLOURING_HELP: &str = "One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise";
 
-const SET_DISPLAY_ORDER: usize = 14;
+const FILL_DISPLAY_ORDER: usize = 3;
+
+const SET_DISPLAY_ORDER: usize = 15;
+
+const WYTHOFF_HELP: &str = "Draw the Wythoff construction of a reflection triangle instead of its tiles, as three digits, one for each corner of the signature in the order that info prints, where 1 turns on the mirror opposite that corner, such as 010 for the regular tiling {7,3} of *732. --colours then gives one colour for each face type, in the order of the corners";
+
+const MASKS_WYTHOFF_HELP: &str = "With --arrangement, write the mask of the polygon of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732, to the --output file itself";
+
+const ARRANGEMENT_HELP: &str = "With --wythoff on a regular tiling, put one picture on every polygon, turned or mirrored as the arrangement with this id says, such as 12a, which the command info --wythoff lists. --colours then gives one colour or one image:FILE painted over the mask that render-masks writes for the same arrangement";
 
 const SET_HELP: &str = "Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature";
 
@@ -88,13 +96,21 @@ pub(crate) enum Command {
             help = "The largest number of colours of the valid colourings to count and list, from 1 to 64"
         )]
         max_colours: IndexLimit,
+        #[arg(
+            long,
+            value_name = "MARKS",
+            value_parser = parse_wythoff,
+            help = "List the arrangements of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732. Each arrangement puts one picture on every polygon. For each arrangement, it lists the edge of the neighbour that lies on each edge and whether that neighbour is turned or mirrored, with the edges numbered counterclockwise around the mask from edge 0, the edge with the black tick"
+        )]
+        wythoff: Option<[bool; 3]>,
     },
     #[command(
         about = "Render the tiling of a signature in orbifold notation and write it to a PNG file"
     )]
     Render(Box<RenderArgs>),
     #[command(
-        about = "Write one PNG mask for each colour of a colouring: the tile as a flat polygon in white, over which to paint the image fill of that colour for render, with each edge bordered in the same colour as every edge that it can meet in the tiling"
+        about = "Write one PNG mask for each colour of a colouring: the tile as a flat polygon in white, over which to paint the image fill of that colour for render, with each edge bordered in the same colour as every edge that it can meet in the tiling",
+        mut_arg("wythoff", |arg| arg.help(MASKS_WYTHOFF_HELP))
     )]
     RenderMasks(Box<MasksArgs>),
 }
@@ -128,6 +144,22 @@ pub(crate) struct TilingArgs {
         long_help = SET_LONG_HELP
     )]
     pub(crate) set: Vec<Setting>,
+    #[arg(
+        long,
+        value_name = "MARKS",
+        value_parser = parse_wythoff,
+        display_order = FILL_DISPLAY_ORDER + 1,
+        help = WYTHOFF_HELP
+    )]
+    pub(crate) wythoff: Option<[bool; 3]>,
+    #[arg(
+        long,
+        value_name = "ID",
+        value_parser = parse_arrangement,
+        display_order = FILL_DISPLAY_ORDER + 2,
+        help = ARRANGEMENT_HELP
+    )]
+    pub(crate) arrangement: Option<ColouringId>,
 }
 
 #[derive(Debug, Args)]
@@ -156,16 +188,10 @@ pub(crate) struct RenderArgs {
     pub(crate) tiling: TilingArgs,
     #[arg(
         long,
+        display_order = FILL_DISPLAY_ORDER,
         help = "The fill colours, separated by commas, one for each colour of the colouring, each as #rgb, #rrggbb, or image:FILE for a PNG image painted over the mask of that colour that render-masks writes. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,image:fill-1.png'"
     )]
     pub(crate) colours: Option<String>,
-    #[arg(
-        long,
-        value_name = "MARKS",
-        value_parser = parse_wythoff,
-        help = "Draw the Wythoff construction of a reflection triangle instead of its tiles, as three digits, one for each corner of the signature in the order that info prints, where 1 turns on the mirror opposite that corner, such as 010 for the regular tiling {7,3} of *732. --colours then gives one colour for each face type, in the order of the corners"
-    )]
-    pub(crate) wythoff: Option<[bool; 3]>,
     #[arg(
         long,
         value_name = "WIDTH",
@@ -389,6 +415,12 @@ fn parse_wythoff(text: &str) -> Result<[bool; 3], &'static str> {
         .ok_or("expected three digits 0 or 1, such as 010")
 }
 
+fn parse_arrangement(text: &str) -> Result<ColouringId, &'static str> {
+    text.parse()
+        .ok()
+        .ok_or("expected an arrangement id such as 12a")
+}
+
 fn parse_max_colours(text: &str) -> Result<IndexLimit, String> {
     decimal(text)
         .and_then(|colours| IndexLimit::new(colours).ok())
@@ -432,8 +464,8 @@ mod tests {
     use escher_render::{BorderUnit, HyperbolicModel};
 
     use super::{
-        BorderUnitChoice, Colouring, ModelChoice, SET_LONG_HELP, Setting, parse_colouring,
-        parse_max_colours, parse_setting, parse_triple, parse_wythoff,
+        BorderUnitChoice, Colouring, ModelChoice, SET_LONG_HELP, Setting, parse_arrangement,
+        parse_colouring, parse_max_colours, parse_setting, parse_triple, parse_wythoff,
     };
 
     #[test]
@@ -700,6 +732,26 @@ mod tests {
             assert_eq!(
                 parse_wythoff(text),
                 Err("expected three digits 0 or 1, such as 010"),
+                "{text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_arrangement_reads_the_ids_of_escher_group_only() {
+        for text in ["6a", "12a", "14c", "64zzzz"] {
+            assert_eq!(
+                parse_arrangement(text).map(|id| id.to_string()),
+                Ok(text.to_owned()),
+                "{text:?}"
+            );
+        }
+        for text in [
+            "12A", "12", "012a", "65a", "a", "", " 12a", "12a ", "one", "parity",
+        ] {
+            assert_eq!(
+                parse_arrangement(text),
+                Err("expected an arrangement id such as 12a"),
                 "{text:?}"
             );
         }

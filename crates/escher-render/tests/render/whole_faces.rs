@@ -39,6 +39,10 @@ const SAME_CENTRE: f64 = 1e-6;
 
 const BACKGROUND: [u8; 3] = [10, 200, 30];
 
+const PAINT: [u8; 3] = [233, 196, 106];
+
+const SOLID_CLEARANCE: u32 = 3;
+
 const WEDGE_STEP: u8 = 12;
 
 const MARK_RADIUS: f64 = 0.1;
@@ -1264,4 +1268,74 @@ fn the_renderer_refuses_a_whole_face_fill_of_another_domain() {
     );
     let again = domain_with_settings("*732", &[]);
     assert!(escher_render::Renderer::new(&again, options()).is_ok());
+}
+
+fn far_from_every_edge(tiling: &Tiling, column: u32, row: u32) -> bool {
+    let face_at = |column: u32, row: u32| {
+        tiling.pixels[usize::try_from(row * SIZE + column).unwrap_or(usize::MAX)]
+            .as_ref()
+            .map(|pixel| pixel.face)
+    };
+    let Some(face) = face_at(column, row) else {
+        return false;
+    };
+    let window = |centre: u32| {
+        centre.saturating_sub(SOLID_CLEARANCE)..=(centre + SOLID_CLEARANCE).min(SIZE - 1)
+    };
+    window(row).all(|other_row| {
+        window(column).all(|other_column| face_at(other_column, other_row) == Some(face))
+    })
+}
+
+#[test]
+fn a_solid_paint_fills_every_face_and_leaves_the_background_outside_the_disk() {
+    let tiling = Tiling::new("*732", REGULAR);
+    let arrangement = arrangements(&tiling.face)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("no arrangement"));
+    let [red, green, blue] = PAINT;
+    let fill = whole_face_fill(
+        tiling.face.clone(),
+        arrangement,
+        Paint::Solid(Colour::from_srgb8(red, green, blue)),
+    );
+    let [red, green, blue] = BACKGROUND;
+    let options = RenderOptions::builder(Fill::WholeFace(fill))
+        .size(SIZE, SIZE)
+        .samples(1)
+        .background(Colour::from_srgb8(red, green, blue))
+        .build()
+        .unwrap_or_else(|error| panic!("{error}"));
+    let (pixels, _) = renderer(&tiling.domain, options).render();
+    let step = view_pixel(Geometry::Hyperbolic, SIZE, SIZE);
+    let (mut painted, mut bordered, mut outside, mut interior) = (0, 0, 0, 0);
+    for row in 0..SIZE {
+        for column in 0..SIZE {
+            let found = pixel_at(&pixels, SIZE, column, row);
+            let radius = screen(Geometry::Hyperbolic, [SIZE; 2], column, row).length();
+            if radius > 1.0 + step {
+                assert_eq!(found, BACKGROUND, "column {column} row {row}");
+                outside += 1;
+            } else if radius < 1.0 - step {
+                if found == [0; 3] {
+                    bordered += 1;
+                } else {
+                    assert_eq!(found, PAINT, "column {column} row {row}");
+                    painted += 1;
+                }
+            }
+            if far_from_every_edge(&tiling, column, row) {
+                assert_eq!(
+                    found, PAINT,
+                    "column {column} row {row} lies inside a face, away from its edges"
+                );
+                interior += 1;
+            }
+        }
+    }
+    println!(
+        "{painted} painted, {bordered} border, {outside} outside, and {interior} interior pixels"
+    );
+    assert!(painted >= 20_000 && bordered >= 3000 && outside >= 10_000 && interior >= 9000);
 }

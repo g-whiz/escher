@@ -1,0 +1,28 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*542\", \"--wythoff\", \"100\"])"
+---
+status: Success
+--- stdout
+Signature: *542
+Geometry: hyperbolic
+Euler characteristic: -1/40
+Compact: yes
+Area: pi/20
+Deformation dimension: 0
+Regular tiling: {5,4}, dual {4,5}
+Domain: 3 mirror sides
+Corner angles in degrees: 36.000000, 45.000000, 90.000000
+Side lengths: 0.626870, 0.842482, 0.530638
+Domain area: 0.157080
+Colourings: 33, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 4 colours: 1
+Colourings with 5 colours: 1
+Colourings with 6 colours: 1
+Colourings with 10 colours: 22
+Colourings with 11 colours: 1
+Colourings with 12 colours: 6
+Arrangements: 0
+--- stderr
+--- end

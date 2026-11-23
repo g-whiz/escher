@@ -5,13 +5,14 @@ use escher_cli::{Status, run};
 use escher_domain::FundamentalDomain;
 use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings_of_index};
 use escher_render::{
-    Colour, CosetFill, Fill, Paint, RenderOptions, Renderer, Wythoff, WythoffFill, encode_png,
+    Colour, CosetFill, Fill, HyperbolicModel, Paint, RenderOptions, RenderOptionsBuilder, Renderer,
+    WholeFaceFill, Wythoff, WythoffFill, encode_png,
 };
 use escher_signature::Signature;
 
 use crate::common::{
-    FailingWriter, NEVER_WRITTEN, PNG_SIGNATURE, assert_png_bytes, output_path, path_text,
-    run_args, snapshot, write_image,
+    FailingWriter, NEVER_WRITTEN, PNG_SIGNATURE, assert_png_bytes, failure_with_no_file_change,
+    output_path, path_text, regular_arrangement, run_args, snapshot, write_image,
 };
 
 fn render_snapshot(test: &str, args: &[&str]) -> String {
@@ -817,20 +818,7 @@ fn render_writes_through_a_symbolic_link() {
 }
 
 fn assert_no_file_changes(test: &str, args: &[&str]) {
-    let existing = output_path(test);
-    let missing = existing.with_file_name("missing.png");
-    std::fs::write(&existing, b"old").expect("the existing file is written");
-    for output in [&existing, &missing] {
-        let mut all = vec!["render"];
-        all.extend_from_slice(args);
-        all.extend_from_slice(&["-o", path_text(output)]);
-        assert_eq!(run_args(&all).status, Status::Failure);
-    }
-    assert_eq!(
-        std::fs::read(&existing).expect("the existing file stays"),
-        b"old"
-    );
-    assert!(!missing.exists());
+    failure_with_no_file_change("render", test, args);
 }
 
 #[test]
@@ -1853,5 +1841,221 @@ fn render_draws_wythoff_without_colours_in_the_first_default_colours() {
             &["*732", "--wythoff", marks, "--colours", colours],
         );
         assert_eq!(default, given, "{marks}");
+    }
+}
+
+fn arrangement_snapshot(test: &str, args: &[&str]) -> String {
+    let (snapshot, output) = snapshot_and_output(test, args);
+    assert!(!output.exists(), "{test} wrote the output file");
+    snapshot
+}
+
+#[test]
+fn render_diagnostic_says_an_arrangement_needs_wythoff() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_without_wythoff",
+        &["*632", "--arrangement", "12a"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_refuses_an_arrangement_of_a_tiling_that_is_not_regular() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_not_regular",
+        &["*732", "--wythoff", "111", "--arrangement", "14a"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_an_arrangement_does_not_exist() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_missing",
+        &["*632", "--wythoff", "010", "--arrangement", "12h"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_gives_the_index_limit_for_the_arrangements_of_a_polygon_of_33_sides() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_index_limit",
+        &["*(33)32", "--wythoff", "010", "--arrangement", "12a"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_counts_one_colour_for_an_arrangement() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_two_colours",
+        &[
+            "*632",
+            "--wythoff",
+            "010",
+            "--arrangement",
+            "12a",
+            "--colours",
+            "#000,#fff"
+        ]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_a_tiling_without_arrangements_has_none() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_none",
+        &["*732", "--wythoff", "100", "--arrangement", "6a"]
+    ));
+}
+
+#[test]
+fn render_draws_an_arrangement_with_an_image_item_or_one_colour() {
+    let image = image_item("arrangement_picture", [0x20, 0x40, 0x80]);
+    let [picture, colour, default] = [
+        ("arrangement_with_image", Some(image.as_str())),
+        ("arrangement_with_colour", Some("#e9c46a")),
+        ("arrangement_with_default_colour", None),
+    ]
+    .map(|(test, colours)| {
+        let mut args = vec!["*632", "--wythoff", "010", "--arrangement", "12a"];
+        args.extend(
+            colours
+                .map(|colours| ["--colours", colours])
+                .into_iter()
+                .flatten(),
+        );
+        small_png(test, &args)
+    });
+    assert_eq!(default, colour);
+    assert_ne!(default, picture);
+}
+
+#[test]
+fn render_with_an_arrangement_reports_an_image_that_cannot_be_opened_before_the_search() {
+    let (_, item) = image_file("arrangement_missing_image", "missing.png");
+    assert_eq!(
+        first_error_line(&[
+            "*(33)32",
+            "--wythoff",
+            "010",
+            "--arrangement",
+            "12a",
+            "--colours",
+            &item
+        ]),
+        (
+            Status::Failure,
+            "error: cannot render *(33)32: the image of colour 1 of --colours cannot be opened"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn render_with_an_arrangement_that_fails_gives_its_diagnostic_and_changes_no_file() {
+    let (image, unreadable) = image_file("arrangement_refused_image_source", "fill.png");
+    std::fs::write(&image, b"not a PNG image").expect("the file is written");
+    let hexagons = ["*632", "--wythoff", "010", "--arrangement"];
+    for (test, extra, diagnostic) in [
+        (
+            "arrangement_refused_missing_id",
+            &["12h"][..],
+            "error: cannot render *632: the arrangement 12h does not exist, because the tiling has 7 arrangements\n",
+        ),
+        (
+            "arrangement_refused_image",
+            &["12a", "--colours", &unreadable],
+            "error: cannot render *632: the image of colour 1 of --colours cannot be used\n  caused by: cannot decode image: the data is not a valid PNG image\n  caused by: Invalid PNG signature.\n",
+        ),
+        (
+            "arrangement_refused_two_colours",
+            &["12a", "--colours", "#000,#fff"],
+            "error: cannot render *632: the arrangement 12a needs 1 colour, and 2 were given\n",
+        ),
+        (
+            "arrangement_refused_colouring",
+            &["12a", "--colouring", "2a"],
+            "error: cannot render *632: --wythoff cannot be combined with --colouring\n",
+        ),
+        (
+            "arrangement_refused_setting",
+            &["12a", "--set", "p=3"],
+            "error: cannot render *632: the signature has no shape parameter p, nor any other\n",
+        ),
+    ] {
+        let mut args = hexagons.to_vec();
+        args.extend_from_slice(extra);
+        assert_eq!(
+            failure_with_no_file_change("render", test, &args),
+            diagnostic,
+            "{test}"
+        );
+    }
+    assert_eq!(
+        failure_with_no_file_change(
+            "render",
+            "arrangement_refused_none",
+            &["*732", "--wythoff", "100", "--arrangement", "6a"]
+        ),
+        "error: cannot render *732: the tiling has no arrangement that puts one picture on every polygon\n"
+    );
+}
+
+type Adjust = fn(RenderOptionsBuilder) -> RenderOptionsBuilder;
+
+fn library_heptagons_png(width: u32, height: u32, adjust: Adjust) -> Vec<u8> {
+    let (domain, face, arrangement) = regular_arrangement("*732", [false, true, false], "14a");
+    let paint = Paint::Solid(Colour::from_srgb8(0xe9, 0xc4, 0x6a));
+    let fill = WholeFaceFill::new(face, arrangement, vec![paint]).expect("the fill is valid");
+    let options = adjust(
+        RenderOptions::builder(Fill::WholeFace(fill))
+            .size(width, height)
+            .samples(2),
+    )
+    .build()
+    .expect("the options are valid");
+    let (pixels, _) = Renderer::new(&domain, options)
+        .expect("the renderer is built")
+        .render();
+    encode_png(width, height, &pixels).expect("the image is encoded")
+}
+
+#[test]
+fn render_applies_the_model_the_border_width_and_the_size_to_an_arrangement() {
+    let heptagons = [
+        "*732",
+        "--wythoff",
+        "010",
+        "--arrangement",
+        "14a",
+        "--samples",
+        "2",
+    ];
+    let mut args = heptagons.to_vec();
+    args.extend_from_slice(&["--size", "48x32"]);
+    let default = rendered("arrangement_options_default", &args);
+    assert_eq!(default, library_heptagons_png(48, 32, |builder| builder));
+    let cases: [(&str, &[&str], u32, u32, Adjust); 3] = [
+        (
+            "model",
+            &["--size", "48x32", "--model", "half-plane"],
+            48,
+            32,
+            |builder| builder.model(HyperbolicModel::HalfPlane),
+        ),
+        (
+            "border",
+            &["--size", "48x32", "--border-width", "0"],
+            48,
+            32,
+            |builder| builder.border_width(0.0),
+        ),
+        ("size", &["--size", "40x40"], 40, 40, |builder| builder),
+    ];
+    for (name, extra, width, height, adjust) in cases {
+        let mut args = heptagons.to_vec();
+        args.extend_from_slice(extra);
+        let file = rendered(&format!("arrangement_options_{name}"), &args);
+        assert_png_bytes(&file, width, height);
+        assert_eq!(file, library_heptagons_png(width, height, adjust), "{name}");
+        assert_ne!(file, default, "{name}");
     }
 }

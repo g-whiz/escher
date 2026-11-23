@@ -26,7 +26,7 @@ These topics are out of scope, by the owner's decision:
 - Tilings without a symmetry group, such as aperiodic tilings, for now, because in the owner's words they "don't fit with the orbifold idea".
 - Research on integrations with external tools (Section 3.3).
 
-`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-122` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M26`, the research prerequisites `RP-1` to `RP-8`, and the unverified statements `UNV-1` to `UNV-46`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
+`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-123` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M26`, the research prerequisites `RP-1` to `RP-8`, and the unverified statements `UNV-1` to `UNV-46`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
 
 Research documents are cited by file name, and each is in `docs/research/`.
 

@@ -32,7 +32,7 @@ This document covers the workflow of a milestone, the owner's staging, the resea
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-122`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-123`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the milestones `M14` to `M18` that the owner moved there, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -525,6 +525,7 @@ escher render '*732' --wythoff 010 --arrangement 14a --colours 'image:/tmp/masks
 - The first scope is the regular tilings (`DEC-113`).
 - The tilings that need more than one picture of the same polygon, and the tilings with more than one kind of polygon, are the last milestones of the proof of concept, after M24 and before M19 (`DEC-114`).
 - The flat polygon is turned so that what is painted on it appears the same way up on the reference polygon in the default view (`DEC-122`, Section 5.31 of `docs/design/render.md`).
+- The face mask marks edge 0 with a short black tick at its midpoint, so that the edge numbers that `info` prints can be placed on the mask (`DEC-123`, Section 5.32 of `docs/design/render.md`).
 
 The design branch settled the open points of the planning as proposals, and the owner has decided none of them:
 
@@ -538,7 +539,7 @@ The design branch settled the open points of the planning as proposals, and the 
 
 The whole-face fills of the fundamental tilings of the signatures that are not reflection triangles are not part of M24, M25, or M26.
 
-**Design documents.** Sections 5.29 to 5.33 of `render.md` with its other sections that the whole-face fill touches, Sections 4.3, 4.5, 4.6, 4.8, 5.10, 6.8, and 6.10 of `cli.md`, Section 7.19 of `group.md`, the data flow of Section 4.1 of `docs/design/architecture.md` with the labels `DEC-111` to `DEC-122`, and items 42 to 44 of Section 14.1 of `colourings.md`.
+**Design documents.** Sections 5.29 to 5.33 of `render.md` with its other sections that the whole-face fill touches, Sections 4.3, 4.5, 4.6, 4.8, 5.10, 6.8, and 6.10 of `cli.md`, Section 7.19 of `group.md`, the data flow of Section 4.1 of `docs/design/architecture.md` with the labels `DEC-111` to `DEC-123`, and items 42 to 44 of Section 14.1 of `colourings.md`.
 
 **Sources.** `colourings.md` 4.1 gives the coset colouring of the triangle tiling, whose fundamental triangle has a trivial stabilizer, so that its tiles correspond one to one to the elements of the group [FRETTLOH2008]. `colourings.md` 5 gives, for the regular tilings $\{p, q\}$ and $\{q, p\}$ and the Laves tiling `[p.q.p.q]` only, which subgroups of the reflection group of the triangle and of its rotation group induce a perfect colouring of the tiles, by the generators, or for the rotation group the products of two generators, that a subgroup contains (Lemmas 3.2 and 4.1 of [FRETTLOH2008]), and a procedure that lists them with a low-index search. `colourings.md` 7.17 gives the low-index search that `escher-group` implements. `colourings.md` 5.9 gives what the sources state about a subgroup under which no element other than the identity maps a polygon of a tiling onto itself: Yuncken's theorem on which regular tilings $\{p, q\}$ are tilings by fundamental domains of a group of orientation-preserving isometries (5.9.2), Poincare's polygon theorem (5.9.3), and the Heesch and isohedral types of Conway, Burgiel, and Goodman-Strauss, also for the hyperbolic groups (5.9.4). No source read treats such subgroups with orientation-reversing elements, counts them, or joins them to coset tables, and the statements on perfect colourings cover no tiling of a Wythoff construction other than the regular and Laves tilings.
 
@@ -558,7 +559,7 @@ The whole-face fills of the fundamental tilings of the signatures that are not r
 
 ### 5.25. M25: Whole-Face Fills With Several Pictures of One Polygon
 
-**Goal.** On a regular tiling, the user puts several pictures on the polygons, one for each orbit of an arrangement that maps no polygon onto itself other than by the identity, so that the regular tilings without an arrangement with one picture get whole-face fills, such as squares five to a vertex, $\{4, 5\}$, which has no orientation-preserving arrangement with one picture by Yuncken's theorem (`colourings.md` 5.9.2). The owner decided on 2026-11-23 that this work is one of the last milestones of the proof of concept and not a roadmap item (`DEC-114`). That it is a milestone of its own is a proposal (`DEC-121`).
+**Goal.** On a regular tiling, the user puts several pictures on the polygons, one for each orbit of an arrangement that maps no polygon onto itself other than by the identity, so that the regular tilings for which the search of M24 finds no arrangement with one picture get whole-face fills, such as squares five to a vertex, $\{4, 5\}$. That the search finds none there is its result, which rests on `UNV-41` to `UNV-43`, and Yuncken's theorem states only that the tiling has no orientation-preserving arrangement with one picture (`colourings.md` 5.9.2). The owner decided on 2026-11-23 that this work is one of the last milestones of the proof of concept and not a roadmap item (`DEC-114`). That it is a milestone of its own is a proposal (`DEC-121`).
 
 **Command line.** The design branch decides the options.
 

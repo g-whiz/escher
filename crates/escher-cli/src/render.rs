@@ -8,10 +8,11 @@ use anyhow::Context as _;
 use escher_domain::{FundamentalDomain, Orientation, ParameterSpec, ShapeParameters, parameters};
 use escher_group::{
     ColouringId, ColouringSet, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index,
+    free_classes_of_index,
 };
 use escher_render::{
-    Colour, CosetFill, Fill, Image, Paint, RenderOptions, RenderStats, Renderer, Shading, Wythoff,
-    WythoffFill, encode_png,
+    Colour, CosetFill, Fill, Image, Paint, RenderOptions, RenderStats, Renderer, Shading,
+    WholeFace, WholeFaceFill, Wythoff, WythoffFill, encode_png,
 };
 use escher_signature::Signature;
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
@@ -39,6 +40,8 @@ const DEFAULT_COLOURS: [[u8; 3]; 12] = [
 ];
 
 const IMAGE_PREFIX: &str = "image:";
+
+pub(crate) const ARRANGEMENT_NEEDS_WYTHOFF: &str = "--arrangement needs --wythoff";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Statistics {
@@ -76,18 +79,21 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
     let background = parse_colour(&args.background)
         .ok_or_else(|| cannot_render(task, "--background is not of the form #rgb or #rrggbb"))?;
     let domain = build_domain(task, &signature, &args.tiling.set)?;
-    let painting = if let Some(marks) = args.wythoff {
-        wythoff_painting(&domain, task, marks, args)?
-    } else {
-        let (colouring, found_parity) =
-            chosen_colouring(&domain, task, args.tiling.colouring, SearchBudget::DEFAULT)?;
-        let items = fill_items(colouring, args.colours.as_deref())
-            .map_err(|detail| cannot_render(task, detail))?;
-        Painting::Tiles {
-            colouring,
-            found_parity,
-            paints: read_paints(task, items)?,
+    let painting = match (args.tiling.wythoff, args.tiling.arrangement) {
+        (None, Some(_)) => return Err(cannot_render(task, ARRANGEMENT_NEEDS_WYTHOFF)),
+        (None, None) => {
+            let (colouring, found_parity) =
+                chosen_colouring(&domain, task, args.tiling.colouring, SearchBudget::DEFAULT)?;
+            let items = fill_items(colouring, args.colours.as_deref())
+                .map_err(|detail| cannot_render(task, detail))?;
+            Painting::Tiles {
+                colouring,
+                found_parity,
+                paints: read_paints(task, items)?,
+            }
         }
+        (Some(marks), None) => wythoff_painting(&domain, task, marks, args)?,
+        (Some(marks), Some(id)) => whole_face_painting(&domain, task, marks, id, args)?,
     };
     let options_with =
         |fill| render_options(args, fill, border_colour, background).with_context(|| task.failed());
@@ -107,6 +113,13 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         )?,
         Painting::Wythoff { wythoff, colours } => {
             Fill::Wythoff(WythoffFill::new(*wythoff, colours).with_context(|| task.failed())?)
+        }
+        Painting::WholeFace { face, id, paint } => {
+            let arrangement = arrangement(&face, task, id, SearchBudget::DEFAULT)?;
+            Fill::WholeFace(
+                WholeFaceFill::new(*face, arrangement, vec![paint])
+                    .with_context(|| task.failed())?,
+            )
         }
     };
     let options = options_with(fill)?;
@@ -362,6 +375,21 @@ enum Painting {
         wythoff: Box<Wythoff>,
         colours: Vec<Colour>,
     },
+    WholeFace {
+        face: Box<WholeFace>,
+        id: ColouringId,
+        paint: Paint,
+    },
+}
+
+pub(crate) fn refuse_colouring(task: Task<'_>, colouring: Option<Colouring>) -> anyhow::Result<()> {
+    match colouring {
+        Some(_) => Err(cannot_render(
+            task,
+            "--wythoff cannot be combined with --colouring",
+        )),
+        None => Ok(()),
+    }
 }
 
 fn wythoff_painting(
@@ -370,16 +398,77 @@ fn wythoff_painting(
     marks: [bool; 3],
     args: &RenderArgs,
 ) -> anyhow::Result<Painting> {
-    if args.tiling.colouring.is_some() {
-        return Err(cannot_render(
-            task,
-            "--wythoff cannot be combined with --colouring",
-        ));
-    }
+    refuse_colouring(task, args.tiling.colouring)?;
     let wythoff = Box::new(Wythoff::new(domain, marks).with_context(|| task.failed())?);
     let colours = face_colours(wythoff.face_types(), args.colours.as_deref())
         .map_err(|detail| cannot_render(task, detail))?;
     Ok(Painting::Wythoff { wythoff, colours })
+}
+
+fn whole_face_painting(
+    domain: &FundamentalDomain,
+    task: Task<'_>,
+    marks: [bool; 3],
+    id: ColouringId,
+    args: &RenderArgs,
+) -> anyhow::Result<Painting> {
+    refuse_colouring(task, args.tiling.colouring)?;
+    let face = Box::new(whole_face(domain, marks).with_context(|| task.failed())?);
+    let paint = match picture_item(id, args.colours.as_deref())
+        .map_err(|detail| cannot_render(task, detail))?
+    {
+        Item::Colour(colour) => Paint::Solid(colour),
+        Item::Image(path) => Paint::Image(open_image(task, 1, path)?),
+    };
+    Ok(Painting::WholeFace { face, id, paint })
+}
+
+pub(crate) fn whole_face(
+    domain: &FundamentalDomain,
+    marks: [bool; 3],
+) -> escher_render::Result<WholeFace> {
+    WholeFace::new(domain, Wythoff::new(domain, marks)?)
+}
+
+pub(crate) fn arrangements(
+    face: &WholeFace,
+    budget: SearchBudget,
+) -> escher_group::Result<ColouringsOfIndex> {
+    let index = IndexLimit::new(face.index())?;
+    free_classes_of_index(face.presentation(), face.stabilizer(), index, budget)
+}
+
+pub(crate) fn arrangement(
+    face: &WholeFace,
+    task: Task<'_>,
+    id: ColouringId,
+    budget: SearchBudget,
+) -> anyhow::Result<escher_group::Colouring> {
+    let found = arrangements(face, budget).with_context(|| task.failed())?;
+    found_arrangement(&found, id).map_err(|detail| cannot_render(task, detail))
+}
+
+fn found_arrangement(
+    found: &ColouringsOfIndex,
+    id: ColouringId,
+) -> Result<escher_group::Colouring, String> {
+    if let Some(arrangement) = found.find(id) {
+        return Ok(arrangement.clone());
+    }
+    if !found.is_complete() {
+        return Err(format!(
+            "the search for the arrangement {id} stopped at a limit before it found it"
+        ));
+    }
+    match found.list().len() {
+        0 => Err("the tiling has no arrangement that puts one picture on every polygon".to_owned()),
+        1 => Err(format!(
+            "the arrangement {id} does not exist, because the tiling has 1 arrangement"
+        )),
+        count => Err(format!(
+            "the arrangement {id} does not exist, because the tiling has {count} arrangements"
+        )),
+    }
 }
 
 #[derive(Debug)]
@@ -606,6 +695,17 @@ fn face_colours(face_types: u32, colours: Option<&str>) -> Result<Vec<Colour>, S
         .collect()
 }
 
+fn picture_item(id: ColouringId, colours: Option<&str>) -> Result<Item<'_>, String> {
+    let Some(text) = colours else {
+        let [red, green, blue] = DEFAULT_COLOURS[0];
+        return Ok(Item::Colour(Colour::from_srgb8(red, green, blue)));
+    };
+    fill_item(
+        1,
+        counted_items(text, 1, format_args!("the arrangement {id}"))?[0],
+    )
+}
+
 fn default_colours(needed: u32) -> Option<Vec<Colour>> {
     let entries = DEFAULT_COLOURS.get(..usize::try_from(needed).ok()?)?;
     Some(
@@ -791,9 +891,10 @@ mod tests {
     use escher_signature::Signature;
 
     use super::{
-        DEFAULT_COLOURS, Item, Paints, Parity, Task, chosen_colouring, coset_colouring, coset_fill,
-        decode_image, face_colours, fill, fill_item, fill_items, missing_text, parse_colour,
-        resolve, setting_text, shape_parameters, statistics_text, thread_pool_error,
+        DEFAULT_COLOURS, Item, Paints, Parity, Task, arrangement, arrangements, chosen_colouring,
+        coset_colouring, coset_fill, decode_image, face_colours, fill, fill_item, fill_items,
+        found_arrangement, missing_text, parse_colour, picture_item, resolve, setting_text,
+        shape_parameters, statistics_text, thread_pool_error, whole_face,
     };
     use crate::Status;
     use crate::args::{Colouring, Setting};
@@ -1413,5 +1514,114 @@ mod tests {
                 assert_eq!(rendered(&domain, fill), one, "{text} {colouring}");
             }
         }
+    }
+
+    fn regular_face(text: &str) -> escher_render::WholeFace {
+        whole_face(&domain(text), [false, true, false]).expect("the tiling is regular")
+    }
+
+    fn arrangement_text(text: &str, id: &str, steps: u64) -> Result<String, String> {
+        task_arrangement_text(|signature| Task::Render(signature), text, id, steps)
+    }
+
+    fn task_arrangement_text(
+        task: fn(&Signature) -> Task<'_>,
+        text: &str,
+        id: &str,
+        steps: u64,
+    ) -> Result<String, String> {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        let budget = SearchBudget::new(steps).expect("the budget is valid");
+        arrangement(
+            &regular_face(text),
+            task(&signature),
+            colouring_id(id),
+            budget,
+        )
+        .map(|found| found.id().to_string())
+        .map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn an_arrangement_id_resolves_to_the_arrangement_of_that_id() {
+        assert_eq!(
+            arrangement_text("*632", "12e", SearchBudget::DEFAULT.get()),
+            Ok("12e".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_arrangement_search_stopped_at_a_limit_claims_nothing_about_the_id() {
+        assert_eq!(
+            arrangement_text("*632", "12a", 1),
+            Err(
+                "cannot render *632: the search for the arrangement 12a stopped at a limit before it found it"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            task_arrangement_text(|signature| Task::Masks(signature), "*632", "12a", 1),
+            Err(
+                "cannot render the masks of *632: the search for the arrangement 12a stopped at a limit before it found it"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn a_missing_arrangement_gives_the_number_of_arrangements_in_words() {
+        assert_eq!(
+            arrangement_text("*532", "10b", SearchBudget::DEFAULT.get()),
+            Err(
+                "cannot render *532: the arrangement 10b does not exist, because the tiling has 1 arrangement"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn a_complete_search_with_no_arrangement_says_the_tiling_has_none() {
+        let face = regular_face("*632");
+        let identity: escher_group::Word = core::iter::empty().collect();
+        let found = escher_group::free_classes_of_index(
+            face.presentation(),
+            &[identity],
+            escher_group::IndexLimit::new(face.index()).expect("the index is within the limit"),
+            SearchBudget::DEFAULT,
+        )
+        .expect("the search runs");
+        assert!(found.is_complete());
+        assert_eq!(
+            found_arrangement(&found, colouring_id("12a")).map(|found| found.id().to_string()),
+            Err("the tiling has no arrangement that puts one picture on every polygon".to_owned())
+        );
+        let complete = arrangements(&face, SearchBudget::DEFAULT).expect("the search runs");
+        assert_eq!(complete.list().len(), 7);
+    }
+
+    #[test]
+    fn picture_item_takes_one_colour_or_image_item_and_the_first_default_colour() {
+        let id = colouring_id("12a");
+        let [red, green, blue] = DEFAULT_COLOURS[0];
+        assert_eq!(
+            picture_item(id, None),
+            Ok(Item::Colour(Colour::from_srgb8(red, green, blue)))
+        );
+        assert_eq!(
+            picture_item(id, Some("#123")),
+            Ok(Item::Colour(Colour::from_srgb8(0x11, 0x22, 0x33)))
+        );
+        assert_eq!(
+            picture_item(id, Some("image:a.png")),
+            Ok(Item::Image("a.png"))
+        );
+        assert_eq!(
+            picture_item(id, Some("#123,#456")),
+            Err("the arrangement 12a needs 1 colour, and 2 were given".to_owned())
+        );
+        assert_eq!(
+            picture_item(id, Some("red")),
+            Err("colour 1 of --colours is not of the form #rgb, #rrggbb, or image:FILE".to_owned())
+        );
     }
 }

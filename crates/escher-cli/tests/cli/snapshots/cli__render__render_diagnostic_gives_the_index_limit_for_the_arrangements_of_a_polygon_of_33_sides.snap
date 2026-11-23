@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "arrangement_snapshot(\"arrangement_index_limit\",\n&[\"*(33)32\", \"--wythoff\", \"010\", \"--arrangement\", \"12a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *(33)32
+  caused by: cannot search subgroups: the index limit 66 is not between 1 and 64
+--- end

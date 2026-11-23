@@ -7,6 +7,7 @@ use escher_group::{
     Colouring, ColouringCounts, ColouringId, Colourings, CosetLimit, ErrorKind, IndexLimit,
     Presentation, SearchBudget, colourings, conway_presentation, count_colourings, enumerate,
 };
+use escher_render::EdgeMeeting;
 use escher_signature::{Geometry, Rational, Signature};
 
 use crate::count_of_colours;
@@ -58,6 +59,7 @@ pub(crate) struct Options {
     pub(crate) presentations: Presentations,
     pub(crate) listing: Listing,
     pub(crate) max_colours: IndexLimit,
+    pub(crate) wythoff: Option<[bool; 3]>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,6 +126,12 @@ pub(crate) fn info(text: &str, options: Options, stdout: &mut dyn Write) -> Vec<
                 Err(error) => Err(error.to_string()),
             };
             push_colourings(&mut lines, found);
+            if let Some(marks) = options.wythoff {
+                push_arrangements(
+                    &mut lines,
+                    find_arrangements(domain, marks, SearchBudget::DEFAULT),
+                );
+            }
             Some(presentation.map_err(|error| error.to_string()))
         }
         Err(_) => None,
@@ -322,6 +330,76 @@ fn push_colourings(lines: &mut Lines, found: Result<Found, String>) {
             listed_text(colouring.id(), alias_of(colouring.id())),
         ));
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Arrangements {
+    Stopped,
+    Listed(Vec<(ColouringId, Vec<EdgeMeeting>)>),
+}
+
+fn find_arrangements(
+    domain: &FundamentalDomain,
+    marks: [bool; 3],
+    budget: SearchBudget,
+) -> Result<Arrangements, String> {
+    let face = crate::render::whole_face(domain, marks).map_err(|error| error.to_string())?;
+    let found = crate::render::arrangements(&face, budget).map_err(|error| error.to_string())?;
+    if !found.is_complete() {
+        return Ok(Arrangements::Stopped);
+    }
+    found
+        .list()
+        .iter()
+        .map(|arrangement| {
+            let edges = face.edges(arrangement).map_err(|error| error.to_string())?;
+            Ok((arrangement.id(), edges))
+        })
+        .collect::<Result<_, String>>()
+        .map(Arrangements::Listed)
+}
+
+fn push_arrangements(lines: &mut Lines, found: Result<Arrangements, String>) {
+    match found {
+        Err(text) => lines.push(("Arrangements".into(), format!("none, {text}"))),
+        Ok(Arrangements::Stopped) => lines.push((
+            "Arrangements".into(),
+            "none, the search stopped at a limit".to_owned(),
+        )),
+        Ok(Arrangements::Listed(list)) => {
+            lines.push(("Arrangements".into(), list.len().to_string()));
+            for (id, edges) in &list {
+                lines.push(("Arrangement".into(), arrangement_text(*id, edges)));
+            }
+        }
+    }
+}
+
+fn arrangement_text(id: ColouringId, edges: &[EdgeMeeting]) -> String {
+    let kind = |meeting: &EdgeMeeting| {
+        if meeting.mirrored() {
+            "mirrored"
+        } else {
+            "turned"
+        }
+    };
+    let neighbours = if edges.iter().any(|meeting| meeting.mirrored()) {
+        "with mirrored neighbours"
+    } else {
+        "turned only"
+    };
+    let pairs: Vec<String> = (0..)
+        .zip(edges)
+        .filter(|&(edge, meeting)| meeting.partner() >= edge)
+        .map(|(edge, meeting)| {
+            if meeting.partner() == edge {
+                format!("{edge} {}", kind(meeting))
+            } else {
+                format!("{edge} and {} {}", meeting.partner(), kind(meeting))
+            }
+        })
+        .collect();
+    format!("{id}, {neighbours}, edges {}", pairs.join(", "))
 }
 
 fn summary_text(total: u64, complete_to: u32, requested: u32) -> String {
@@ -731,9 +809,10 @@ mod tests {
 
     use super::{
         Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, alias_of, check_text,
-        count_label, enumerate_order, failed_checks, index_list, joined, kind_name, listed_text,
-        order_mismatch, order_text, push_colourings, push_order, push_verification, reported,
-        search_colourings, signature_lines, size_text, summary_text, write_text,
+        count_label, enumerate_order, failed_checks, find_arrangements, index_list, joined,
+        kind_name, listed_text, order_mismatch, order_text, push_arrangements, push_colourings,
+        push_order, push_verification, reported, search_colourings, signature_lines, size_text,
+        summary_text, write_text,
     };
     use crate::Status;
     use crate::diagnostic::report;
@@ -1173,5 +1252,22 @@ mod tests {
         ] {
             assert_eq!(regular_tiling_line(text), None, "{text}");
         }
+    }
+
+    fn arrangement_lines(signature: &str, marks: [bool; 3], steps: u64) -> String {
+        let signature: Signature = signature.parse().expect("the signature is valid");
+        let domain = FundamentalDomain::build(&signature).expect("the signature has a domain");
+        let budget = SearchBudget::new(steps).expect("the budget is valid");
+        let mut lines = Vec::new();
+        push_arrangements(&mut lines, find_arrangements(&domain, marks, budget));
+        joined(&lines)
+    }
+
+    #[test]
+    fn an_arrangement_search_stopped_at_a_limit_prints_no_number() {
+        assert_eq!(
+            arrangement_lines("*632", [false, true, false], 1),
+            "Arrangements: none, the search stopped at a limit\n"
+        );
     }
 }

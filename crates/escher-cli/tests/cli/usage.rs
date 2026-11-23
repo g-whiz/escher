@@ -500,6 +500,20 @@ fn render_wythoff_with_a_letter_is_a_usage_error() {
 }
 
 #[test]
+fn render_arrangement_with_an_upper_case_letter_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*632",
+        "-o",
+        NEVER_WRITTEN,
+        "--wythoff",
+        "010",
+        "--arrangement",
+        "12A"
+    ]));
+}
+
+#[test]
 fn render_unknown_border_unit_is_a_usage_error() {
     insta::assert_snapshot!(snapshot(&[
         "render",
