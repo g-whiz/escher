@@ -68,7 +68,10 @@
 //! [`Colouring`](escher_group::Colouring), through a [`CosetFill`]. A
 //! [`Paint`] is a solid colour or an [`Image`] that [`Image::decode_png`]
 //! reads from a PNG stream, and [`Masks`] draws, for each colour, the flat
-//! polygon of the domain over which the image of that colour is painted. The
+//! polygon of the domain over which the image of that colour is painted. On a
+//! reflection triangle, a [`WythoffFill`] instead draws the faces of a
+//! [`Wythoff`] construction, a tiling by regular polygons, with a colour for
+//! each face type and borders on the edges of the faces. The
 //! renderer averages the samples of a pixel in linear light and stores the
 //! pixel as 8-bit sRGB.
 //! [`encode_png`] turns the pixels into the bytes of a PNG file. The crate
@@ -111,6 +114,7 @@ mod mask;
 mod options;
 mod renderer;
 mod view;
+mod wythoff;
 
 #[cfg(test)]
 #[path = "../tests/render/reference.rs"]
@@ -128,12 +132,14 @@ pub use image::Image;
 pub use mask::Masks;
 pub use options::{BorderUnit, HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
 pub use renderer::{RenderStats, Renderer};
+pub use wythoff::{Wythoff, WythoffFill};
 
 #[cfg(test)]
 mod tests {
     use super::{
         BorderUnit, Colour, CosetFill, Error, ErrorKind, Fill, Fold, HyperbolicModel, Image, Masks,
-        Paint, RenderOptions, RenderOptionsBuilder, RenderStats, Renderer, Shading,
+        Paint, RenderOptions, RenderOptionsBuilder, RenderStats, Renderer, Shading, Wythoff,
+        WythoffFill,
     };
 
     fn assert_auto_traits<T: Send + Sync + 'static>() {}
@@ -154,6 +160,8 @@ mod tests {
         assert_auto_traits::<Renderer>();
         assert_auto_traits::<RenderStats>();
         assert_auto_traits::<Fold>();
+        assert_auto_traits::<Wythoff>();
+        assert_auto_traits::<WythoffFill>();
         assert_auto_traits::<Error>();
         assert_auto_traits::<ErrorKind>();
     }

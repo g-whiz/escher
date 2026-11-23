@@ -5,7 +5,7 @@ use astro_float_num::BigFloat;
 use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, disk_from_band, disk_from_half_plane, disk_from_klein, distance, form,
     from_disk, inverse, isometry_defect, normalize_point, reflection, rotation, side, to_disk,
-    translation, wall_distance, wall_through,
+    translation, wall_distance, wall_meet, wall_through,
 };
 use escher_geometry::{ErrorKind, euclidean, spherical};
 use glam::{DMat2, DMat3, DVec2, DVec3};
@@ -750,6 +750,18 @@ proptest! {
         }
         if let Ok(normal) = wall_through(x, y) {
             prop_assert!(normal.is_finite(), "{normal:?}");
+        }
+        match wall_meet(x, y) {
+            Ok(point) => prop_assert!(point.is_finite() && point.z > 0.0, "{point:?}"),
+            Err(error) => prop_assert_eq!(error.kind(), ErrorKind::DegenerateWall),
+        }
+        match euclidean::wall_meet(x, y) {
+            Ok(point) => prop_assert!(point.is_finite() && point.z.to_bits() == 1.0_f64.to_bits(), "{point:?}"),
+            Err(error) => prop_assert_eq!(error.kind(), ErrorKind::DegenerateWall),
+        }
+        match spherical::wall_meet(x, y) {
+            Ok(point) => prop_assert!(point.is_finite(), "{point:?}"),
+            Err(error) => prop_assert_eq!(error.kind(), ErrorKind::DegenerateWall),
         }
         if let Some(point) = from_disk(position) {
             prop_assert!(point.is_finite() && point.z >= 1.0, "{point:?}");

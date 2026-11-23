@@ -1,8 +1,8 @@
 /// A specialized [`Result`](core::result::Result) whose error is [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// The reason why a vector is not a point of a geometry, or why two points
-/// span no wall.
+/// The reason why a vector is not a point of a geometry, why two points span
+/// no wall, or why two walls meet in no point.
 ///
 /// Match on [`Error::kind`] to tell the causes apart. The
 /// [`Display`](core::fmt::Display) text starts with `cannot `, names the
@@ -52,12 +52,19 @@ impl Error {
         }
     }
 
+    pub(crate) fn walls_do_not_meet() -> Self {
+        Self {
+            operation: "find point where two walls meet",
+            detail: Detail::WallsDoNotMeet,
+        }
+    }
+
     /// Returns the cause of the error as an [`ErrorKind`].
     #[must_use]
     pub fn kind(&self) -> ErrorKind {
         match self.detail {
             Detail::NotAPoint | Detail::NoLength => ErrorKind::NotAPoint,
-            Detail::DegenerateWall => ErrorKind::DegenerateWall,
+            Detail::DegenerateWall | Detail::WallsDoNotMeet => ErrorKind::DegenerateWall,
         }
     }
 }
@@ -87,10 +94,12 @@ pub enum ErrorKind {
     /// coordinate, and a vector whose form or dot product with itself
     /// underflows to zero or overflows to infinity.
     NotAPoint,
-    /// The two points span no wall, such as two equal points.
+    /// The two points span no wall, such as two equal points, or the two
+    /// walls meet in no point, such as two equal walls or two parallel lines.
     ///
     /// The hyperbolic plane, the Euclidean plane, and the sphere all report
-    /// this kind, and on the sphere it also covers two antipodal points.
+    /// this kind, and on the sphere it also covers two antipodal points and
+    /// two equal or opposite normals.
     /// It also covers two points so close that rounding leaves the squared
     /// length of the normal found from them not positive and finite, and a
     /// NaN or infinite coordinate. In the hyperbolic plane that squared length
@@ -106,6 +115,8 @@ enum Detail {
     NoLength,
     #[error("the points do not span a wall")]
     DegenerateWall,
+    #[error("the walls do not meet in a point")]
+    WallsDoNotMeet,
 }
 
 #[cfg(test)]
@@ -137,10 +148,19 @@ mod tests {
     }
 
     #[test]
+    fn display_of_walls_that_do_not_meet_names_the_operation_and_the_cause() {
+        assert_eq!(
+            Error::walls_do_not_meet().to_string(),
+            "cannot find point where two walls meet: the walls do not meet in a point",
+        );
+    }
+
+    #[test]
     fn kind_matches_each_constructor() {
         assert_eq!(Error::not_a_point().kind(), ErrorKind::NotAPoint);
         assert_eq!(Error::no_length().kind(), ErrorKind::NotAPoint);
         assert_eq!(Error::degenerate_wall().kind(), ErrorKind::DegenerateWall);
+        assert_eq!(Error::walls_do_not_meet().kind(), ErrorKind::DegenerateWall);
     }
 
     #[test]
@@ -148,5 +168,6 @@ mod tests {
         assert!(core::error::Error::source(&Error::not_a_point()).is_none());
         assert!(core::error::Error::source(&Error::no_length()).is_none());
         assert!(core::error::Error::source(&Error::degenerate_wall()).is_none());
+        assert!(core::error::Error::source(&Error::walls_do_not_meet()).is_none());
     }
 }

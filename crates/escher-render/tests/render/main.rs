@@ -3,7 +3,7 @@
 #[cfg(test)]
 use escher_render::{
     BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, Image, Masks, Paint, RenderOptions,
-    RenderOptionsBuilder, Renderer, Shading, encode_png,
+    RenderOptionsBuilder, Renderer, Shading, Wythoff, WythoffFill, encode_png,
 };
 
 #[cfg(test)]
@@ -26,3 +26,5 @@ mod masks;
 mod properties;
 #[cfg(test)]
 mod reference;
+#[cfg(test)]
+mod wythoff;

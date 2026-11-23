@@ -3,7 +3,7 @@ use core::f64::consts::FRAC_PI_2;
 use astro_float_num::BigFloat;
 use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, distance, form, from_disk, inverse, isometry_defect, normalize_point,
-    reflection, rotation, side, to_disk, translation, wall_distance, wall_through,
+    reflection, rotation, side, to_disk, translation, wall_distance, wall_meet, wall_through,
 };
 use escher_geometry::{euclidean, spherical};
 use glam::{DVec2, DVec3};
@@ -11,16 +11,16 @@ use glam::{DVec2, DVec3};
 use crate::common::{
     CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, Model, REFERENCE_CASES, Rng, SMALLEST_WALL_OFFSET,
     SPHERE_POLE_FLOOR, SPHERE_SEPARATION_FLOOR, SphereDomain, SphereFactor, Triangle, WallPoint,
-    pair, point_off_wall, polar_point, sphere_point_off_wall, table_points, table_vectors,
-    wall_normal,
+    great_circle_point, pair, point_off_wall, polar_point, sphere_point_off_wall, table_points,
+    table_vectors, wall_normal,
 };
 use crate::reference::{
     ReferenceExt, central_jacobian, complex, epsilon, euclidean_minimum_distance,
     euclidean_wall_distance, spherical_wall_sine,
 };
 use escher_reference::{
-    Reference, Vector, Worst, add, difference, div, dot, error, form as exact_form, int, max, mul,
-    num, scale, sqrt, squared_modulus, sub, unit, vector,
+    Reference, Vector, Worst, add, cross, difference, div, dot, error, form as exact_form, int,
+    max, mul, num, scale, sqrt, squared_modulus, sub, unit, vector,
 };
 
 const DISTANCE_SEPARATED_MINIMUM: usize = 8_000;
@@ -1598,4 +1598,130 @@ fn spherical_wall_distance_formula_is_the_distance_by_minimization() {
         record_minimum(&mut worst, &formula, &minimum, &input);
     }
     worst.assert_at_most(&mut reference, MINIMUM_DISTANCE_TOLERANCE);
+}
+
+const WALL_MEET_HYPERBOLIC_TOLERANCE: f64 = 8.0;
+const WALL_MEET_EUCLIDEAN_TOLERANCE: f64 = 8.0;
+const WALL_MEET_SPHERICAL_TOLERANCE: f64 = 8.0;
+
+fn euclidean_length(x: &Vector) -> BigFloat {
+    sqrt(&dot(x, x))
+}
+
+fn meeting_pair(rng: &mut Rng, covectors: [DVec3; 3]) -> (DVec3, DVec3) {
+    let [a, b, c] = covectors;
+    let pool = [a, b, c, a - b, b - c, c - a];
+    let first = usize::try_from(rng.choice(6)).unwrap_or(0);
+    let second = (first + 1 + usize::try_from(rng.choice(5)).unwrap_or(0)) % 6;
+    let factor = rng.uniform(0.5, 2.0);
+    (pool[first] * factor, pool[second] * rng.uniform(0.5, 2.0))
+}
+
+fn sides_worst(module: &str) -> Worst {
+    Worst::of_the_scale(
+        format!("{module} wall_meet, |c . x| scaled by eps * L * |c| * |x|"),
+        2 * REFERENCE_CASES,
+    )
+}
+
+fn norm_worst(module: &str) -> Worst {
+    Worst::of_the_scale(
+        format!("{module} wall_meet, each coordinate against the normalized result"),
+        3 * REFERENCE_CASES,
+    )
+}
+
+fn check_meet(
+    worst: &mut Worst,
+    meet: fn(DVec3, DVec3) -> escher_geometry::Result<DVec3>,
+    first: DVec3,
+    second: DVec3,
+) -> Option<DVec3> {
+    let (rc, re) = (big(first), big(second));
+    let across = euclidean_length(&cross(&rc, &re));
+    if across.is_zero() {
+        return None;
+    }
+    let Ok(x) = meet(first, second) else {
+        panic!("wall_meet rejects {first:?} {second:?}");
+    };
+    let rx = big(x);
+    let (length_c, length_e) = (euclidean_length(&rc), euclidean_length(&re));
+    let l = div(&mul(&length_c, &length_e), &across);
+    let length_x = euclidean_length(&rx);
+    for (covector, length) in [(&rc, &length_c), (&re, &length_e)] {
+        let scale = mul(&mul(&epsilon(), &l), &mul(length, &length_x));
+        worst.record(&dot(covector, &rx).abs(), &scale, || {
+            format!("{first:?} {second:?} gives {x:?}")
+        });
+    }
+    Some(x)
+}
+
+#[test]
+fn hyperbolic_walls_meet_within_their_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let (mut sides, mut norm) = (sides_worst("hyperbolic"), norm_worst("hyperbolic"));
+    let mut rng = Rng::new(60);
+    for _ in 0..REFERENCE_CASES {
+        let move_to = translation(rng.point_within(10.0));
+        let covectors = [0, 1, 2].map(|_| {
+            let angle = rng.angle();
+            covector(move_to * DVec3::new(angle.cos(), angle.sin(), 0.0))
+        });
+        let (first, second) = meeting_pair(&mut rng, covectors);
+        if let Some(x) = check_meet(&mut sides, wall_meet, first, second) {
+            let rx = big(x);
+            let q = exact_form(&rx, &rx).neg();
+            let exact = scale(&div(&int(1), &sqrt(&q)), &rx);
+            let kappa = div(&mul(&rx[2], &rx[2]), &q);
+            let bound = mul(&mul(&epsilon(), &kappa), &exact[2]);
+            for (value, exact) in x.to_array().into_iter().zip(&exact) {
+                norm.record(&error(value, exact), &bound, || format!("{x:?}"));
+            }
+        }
+    }
+    sides.assert_at_most(&mut reference, WALL_MEET_HYPERBOLIC_TOLERANCE);
+    norm.assert_at_most(&mut reference, 16.0);
+}
+
+#[test]
+fn euclidean_walls_meet_within_their_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut sides = sides_worst("euclidean");
+    let mut rng = Rng::new(61);
+    for _ in 0..REFERENCE_CASES {
+        let point = rng.euclidean_point_within(EUCLIDEAN_RADIUS);
+        let covectors = [0, 1, 2].map(|_| {
+            let angle = rng.angle();
+            let (cos, sin) = (angle.cos(), angle.sin());
+            DVec3::new(cos, sin, -(cos * point.x + sin * point.y))
+        });
+        let (first, second) = meeting_pair(&mut rng, covectors);
+        if let Some(x) = check_meet(&mut sides, euclidean::wall_meet, first, second) {
+            assert_eq!(x.z.to_bits(), 1.0_f64.to_bits(), "{x:?}");
+        }
+    }
+    sides.assert_at_most(&mut reference, WALL_MEET_EUCLIDEAN_TOLERANCE);
+}
+
+#[test]
+fn spherical_walls_meet_within_their_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let (mut sides, mut norm) = (sides_worst("spherical"), norm_worst("spherical"));
+    let mut rng = Rng::new(62);
+    for _ in 0..REFERENCE_CASES {
+        let point = rng.sphere_point();
+        let covectors = [0, 1, 2].map(|_| great_circle_point(point, rng.angle()));
+        let (first, second) = meeting_pair(&mut rng, covectors);
+        if let Some(x) = check_meet(&mut sides, spherical::wall_meet, first, second) {
+            let rx = big(x);
+            let exact = unit(&rx);
+            for (value, exact) in x.to_array().into_iter().zip(&exact) {
+                norm.record(&error(value, exact), &epsilon(), || format!("{x:?}"));
+            }
+        }
+    }
+    sides.assert_at_most(&mut reference, WALL_MEET_SPHERICAL_TOLERANCE);
+    norm.assert_at_most(&mut reference, SPHERE_NORMALIZE_TOLERANCE);
 }

@@ -10,6 +10,7 @@ use crate::image::{Image, Placement, sample};
 use crate::mask::MaskMap;
 use crate::options::{BorderUnit, RenderOptions, Shading};
 use crate::view::{Lift, View};
+use crate::wythoff::WythoffFill;
 
 /// Renders the tiling of a fundamental domain into 8-bit sRGB pixels, in the
 /// Poincare disk or another hyperbolic model for a hyperbolic domain, in the
@@ -165,17 +166,23 @@ impl Renderer {
     /// presentation, such as the same signature with other shape parameters,
     /// is accepted. Returns the same kind for a coset fill with an image paint
     /// when the domain has no flat polygon, as
-    /// [`Masks::new`](crate::Masks::new) states. Every other fill gives no
-    /// error.
+    /// [`Masks::new`](crate::Masks::new) states, and for a
+    /// [`Fill::Wythoff`] whose construction was built for a domain with other
+    /// walls than this one. Every other fill gives no error.
     pub fn new(domain: &FundamentalDomain, options: RenderOptions) -> Result<Self> {
         if let Fill::Cosets(fill) = &options.fill
             && domain.side_presentation().ok().as_ref() != Some(fill.presentation())
         {
             return Err(Error::other_presentation());
         }
+        if let Fill::Wythoff(fill) = &options.fill
+            && !fill.wythoff().fits(domain)
+        {
+            return Err(Error::other_domain());
+        }
         let textures = match &options.fill {
             Fill::Cosets(fill) => Textures::of(fill, domain)?,
-            Fill::One(_) | Fill::Parity(_) => None,
+            Fill::One(_) | Fill::Parity(_) | Fill::Wythoff(_) => None,
         };
         let walls = domain.sides().iter().map(|&side| Wall::new(side)).collect();
         Ok(Self {
@@ -276,7 +283,7 @@ impl Renderer {
                 sides.clear();
                 self.fold(&lift, |side| sides.push(side_byte(side)))
             }
-            Fill::One(_) | Fill::Parity(_) => self.fold(&lift, |_| {}),
+            Fill::One(_) | Fill::Parity(_) | Fill::Wythoff(_) => self.fold(&lift, |_| {}),
         };
         stats.folds = stats.folds.saturating_add(u64::from(result.steps()));
         stats.largest_fold = stats.largest_fold.max(result.steps());
@@ -304,7 +311,11 @@ impl Renderer {
     }
 
     fn converged_colour(&self, result: Fold, tangents: [DVec3; 2], sides: &[u8]) -> Colour {
-        if self.border_sample(result.point(), tangents) {
+        if let Fill::Wythoff(fill) = &self.options.fill {
+            return self.face_colour(fill, result.point(), tangents);
+        }
+        let walls = self.walls.iter().map(Wall::covector);
+        if self.border(walls, result.point(), tangents) {
             return self.options.border_colour;
         }
         match &self.options.fill {
@@ -320,6 +331,17 @@ impl Renderer {
                 (_, Paint::Solid(colour)) => *colour,
                 (coset, Paint::Image(image)) => self.texture(coset, image, result.point()),
             },
+            Fill::Wythoff(fill) => self.face_colour(fill, result.point(), tangents),
+        }
+    }
+
+    fn face_colour(&self, fill: &WythoffFill, point: DVec3, tangents: [DVec3; 2]) -> Colour {
+        let wythoff = fill.wythoff();
+        let face = wythoff.face_of(point);
+        if self.border(wythoff.perpendiculars_of(face), point, tangents) {
+            self.options.border_colour
+        } else {
+            fill.colour(face)
         }
     }
 
@@ -353,13 +375,18 @@ impl Renderer {
             })
     }
 
-    fn border_sample(&self, point: DVec3, tangents: [DVec3; 2]) -> bool {
+    fn border(
+        &self,
+        covectors: impl IntoIterator<Item = DVec3>,
+        point: DVec3,
+        tangents: [DVec3; 2],
+    ) -> bool {
         match self.border {
-            Border::Pixels { half_width } => on_border(&self.walls, point, tangents, half_width),
+            Border::Pixels { half_width } => on_border(covectors, point, tangents, half_width),
             Border::Intrinsic {
                 half_width,
                 distance,
-            } => on_intrinsic_border(&self.walls, point, half_width, distance),
+            } => on_intrinsic_border(covectors, point, half_width, distance),
         }
     }
 }
@@ -397,9 +424,13 @@ fn shade(colour: [f64; 3], normal: DVec3, light: DVec3) -> [f64; 3] {
     clippy::neg_cmp_op_on_partial_ord,
     reason = "the negated comparison is true when a quantity is NaN, which must give a border sample"
 )]
-fn on_border(walls: &[Wall], point: DVec3, tangents: [DVec3; 2], half_width: f64) -> bool {
-    walls.iter().any(|wall| {
-        let covector = wall.covector();
+fn on_border(
+    covectors: impl IntoIterator<Item = DVec3>,
+    point: DVec3,
+    tangents: [DVec3; 2],
+    half_width: f64,
+) -> bool {
+    covectors.into_iter().any(|covector| {
         let value = covector.dot(point);
         let [first, second] = tangents.map(|tangent| covector.dot(tangent));
         let gradient = (first * first + second * second).sqrt();
@@ -412,14 +443,14 @@ fn on_border(walls: &[Wall], point: DVec3, tangents: [DVec3; 2], half_width: f64
     reason = "the negated comparison is true when a distance is NaN, which must give a border sample"
 )]
 fn on_intrinsic_border(
-    walls: &[Wall],
+    covectors: impl IntoIterator<Item = DVec3>,
     point: DVec3,
     half_width: f64,
     distance: fn(DVec3, DVec3) -> f64,
 ) -> bool {
-    walls
-        .iter()
-        .any(|wall| !(distance(wall.covector(), point) >= half_width))
+    covectors
+        .into_iter()
+        .any(|covector| !(distance(covector, point) >= half_width))
 }
 
 fn length(bytes: u64) -> usize {
@@ -603,21 +634,26 @@ mod tests {
             .collect::<Vec<_>>();
         let tangents = [DVec3::X, DVec3::Y];
         let inside = DVec3::Z;
-        assert!(!on_border(&walls, inside, tangents, 0.0));
+        assert!(!on_border(
+            walls.iter().map(Wall::covector),
+            inside,
+            tangents,
+            0.0
+        ));
         assert!(on_border(
-            &walls,
+            walls.iter().map(Wall::covector),
             DVec3::new(f64::NAN, 0.0, 1.0),
             tangents,
             0.0
         ));
         assert!(on_border(
-            &walls,
+            walls.iter().map(Wall::covector),
             inside,
             [DVec3::splat(f64::NAN), DVec3::Y],
             0.0
         ));
         assert!(on_border(
-            &walls,
+            walls.iter().map(Wall::covector),
             inside,
             [DVec3::splat(f64::INFINITY), DVec3::Y],
             0.0
@@ -633,13 +669,13 @@ mod tests {
         )];
         let point = DVec3::new(0.25, 0.0, 1.0);
         assert!(!on_intrinsic_border(
-            &walls,
+            walls.iter().map(Wall::covector),
             point,
             0.25,
             euclidean::wall_distance
         ));
         assert!(on_intrinsic_border(
-            &walls,
+            walls.iter().map(Wall::covector),
             point,
             0.25_f64.next_up(),
             euclidean::wall_distance
@@ -651,7 +687,7 @@ mod tests {
         ];
         for distance in distances {
             assert!(on_intrinsic_border(
-                &walls,
+                walls.iter().map(Wall::covector),
                 DVec3::new(f64::NAN, 0.0, 1.0),
                 0.0,
                 distance
@@ -722,8 +758,12 @@ mod tests {
                     skipped += 1;
                     continue;
                 }
-                let border =
-                    on_intrinsic_border(&walls, lift.point, HALF_WIDTH, hyperbolic::wall_distance);
+                let border = on_intrinsic_border(
+                    walls.iter().map(Wall::covector),
+                    lift.point,
+                    HALF_WIDTH,
+                    hyperbolic::wall_distance,
+                );
                 assert_eq!(
                     border,
                     ratio < threshold,
@@ -770,7 +810,8 @@ mod tests {
                 result.converged(),
                 "the screen position {position:?} does not converge"
             );
-            renderer.border_sample(result.point(), tangents)
+            let walls = renderer.walls.iter().map(Wall::covector);
+            renderer.border(walls, result.point(), tangents)
         };
         let disk = renderer_in(HyperbolicModel::Disk);
         let models: Vec<_> = MODEL_MAPS
@@ -1041,8 +1082,12 @@ mod tests {
                         );
                     }
                     for (count, half_width) in differing.iter_mut().zip(HALF_WIDTHS) {
-                        if on_border(&walls, result.point(), tangents, half_width)
-                            != (exact < half_width)
+                        if on_border(
+                            walls.iter().map(Wall::covector),
+                            result.point(),
+                            tangents,
+                            half_width,
+                        ) != (exact < half_width)
                         {
                             *count += 1;
                         }
@@ -1164,7 +1209,13 @@ mod tests {
                 );
             }
             for (count, half_width) in borders.differing.iter_mut().zip(PLANE_HALF_WIDTHS) {
-                if on_border(&walls, result.point(), tangents, half_width) != (exact < half_width) {
+                if on_border(
+                    walls.iter().map(Wall::covector),
+                    result.point(),
+                    tangents,
+                    half_width,
+                ) != (exact < half_width)
+                {
                     *count += 1;
                 }
             }
@@ -1613,7 +1664,12 @@ mod tests {
                             continue;
                         }
                         tested[slot] += 1;
-                        let gradient = on_border(walls, result.point(), tangents, half_width);
+                        let gradient = on_border(
+                            walls.iter().map(Wall::covector),
+                            result.point(),
+                            tangents,
+                            half_width,
+                        );
                         if slot == 0 && gradient {
                             border += 1;
                         }

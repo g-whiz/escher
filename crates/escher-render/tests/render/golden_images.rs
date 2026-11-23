@@ -6,10 +6,10 @@ use escher_group::{
 use escher_signature::{Geometry, Signature};
 use glam::{DMat2, DMat3, DVec2, DVec3};
 
-use crate::reference::{self, ExactMask, MaskRule, Measure, ReferenceExt, Wall};
+use crate::reference::{self, ExactMask, ExactWythoff, MaskRule, Measure, ReferenceExt, Wall};
 use crate::{
     BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, Image, Masks, Paint, RenderOptions,
-    RenderOptionsBuilder, Renderer, Shading, encode_png,
+    RenderOptionsBuilder, Renderer, Shading, Wythoff, WythoffFill, encode_png,
 };
 use escher_reference::{Reference, matrix, vector};
 
@@ -372,6 +372,122 @@ pub(crate) const IMAGE_FILL_GOLDEN_IMAGES: [ImageFillGolden; 3] = [
         solid: &[],
     },
 ];
+
+pub(crate) struct WythoffGolden {
+    pub(crate) golden: GoldenImage,
+    pub(crate) marks: [bool; 3],
+}
+
+impl WythoffGolden {
+    pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
+        let fill = wythoff_fill(wythoff(domain, self.marks), &GOLDEN_COSET_FILL);
+        self.golden
+            .builder_with_fill(Fill::Wythoff(fill))
+            .build()
+            .unwrap_or_else(|error| {
+                panic!(
+                    "the golden options of {} are rejected: {error}",
+                    self.golden.file
+                )
+            })
+    }
+}
+
+pub(crate) const WYTHOFF_GOLDEN_IMAGES: [WythoffGolden; 3] = [
+    WythoffGolden {
+        golden: golden("*732", &[], "wy-7-3-2-010.png"),
+        marks: [false, true, false],
+    },
+    WythoffGolden {
+        golden: golden("*632", &[], "wy-6-3-2-111.png"),
+        marks: [true, true, true],
+    },
+    WythoffGolden {
+        golden: golden("*532", &[], "wy-5-3-2-110.png"),
+        marks: [true, true, false],
+    },
+];
+
+pub(crate) const WYTHOFF_DOMAINS: [&str; 17] = [
+    "*732", "*542", "*444", "*433", "*(12)32", "*(100)32", "*632", "*442", "*333", "*332", "*432",
+    "*532", "*222", "*322", "*522", "*(12)22", "*(100)22",
+];
+
+pub(crate) const MARKINGS: [[bool; 3]; 8] = [
+    [false, false, false],
+    [true, false, false],
+    [false, true, false],
+    [false, false, true],
+    [true, true, false],
+    [true, false, true],
+    [false, true, true],
+    [true, true, true],
+];
+
+pub(crate) fn signature_orders(text: &str) -> [u32; 3] {
+    let signature: Signature = text
+        .parse()
+        .unwrap_or_else(|error| panic!("{text:?} is rejected: {error}"));
+    let orders: Vec<u32> = signature
+        .boundaries()
+        .iter()
+        .flat_map(escher_signature::Boundary::corner_orders)
+        .filter_map(|order| order.finite())
+        .collect();
+    match orders[..] {
+        [first, second, third] => [first, second, third],
+        _ => panic!("{text} is not a reflection triangle"),
+    }
+}
+
+pub(crate) fn table_faces(orders: [u32; 3], marks: [bool; 3]) -> Vec<(usize, u32)> {
+    (0..3)
+        .filter_map(|corner| {
+            let on = [corner, (corner + 1) % 3]
+                .into_iter()
+                .filter(|&side| marks[(side + 1) % 3])
+                .count();
+            match (on, orders[corner]) {
+                (0, _) | (1, 2) => None,
+                (1, order) => Some((corner, order)),
+                (_, order) => Some((corner, 2 * order)),
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn marks_text(marks: [bool; 3]) -> String {
+    marks.iter().map(|&on| if on { '1' } else { '0' }).collect()
+}
+
+pub(crate) fn wythoff(domain: &FundamentalDomain, marks: [bool; 3]) -> Wythoff {
+    Wythoff::new(domain, marks)
+        .unwrap_or_else(|error| panic!("the marks {} are rejected: {error}", marks_text(marks)))
+}
+
+pub(crate) fn exact_wythoff(domain: &FundamentalDomain, marks: [bool; 3]) -> ExactWythoff {
+    let vertices = match domain.vertices() {
+        &[first, second, third] => [first, second, third].map(|vertex| vertex.to_array()),
+        vertices => panic!("a triangle has 3 vertices, not {}", vertices.len()),
+    };
+    ExactWythoff::new(
+        Measure::of(domain.geometry()),
+        &reference_walls(domain),
+        vertices,
+        domain.centre().to_array(),
+        marks,
+    )
+}
+
+pub(crate) fn wythoff_fill(wythoff: Wythoff, colours: &[[u8; 3]]) -> WythoffFill {
+    let colours = colours
+        .iter()
+        .take(usize::try_from(wythoff.face_types()).unwrap_or(usize::MAX))
+        .map(|&[red, green, blue]| Colour::from_srgb8(red, green, blue))
+        .collect();
+    WythoffFill::new(wythoff, colours)
+        .unwrap_or_else(|error| panic!("the Wythoff fill is rejected: {error}"))
+}
 
 pub(crate) fn masks(domain: &FundamentalDomain, colouring: &Colouring) -> Masks {
     Masks::new(domain, colouring)

@@ -22,10 +22,10 @@
 //! The types carry no proof of what they hold, so each function states its
 //! domain. Every function returns without a panic for every input. Outside
 //! its domain a function returns an unspecified value, except
-//! [`normalize_point`], [`wall_through`], [`from_disk`], and the three
-//! functions that map a model to the disk, which check their input. Only
-//! [`normalize_point`] and [`wall_through`] scale their result to unit
-//! length. Rounding moves a computed point off the hyperboloid, and the
+//! [`normalize_point`], [`wall_through`], [`wall_meet`], [`from_disk`], and
+//! the three functions that map a model to the disk, which check their input.
+//! Only [`normalize_point`], [`wall_through`], and [`wall_meet`] scale their
+//! result to unit length. Rounding moves a computed point off the hyperboloid, and the
 //! caller decides when to put it back with [`normalize_point`].
 
 use core::f64::consts::FRAC_PI_4;
@@ -275,6 +275,53 @@ pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3> {
     } else {
         Err(Error::degenerate_wall())
     }
+}
+
+/// Returns the point where two walls meet, from their covectors.
+///
+/// Use it to find the corner of two walls, such as the point of a side of a
+/// region that lies on another wall. The arguments are any two covectors at
+/// any scale, such as the [`covector`]s of two unit normals or the difference
+/// of two of them. The result `x` is a point of the hyperboloid with
+/// [`side`]`(first, x)` and `side(second, x)` equal to `0`, each up to
+/// rounding. It is the cross product of the covectors put onto the
+/// hyperboloid with [`normalize_point`], negated first when its last
+/// coordinate is not positive. The function gives no accuracy guarantee for
+/// two walls that are nearly the same wall, because the cross product of
+/// nearly parallel vectors loses most of its digits.
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::ErrorKind;
+/// use escher_geometry::hyperbolic::{boost, covector, rotation, side, wall_meet};
+/// use glam::DVec3;
+///
+/// let first = covector(DVec3::new(1.0, 0.0, 0.0));
+/// let second = covector(rotation(1.0) * boost(0.5) * DVec3::new(1.0, 0.0, 0.0));
+/// let point = wall_meet(first, second)?;
+/// assert!(side(first, point).abs() < 1e-15);
+/// assert!(side(second, point).abs() < 1e-15);
+///
+/// let same = wall_meet(first, -2.0 * first).map_err(|error| error.kind());
+/// assert_eq!(same, Err(ErrorKind::DegenerateWall));
+/// # Ok::<(), escher_geometry::Error>(())
+/// ```
+///
+/// # Errors
+///
+/// Returns an error of kind
+/// [`ErrorKind::DegenerateWall`](crate::ErrorKind::DegenerateWall) when
+/// neither the cross product nor its negation is a vector that
+/// [`normalize_point`] accepts. That happens for two equal walls, for two
+/// walls that do not meet in the hyperbolic plane, such as walls that meet
+/// only at infinity or beyond it, and for a NaN or infinite coordinate.
+pub fn wall_meet(first: DVec3, second: DVec3) -> Result<DVec3> {
+    let w = first.cross(second);
+    normalize_point(w)
+        .or_else(|_| normalize_point(-w))
+        .ok()
+        .ok_or_else(Error::walls_do_not_meet)
 }
 
 /// Returns the boost along the first axis by a length, an isometry that
@@ -694,7 +741,7 @@ mod tests {
     use super::{
         ORIGIN, boost, covector, disk_from_band, disk_from_half_plane, disk_from_klein, distance,
         from_disk, isometry_defect, normalize_point, rotation, to_disk, translation, wall_distance,
-        wall_through,
+        wall_meet, wall_through,
     };
     use crate::ErrorKind;
 
@@ -1166,6 +1213,51 @@ mod tests {
         ] {
             let result = wall_distance(DVec3::X, point);
             assert!(result.is_nan(), "{result} for {point:?}");
+        }
+    }
+
+    fn meet_kind(first: DVec3, second: DVec3) -> Option<ErrorKind> {
+        wall_meet(first, second).err().map(|error| error.kind())
+    }
+
+    #[test]
+    fn wall_meet_of_the_two_axes_is_the_origin_in_either_order() {
+        let (first, second) = (covector(DVec3::X), covector(DVec3::Y));
+        assert_eq!(wall_meet(first, second), Ok(ORIGIN));
+        assert_eq!(wall_meet(second, first), Ok(ORIGIN));
+    }
+
+    #[test]
+    fn wall_meet_rejects_two_equal_walls() {
+        let wall = covector(boost(0.5) * DVec3::X);
+        assert_eq!(meet_kind(wall, wall), Some(ErrorKind::DegenerateWall));
+        assert_eq!(
+            meet_kind(wall, -3.0 * wall),
+            Some(ErrorKind::DegenerateWall)
+        );
+    }
+
+    #[test]
+    fn wall_meet_rejects_two_walls_that_do_not_meet() {
+        let axis = covector(DVec3::X);
+        let far = covector(boost(2.0) * DVec3::X);
+        assert_eq!(meet_kind(axis, far), Some(ErrorKind::DegenerateWall));
+    }
+
+    #[test]
+    fn wall_meet_rejects_a_nan_or_infinite_coordinate() {
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for index in 0..3 {
+                let mut broken = DVec3::Y;
+                broken[index] = bad;
+                for (first, second) in [(broken, DVec3::X), (DVec3::X, broken)] {
+                    assert_eq!(
+                        meet_kind(first, second),
+                        Some(ErrorKind::DegenerateWall),
+                        "{first:?} {second:?}"
+                    );
+                }
+            }
         }
     }
 }

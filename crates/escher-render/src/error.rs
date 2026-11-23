@@ -8,8 +8,8 @@ use crate::options::{
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// The reason why an operation failed. The operations are building options,
-/// a coset fill, a renderer, or polygon masks, rendering rows or a mask, and
-/// encoding or decoding an image.
+/// a coset fill, a renderer, polygon masks, a Wythoff construction, or a
+/// Wythoff fill, rendering rows or a mask, and encoding or decoding an image.
 ///
 /// Match on [`Error::kind`] to tell the causes apart. The
 /// [`Display`](fmt::Display) text starts with `cannot `, names the operation
@@ -42,6 +42,8 @@ const ENCODE: &str = "encode image";
 pub(crate) const MASKS: &str = "build masks";
 pub(crate) const RENDER_MASK: &str = "render mask";
 pub(crate) const DECODE: &str = "decode image";
+const WYTHOFF: &str = "build Wythoff construction";
+const WYTHOFF_FILL: &str = "build Wythoff fill";
 
 impl Error {
     pub(crate) fn empty_size(width: u32, height: u32) -> Self {
@@ -185,6 +187,41 @@ impl Error {
         Self::decode(Detail::NotPng(source))
     }
 
+    pub(crate) fn not_triangle() -> Self {
+        Self {
+            operation: WYTHOFF,
+            detail: Detail::NotTriangle,
+        }
+    }
+
+    pub(crate) fn no_face() -> Self {
+        Self {
+            operation: WYTHOFF,
+            detail: Detail::NoFace,
+        }
+    }
+
+    pub(crate) fn degenerate(source: Option<escher_geometry::Error>) -> Self {
+        Self {
+            operation: WYTHOFF,
+            detail: Detail::Degenerate(source),
+        }
+    }
+
+    pub(crate) fn face_colour_count(needed: usize, given: usize) -> Self {
+        Self {
+            operation: WYTHOFF_FILL,
+            detail: Detail::FaceColourCount { needed, given },
+        }
+    }
+
+    pub(crate) fn other_domain() -> Self {
+        Self {
+            operation: RENDERER,
+            detail: Detail::OtherDomain,
+        }
+    }
+
     pub(crate) fn during(self, operation: &'static str) -> Self {
         Self { operation, ..self }
     }
@@ -218,7 +255,11 @@ impl Error {
             | Detail::ColourCount { .. }
             | Detail::OtherPresentation
             | Detail::NoMaskPolygon
-            | Detail::MaskColour { .. } => ErrorKind::InvalidOption,
+            | Detail::MaskColour { .. }
+            | Detail::NotTriangle
+            | Detail::NoFace
+            | Detail::FaceColourCount { .. }
+            | Detail::OtherDomain => ErrorKind::InvalidOption,
             Detail::LargeSide { .. }
             | Detail::ManyPixels { .. }
             | Detail::LargeGrid(_)
@@ -230,6 +271,7 @@ impl Error {
             }
             Detail::Encoding(_) => ErrorKind::Encoding,
             Detail::SixteenBits | Detail::Unreadable(_) | Detail::NotPng(_) => ErrorKind::Decoding,
+            Detail::Degenerate(_) => ErrorKind::Numerical,
         }
     }
 }
@@ -245,6 +287,7 @@ impl core::error::Error for Error {
         match &self.detail {
             Detail::Encoding(source) => Some(source),
             Detail::NoPresentation(source) => Some(source),
+            Detail::Degenerate(Some(source)) => Some(source),
             Detail::DecoderLimit(source) | Detail::Unreadable(source) | Detail::NotPng(source) => {
                 Some(source)
             }
@@ -267,7 +310,12 @@ impl core::error::Error for Error {
             | Detail::RowsOutside { .. }
             | Detail::WrongImage { .. }
             | Detail::MaskColour { .. }
-            | Detail::SixteenBits => None,
+            | Detail::SixteenBits
+            | Detail::NotTriangle
+            | Detail::NoFace
+            | Detail::Degenerate(None)
+            | Detail::FaceColourCount { .. }
+            | Detail::OtherDomain => None,
         }
     }
 }
@@ -293,8 +341,11 @@ pub enum ErrorKind {
     /// finite, a coset fill or polygon masks whose colouring does not fit the
     /// domain, a coset fill whose paints do not fit the colouring, a coset
     /// fill used with a domain of another side presentation, polygon masks or
-    /// an image fill for a domain without a mask polygon, or a mask of a
-    /// colour that the colouring does not have.
+    /// an image fill for a domain without a mask polygon, a mask of a colour
+    /// that the colouring does not have, a Wythoff construction on a domain
+    /// that is not a reflection triangle or with marks that give no face, or
+    /// a Wythoff fill with another number of colours than face types or used
+    /// with another domain.
     InvalidOption,
     /// An option or an image is larger than its limit, which bounds the
     /// memory and the time of a render, or the PNG decoder reached its memory
@@ -310,6 +361,13 @@ pub enum ErrorKind {
     /// PNG image, or has 16 bits per channel. When the PNG decoder reported
     /// the cause, [`source`](core::error::Error::source) returns its error.
     Decoding,
+    /// A point or a wall of a Wythoff construction cannot be computed, because
+    /// two walls do not meet or two points span no wall in floating-point
+    /// arithmetic, or a corner lies on a wall that bounds its face. No
+    /// construction that the crate accepts is known to give it, so it shows a
+    /// defect of the crate. When the cause is a failed computation of a point
+    /// or a wall, [`source`](core::error::Error::source) returns its error.
+    Numerical,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -379,6 +437,20 @@ enum Detail {
     Unreadable(png::DecodingError),
     #[error("the data is not a valid PNG image")]
     NotPng(png::DecodingError),
+    #[error("the domain is not a reflection triangle")]
+    NotTriangle,
+    #[error("the marks give no face")]
+    NoFace,
+    #[error("the construction is numerically degenerate")]
+    Degenerate(Option<escher_geometry::Error>),
+    #[error(
+        "the construction needs {}, and {given} {} given",
+        counted(*needed, "colour", "colours"),
+        if *given == 1 { "was" } else { "were" }
+    )]
+    FaceColourCount { needed: usize, given: usize },
+    #[error("the Wythoff fill was built for another domain")]
+    OtherDomain,
 }
 
 fn counted(count: usize, one: &str, many: &str) -> String {
@@ -400,7 +472,55 @@ mod tests {
         errors.extend(buffer_errors());
         errors.extend(mask_errors());
         errors.extend(decode_errors());
+        errors.extend(wythoff_errors());
         errors
+    }
+
+    fn geometry_error() -> escher_geometry::Error {
+        match escher_geometry::euclidean::wall_meet(glam::DVec3::X, glam::DVec3::X) {
+            Ok(point) => panic!("two equal lines meet at {point:?}"),
+            Err(error) => error,
+        }
+    }
+
+    fn wythoff_errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
+            (
+                Error::not_triangle(),
+                ErrorKind::InvalidOption,
+                "cannot build Wythoff construction: the domain is not a reflection triangle",
+            ),
+            (
+                Error::no_face(),
+                ErrorKind::InvalidOption,
+                "cannot build Wythoff construction: the marks give no face",
+            ),
+            (
+                Error::degenerate(None),
+                ErrorKind::Numerical,
+                "cannot build Wythoff construction: the construction is numerically degenerate",
+            ),
+            (
+                Error::degenerate(Some(geometry_error())),
+                ErrorKind::Numerical,
+                "cannot build Wythoff construction: the construction is numerically degenerate",
+            ),
+            (
+                Error::face_colour_count(3, 2),
+                ErrorKind::InvalidOption,
+                "cannot build Wythoff fill: the construction needs 3 colours, and 2 were given",
+            ),
+            (
+                Error::face_colour_count(1, 1),
+                ErrorKind::InvalidOption,
+                "cannot build Wythoff fill: the construction needs 1 colour, and 1 was given",
+            ),
+            (
+                Error::other_domain(),
+                ErrorKind::InvalidOption,
+                "cannot build renderer: the Wythoff fill was built for another domain",
+            ),
+        ]
     }
 
     fn mask_errors() -> Vec<(Error, ErrorKind, &'static str)> {
@@ -615,10 +735,11 @@ mod tests {
     }
 
     #[test]
-    fn display_of_each_cause_is_lower_case_apart_from_png_without_trailing_punctuation() {
+    fn display_of_each_cause_is_lower_case_apart_from_png_and_wythoff_without_trailing_punctuation()
+    {
         for (error, _, _) in errors() {
             let text = error.to_string();
-            let rest = text.replace("PNG", "");
+            let rest = text.replace("PNG", "").replace("Wythoff", "");
             assert_eq!(rest, rest.to_lowercase(), "{text}");
             assert!(!text.ends_with('.'), "{text}");
         }
@@ -639,10 +760,18 @@ mod tests {
                 assert_eq!(source, Some(png_error().to_string()), "{text}");
             } else if text.contains("PNG") || text.contains("cannot be read") {
                 assert_eq!(source, Some(decoding_error().to_string()), "{text}");
-            } else {
+            } else if kind != ErrorKind::Numerical {
                 assert_eq!(source, None, "{text}");
             }
         }
+    }
+
+    #[test]
+    fn a_numerical_failure_keeps_the_geometry_error_as_its_source_when_one_caused_it() {
+        let caused = Error::degenerate(Some(geometry_error()));
+        let source = core::error::Error::source(&caused).map(ToString::to_string);
+        assert_eq!(source, Some(geometry_error().to_string()));
+        assert!(core::error::Error::source(&Error::degenerate(None)).is_none());
     }
 
     #[test]

@@ -3,6 +3,7 @@ use escher_group::{Colouring, CosetTable, Presentation};
 
 use crate::error::{Error, Result};
 use crate::image::Image;
+use crate::wythoff::WythoffFill;
 
 /// An opaque colour, stored in linear light.
 ///
@@ -95,6 +96,10 @@ pub enum Fill {
     /// A tile takes the colour of its coset in the colouring of a
     /// [`CosetFill`].
     Cosets(CosetFill),
+    /// The faces of a Wythoff construction replace the tiles, and each face
+    /// takes the colour of its face type in a [`WythoffFill`]. The borders lie
+    /// on the edges of the faces and not on the sides of the domain.
+    Wythoff(WythoffFill),
 }
 
 /// The fill of one coset of a [`CosetFill`]: a solid colour or an image.

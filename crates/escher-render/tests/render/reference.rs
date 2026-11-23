@@ -744,6 +744,111 @@ impl ExactMask {
     }
 }
 
+pub(crate) struct ExactWythoff {
+    pub(crate) measure: Measure,
+    pub(crate) vertices: [Vector; 3],
+    pub(crate) generator: Vector,
+    pub(crate) perpendiculars: [Option<Vector>; 3],
+    pub(crate) feet: [Option<Vector>; 3],
+}
+
+impl ExactWythoff {
+    pub(crate) fn new(
+        measure: Measure,
+        walls: &[Wall],
+        vertices: [[f64; 3]; 3],
+        centre: [f64; 3],
+        marks: [bool; 3],
+    ) -> Self {
+        let centre = vector(centre);
+        let vertices = vertices.map(vector);
+        let covectors = [0, 1, 2].map(|side| walls[side].covector.clone());
+        let active = [0, 1, 2].map(|side| marks[(side + 1) % 3]);
+        let on_sphere = |point: Vector| oriented(measure, &centre, &point);
+        let generator = match active {
+            [true, false, false] => vertices[1].clone(),
+            [false, true, false] => vertices[2].clone(),
+            [false, false, true] => vertices[0].clone(),
+            [false, true, true] => on_sphere(cross(
+                &covectors[0],
+                &difference(&covectors[1], &covectors[2]),
+            )),
+            [true, false, true] => on_sphere(cross(
+                &covectors[1],
+                &difference(&covectors[2], &covectors[0]),
+            )),
+            [true, true, false] => on_sphere(cross(
+                &covectors[2],
+                &difference(&covectors[0], &covectors[1]),
+            )),
+            [true, true, true] => on_sphere(cross(
+                &difference(&covectors[0], &covectors[1]),
+                &difference(&covectors[1], &covectors[2]),
+            )),
+            [false, false, false] => panic!("every mark is off"),
+        };
+        let mut perpendiculars = [None, None, None];
+        let mut feet = [None, None, None];
+        for side in 0..3 {
+            if active[side] {
+                let image = apply(&walls[side].pairing, &generator);
+                let perpendicular = wall_covector(measure, &cross(&generator, &image));
+                feet[side] = Some(on_sphere(cross(&covectors[side], &perpendicular)));
+                perpendiculars[side] = Some(perpendicular);
+            }
+        }
+        Self {
+            measure,
+            vertices,
+            generator,
+            perpendiculars,
+            feet,
+        }
+    }
+
+    pub(crate) fn corner_holds(&self, corner: usize, point: &Vector) -> bool {
+        [corner, (corner + 1) % 3].into_iter().all(|side| {
+            self.perpendiculars[side]
+                .as_ref()
+                .is_none_or(|perpendicular| {
+                    let reference = dot(perpendicular, &self.vertices[corner]);
+                    let value = dot(perpendicular, point);
+                    !(mul(&reference, &value).is_negative())
+                })
+        })
+    }
+}
+
+fn oriented(measure: Measure, centre: &Vector, point: &Vector) -> Vector {
+    match measure {
+        Measure::Hyperbolic if point[2].is_negative() => normalize(&scale(&int(1).neg(), point)),
+        Measure::Hyperbolic => normalize(point),
+        Measure::Euclidean => scale(&div(&int(1), &point[2]), point),
+        Measure::Spherical if dot(point, centre).is_negative() => {
+            unit(&scale(&int(1).neg(), point))
+        }
+        Measure::Spherical => unit(point),
+    }
+}
+
+fn wall_covector(measure: Measure, covector: &Vector) -> Vector {
+    let squared = match measure {
+        Measure::Hyperbolic => sub(
+            &add(
+                &mul(&covector[0], &covector[0]),
+                &mul(&covector[1], &covector[1]),
+            ),
+            &mul(&covector[2], &covector[2]),
+        ),
+        Measure::Euclidean => add(
+            &mul(&covector[0], &covector[0]),
+            &mul(&covector[1], &covector[1]),
+        ),
+        Measure::Spherical => dot(covector, covector),
+    };
+    scale(&div(&int(1), &sqrt(&squared)), covector)
+}
+
 fn add_vectors(x: &Vector, y: &Vector) -> Vector {
     [0, 1, 2].map(|index| add(&x[index], &y[index]))
 }

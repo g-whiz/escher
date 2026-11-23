@@ -211,6 +211,50 @@ pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3> {
     }
 }
 
+/// Returns one of the two antipodal sphere points where two great circles
+/// meet, from their normals.
+///
+/// Use it to find the corner of two great circles, such as the point of a
+/// side of a region that lies on another great circle. The arguments are any
+/// two covectors at any scale, such as two great-circle normals or the
+/// difference of two of them. The result `x` is a sphere point with
+/// [`side`]`(first, x)` and `side(second, x)` equal to `0`, each up to
+/// rounding. It is the cross product of the covectors divided by its length,
+/// with [`normalize_point`]. The function does not choose between the result
+/// and its negation, the other point where the great circles meet. To choose
+/// the point on one side of a third great circle, negate the result when
+/// [`side`] of it has the wrong sign. The function gives no accuracy
+/// guarantee for two nearly equal or nearly opposite normals, because the
+/// cross product of nearly parallel vectors loses most of its digits.
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::ErrorKind;
+/// use escher_geometry::spherical::wall_meet;
+/// use glam::DVec3;
+///
+/// assert_eq!(wall_meet(DVec3::X, DVec3::Y)?, DVec3::Z);
+///
+/// let same = wall_meet(DVec3::X, -3.0 * DVec3::X).map_err(|error| error.kind());
+/// assert_eq!(same, Err(ErrorKind::DegenerateWall));
+/// # Ok::<(), escher_geometry::Error>(())
+/// ```
+///
+/// # Errors
+///
+/// Returns an error of kind
+/// [`ErrorKind::DegenerateWall`](crate::ErrorKind::DegenerateWall) when
+/// [`normalize_point`] rejects the cross product. That happens for two equal
+/// or opposite normals, and for any two normals that are multiples of each
+/// other, for a NaN or infinite coordinate, and for a cross product whose
+/// squared length underflows to zero or overflows to infinity.
+pub fn wall_meet(first: DVec3, second: DVec3) -> Result<DVec3> {
+    normalize_point(first.cross(second))
+        .ok()
+        .ok_or_else(Error::walls_do_not_meet)
+}
+
 /// Returns the rotation of the sphere that moves [`ORIGIN`] by an angle along
 /// the great circle through it and the point `(1, 0, 0)`, towards positive
 /// `x`.
@@ -408,7 +452,7 @@ mod tests {
 
     use super::{
         ORIGIN, boost, inverse, isometry_defect, normalize_point, reflection, rotation,
-        translation, wall_distance, wall_through,
+        translation, wall_distance, wall_meet, wall_through,
     };
     use crate::ErrorKind;
 
@@ -597,5 +641,31 @@ mod tests {
     fn wall_distance_of_an_infinite_covector_coordinate_is_the_arcsine_of_one() {
         let result = wall_distance(DVec3::new(f64::INFINITY, 0.0, 0.0), DVec3::X);
         assert_eq!(result, 1.0_f64.asin());
+    }
+
+    #[test]
+    fn wall_meet_of_two_great_circles_follows_the_order_of_its_arguments() {
+        assert_eq!(wall_meet(DVec3::X, DVec3::Y), Ok(ORIGIN));
+        assert_eq!(wall_meet(DVec3::Y, DVec3::X), Ok(-ORIGIN));
+    }
+
+    #[test]
+    fn wall_meet_rejects_equal_opposite_and_non_finite_normals() {
+        let normal = DVec3::new(0.48, -0.6, 0.64);
+        let mut pairs = vec![(normal, normal), (normal, -normal), (normal, 2.0 * normal)];
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for index in 0..3 {
+                let mut broken = DVec3::new(0.6, 0.0, 0.8);
+                broken[index] = bad;
+                pairs.extend([(broken, normal), (normal, broken)]);
+            }
+        }
+        for (first, second) in pairs {
+            assert_eq!(
+                wall_meet(first, second).map_err(|error| error.kind()),
+                Err(ErrorKind::DegenerateWall),
+                "{first:?} {second:?}"
+            );
+        }
     }
 }

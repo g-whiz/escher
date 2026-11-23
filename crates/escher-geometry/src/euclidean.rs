@@ -147,6 +147,49 @@ pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3> {
     }
 }
 
+/// Returns the Euclidean point where two lines meet, from their covectors.
+///
+/// Use it to find the corner of two lines, such as the point of a side of a
+/// polygon that lies on another line. The arguments are any two covectors at
+/// any scale, such as two line covectors or the difference of two of them.
+/// The result `x` is a Euclidean point with [`side`]`(first, x)` and
+/// `side(second, x)` equal to `0`, each up to rounding. It is the cross
+/// product of the covectors divided by its last coordinate.
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::ErrorKind;
+/// use escher_geometry::euclidean::wall_meet;
+/// use glam::DVec3;
+///
+/// let vertical = DVec3::new(1.0, 0.0, -2.0);
+/// let horizontal = DVec3::new(0.0, 1.0, -3.0);
+/// assert_eq!(wall_meet(vertical, horizontal)?, DVec3::new(2.0, 3.0, 1.0));
+///
+/// let parallel = wall_meet(vertical, DVec3::new(1.0, 0.0, 5.0)).map_err(|error| error.kind());
+/// assert_eq!(parallel, Err(ErrorKind::DegenerateWall));
+/// # Ok::<(), escher_geometry::Error>(())
+/// ```
+///
+/// # Errors
+///
+/// Returns an error of kind
+/// [`ErrorKind::DegenerateWall`](crate::ErrorKind::DegenerateWall) when the
+/// last coordinate of the cross product is `0`, as for two parallel or equal
+/// lines, or when the result is not finite, as for a NaN or infinite
+/// coordinate or for two lines so close to parallel that the division
+/// overflows.
+pub fn wall_meet(first: DVec3, second: DVec3) -> Result<DVec3> {
+    let w = first.cross(second);
+    let point = w / w.z;
+    if w.z != 0.0 && point.is_finite() {
+        Ok(point)
+    } else {
+        Err(Error::walls_do_not_meet())
+    }
+}
+
 /// Returns the reflection in the line of a line covector.
 ///
 /// Use it to build the mirror symmetry of a line, such as a side of a
@@ -305,7 +348,7 @@ mod tests {
 
     use super::{
         ORIGIN, distance, isometry_defect, reflection, rotation, translation, wall_distance,
-        wall_through,
+        wall_meet, wall_through,
     };
     use crate::ErrorKind;
 
@@ -494,5 +537,45 @@ mod tests {
         assert_eq!(along, f64::INFINITY);
         let across = wall_distance(DVec3::X, DVec3::new(0.0, f64::INFINITY, 1.0));
         assert!(across.is_nan(), "{across}");
+    }
+
+    #[test]
+    fn wall_meet_of_the_two_axes_is_the_origin_in_either_order() {
+        assert_eq!(wall_meet(DVec3::X, DVec3::Y), Ok(ORIGIN));
+        assert_eq!(wall_meet(DVec3::Y, DVec3::X), Ok(ORIGIN));
+    }
+
+    #[test]
+    fn wall_meet_rejects_parallel_and_equal_lines() {
+        let line = DVec3::new(0.6, 0.8, -2.0);
+        for other in [line, -2.0 * line, DVec3::new(0.6, 0.8, 5.0)] {
+            assert_eq!(
+                wall_meet(line, other).map_err(|error| error.kind()),
+                Err(ErrorKind::DegenerateWall),
+                "{other:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn wall_meet_rejects_a_nan_or_infinite_coordinate_and_an_overflow() {
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for index in 0..3 {
+                let mut broken = DVec3::Y;
+                broken[index] = bad;
+                for (first, second) in [(broken, DVec3::X), (DVec3::X, broken)] {
+                    assert_eq!(
+                        wall_meet(first, second).map_err(|error| error.kind()),
+                        Err(ErrorKind::DegenerateWall),
+                        "{first:?} {second:?}"
+                    );
+                }
+            }
+        }
+        let nearly_parallel = DVec3::new(1.0, 1e-300, 1e300);
+        assert_eq!(
+            wall_meet(DVec3::X, nearly_parallel).map_err(|error| error.kind()),
+            Err(ErrorKind::DegenerateWall)
+        );
     }
 }

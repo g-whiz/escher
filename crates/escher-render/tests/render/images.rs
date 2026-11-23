@@ -12,9 +12,9 @@ use crate::common::{
 use crate::golden_images::{
     ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
     GoldenImage, IMAGE_FILL_GOLDEN_IMAGES, MASK_GOLDEN_IMAGES, MODEL_MAPS, POLYGON_DOMAINS, Shape,
-    TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS, colouring, colourings_of, compare, coset_fill,
-    domain_with_aspect, domain_with_settings, golden_colouring, linear_table, renderer,
-    shifted_pairs, translation,
+    TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS, WYTHOFF_GOLDEN_IMAGES, colouring, colourings_of,
+    compare, coset_fill, domain_with_aspect, domain_with_settings, golden_colouring, linear_table,
+    renderer, shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -125,6 +125,11 @@ fn golden_images_match_the_committed_files() {
                 .map(|image| ((image.signature, image.file), image.pixels())),
         )
         .chain(IMAGE_FILL_GOLDEN_IMAGES.iter().map(|image| {
+            let domain = image.golden.domain();
+            let pixels = renderer(&domain, image.options(&domain)).render().0;
+            ((image.golden.signature, image.golden.file), pixels)
+        }))
+        .chain(WYTHOFF_GOLDEN_IMAGES.iter().map(|image| {
             let domain = image.golden.domain();
             let pixels = renderer(&domain, image.options(&domain)).render().0;
             ((image.golden.signature, image.golden.file), pixels)
