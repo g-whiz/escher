@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "refused_snapshot(\"wythoff_digon\", &[\"*522\", \"--wythoff\", \"100\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *522
+  caused by: cannot build Wythoff construction: the marks give no face
+--- end

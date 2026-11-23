@@ -1663,7 +1663,7 @@ RND-21. Withdrawn on 2026-11-19.
 | An image fill at a point that is the zero vector, has a coordinate that is not finite, or has a negative last coordinate, and at the centre $C$ itself | No panic. The background for the first three, and the image value at $C'$ for the centre |
 | `Wythoff::new` with the domains of `732`, `*2222`, `*22`, and `*3333`, and with every mark off on `*732` | `InvalidOption` with the texts `the domain is not a reflection triangle` and `the marks give no face` |
 | `Wythoff::new` on `*522` with only mark 0 on, and on `*222` with each single mark | `InvalidOption` with the text `the marks give no face` |
-| `WythoffFill::new` with 2 colours for a construction with 3 face types, and `Renderer::new` with the Wythoff fill of `*732` and the domain of `*742` | The kinds and texts of Section 7.2 |
+| `WythoffFill::new` with 2 colours for a construction with 3 face types, and `Renderer::new` with the Wythoff fill of `*732` on the domain of `*742`, on that of `*3333`, which has 4 sides, and on a second build of the domain of `*732` | The kinds and texts of Section 7.2, and no error for the second build of `*732` |
 
 ### 8.3. Reference Arithmetic
 

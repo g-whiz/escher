@@ -27,6 +27,9 @@ Options:
       --colours <COLOURS>
           The fill colours, separated by commas, one for each colour of the colouring, each as #rgb, #rrggbb, or image:FILE for a PNG image painted over the mask of that colour that render-masks writes. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,image:fill-1.png'
 
+      --wythoff <MARKS>
+          Draw the Wythoff construction of a reflection triangle instead of its tiles, as three digits, one for each corner of the signature in the order that info prints, where 1 turns on the mirror opposite that corner, such as 010 for the regular tiling {7,3} of *732. --colours then gives one colour for each face type, in the order of the corners
+
       --border-width <WIDTH>
           The border width, in the unit of --border-unit. 0 draws no border. The default is 1 for pixels and 0.05 for intrinsic
 

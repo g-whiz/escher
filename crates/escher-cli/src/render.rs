@@ -10,8 +10,8 @@ use escher_group::{
     ColouringId, ColouringSet, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index,
 };
 use escher_render::{
-    Colour, CosetFill, Fill, Image, Paint, RenderOptions, RenderStats, Renderer, Shading,
-    encode_png,
+    Colour, CosetFill, Fill, Image, Paint, RenderOptions, RenderStats, Renderer, Shading, Wythoff,
+    WythoffFill, encode_png,
 };
 use escher_signature::Signature;
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
@@ -76,22 +76,39 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
     let background = parse_colour(&args.background)
         .ok_or_else(|| cannot_render(task, "--background is not of the form #rgb or #rrggbb"))?;
     let domain = build_domain(task, &signature, &args.tiling.set)?;
-    let (colouring, found_parity) =
-        chosen_colouring(&domain, task, args.tiling.colouring, SearchBudget::DEFAULT)?;
-    let items = fill_items(colouring, args.colours.as_deref())
-        .map_err(|detail| cannot_render(task, detail))?;
-    let paints = read_paints(task, items)?;
+    let painting = if let Some(marks) = args.wythoff {
+        wythoff_painting(&domain, task, marks, args)?
+    } else {
+        let (colouring, found_parity) =
+            chosen_colouring(&domain, task, args.tiling.colouring, SearchBudget::DEFAULT)?;
+        let items = fill_items(colouring, args.colours.as_deref())
+            .map_err(|detail| cannot_render(task, detail))?;
+        Painting::Tiles {
+            colouring,
+            found_parity,
+            paints: read_paints(task, items)?,
+        }
+    };
     let options_with =
         |fill| render_options(args, fill, border_colour, background).with_context(|| task.failed());
     options_with(Fill::One(border_colour))?;
-    let fill = fill(
-        &domain,
-        task,
-        colouring,
-        found_parity,
-        paints,
-        SearchBudget::DEFAULT,
-    )?;
+    let fill = match painting {
+        Painting::Tiles {
+            colouring,
+            found_parity,
+            paints,
+        } => fill(
+            &domain,
+            task,
+            colouring,
+            found_parity,
+            paints,
+            SearchBudget::DEFAULT,
+        )?,
+        Painting::Wythoff { wythoff, colours } => {
+            Fill::Wythoff(WythoffFill::new(*wythoff, colours).with_context(|| task.failed())?)
+        }
+    };
     let options = options_with(fill)?;
     let threads = args.threads.map_or_else(default_threads, usize::from);
     let pool = rayon::ThreadPoolBuilder::new()
@@ -335,6 +352,37 @@ pub(crate) fn chosen_colouring(
 }
 
 #[derive(Debug)]
+enum Painting {
+    Tiles {
+        colouring: Colouring,
+        found_parity: Option<Parity>,
+        paints: Paints,
+    },
+    Wythoff {
+        wythoff: Box<Wythoff>,
+        colours: Vec<Colour>,
+    },
+}
+
+fn wythoff_painting(
+    domain: &FundamentalDomain,
+    task: Task<'_>,
+    marks: [bool; 3],
+    args: &RenderArgs,
+) -> anyhow::Result<Painting> {
+    if args.tiling.colouring.is_some() {
+        return Err(cannot_render(
+            task,
+            "--wythoff cannot be combined with --colouring",
+        ));
+    }
+    let wythoff = Box::new(Wythoff::new(domain, marks).with_context(|| task.failed())?);
+    let colours = face_colours(wythoff.face_types(), args.colours.as_deref())
+        .map_err(|detail| cannot_render(task, detail))?;
+    Ok(Painting::Wythoff { wythoff, colours })
+}
+
+#[derive(Debug)]
 enum Paints {
     Solid(Vec<Colour>),
     Images(Vec<Paint>),
@@ -522,15 +570,8 @@ enum Item<'a> {
 fn fill_items(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Item<'_>>, String> {
     let needed = colouring.colours();
     let Some(text) = colours else {
-        return usize::try_from(needed)
-            .ok()
-            .and_then(|needed| DEFAULT_COLOURS.get(..needed))
-            .map(|entries| {
-                entries
-                    .iter()
-                    .map(|&[red, green, blue]| Item::Colour(Colour::from_srgb8(red, green, blue)))
-                    .collect()
-            })
+        return default_colours(needed)
+            .map(|colours| colours.into_iter().map(Item::Colour).collect())
             .ok_or_else(|| {
                 format!(
                     "the colouring {colouring} needs {needed} colours, more than the {} default colours, so give {needed} colours with --colours",
@@ -538,19 +579,53 @@ fn fill_items(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Item<'_
                 )
             });
     };
-    let items: Vec<&str> = text.split(',').collect();
-    if u64::try_from(items.len()).ok() != Some(u64::from(needed)) {
-        return Err(format!(
-            "the colouring {colouring} needs {}, and {} given",
-            count_of_colours(u64::from(needed)),
-            given(items.len())
-        ));
-    }
-    items
+    counted_items(text, needed, format_args!("the colouring {colouring}"))?
         .iter()
         .enumerate()
         .map(|(position, item)| fill_item(position + 1, item))
         .collect()
+}
+
+fn face_colours(face_types: u32, colours: Option<&str>) -> Result<Vec<Colour>, String> {
+    let Some(text) = colours else {
+        return default_colours(face_types).ok_or_else(|| {
+            format!("internal error: the Wythoff construction has {face_types} face types")
+        });
+    };
+    counted_items(text, face_types, "the Wythoff construction")?
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            parse_colour(item).ok_or_else(|| {
+                format!(
+                    "colour {} of --colours is not of the form #rgb or #rrggbb",
+                    index + 1
+                )
+            })
+        })
+        .collect()
+}
+
+fn default_colours(needed: u32) -> Option<Vec<Colour>> {
+    let entries = DEFAULT_COLOURS.get(..usize::try_from(needed).ok()?)?;
+    Some(
+        entries
+            .iter()
+            .map(|&[red, green, blue]| Colour::from_srgb8(red, green, blue))
+            .collect(),
+    )
+}
+
+fn counted_items(text: &str, needed: u32, subject: impl Display) -> Result<Vec<&str>, String> {
+    let items: Vec<&str> = text.split(',').collect();
+    if u64::try_from(items.len()).ok() != Some(u64::from(needed)) {
+        return Err(format!(
+            "{subject} needs {}, and {} given",
+            count_of_colours(u64::from(needed)),
+            given(items.len())
+        ));
+    }
+    Ok(items)
 }
 
 fn fill_item(position: usize, text: &str) -> Result<Item<'_>, String> {
@@ -717,8 +792,8 @@ mod tests {
 
     use super::{
         DEFAULT_COLOURS, Item, Paints, Parity, Task, chosen_colouring, coset_colouring, coset_fill,
-        decode_image, fill, fill_item, fill_items, missing_text, parse_colour, resolve,
-        setting_text, shape_parameters, statistics_text, thread_pool_error,
+        decode_image, face_colours, fill, fill_item, fill_items, missing_text, parse_colour,
+        resolve, setting_text, shape_parameters, statistics_text, thread_pool_error,
     };
     use crate::Status;
     use crate::args::{Colouring, Setting};
@@ -821,6 +896,30 @@ mod tests {
         assert_eq!(
             fill_colours(Colouring::Parity, Some("#e9c")),
             Err("the colouring parity needs 2 colours, and 1 was given".to_owned())
+        );
+    }
+
+    #[test]
+    fn face_colours_count_the_face_types_in_words() {
+        assert_eq!(
+            face_colours(1, Some("#e9c,#2a9")),
+            Err("the Wythoff construction needs 1 colour, and 2 were given".to_owned())
+        );
+        assert_eq!(
+            face_colours(2, Some("#e9c")),
+            Err("the Wythoff construction needs 2 colours, and 1 was given".to_owned())
+        );
+    }
+
+    #[test]
+    fn face_colours_read_the_colours_in_order_and_no_image_item() {
+        assert_eq!(
+            face_colours(2, Some("#000,#fff")),
+            Ok(vec![Colour::BLACK, Colour::WHITE])
+        );
+        assert_eq!(
+            face_colours(2, Some("#000,image:fill.png")),
+            Err("colour 2 of --colours is not of the form #rgb or #rrggbb".to_owned())
         );
     }
 

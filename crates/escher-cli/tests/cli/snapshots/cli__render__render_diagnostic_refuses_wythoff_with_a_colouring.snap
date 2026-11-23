@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "refused_snapshot(\"wythoff_colouring\",\n&[\"*732\", \"--wythoff\", \"010\", \"--colouring\", \"parity\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: --wythoff cannot be combined with --colouring
+--- end

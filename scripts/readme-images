@@ -41,6 +41,8 @@ escher render '*642' --colouring 4a --colours '#dc143c,#ffd700,#000080,#2e8b57' 
 escher render-masks '*642' --colouring 4a -o mask.png
 escher render '*642' --colouring 4a --colours 'image:mask-0.png,image:mask-1.png,image:mask-2.png,image:mask-3.png' -o masked.png
 rm mask-1.png mask-2.png mask-3.png
+escher render '*732' --wythoff 010 -o heptagons.png
+escher render '*632' --wythoff 111 -o dodecagons.png
 escher render '*2222' --set aspect=1.618 -o rectangles.png
 escher render '*3333' --set slice1.length=2.5 -o polygon.png
 escher render '*532' --rotation 20,35,0 -o ball.png

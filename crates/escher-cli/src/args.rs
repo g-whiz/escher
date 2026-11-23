@@ -12,7 +12,7 @@ const SIZE_HELP: &str = "The image size in pixels, as WIDTHxHEIGHT";
 
 const COLOURING_HELP: &str = "One colour for every tile, parity for the colouring with two colours in which no two neighbouring tiles share a colour, or the id of a colouring that the command info --colourings lists, such as 4a. The default is parity when the tiling has it, and one otherwise";
 
-const SET_DISPLAY_ORDER: usize = 13;
+const SET_DISPLAY_ORDER: usize = 14;
 
 const SET_HELP: &str = "Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature";
 
@@ -159,6 +159,13 @@ pub(crate) struct RenderArgs {
         help = "The fill colours, separated by commas, one for each colour of the colouring, each as #rgb, #rrggbb, or image:FILE for a PNG image painted over the mask of that colour that render-masks writes. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,image:fill-1.png'"
     )]
     pub(crate) colours: Option<String>,
+    #[arg(
+        long,
+        value_name = "MARKS",
+        value_parser = parse_wythoff,
+        help = "Draw the Wythoff construction of a reflection triangle instead of its tiles, as three digits, one for each corner of the signature in the order that info prints, where 1 turns on the mirror opposite that corner, such as 010 for the regular tiling {7,3} of *732. --colours then gives one colour for each face type, in the order of the corners"
+    )]
+    pub(crate) wythoff: Option<[bool; 3]>,
     #[arg(
         long,
         value_name = "WIDTH",
@@ -368,6 +375,20 @@ fn parse_colouring(text: &str) -> Result<Colouring, &'static str> {
     }
 }
 
+fn parse_wythoff(text: &str) -> Result<[bool; 3], &'static str> {
+    let mark = |byte: &u8| match byte {
+        b'0' => Some(false),
+        b'1' => Some(true),
+        _ => None,
+    };
+    text.as_bytes()
+        .iter()
+        .map(mark)
+        .collect::<Option<Vec<bool>>>()
+        .and_then(|marks| <[bool; 3]>::try_from(marks).ok())
+        .ok_or("expected three digits 0 or 1, such as 010")
+}
+
 fn parse_max_colours(text: &str) -> Result<IndexLimit, String> {
     decimal(text)
         .and_then(|colours| IndexLimit::new(colours).ok())
@@ -412,7 +433,7 @@ mod tests {
 
     use super::{
         BorderUnitChoice, Colouring, ModelChoice, SET_LONG_HELP, Setting, parse_colouring,
-        parse_max_colours, parse_setting, parse_triple,
+        parse_max_colours, parse_setting, parse_triple, parse_wythoff,
     };
 
     #[test]
@@ -652,6 +673,35 @@ mod tests {
             "1,2", "a,b,c", "1,2,3,4", "1,,2", "", " 1,2,3", "1,2,3 ", "1, 2,3",
         ] {
             assert_eq!(parse_triple(text), Err(TRIPLE_MESSAGE), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn parse_wythoff_reads_one_mark_for_each_digit_in_order() {
+        assert_eq!(parse_wythoff("000"), Ok([false, false, false]));
+        assert_eq!(parse_wythoff("111"), Ok([true, true, true]));
+        assert_eq!(parse_wythoff("010"), Ok([false, true, false]));
+        assert_eq!(parse_wythoff("110"), Ok([true, true, false]));
+    }
+
+    #[test]
+    fn parse_wythoff_rejects_other_forms() {
+        for text in [
+            "01",
+            "0101",
+            "0a1",
+            "0,1,0",
+            "",
+            " 010",
+            "010 ",
+            "012",
+            "\u{663}10",
+        ] {
+            assert_eq!(
+                parse_wythoff(text),
+                Err("expected three digits 0 or 1, such as 010"),
+                "{text:?}"
+            );
         }
     }
 }

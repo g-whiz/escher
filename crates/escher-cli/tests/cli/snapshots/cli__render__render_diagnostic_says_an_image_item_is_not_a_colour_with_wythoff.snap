@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "refused_snapshot(\"wythoff_image_item\",\n&[\"*732\", \"--wythoff\", \"010\", \"--colours\", \"image:fill.png\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: colour 1 of --colours is not of the form #rgb or #rrggbb
+--- end

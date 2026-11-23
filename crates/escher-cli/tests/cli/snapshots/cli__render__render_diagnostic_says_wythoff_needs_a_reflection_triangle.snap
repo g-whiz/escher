@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "refused_snapshot(\"wythoff_rotation_triangle\", &[\"732\", \"--wythoff\", \"010\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 732
+  caused by: cannot build Wythoff construction: the domain is not a reflection triangle
+--- end

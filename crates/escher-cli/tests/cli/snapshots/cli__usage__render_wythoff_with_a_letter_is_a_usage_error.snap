@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", NEVER_WRITTEN, \"--wythoff\", \"0a1\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value '0a1' for '--wythoff <MARKS>': expected three digits 0 or 1, such as 010
+
+For more information, try '--help'.
+--- end

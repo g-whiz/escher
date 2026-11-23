@@ -476,6 +476,30 @@ fn render_unknown_model_is_a_usage_error() {
 }
 
 #[test]
+fn render_wythoff_with_two_digits_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--wythoff",
+        "01"
+    ]));
+}
+
+#[test]
+fn render_wythoff_with_a_letter_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "-o",
+        NEVER_WRITTEN,
+        "--wythoff",
+        "0a1"
+    ]));
+}
+
+#[test]
 fn render_unknown_border_unit_is_a_usage_error() {
     insta::assert_snapshot!(snapshot(&[
         "render",

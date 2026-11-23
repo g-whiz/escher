@@ -9,7 +9,7 @@ use crate::colour::Colour;
 use crate::error::{Error, Result};
 
 /// The Wythoff construction of a reflection triangle for one set of marks,
-/// which turns the tiling by triangles into a tiling by regular polygons.
+/// which turns the tiling by triangles into a tiling by faces.
 ///
 /// Build it with [`Wythoff::new`], then give each face type a colour with
 /// [`WythoffFill::new`]. Corner `k` of the triangle is vertex `k` of the
@@ -192,10 +192,7 @@ impl Wythoff {
             [false, true, true] => plane.meet(covectors[0], covectors[1] - covectors[2])?,
             [true, false, true] => plane.meet(covectors[1], covectors[2] - covectors[0])?,
             [true, true, false] => plane.meet(covectors[2], covectors[0] - covectors[1])?,
-            [true, true, true] => {
-                plane.meet(covectors[0] - covectors[1], covectors[1] - covectors[2])?
-            }
-            [false, false, false] => return Err(Error::no_face()),
+            _ => plane.meet(covectors[0] - covectors[1], covectors[1] - covectors[2])?,
         };
         let mut perpendiculars = [None; 3];
         let mut feet = [None; 3];
@@ -629,21 +626,23 @@ mod tests {
         worst.assert_at_most(&mut reference, GENERATOR_TOLERANCE);
     }
 
-    fn point_on_segment(measure: Measure, from: DVec3, to: DVec3, fraction: f64) -> DVec3 {
-        let point = from * (1.0 - fraction) + to * fraction;
-        match measure {
-            Measure::Euclidean => point / point.z,
-            Measure::Hyperbolic | Measure::Spherical => point,
+    fn point_on_segment(geometry: Geometry, from: DVec3, to: DVec3, fraction: f64) -> DVec3 {
+        in_plane(geometry, from * (1.0 - fraction) + to * fraction)
+    }
+
+    fn in_plane(geometry: Geometry, point: DVec3) -> DVec3 {
+        match geometry {
+            Geometry::Euclidean => point / point.z,
+            Geometry::Hyperbolic | Geometry::Spherical => point,
         }
     }
 
     #[test]
     fn the_point_a_tenth_of_the_way_from_a_corner_to_the_generator_point_takes_its_face() {
         for (name, domain, _, wythoff) in constructions() {
-            let measure = Measure::of(domain.geometry());
             for (index, face) in wythoff.faces.iter().enumerate() {
                 let vertex = domain.vertices()[face.corner];
-                let point = point_on_segment(measure, vertex, wythoff.generator, 0.1);
+                let point = point_on_segment(domain.geometry(), vertex, wythoff.generator, 0.1);
                 assert_eq!(
                     wythoff.face_of(point),
                     index,
@@ -733,10 +732,7 @@ mod tests {
             .iter()
             .zip(weights)
             .fold(DVec3::ZERO, |sum, (&vertex, weight)| sum + vertex * weight);
-        match domain.geometry() {
-            Geometry::Euclidean => point / point.z,
-            Geometry::Hyperbolic | Geometry::Spherical => point,
-        }
+        in_plane(domain.geometry(), point)
     }
 
     fn assert_face_region(

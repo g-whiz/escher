@@ -311,14 +311,13 @@ impl Renderer {
     }
 
     fn converged_colour(&self, result: Fold, tangents: [DVec3; 2], sides: &[u8]) -> Colour {
-        if let Fill::Wythoff(fill) = &self.options.fill {
-            return self.face_colour(fill, result.point(), tangents);
-        }
-        let walls = self.walls.iter().map(Wall::covector);
-        if self.border(walls, result.point(), tangents) {
-            return self.options.border_colour;
-        }
         match &self.options.fill {
+            Fill::Wythoff(fill) => self.face_colour(fill, result.point(), tangents),
+            Fill::One(_) | Fill::Parity(_) | Fill::Cosets(_)
+                if self.side_border(result.point(), tangents) =>
+            {
+                self.options.border_colour
+            }
             Fill::One(colour) => *colour,
             Fill::Parity([even, odd]) => {
                 if result.reversals().is_multiple_of(2) {
@@ -331,8 +330,11 @@ impl Renderer {
                 (_, Paint::Solid(colour)) => *colour,
                 (coset, Paint::Image(image)) => self.texture(coset, image, result.point()),
             },
-            Fill::Wythoff(fill) => self.face_colour(fill, result.point(), tangents),
         }
+    }
+
+    fn side_border(&self, point: DVec3, tangents: [DVec3; 2]) -> bool {
+        self.border(self.walls.iter().map(Wall::covector), point, tangents)
     }
 
     fn face_colour(&self, fill: &WythoffFill, point: DVec3, tangents: [DVec3; 2]) -> Colour {
@@ -594,6 +596,10 @@ mod tests {
         }
     }
 
+    fn side_covectors(walls: &[Wall]) -> impl Iterator<Item = DVec3> + '_ {
+        walls.iter().map(Wall::covector)
+    }
+
     fn statistics(
         samples: u64,
         outside: u64,
@@ -634,26 +640,21 @@ mod tests {
             .collect::<Vec<_>>();
         let tangents = [DVec3::X, DVec3::Y];
         let inside = DVec3::Z;
-        assert!(!on_border(
-            walls.iter().map(Wall::covector),
-            inside,
-            tangents,
-            0.0
-        ));
+        assert!(!on_border(side_covectors(&walls), inside, tangents, 0.0));
         assert!(on_border(
-            walls.iter().map(Wall::covector),
+            side_covectors(&walls),
             DVec3::new(f64::NAN, 0.0, 1.0),
             tangents,
             0.0
         ));
         assert!(on_border(
-            walls.iter().map(Wall::covector),
+            side_covectors(&walls),
             inside,
             [DVec3::splat(f64::NAN), DVec3::Y],
             0.0
         ));
         assert!(on_border(
-            walls.iter().map(Wall::covector),
+            side_covectors(&walls),
             inside,
             [DVec3::splat(f64::INFINITY), DVec3::Y],
             0.0
@@ -669,13 +670,13 @@ mod tests {
         )];
         let point = DVec3::new(0.25, 0.0, 1.0);
         assert!(!on_intrinsic_border(
-            walls.iter().map(Wall::covector),
+            side_covectors(&walls),
             point,
             0.25,
             euclidean::wall_distance
         ));
         assert!(on_intrinsic_border(
-            walls.iter().map(Wall::covector),
+            side_covectors(&walls),
             point,
             0.25_f64.next_up(),
             euclidean::wall_distance
@@ -687,7 +688,7 @@ mod tests {
         ];
         for distance in distances {
             assert!(on_intrinsic_border(
-                walls.iter().map(Wall::covector),
+                side_covectors(&walls),
                 DVec3::new(f64::NAN, 0.0, 1.0),
                 0.0,
                 distance
@@ -759,7 +760,7 @@ mod tests {
                     continue;
                 }
                 let border = on_intrinsic_border(
-                    walls.iter().map(Wall::covector),
+                    side_covectors(&walls),
                     lift.point,
                     HALF_WIDTH,
                     hyperbolic::wall_distance,
@@ -810,8 +811,7 @@ mod tests {
                 result.converged(),
                 "the screen position {position:?} does not converge"
             );
-            let walls = renderer.walls.iter().map(Wall::covector);
-            renderer.border(walls, result.point(), tangents)
+            renderer.side_border(result.point(), tangents)
         };
         let disk = renderer_in(HyperbolicModel::Disk);
         let models: Vec<_> = MODEL_MAPS
@@ -1082,12 +1082,8 @@ mod tests {
                         );
                     }
                     for (count, half_width) in differing.iter_mut().zip(HALF_WIDTHS) {
-                        if on_border(
-                            walls.iter().map(Wall::covector),
-                            result.point(),
-                            tangents,
-                            half_width,
-                        ) != (exact < half_width)
+                        if on_border(side_covectors(&walls), result.point(), tangents, half_width)
+                            != (exact < half_width)
                         {
                             *count += 1;
                         }
@@ -1209,12 +1205,8 @@ mod tests {
                 );
             }
             for (count, half_width) in borders.differing.iter_mut().zip(PLANE_HALF_WIDTHS) {
-                if on_border(
-                    walls.iter().map(Wall::covector),
-                    result.point(),
-                    tangents,
-                    half_width,
-                ) != (exact < half_width)
+                if on_border(side_covectors(&walls), result.point(), tangents, half_width)
+                    != (exact < half_width)
                 {
                     *count += 1;
                 }
@@ -1664,12 +1656,8 @@ mod tests {
                             continue;
                         }
                         tested[slot] += 1;
-                        let gradient = on_border(
-                            walls.iter().map(Wall::covector),
-                            result.point(),
-                            tangents,
-                            half_width,
-                        );
+                        let gradient =
+                            on_border(side_covectors(walls), result.point(), tangents, half_width);
                         if slot == 0 && gradient {
                             border += 1;
                         }

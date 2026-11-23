@@ -172,6 +172,22 @@ escher render '*642' --colouring 4a --colours 'image:mask-0.png,image:mask-1.png
 
 ![White triangles fill the Poincare disk, with coloured borders that meet across each shared edge.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/masked.png)
 
+On a reflection triangle, `--wythoff` draws the faces of a Wythoff construction in place of the triangles, with the borders on the edges of the faces. It takes three digits, one for each corner of the signature in the order that `escher info` prints. A `1` turns on the mirror opposite that corner, and a `0` leaves it off. This command draws the heptagons of `*732`, three at each vertex:
+
+```sh
+escher render '*732' --wythoff 010 -o heptagons.png
+```
+
+![Sand heptagons with black borders fill the Poincare disk, three at each vertex, and shrink toward its boundary circle.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/heptagons.png)
+
+With more mirrors on, the tiling can have more than one face type. `--colours` gives one colour for each face type, in the order of the corners that have a face. This command turns on all three mirrors of `*632`:
+
+```sh
+escher render '*632' --wythoff 111 -o dodecagons.png
+```
+
+![Sand dodecagons, teal hexagons, and purple squares tile the plane, one of each at every vertex.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/dodecagons.png)
+
 `escher info` prints one `Parameter` line for each shape parameter of a signature. For `*2222`, the line is:
 
 ```text

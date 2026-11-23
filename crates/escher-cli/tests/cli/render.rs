@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use escher_cli::{Status, run};
 use escher_domain::FundamentalDomain;
 use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings_of_index};
-use escher_render::{Colour, CosetFill, Fill, Paint, RenderOptions, Renderer, encode_png};
+use escher_render::{
+    Colour, CosetFill, Fill, Paint, RenderOptions, Renderer, Wythoff, WythoffFill, encode_png,
+};
 use escher_signature::Signature;
 
 use crate::common::{
@@ -13,11 +15,15 @@ use crate::common::{
 };
 
 fn render_snapshot(test: &str, args: &[&str]) -> String {
+    snapshot_and_output(test, args).0
+}
+
+fn snapshot_and_output(test: &str, args: &[&str]) -> (String, PathBuf) {
     let output = output_path(test);
     let mut all = vec!["render"];
     all.extend_from_slice(args);
     all.extend_from_slice(&["-o", path_text(&output)]);
-    snapshot(&all)
+    (snapshot(&all), output)
 }
 
 #[test]
@@ -1697,4 +1703,155 @@ fn render_reports_an_image_that_cannot_be_opened_before_the_search_for_an_id() {
                 .to_owned()
         )
     );
+}
+
+fn refused_snapshot(test: &str, args: &[&str]) -> String {
+    let (outcome, output) = snapshot_and_output(test, args);
+    assert!(outcome.starts_with("status: Failure\n"), "{outcome}");
+    assert!(!output.exists(), "{args:?}");
+    outcome
+}
+
+#[test]
+fn render_diagnostic_says_wythoff_marks_all_off_give_no_face() {
+    insta::assert_snapshot!(refused_snapshot(
+        "wythoff_no_marks",
+        &["*732", "--wythoff", "000"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_wythoff_needs_a_reflection_triangle() {
+    insta::assert_snapshot!(refused_snapshot(
+        "wythoff_rotation_triangle",
+        &["732", "--wythoff", "010"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_wythoff_marks_of_a_digon_give_no_face() {
+    insta::assert_snapshot!(refused_snapshot(
+        "wythoff_digon",
+        &["*522", "--wythoff", "100"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_refuses_wythoff_with_a_colouring() {
+    insta::assert_snapshot!(refused_snapshot(
+        "wythoff_colouring",
+        &["*732", "--wythoff", "010", "--colouring", "parity"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_counts_the_colours_of_the_face_types_of_wythoff() {
+    insta::assert_snapshot!(refused_snapshot(
+        "wythoff_colour_count",
+        &["*732", "--wythoff", "111", "--colours", "#000,#fff"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_an_image_item_is_not_a_colour_with_wythoff() {
+    insta::assert_snapshot!(refused_snapshot(
+        "wythoff_image_item",
+        &["*732", "--wythoff", "010", "--colours", "image:fill.png"]
+    ));
+}
+
+const MARKINGS: [&str; 7] = ["100", "010", "001", "110", "101", "011", "111"];
+
+#[test]
+fn render_draws_each_wythoff_marking_of_a_hyperbolic_triangle_as_another_image() {
+    let files: Vec<Vec<u8>> = MARKINGS
+        .iter()
+        .map(|marks| {
+            small_png(
+                &format!("wythoff_marking_{marks}"),
+                &["*732", "--wythoff", marks],
+            )
+        })
+        .collect();
+    for (first, file) in files.iter().enumerate() {
+        for (second, other) in files.iter().enumerate().skip(first + 1) {
+            assert_ne!(file, other, "{} and {}", MARKINGS[first], MARKINGS[second]);
+        }
+    }
+    let tiles = small_png("wythoff_marking_tiles", &["*732"]);
+    assert_ne!(files[1], tiles);
+}
+
+#[test]
+fn render_draws_wythoff_on_a_euclidean_and_a_spherical_triangle() {
+    for (signature, marks, name) in [("*632", "111", "euclidean"), ("*532", "110", "spherical")] {
+        let faces = small_png(&format!("wythoff_{name}"), &[signature, "--wythoff", marks]);
+        let tiles = small_png(&format!("wythoff_{name}_tiles"), &[signature]);
+        assert_ne!(faces, tiles, "{signature}");
+    }
+}
+
+fn library_wythoff_png(signature: &str, marks: [bool; 3], colours: Vec<Colour>) -> Vec<u8> {
+    let signature: Signature = signature.parse().expect("the signature is valid");
+    let domain = FundamentalDomain::build(&signature).expect("the domain is built");
+    let wythoff = Wythoff::new(&domain, marks).expect("the construction is built");
+    let fill = WythoffFill::new(wythoff, colours).expect("the fill is valid");
+    let options = RenderOptions::builder(Fill::Wythoff(fill))
+        .size(48, 32)
+        .samples(2)
+        .build()
+        .expect("the options are valid");
+    let (pixels, _) = Renderer::new(&domain, options)
+        .expect("the renderer is built")
+        .render();
+    encode_png(48, 32, &pixels).expect("the image is encoded")
+}
+
+#[test]
+fn render_draws_wythoff_with_one_given_colour_for_each_face_type() {
+    let gold = Colour::from_srgb8(0xe9, 0xc4, 0x6a);
+    let teal = Colour::from_srgb8(0x2a, 0x9d, 0x8f);
+    let plum = Colour::from_srgb8(0x91, 0x36, 0x71);
+    let files: Vec<Vec<u8>> = [
+        (
+            "in_order",
+            "#e9c46a,#2a9d8f,#913671",
+            vec![gold, teal, plum],
+        ),
+        (
+            "reordered",
+            "#913671,#e9c46a,#2a9d8f",
+            vec![plum, gold, teal],
+        ),
+    ]
+    .into_iter()
+    .map(|(name, text, colours)| {
+        let file = small_png(
+            &format!("wythoff_given_colours_{name}"),
+            &["*732", "--wythoff", "110", "--colours", text],
+        );
+        assert_eq!(
+            file,
+            library_wythoff_png("*732", [true, true, false], colours),
+            "{text}"
+        );
+        file
+    })
+    .collect();
+    assert_ne!(files[0], files[1]);
+}
+
+#[test]
+fn render_draws_wythoff_without_colours_in_the_first_default_colours() {
+    for (marks, colours) in [("010", "#e9c46a"), ("111", "#e9c46a,#2a9d8f,#913671")] {
+        let default = small_png(
+            &format!("wythoff_default_colours_{marks}"),
+            &["*732", "--wythoff", marks],
+        );
+        let given = small_png(
+            &format!("wythoff_given_default_colours_{marks}"),
+            &["*732", "--wythoff", marks, "--colours", colours],
+        );
+        assert_eq!(default, given, "{marks}");
+    }
 }

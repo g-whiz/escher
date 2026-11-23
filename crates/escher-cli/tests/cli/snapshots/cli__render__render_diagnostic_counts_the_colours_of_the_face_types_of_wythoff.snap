@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "refused_snapshot(\"wythoff_colour_count\",\n&[\"*732\", \"--wythoff\", \"111\", \"--colours\", \"#000,#fff\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the Wythoff construction needs 3 colours, and 2 were given
+--- end

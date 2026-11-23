@@ -710,16 +710,20 @@ fn wythoff_fill_refuses_another_number_of_colours_and_the_renderer_another_domai
     }
     let fill = wythoff_fill(construction, &GOLDEN_COSET_FILL);
     let options = options(RenderOptions::builder(Fill::Wythoff(fill)).size(8, 8));
-    let other = domain_with_settings("*742", &[]);
-    match Renderer::new(&other, options.clone()) {
-        Ok(renderer) => panic!("another domain is accepted: {renderer:?}"),
-        Err(error) => {
-            assert_eq!(error.kind(), ErrorKind::InvalidOption);
-            assert_eq!(
-                error.to_string(),
-                "cannot build renderer: the Wythoff fill was built for another domain"
-            );
+    for other in ["*742", "*3333"] {
+        match Renderer::new(&domain_with_settings(other, &[]), options.clone()) {
+            Ok(renderer) => panic!("{other} is accepted: {renderer:?}"),
+            Err(error) => {
+                assert_eq!(error.kind(), ErrorKind::InvalidOption, "{other}");
+                assert_eq!(
+                    error.to_string(),
+                    "cannot build renderer: the Wythoff fill was built for another domain",
+                    "{other}"
+                );
+            }
         }
     }
+    let rebuilt = domain_with_settings("*732", &[]);
+    assert!(Renderer::new(&rebuilt, options.clone()).is_ok());
     assert!(Renderer::new(&domain, options).is_ok());
 }
