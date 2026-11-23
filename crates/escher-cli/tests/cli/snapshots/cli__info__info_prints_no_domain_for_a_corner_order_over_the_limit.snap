@@ -10,6 +10,7 @@ Euler characteristic: -95/1212
 Compact: yes
 Area: 95pi/606
 Deformation dimension: 0
+Regular tiling: {101,3}, dual {3,101}
 Domain: none, cannot build fundamental domain: order 101 is larger than 100
 --- stderr
 --- end

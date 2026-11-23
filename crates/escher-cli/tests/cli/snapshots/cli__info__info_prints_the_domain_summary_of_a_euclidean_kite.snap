@@ -8,6 +8,7 @@ Signature: 442
 Geometry: Euclidean
 Euler characteristic: 0
 Compact: yes
+Regular tiling: {4,4}, self-dual
 Domain: 4 sides in 2 pairs
 Side pairs: 0 and 1 by rotation, 2 and 3 by rotation
 Corner angles in degrees: 90.000000, 90.000000, 90.000000, 90.000000

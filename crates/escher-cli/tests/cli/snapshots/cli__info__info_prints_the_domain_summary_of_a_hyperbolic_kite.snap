@@ -10,6 +10,7 @@ Euler characteristic: -1/42
 Compact: yes
 Area: pi/21
 Deformation dimension: 0
+Regular tiling: {7,3}, dual {3,7}
 Domain: 4 sides in 2 pairs
 Side pairs: 0 and 1 by rotation, 2 and 3 by rotation
 Corner angles in degrees: 51.428571, 90.000000, 120.000000, 90.000000

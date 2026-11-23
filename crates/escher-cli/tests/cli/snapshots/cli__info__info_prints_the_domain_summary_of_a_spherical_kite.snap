@@ -10,6 +10,7 @@ Euler characteristic: 1/30
 Compact: yes
 Group order: 60
 Area: pi/15
+Regular tiling: {5,3}, dual {3,5}
 Domain: 4 sides in 2 pairs
 Side pairs: 0 and 1 by rotation, 2 and 3 by rotation
 Corner angles in degrees: 72.000000, 90.000000, 120.000000, 90.000000

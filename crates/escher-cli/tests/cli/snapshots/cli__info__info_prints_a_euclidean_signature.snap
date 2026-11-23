@@ -8,6 +8,7 @@ Signature: *632
 Geometry: Euclidean
 Euler characteristic: 0
 Compact: yes
+Regular tiling: {6,3}, dual {3,6}
 Domain: 3 mirror sides
 Corner angles in degrees: 30.000000, 60.000000, 90.000000
 Side lengths: 1.000000, 1.154701, 0.577350

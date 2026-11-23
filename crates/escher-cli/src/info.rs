@@ -506,6 +506,14 @@ fn signature_lines(signature: &Signature) -> Lines {
     if let Some(dimension) = signature.deformation_dimension() {
         lines.push(("Deformation dimension".into(), dimension.to_string()));
     }
+    if let Some((larger, smaller)) = regular_tiling(signature) {
+        let value = if larger == smaller {
+            format!("{{{larger},{larger}}}, self-dual")
+        } else {
+            format!("{{{larger},{smaller}}}, dual {{{smaller},{larger}}}")
+        };
+        lines.push(("Regular tiling".into(), value));
+    }
     for spec in parameters(signature) {
         lines.push((
             "Parameter".into(),
@@ -519,6 +527,24 @@ fn signature_lines(signature: &Signature) -> Lines {
         ));
     }
     lines
+}
+
+fn regular_tiling(signature: &Signature) -> Option<(u32, u32)> {
+    if signature.handles() != 0 || signature.crosscaps() != 0 {
+        return None;
+    }
+    let orders = match (signature.cone_orders(), signature.boundaries()) {
+        ([], [boundary]) => boundary.corner_orders(),
+        (cones, []) => cones,
+        _ => return None,
+    };
+    let [larger, smaller, last] = orders else {
+        return None;
+    };
+    match (larger.finite()?, smaller.finite()?, last.finite()?) {
+        (larger, smaller, 2) if smaller >= 3 => Some((larger, smaller)),
+        _ => None,
+    }
 }
 
 fn push_domain_summary(
@@ -707,7 +733,7 @@ mod tests {
         Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, alias_of, check_text,
         count_label, enumerate_order, failed_checks, index_list, joined, kind_name, listed_text,
         order_mismatch, order_text, push_colourings, push_order, push_verification, reported,
-        search_colourings, size_text, summary_text, write_text,
+        search_colourings, signature_lines, size_text, summary_text, write_text,
     };
     use crate::Status;
     use crate::diagnostic::report;
@@ -1099,5 +1125,53 @@ mod tests {
             joined(&lines),
             "Colourings: none, cannot search colourings: a limit\n"
         );
+    }
+
+    fn regular_tiling_line(text: &str) -> Option<String> {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        signature_lines(&signature)
+            .into_iter()
+            .find(|(label, _)| label == "Regular tiling")
+            .map(|(_, value)| value)
+    }
+
+    #[test]
+    fn regular_tiling_names_the_larger_order_first_and_then_the_dual() {
+        for text in ["*732", "732"] {
+            assert_eq!(
+                regular_tiling_line(text).as_deref(),
+                Some("{7,3}, dual {3,7}"),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn regular_tiling_with_two_equal_orders_is_self_dual() {
+        for text in ["*442", "442"] {
+            assert_eq!(
+                regular_tiling_line(text).as_deref(),
+                Some("{4,4}, self-dual"),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn regular_tiling_writes_the_largest_order_in_decimal() {
+        assert_eq!(
+            regular_tiling_line("*(4294967295)32").as_deref(),
+            Some("{4294967295,3}, dual {3,4294967295}")
+        );
+    }
+
+    #[test]
+    fn regular_tiling_is_absent_for_every_other_signature() {
+        for text in [
+            "*722", "722", "*222", "222", "*333", "333", "*3332", "2222", "o732", "732x", "2*732",
+            "732*", "*732*", "*(inf)32", "(inf)32",
+        ] {
+            assert_eq!(regular_tiling_line(text), None, "{text}");
+        }
     }
 }

@@ -12,6 +12,11 @@ fn info_prints_a_rigid_compact_hyperbolic_signature() {
 }
 
 #[test]
+fn info_prints_the_regular_tiling_of_a_triangle_typed_in_another_order() {
+    insta::assert_snapshot!(snapshot(&["info", "*237"]));
+}
+
+#[test]
 fn info_prints_a_spherical_signature_with_its_group_order() {
     insta::assert_snapshot!(snapshot(&["info", "*532"]));
 }
