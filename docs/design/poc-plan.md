@@ -26,13 +26,13 @@ The primary readers are the coding agents that plan and implement a milestone. T
 
 ### 1.4. Scope
 
-This document covers the workflow of a milestone, the owner's staging, the research prerequisites, the milestones `M1` to `M13` and `M19` to `M23`, the documentation obligations of each milestone, and the unverified statements that the milestones rely on. The milestones `M14` to `M18`, which the owner moved to the roadmap (`DEC-64`), keep their labels and a subsection each that points to the roadmap.
+This document covers the workflow of a milestone, the owner's staging, the research prerequisites, the milestones `M1` to `M13` and `M19` to `M24`, the documentation obligations of each milestone, and the unverified statements that the milestones rely on. The milestones `M14` to `M18`, which the owner moved to the roadmap (`DEC-64`), keep their labels and a subsection each that points to the roadmap.
 
 ### 1.5. Non-Goals
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-98`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-110`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the milestones `M14` to `M18` that the owner moved there, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -49,11 +49,11 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 This document uses the terms that Section 2.2 of `docs/writing-documentation.md` defines, and calls that document the writing guide. It calls `docs/rust-coding-standards.md` the coding standard and `docs/design/tooling.md` the tooling design. It adds these terms:
 
-- milestone: A unit of the plan with one goal, labelled `M1` to `M23`, delivered by one design branch and a few code branches. The labels `M14` to `M18` name work that the owner moved to the roadmap. The planning documents of Section 3.3 carry the label `M0` and are not delivered this way.
+- milestone: A unit of the plan with one goal, labelled `M1` to `M24`, delivered by one design branch and a few code branches. The labels `M14` to `M18` name work that the owner moved to the roadmap. The planning documents of Section 3.3 carry the label `M0` and are not delivered this way.
 - design branch: A branch named `feature/<name>-design` that changes only documents. It writes or extends the design documents of a milestone, and the research documents where a research prerequisite applies.
 - code branch: A branch in its own worktree that changes code together with its tests and the document updates that Hard Rule 1 of `AGENTS.md` requires.
-- research prerequisite: A design branch, labelled `RP-1` to `RP-6`, that adds to a research document what a milestone needs before its code can start (Section 4).
-- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-37` (Section 7).
+- research prerequisite: A design branch, labelled `RP-1` to `RP-7`, that adds to a research document what a milestone needs before its code can start (Section 4).
+- unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-40` (Section 7).
 - stage: One of the stages of the owner's staging (Section 3.2).
 - proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`. Section 10.1 of that document states the defaults that the owner has decided, which keep their labels.
 - reference arithmetic: The independent high-precision implementation of a few formulas inside a test suite, which Section 7 of `docs/design/architecture.md` defines.
@@ -107,7 +107,7 @@ Every other valid signature has no domain in the proof of concept. These are the
 | 2 | All 17 Euclidean and all 14 spherical groups | M10, completed by M11 |
 | 3 | General hyperbolic signatures, including handles and crosscaps, by porting the SymmHub pipeline, which is under the MIT licence | None. The owner moved it to the roadmap with M15 to M17 (Section 4.1 of `docs/design/roadmap.md`) |
 
-The other milestones carry the owner's decisions on colourings (M7, M8, M20), models (M12), borders (M13), Schlafli symbols (M21), polygon masks and image fills (M22), and Wythoff constructions (M23). The parser accepts signatures with infinite orders from M1, and rendering the friezes and the triangle groups with ideal corners is the roadmap item M18. M19 checks that every signature of the set renders.
+The other milestones carry the owner's decisions on colourings (M7, M8, M20), models (M12), borders (M13), Schlafli symbols (M21), polygon masks and image fills (M22), Wythoff constructions (M23), and whole-face image fills (M24). The parser accepts signatures with infinite orders from M1, and rendering the friezes and the triangle groups with ideal corners is the roadmap item M18. M19 checks that every signature of the set renders.
 
 ### 3.3. Planning Documents
 
@@ -115,7 +115,7 @@ The planning documents, labelled M0, are the precondition of M1 and have no code
 
 ### 3.4. Milestone Overview
 
-The owner set the order of the remaining work on 2026-11-22 and placed M23 in it on 2026-11-23 (`DEC-63`). A cleanup comes first and is not a milestone. Then come M20, M12 and M13, M21, M22, and M23, and the completion audit M19 comes last. The order of the new milestones M20, M21, and M22 may still change, and the owner sets it. The table lists the milestones in the planned order. The column "Depends on" names the milestones and research prerequisites whose results a milestone uses, as Section 5 gives them. The milestones M14 to M18 are not in the table, because the owner moved them to the roadmap (Section 3.2).
+The owner set the order of the remaining work on 2026-11-22 and placed M23 and M24 in it on 2026-11-23 (`DEC-63`). A cleanup comes first and is not a milestone. Then come M20, M12 and M13, M21, M22, M23, and M24, and the completion audit M19 comes last. The order of M22 and M23 may still change, and the owner sets it. The table lists the milestones in the planned order. The column "Depends on" names the milestones and research prerequisites whose results a milestone uses, as Section 5 gives them. The milestones M14 to M18 are not in the table, because the owner moved them to the roadmap (Section 3.2).
 
 | Label | Name | New command-line capability | Crates touched | Depends on |
 | --- | --- | --- | --- | --- |
@@ -135,8 +135,9 @@ The owner set the order of the remaining work on 2026-11-22 and placed M23 in it
 | M13 | Intrinsic border width | `--border-unit intrinsic` | `escher-render`, `escher-geometry`, `escher-cli` | M3, with M4 and M5 for the other geometries and M12 for one test |
 | M21 | Schlafli symbols in `escher info` | The Schlafli symbol of the regular tiling of a signature and of its dual | `escher-cli` | M1 |
 | M22 | Polygon masks and image fills | `escher render-masks`, and image fills in `escher render` | `escher-render`, `escher-cli` | M8 |
-| M23 | Wythoff constructions | Wythoff tilings of `*pqr` from on or off marks on the mirrors, with one fill for each face type, in a form that the design defines | `escher-render` and `escher-cli`, as expected before the design | M2, M22, RP-6, with M4 and M5 if the design covers the other geometries and M6 if it covers the rotation signatures |
-| M19 | Completion audit | None | All six | M11, M12, M13, M20, M21, M22, M23 |
+| M23 | Wythoff constructions | `--wythoff` of `render`: the Wythoff tilings of every reflection triangle from on or off marks on its mirrors, with one colour for each face type | `escher-geometry`, `escher-render`, `escher-cli` | M2, M4, M5, M22, RP-6 |
+| M24 | Whole-face image fills | A whole picture painted on a flat mask of each kind of polygon of a tiling, put on every polygon of that kind. The design decides the options | `escher-render`, `escher-cli`, and `escher-group` if the design puts the search of arrangements there | M8, M20, M22, M23, RP-7 |
+| M19 | Completion audit | None | All six | M11, M12, M13, M20, M21, M22, M23, M24 |
 
 ## 4. Research Prerequisites
 
@@ -150,8 +151,9 @@ Some milestones need material that a research document must supply first, so a d
 | RP-4 | `Group_Frieze`, and the ideal corners of the triangle groups and their rotation subgroups | `fundamental-domains.md` and `symmhub.md` | SymmHub source code | The roadmap item M18 |
 | RP-5 | What [CH] pp. 255 to 257 states for a boundary without corners (`orbifold-notation.md` 12 item 14), and the clearing of the rows of `source-requests.md` 7, "Obtained Since" | `orbifold-notation.md` 9.1 and 12, and `source-requests.md` | [CH], which is held locally | No milestone. It may run at any time |
 | RP-6 | The Wythoff construction on a reflection triangle from primary sources: the faces that each pattern of marks on the mirrors produces and how they fall into face types (`colourings.md` 14.1 item 10, without the snubs), and a per-pixel classification of a folded point into a face and its type (item 11) | `colourings.md` 10, 13, and 14, and `source-requests.md` | The sources that `colourings.md` 14.3 lists for items 10 and 11, and the passage on Wythoff triangles of [CBGS2008] that it names, with the precedents of `colourings.md` 10.6, `prior-art.md` 6.7, and `rendering.md` 4.4. A source that cannot be read goes into `source-requests.md` | M23 |
+| RP-7 | The statements about the subgroups of the symmetry group of a tiling under which no element other than the identity maps a polygon of the tiling onto itself: the orbits of the polygons under such a subgroup, whether one exists with one orbit for each kind of polygon, and the relation of such subgroups to the coset tables that the colouring search of M8 and M20 already produces | `colourings.md` 5 and 14, and `source-requests.md` | The sources that `colourings.md` 4.1, 5, and 7.17 cite, among them [FRETTLOH2008], with [CBGS2008] of `colourings.md` 3.3, and any further primary source that the research finds. A source that cannot be read goes into `source-requests.md` | M24 |
 
-RP-3, apart from its sheet and slice part, and RP-4 serve work that the owner moved to the roadmap (Section 4.1 of `docs/design/roadmap.md`), so no milestone of this plan waits on them. RP-6 precedes M23, because M23 draws faces by a face rule for each pattern of marks and by a per-pixel classification of a point into a face, which `colourings.md` 10 sources or records as unverified first. The design branches of M20 and M21 add to the subject-matter references the sources for the mathematics that they rely on, or record it as unverified there (Hard Rule 14 of `AGENTS.md`).
+RP-3, apart from its sheet and slice part, and RP-4 serve work that the owner moved to the roadmap (Section 4.1 of `docs/design/roadmap.md`), so no milestone of this plan waits on them. RP-6 precedes M23, because M23 draws faces by a face rule for each pattern of marks and by a per-pixel classification of a point into a face, which `colourings.md` 10 sources or records as unverified first. RP-7 precedes the design of M24, because the planning's reading of how M24 turns a picture on each polygon rests on such subgroups (Section 5.24), which `colourings.md` sources or records as unverified first. The design branches of M20 and M21 add to the subject-matter references the sources for the mathematics that they rely on, or record it as unverified there (Hard Rule 14 of `AGENTS.md`).
 
 The research on the general non-compact signatures is not a prerequisite of any milestone. It is a deep-research item of Section 5 of `docs/design/roadmap.md`.
 
@@ -426,7 +428,7 @@ The design settles the open points of the planning as proposals, and on 2026-11-
 - `--colours` mixes hexadecimal colours and image items `image:FILE`, one item for each colour. An image item makes `render` draw `one` and `parity` through the coset fills of `1a` and `2a` (`DEC-91`, CLI-61 of `docs/design/cli.md`).
 - An image fill reads every PNG colour type at a bit depth of 8 or less as 8-bit sRGB with alpha, refuses an image with 16 bits per channel, reads an image of any size with the mask polygon placed in it as in a mask of that size, samples bilinearly in linear light over the background colour, and takes the background colour where a position maps outside the image (`DEC-88` to `DEC-90`, Sections 5.20 and 5.21 of `docs/design/render.md`).
 
-The mask polygon and the mask map stay private, and the faces of a Wythoff tiling will reuse them (`DEC-88`, Section 5.23).
+The mask polygon and the mask map stay private (`DEC-88`). M24 plans to reuse the masks for the polygons of a tiling (Section 5.24).
 
 Out of scope: research into external tools, which the owner ruled out (Section 1 of `docs/design/roadmap.md`).
 
@@ -450,52 +452,94 @@ Out of scope: research into external tools, which the owner ruled out (Section 1
 
 ### 5.23. M23: Wythoff Constructions
 
-**Goal.** The user specifies a tiling by a Wythoff construction on a reflection triangle, such as the regular tiling `{7,3}` by heptagons with three at each vertex, and `escher` draws its faces with their own borders and fills. The owner moved this work from the roadmap into the proof of concept on 2026-11-23 (`DEC-68`), because the owner wants a way to specify such a tiling. Without it, `escher render` draws a border on the sides of the domain (RND-9 of `docs/design/render.md`), so its picture of `*732` shows triangles and not heptagons.
+**Goal.** The user specifies a tiling by a Wythoff construction on a reflection triangle, such as the regular tiling `{7,3}` by heptagons with three at each vertex, and `escher` draws its faces with their own borders and colours. The owner moved this work from the roadmap into the proof of concept on 2026-11-23 (`DEC-68`), because the owner wants a way to specify such a tiling. Without it, `escher render` draws a border on the sides of the domain (RND-9 of `docs/design/render.md`), so its picture of `*732` shows triangles and not heptagons.
 
-**Command line.** This command is an illustration only. `--wythoff` and `<marks>` stand for an option and a value whose name and syntax the design decides, and the marks that give `{7,3}` come from the sources of RP-6:
+**Command line.** These commands illustrate the milestone:
 
 ```sh
-escher render '*732' --wythoff <marks> -o heptagons.png
+escher render '*732' --wythoff 010 -o heptagons.png
+escher render '*732' --wythoff 111 --colours '#e9c46a,#2a9d8f,#913671' -o omnitruncated.png
 ```
 
-**Scope.** The owner decided the scope of the first version on 2026-11-22, and it stands (`DEC-68`):
+- The first writes the regular tiling `{7,3}`, heptagons with three at each vertex, in one colour.
+- The second writes the tiling `4.6.14` by 14-gons, hexagons, and squares, in the order of the corners of orders 7, 3, and 2.
 
-- The triangle groups `*pqr`.
+**Scope.** The owner decided the scope of the first version on 2026-11-22 and narrowed it on 2026-11-23 (`DEC-68`):
+
+- The triangle groups `*pqr`, which the owner widened on 2026-11-23 to every reflection triangle in the three geometries (`DEC-107`).
 - On or off marks on the mirrors.
-- One colour or one image fill for each face type, so up to three fills.
+- One solid colour for each face type, so up to three colours. On 2026-11-23 the owner dropped the image fills of the faces from this milestone, and the whole-face image fills are M24 (Section 5.24, `DEC-110`).
 
 Group colourings of the faces are not part of the first version. The work beyond it stays in the roadmap (Section 4.2 of `docs/design/roadmap.md`).
 
-The design settles these open points as proposals:
+The design branch settled the open points of the planning as proposals. On 2026-11-23 the owner accepted the marks of `DEC-99`, the number of fills of `DEC-105`, and the scope of `DEC-107`, and has decided none of the others (Section 10.1 of `docs/design/architecture.md`):
 
-- How the marks are given on the command line, and whether they extend `escher render` or form a command of their own.
-- How the faces and their types are found from the fold, by the face rule that RP-6 sources or records as unverified.
-- Where borders are drawn: on the edges of the faces, and whether the mirrors of the triangle still draw one.
-- Which fill goes with which face type, and in what order the user gives the fills.
-- What happens for marks that give no face of some type, and for a degenerate construction, such as every mark off.
-- Whether the first version covers the rotation signatures `pqr`, and the Euclidean and spherical triangles as well as the hyperbolic ones.
-- How the polygon masks and image fills of M22 apply to a face: whether `render-masks` writes a mask for each face type. A face reuses the mask polygon and the mask map of M22, where a regular face takes a flat regular polygon.
-- What `escher info` reports for a construction, if anything.
+- The marks are an option `--wythoff` of `render`, with one digit `0` or `1` for each corner in the order of the canonical signature, and `1` turns on the mirror opposite that corner, so `010` gives $\{p, q\}$ and `100` its dual on `*pq2` (`DEC-99`, `DEC-100`, CLI-62 of `docs/design/cli.md`).
+- The generator point is a vertex, the meeting of the inactive side with a wall of equal distance, or the meeting of two such walls, through a new function `wall_meet` of `escher-geometry` (`DEC-101`, Section 5.7 of `docs/design/geometry.md`).
+- Each face is centred at a corner, a face type is a corner with a face by the face rule, digons drop out, and marks that give no face are refused with a diagnostic, which covers every mark off and a few markings of `*n22` (`DEC-102`, Section 5.24 of `docs/design/render.md`).
+- A folded sample takes the face of the first corner that lies on its side of the perpendicular of each active side through that corner (`DEC-103`, Section 5.25 of `docs/design/render.md`).
+- The borders lie on the perpendiculars from the generator point to the active mirrors, in both border units, and the mirrors draw none (`DEC-104`, Section 5.26 of `docs/design/render.md`).
+- `--colours` gives one colour for each face type, in the order of the corners and exactly as many as there are face types, an item that is not a colour, an image item included, is refused with the existing diagnostic of a bad colour, and `--wythoff` with `--colouring` is refused (`DEC-105`, CLI-63 of `docs/design/cli.md`).
+- `Wythoff::new` reports a numerical failure as an error of the kind `Numerical`, as `escher-domain` does, and no accepted construction is expected to reach it (step 8 of Section 5.24 of `docs/design/render.md`).
+- The first version covers every reflection triangle in the three geometries, `*pqr`, `*632`, `*442`, `*333`, `*332`, `*432`, `*532`, and `*n22`, and refuses every other signature, including the rotation signatures (`DEC-107`).
+- `escher info` prints nothing new (`DEC-108`).
 
-**Design documents.** Extensions of `render.md` and `cli.md`, the labels that the design adds to Section 10.2 of `docs/design/architecture.md`, with its data flow of Section 4.1 where the faces add a step, and `colourings.md` through RP-6. A change to another crate extends that crate's design document too.
+**Design documents.** Sections 5.24 to 5.28 of `render.md` with its other sections that the Wythoff fill touches, Sections 4.5, 4.6, and 6.8 of `cli.md`, Section 5.7 of `geometry.md`, the data flow of Section 4.1 of `docs/design/architecture.md` with the labels `DEC-99` to `DEC-108`, of which `DEC-106` is withdrawn, and item 10 of Section 14.1 of `colourings.md`.
 
 **Sources.** `colourings.md` 10 is the only research on the construction, and its Section 10.7 gives the status of each part. Section 10.1 gives the generator position of each Wythoff symbol, the generator point as the point on the inactive mirrors at equal distance from the active ones, and the edges from the generator point to its mirror images. Section 10.1 also gives the faces of each Wythoff symbol with their centres, from Coxeter, Longuet-Higgins, and Miller (1954) and Har'El (1993), for the sphere. Section 10.2 gives the meaning of a ring, the faces from subdiagrams, and the face rule at a corner of the triangle. Section 10.3 gives the symbols and faces of the family `(p q 2)` from the same papers for the sphere, the Euclidean tessellations from the 1954 paper, and the members of `(7 3 2)`, among them `{7,3}` as `3 | 7 2`, from Wikipedia only. Section 10.6 gives the per-pixel fold, the generator point by a linear solve in pywonderland's code, and the assignment of a folded point to a face in two shaders by one author, one spherical and one hyperbolic. No primary source read states the face rule for a hyperbolic triangle, and no paper or book states the assignment of a point to a face (items 10 and 11 of `colourings.md` 14.1). Beyond `colourings.md`, the research names uniform tilings only as precedents: pywonderland takes a triangle triple with its active mirrors (`prior-art.md` 6.7), and its shader folds per pixel (`rendering.md` 4.4). The symmetry group of `{p,q}` is the reflection group of the right triangle with the angles $\pi/2$, $\pi/p$, and $\pi/q$ (`colourings.md` 5.1), and its name `*pq2` is `UNV-37`.
 
-**Unverified statements relied on.** This plan lists none of its own for M23. RP-6 records in `colourings.md` 14.1 each statement that no source establishes. The design branch adds a row to Section 7 for each such statement that the code relies on, and adds M23 to the rows that it shares with earlier milestones, such as `UNV-1` and `UNV-3` for the fold and for a sample on a wall.
+**Unverified statements relied on.** `UNV-38` for the face rule, the edges, and the markings of $\{p, q\}$ and its dual on a Euclidean or hyperbolic triangle, `UNV-39` for the face of a folded point, and `UNV-40` for the generator point outside the sphere. The fold rests on `UNV-1` and `UNV-3`, the borders on `UNV-15` and, with the intrinsic unit, `UNV-14`, and the markings of the regular tiling of a hyperbolic `*pq2` also on `UNV-37`. The computation of the generator point, the corner orders read from the corner angles, and the absence of a numerical failure on an accepted construction are unverified statements of the render design, which its tests check (Section 10 of `docs/design/render.md`), and `wall_meet` is one of the geometry design (Section 12 of `docs/design/geometry.md`).
 
-**Tests and acceptance.** The design fixes the tests. These are proposals:
+**Tests and acceptance.** The tests of the layer "Wythoff constructions", the Wythoff rows of Section 8.2, and the golden images of Wythoff fills of Section 8.4 of `docs/design/render.md`, among them `wy-7-3-2-010.png`, the regular tiling `{7,3}`, and one image in each geometry. The test "Walls meet" of Section 10.1 of `docs/design/geometry.md`. The snapshots and plain tests of `--wythoff` in Section 8.1 of `docs/design/cli.md`, which include `--wythoff 000`, a signature that is not a reflection triangle, `--wythoff` with `--colouring`, the wrong number of colours, and an image item, each with exit status 1 and no file written.
 
-- A golden image of `{7,3}` from `*732`, and one golden image for each other form and geometry that the first version covers.
-- A test that a sample inside a face of each type, at a point that the face rule of RP-6 places there, takes the fill of that type.
-- A test that a construction with no face of a type, or a degenerate one, gives the behaviour that the design specifies, and, where that is a diagnostic, exit status 1 and no file written.
-- A test that an image fill on a face follows the mask map of its face, as the test "Texture contract" of M22 does for a tile.
-- The snapshots and plain tests of the new options and diagnostics, and of any line that `info` adds, in Section 8.1 of `docs/design/cli.md`.
+**Dependencies and `deny.toml` work.** None new.
 
-**Dependencies and `deny.toml` work.** None expected.
+**Risks.** RP-6 found primary sources for the face rule on the sphere only, and none for the face of a folded point, so a Euclidean or hyperbolic construction proceeds on unverified statements, and a wrong rule draws a wrong image without any error (Section 8). The border estimate of `DEC-28` is applied to walls that are not sides of the domain, which its oracles check only on the images of the tests. Each sample of a Wythoff fill adds up to six sign tests and up to two border tests, and the accuracy at the corner orders up to 100 of `DEC-69` is measured only on the Wythoff triangle set. A movable generator point and snubs stay out of this work.
 
-**Risks.** RP-6 found primary sources for the face rule on the sphere only, and none for the classification, so a hyperbolic construction proceeds on unverified statements, and a wrong rule draws a wrong image without any error (Section 8). The borders of the faces are no longer the sides of the domain, so the border estimate of `DEC-28`, which RND-9 applies to the sides, may not carry over. The classification adds work to every sample, and its cost and accuracy at the corner orders up to 100 of `DEC-69` are unknown. A movable generator point and snubs lie close to this work and stay out of it.
+**Split.** Three branches, in this order:
 
-**Split.** Left open for the design branch, which follows RP-6.
+1. Design: the design documents above.
+2. Libraries: `wall_meet` of `escher-geometry` with its tests and its rows of accuracy, and `Wythoff`, `WythoffFill`, `Fill::Wythoff`, the face of a sample, the borders, the colours of the face types, the error kind `Numerical`, and the tests and golden images of `escher-render`.
+3. Command line: `--wythoff` of `render` in `escher-cli`, with its snapshots and plain tests, the usage of `--wythoff` in `README.md`, and Project Status in `AGENTS.md`.
+
+### 5.24. M24: Whole-Face Image Fills
+
+**Goal.** The user chooses a tiling by polygons, such as heptagons three to a vertex or regular hexagons, and gets a mask for each kind of polygon: a flat regular heptagon, hexagon, square, and so on. The user paints a whole picture on that polygon, with no forced symmetry inside it. The tool puts that picture on every polygon of the tiling, turning each copy as needed. Coloured borders on the mask show which edge meets which, so the user can check in an image editor that the picture continues across the borders. The owner confirmed this goal on 2026-11-23 and placed the milestone after M23 and before M19 (`DEC-110`).
+
+**Command line.** This command illustrates the milestone and is not its syntax, which the design decides. `<arrangement option>` stands for the option or options that choose an arrangement, and the path for the picture that the user painted over the mask of the heptagon:
+
+```sh
+escher render '*732' --wythoff 010 <arrangement option> --colours 'image:/tmp/masks/heptagon.png' -o heptagons.png
+```
+
+**Scope.** The design branch settles these open points as proposals:
+
+- How the tool decides which way round the picture goes on each polygon. The planning reads it this way, and RP-7 confirms or corrects the reading before the design: a consistent choice is a subgroup of the symmetry group of the tiling under which no element other than the identity maps a polygon onto itself, so the polygons fall into orbits and each orbit takes one picture.
+- How such arrangements are found and listed for the user to choose among.
+- Whether an arrangement with one picture for each kind of polygon always exists, and what the tool reports when it does not.
+- The flat mask of each kind of polygon with its coloured borders and marks, reusing the masks of M22 (Sections 5.19, 5.22, and 5.23 of `docs/design/render.md`).
+- The map from a polygon of the tiling to its flat mask.
+- Which tilings are covered: those of M23, and whether also the fundamental tilings of the other signatures.
+- How the option relates to `--wythoff`, `--colouring`, and `--colours`.
+- What `render-masks` and `info` report.
+
+**Design documents.** Extensions of `render.md` and `cli.md`, and of `group.md` if the search of arrangements lives in `escher-group`, the data flow of Section 4.1 of `docs/design/architecture.md` with a label for each proposal, and `colourings.md` through RP-7.
+
+**Sources.** `colourings.md` 4.1 gives the coset colouring of the triangle tiling, whose fundamental triangle has a trivial stabilizer, so that its tiles correspond one to one to the elements of the group [FRETTLOH2008]. `colourings.md` 5 gives, for the regular tilings $\{p, q\}$ and $\{q, p\}$ and the Laves tiling `[p.q.p.q]` only, which subgroups of the reflection group of the triangle and of its rotation group induce a perfect colouring of the tiles, by the generators, or for the rotation group the products of two generators, that a subgroup contains (Lemmas 3.2 and 4.1 of [FRETTLOH2008]), and a procedure that lists them with a low-index search. `colourings.md` 7.17 gives the low-index search that `escher-group` implements. The research read states nothing about a subgroup under which no element other than the identity maps a polygon of a tiling onto itself, about the orbits of the polygons under such a subgroup, or about whether one exists with one orbit for each kind of polygon, and its statements on perfect colourings cover no tiling of a Wythoff construction other than the regular and Laves tilings. RP-7 adds what the sources state on these points, or records them as unverified.
+
+**Unverified statements relied on.** None of its own yet. The design branch adds a row to Section 7 for each statement that RP-7 leaves unverified. Through M23, the faces rest on `UNV-38` to `UNV-40`, and through M22 the masks rest on the unverified statements of the render design.
+
+**Tests and acceptance.** The planning proposes these tests, and the design branch fixes them:
+
+- A picture with an asymmetric mark appears whole and unmirrored on every polygon of an orbit.
+- Masks laid edge to edge as their borders say reproduce the seams of the render.
+- The arrangements that the tool lists are exactly those that the search finds.
+
+**Dependencies and `deny.toml` work.** No new dependency is planned.
+
+**Risks.** An arrangement with one picture for each kind of polygon may not exist for some tilings. The search of arrangements may be large, because the cost of a low-index search grows exponentially with the index (Section 8).
+
+**Split.** Left open for the design branch.
 
 ## 6. Documentation Obligations
 
@@ -517,7 +561,7 @@ The table also keeps the rows that serve the roadmap items M14 to M18 (Section 4
 
 | Id | Statement relied on | Research location | Milestones that use it | What closes it |
 | --- | --- | --- | --- | --- |
-| UNV-1 | The first-violated-wall fold terminates for compact reflection polygons, in a number of steps equal to the word length. On the sphere, at orders above the limit of `DEC-69`, points within $10^{-14}$ radians of a vertex of order 1000 stayed unconverged at the default cap, and near a vertex of order 999 points took more steps than the longest word of the group. Near the vertex of order 100 of `*(100)22`, the tests assert only that each fold returns within the cap (Section 6.7 of `docs/design/render.md`). No source covers every point, so the design relies on it only for the samples of the images that the tests render and the images of the centre | `rendering.md` 4.7 and 13.1 item 1, gap G5, `fundamental-domains.md` 13.3 item 6 | M3 on, including the lune of order 1 of `*` in M11, and M22 | Sections 1.6, 1.7, and 5.4 of [HUMPHREYS], or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
+| UNV-1 | The first-violated-wall fold terminates for compact reflection polygons, in a number of steps equal to the word length. On the sphere, at orders above the limit of `DEC-69`, points within $10^{-14}$ radians of a vertex of order 1000 stayed unconverged at the default cap, and near a vertex of order 999 points took more steps than the longest word of the group. Near the vertex of order 100 of `*(100)22`, the tests assert only that each fold returns within the cap (Section 6.7 of `docs/design/render.md`). No source covers every point, so the design relies on it only for the samples of the images that the tests render and the images of the centre | `rendering.md` 4.7 and 13.1 item 1, gap G5, `fundamental-domains.md` 13.3 item 6 | M3 on, including the lune of order 1 of `*` in M11, M22, and M23 | Sections 1.6, 1.7, and 5.4 of [HUMPHREYS], or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
 | UNV-2 | The same fold terminates for general side pairings and domains that are not convex. For the rotation domains of M6, a prototype outside the repository found that a fold with pairings that are plain `f64` products of two reflections can drift off the hyperboloid and fail to converge, as one fold of `(1000)32`, an order above the limit of `DEC-69`, did in the radius band $1 - 10^{-6}$. With accurately rounded products as pairings, every fold of the rotation fold sets of `escher-render` converges, but near some vertices of a rotation domain whose corner orders are all near 100 the fold can still fail to stop (Section 6.8 of `docs/design/render.md`). So the design relies on it only for the samples of the images that the tests render and the images of the centre, with accurately rounded products as pairings. For the wallpaper domains of M10, whose pairings include translations, half-turns, and glide reflections, a prototype outside the repository and the tests of `escher-render` found that every fold of their sets converged up to distance 65 from the centre. No termination argument exists for the kites of `4*2` and `3*3` (Section 6.10 of `docs/design/render.md`). For the spherical group domains of M11, whose pairings include rotary reflections, the tests of `escher-render` and a measurement outside the repository found no unconverged fold, also within $3 \times 10^{-17}$ radians of the vertices of `(100)*`, `(100)x`, and `2*(50)`, and no termination argument exists either (Section 6.11 of `docs/design/render.md`) | `rendering.md` 4.7 and 13.1 item 7, `fundamental-domains.md` 10.7 and 13.3 item 3, `symmhub.md` 17 item 5 | M6, M10, M11, M22, and the roadmap items M15 to M17 | A source, a change to Voight's rule, or Lean. The sources that do not state it are listed in `rendering.md` 4.7 and gap G5 |
 | UNV-3 | Behaviour on or near a wall | `rendering.md` 13.1 item 2 | M3 on | Tests. No source is known |
 | UNV-4 | Growth of the fold count, the reading of the exponents, and the limits of precision | `rendering.md` 13.1 items 5 and 6, `geometry-models.md` 15.1 item 10 | M3 defaults | The body of [FWW], and measurement |
@@ -530,8 +574,8 @@ The table also keeps the rows that serve the roadmap items M14 to M18 (Section 4
 | UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7). For the Euclidean groups of M10, the guard of DOM-54 of `docs/design/domain.md` checks each build, and the wallpaper certificate of DOM-57, with the equal counts up to 16 colours beside it, checks each group numerically. Neither closes it. For the spherical groups of M11, the guard of DOM-60 checks each build, and the certificate of DOM-64, whose census of the reversing elements and the reflections is the only check that tells `n*` and `nx` from other groups of the same order, checks each group numerically | Gap G8, `fundamental-domains.md` 9.7, and for the Euclidean and spherical groups 9.5.2, 9.6.2, and 13.3 items 15 and 16 | M10, M11, and the roadmap item M15 | A source that constructs them, or Lean |
 | UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5, and the spherical law of cosines solved for a side, Theorem 2.5.4 of [RATCLIFFE], is in `geometry-models.md` 11.3 | `geometry-models.md` 10.5, 10.6, 15.1 items 12 and 14, and 15.2 | None. The construction of M9 does not use it (`DEC-46`) | Chapter 2 of [BUSER], or Lean |
 | UNV-13 | The inverse and metric of the band, and the choice of map between the disk and the half-plane. The maps between the disk, the hyperboloid, and the Klein model are sourced in `geometry-models.md` 4.2 | `geometry-models.md` 4.3 and 5.1, `rendering.md` 13.1 item 14 | M12 | [HUB], and round-trip tests |
-| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. For a vector off the hyperboloid, the hyperboloid form reads the norm $\lvert\lvert\lvert y \rvert\rvert\rvert$ of equation (3.2.8) of [RATCLIFFE] as $\sqrt{-\langle y, y \rangle}$, which no research document defines. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8, 10, and 26 | M3 tests, M13 | A source, or Lean |
-| UNV-15 | The screen-distance estimate through the fold, analytic antialiasing, and the fade of tiles smaller than a pixel | `rendering.md` 7.1 and 13.1 items 19 and 20 | M3, and the roadmap item M14 | Measurement against supersampling |
+| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. For a vector off the hyperboloid, the hyperboloid form reads the norm $\lvert\lvert\lvert y \rvert\rvert\rvert$ of equation (3.2.8) of [RATCLIFFE] as $\sqrt{-\langle y, y \rangle}$, which no research document defines. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8, 10, and 26 | M3 tests, M13, M23 | A source, or Lean |
+| UNV-15 | The screen-distance estimate through the fold, analytic antialiasing, and the fade of tiles smaller than a pixel | `rendering.md` 7.1 and 13.1 items 19 and 20 | M3, M23, and the roadmap item M14 | Measurement against supersampling |
 | UNV-16 | The lift onto the ball, the view scale of the sphere, and the Phong formulas | `rendering.md` 13.1 items 11 and 12, `geometry-models.md` 11.6 | M5 | [PHONG75], [BLINN77] |
 | UNV-17 | Coset colourings are perfect for every orbifold group, the composition order, completeness, and conjugacy. The composition order is the rule of GRP-38 of `docs/design/group.md`: the fold that applies the sides $i_1, \ldots, i_n$ in that order puts the sample in the tile $gF$ with $g = s_{i_1} \cdots s_{i_n}$, and the colour is the number of the right coset $S g^{-1}$, traced from coset 0 through the inverse column of each side in reverse order, which names the left coset $gS$. A prototype outside the repository found the rule perfect, with the exact permutation of each side, on every class that it tried, found the forward trace not perfect on every class that is not normal, and found the reverse trace without the inverse to give the mirror image on rotation domains (Sections 7.10 and 7.16 of `docs/design/group.md`). For conjugacy, the design lists every subgroup as its own colouring (`DEC-37`), after the prototype found that no sampled element of the group relates the pictures of two conjugate subgroups | `colourings.md` 4.2, 8.4, 8.7, and 14.1 items 1 to 3 | M8, M20, M22 | [DDL2009], [SCHWARZENBERGER1984], or Lean. [CBGS2008] defines colour types and states none of these (`colourings.md` 3.3 and 14.1 items 1 and 2) |
 | UNV-18 | The parity colouring as the colouring by the two cosets of the orientation-preserving subgroup. That subgroup and its signature are sourced for non-Euclidean crystallographic (NEC) groups with a compact quotient (`colourings.md` 6) | `colourings.md` 6 and 14.2, `rendering.md` 4.6 | M3 | A source that links the colouring to the subgroup, or Lean |
@@ -553,7 +597,10 @@ The table also keeps the rows that serve the roadmap items M14 to M18 (Section 4
 | UNV-34 | The domains and pairings of the spherical group domains of M11 that no source states: the kites of `3*2` and `2*n` on the doubles of `432` and `(2n)22`, the kite of `n*` on the double of `n22` with its split mirror side, the lune of `nx` with its pairings by rotary reflections, the lunes of order 1 of `*` and `x`, and the domain with no side of `1`. Also the walk of the vertex cycles of DOM-55 on a lune whose pairings reverse orientation, and the values of the census of DOM-64 of `docs/design/domain.md`, such as the number of reflections of each group and whether it holds minus the identity, which a prototype outside the repository computed and no research document states. The orbifolds of `3*2` and `*` and the presentation of `n*` are sourced (p. 187 of [CBG], p. 248 of [CH], and p. 130 of [CBG]) | `fundamental-domains.md` 9.6.2 and 13.3 items 19 and 20, `geometry-models.md` 15.1 item 33 | M11 | A source that states them, or Lean. Until then the guard of DOM-60 of `docs/design/domain.md`, which returns every new domain except that of `*` only when it passes `verify()`, and the certificate of DOM-64, with its order, its census, and its exactly-once tiling, bound the reliance |
 | UNV-35 | In a coset colouring, under the colour rule of `UNV-17`, two tiles that share a side have the same colour exactly when the generator of that side lies in the subgroup of the colouring, which in the coset table is the generator fixing the base coset, so that the criterion of `DEC-65` can be tested on the side generators and the base coset of each listed subgroup (GRP-42 of `docs/design/group.md`) | `colourings.md` 14.1 item 28 | M20 | A source that states it, or Lean. The test "Valid neighbours" of `docs/design/render.md` checks it on samples |
 | UNV-36 | A domain has at most one valid colouring with 2 colours, so that the alias `parity` names one colouring (Section 4.6 of `docs/design/cli.md`) | `colourings.md` 14.1 item 29 | M20 | A source that states it, or Lean. The test "One valid 2-colouring" of `docs/design/group.md` checks it on its inputs |
-| UNV-37 | The regular tiling $\{p, q\}$ with $p, q \ge 3$ has the symmetry group that `*pq2` names, with the corner of order $p$ at the centre of a tile and the corner of order $q$ at a vertex, its group of orientation-preserving symmetries is the group that `pq2` names, and its dual is $\{q, p\}$. For the sphere and the Euclidean plane, `colourings.md` 10.3 states the corners and the dual, and no source read states them for the hyperbolic plane. No source states the naming in any geometry. A source states the symmetry group as the reflection group of the right triangle with the angles $\pi/2$, $\pi/p$, and $\pi/q$, which is also the group of $\{q, p\}$, and the rotation group as a subgroup of index 2 (`colourings.md` 5.1 and 5.4) | `orbifold-notation.md` 12 item 16 | M21 | A source that states it in orbifold notation, or Lean. No test can check the name of a tiling. The check of the angles of `escher-domain` checks that the domain of `*pq2` has the angles of that triangle, and the tests of Section 8.1 of `docs/design/cli.md` pin which signature gets which symbols |
+| UNV-37 | The regular tiling $\{p, q\}$ with $p, q \ge 3$ has the symmetry group that `*pq2` names, with the corner of order $p$ at the centre of a tile and the corner of order $q$ at a vertex, its group of orientation-preserving symmetries is the group that `pq2` names, and its dual is $\{q, p\}$. For the sphere and the Euclidean plane, `colourings.md` 10.3 states the corners and the dual, and no source read states them for the hyperbolic plane. No source states the naming in any geometry. A source states the symmetry group as the reflection group of the right triangle with the angles $\pi/2$, $\pi/p$, and $\pi/q$, which is also the group of $\{q, p\}$, and the rotation group as a subgroup of index 2 (`colourings.md` 5.1 and 5.4) | `orbifold-notation.md` 12 item 16 | M21, and M23 for the markings `010` and `100` of a hyperbolic `*pq2` | A source that states it in orbifold notation, or Lean. No test can check the name of a tiling. The check of the angles of `escher-domain` checks that the domain of `*pq2` has the angles of that triangle, and the tests of Section 8.1 of `docs/design/cli.md` pin which signature gets which symbols |
+| UNV-38 | The Wythoff construction on a Euclidean or hyperbolic reflection triangle has the faces that the face rule gives for the sphere: at a corner of order $n$, no face when neither mirror through it is active, a regular $n$-gon when one is, and a regular $2n$-gon when both are, with a face of 2 sides dropped, and its edges join the generator point to its images in the active mirrors. On a hyperbolic `*pq2` with $p \ge q \ge 3$, the marking with only the mirror opposite the corner of order $q$ active gives $\{p, q\}$, and the marking with only the mirror opposite the corner of order $p$ active gives $\{q, p\}$. [CLM1954] and [HAREL1993] state the faces, the edges, and the symbols for the sphere, and [CLM1954] the symbols of the Euclidean tessellations, and the members of `(7 3 2)` rest on Wikipedia only | `colourings.md` 10.1 to 10.3, and 14.1 items 10, 31, and 32 | M23 | Chapter 10 of [COXETER1999], [CKPS1995], or another primary source on the hyperbolic plane, or Lean. The tests "Face rule", "Faces around a centre", and "Face oracle" of Section 8.1 of `docs/design/render.md` check the number of sides of each face and the faces on whole images |
+| UNV-39 | After the fold, the perpendiculars from the generator point to the active mirrors cut the reflection triangle into one region for each corner with a face, and a folded point belongs to the face centred at the corner of its region, in every geometry. Two shaders by one author do this on the sphere and in the hyperbolic plane, and no paper or book states it | `colourings.md` 10.6.3 and 14.1 item 11 | M23 | A paper that states the decomposition, the helpers of the hyperbolic shader read line by line, or Lean. The tests "Face regions", "Faces around a centre", "Face oracle", and "Known faces" of Section 8.1 of `docs/design/render.md` check it |
+| UNV-40 | On a Euclidean or hyperbolic reflection triangle, the generator point of a marking is the point on the inactive mirrors at equal distance from the active ones, it exists, and it is unique, as the vertex, the point on the bisector, and the incentre are on the sphere | `colourings.md` 10.1, and 14.1 items 30, 33, and 34 | M23 | A source that proves it, or Lean. The test "Generator point" of Section 8.1 of `docs/design/render.md` checks the distances of the computed point in the reference arithmetic |
 
 ## 8. Security Considerations
 
@@ -597,10 +644,15 @@ The tool emits no logs. `--stats` prints its statistics on request.
 - [CFKP] The entry in Section 16.1 of `docs/research/geometry-models.md`.
 - [CH] The entry in Section 13.1 of `docs/research/orbifold-notation.md`. `fundamental-domains.md` cites the same paper as [CONWAY-HUSON2002].
 - [CHOI2012] The entry in Section 14.3 of `docs/research/fundamental-domains.md`.
+- [CKPS1995] The entry in Section 15 of `docs/research/colourings.md`.
+- [CLM1954] The entry in Section 15 of `docs/research/colourings.md`.
+- [COXETER1999] The entry in Section 15 of `docs/research/colourings.md`.
 - [DAVIS] The entry in Section 16.1 of `docs/research/geometry-models.md`. `fundamental-domains.md` cites the same book as [DAVIS2008].
 - [DDL2009] The entry in Section 15 of `docs/research/colourings.md`.
 - [DEATON1993] The entry in Section 14.1 of `docs/research/fundamental-domains.md`.
+- [FRETTLOH2008] The entry in Section 15 of `docs/research/colourings.md`.
 - [FWW] The entry in Section 16.2 of `docs/research/geometry-models.md`.
+- [HAREL1993] The entry in Section 15 of `docs/research/colourings.md`.
 - [HOLT2005] The entry in Section 15 of `docs/research/colourings.md`.
 - [HUB] The entry in Section 16.4 of `docs/research/geometry-models.md`.
 - [HULPKE2010] The entry in Section 15 of `docs/research/colourings.md`.

@@ -18,7 +18,7 @@ Every later crate computes with points, walls, and isometries of a geometry. The
 
 ### 1.2. Purpose
 
-`escher-geometry` is the one place where the conventions of Section 5 of the architecture become code. It exposes the bilinear form, the side test, point normalization, distance, the distance from a point to a wall, the wall through two points, the basic isometries, the inverse, an isometry check, the disk map, and the maps from the half-plane, band, and Klein models to the disk with their Jacobians, each as a free function over `glam` types. Its module `euclidean` exposes the side test, the distance, the distance from a point to a line, the line through two points, the reflection, the rotation, the translation, and an isometry check of the Euclidean plane. Its module `spherical` exposes the side test, point normalization, distance, the distance from a point to a great circle, the great circle through two points, the basic isometries, the inverse, and an isometry check of the sphere. Each function evaluates a formula in a numerical form chosen for its domain. A formula that the reference does not state in the project's convention is flagged as unverified or as an assumption, and a test covers it. Section 3 of the architecture places the crate in the workspace as a root with no internal dependency.
+`escher-geometry` is the one place where the conventions of Section 5 of the architecture become code. It exposes the bilinear form, the side test, point normalization, distance, the distance from a point to a wall, the wall through two points, the point where two walls meet, the basic isometries, the inverse, an isometry check, the disk map, and the maps from the half-plane, band, and Klein models to the disk with their Jacobians, each as a free function over `glam` types. Its module `euclidean` exposes the side test, the distance, the distance from a point to a line, the line through two points, the point where two lines meet, the reflection, the rotation, the translation, and an isometry check of the Euclidean plane. Its module `spherical` exposes the side test, point normalization, distance, the distance from a point to a great circle, the great circle through two points, a point where two great circles meet, the basic isometries, the inverse, and an isometry check of the sphere. Each function evaluates a formula in a numerical form chosen for its domain. A formula that the reference does not state in the project's convention is flagged as unverified or as an assumption, and a test covers it. Section 3 of the architecture places the crate in the workspace as a root with no internal dependency.
 
 ### 1.3. Audience
 
@@ -78,6 +78,7 @@ It adds these terms:
 - $K$: For two points $a$ and $b$, the reference value of $a_3 b_3 / \sinh d$, where $d$ is the distance between the exact `f64` values of $a$ and $b$, the reference value of $\operatorname{arcosh}(\max(1, -\langle a, b \rangle))$. A test computes it from its inputs. It scales the accuracy of `wall_through`.
 - $\sigma_i$: For a vector $u$, its covector $c$, and a vector $x$, the reference value of $\lvert x_i \rvert + 2 \lvert u_i \rvert \sum_j \lvert c_j x_j \rvert$, the sum of the absolute values of the terms of coordinate $i$ of the matrix product `reflection(u) * x`. It scales the accuracy of `reflection`.
 - $s_i$: For coordinate $i$ of a formula, the largest absolute value among the terms of the formula for that coordinate, as a reference value.
+- $L$: For two covectors $c$ and $e$, the reference value of $\lvert c \rvert \lvert e \rvert / \lvert c \times e \rvert$, with the Euclidean lengths of the vectors. It scales the accuracy of `wall_meet`.
 - $\mu$: For a matrix, the largest absolute value of its entries.
 - $g$: For a product of matrices, the product of the values $\mu$ of its factors.
 - total function: A function that returns a value for every `f64` input, without a panic. Outside its stated domain the value is unspecified.
@@ -120,6 +121,7 @@ pub fn normalize_point(vector: DVec3) -> Result<DVec3>;
 #[must_use] pub fn distance(first: DVec3, second: DVec3) -> f64;
 #[must_use] pub fn wall_distance(covector: DVec3, point: DVec3) -> f64;
 pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3>;
+pub fn wall_meet(first: DVec3, second: DVec3) -> Result<DVec3>;
 #[must_use] pub fn boost(length: f64) -> DMat3;
 #[must_use] pub fn rotation(angle: f64) -> DMat3;
 #[must_use] pub fn translation(target: DVec3) -> DMat3;
@@ -140,6 +142,7 @@ pub const ORIGIN: DVec3;
 #[must_use] pub fn side(covector: DVec3, point: DVec3) -> f64;
 #[must_use] pub fn wall_distance(covector: DVec3, point: DVec3) -> f64;
 pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3>;
+pub fn wall_meet(first: DVec3, second: DVec3) -> Result<DVec3>;
 #[must_use] pub fn reflection(covector: DVec3) -> DMat3;
 #[must_use] pub fn rotation(angle: f64) -> DMat3;
 #[must_use] pub fn translation(target: DVec3) -> DMat3;
@@ -156,6 +159,7 @@ pub fn normalize_point(vector: DVec3) -> Result<DVec3>;
 #[must_use] pub fn distance(first: DVec3, second: DVec3) -> f64;
 #[must_use] pub fn wall_distance(covector: DVec3, point: DVec3) -> f64;
 pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3>;
+pub fn wall_meet(first: DVec3, second: DVec3) -> Result<DVec3>;
 #[must_use] pub fn boost(angle: f64) -> DMat3;
 #[must_use] pub fn rotation(angle: f64) -> DMat3;
 #[must_use] pub fn translation(target: DVec3) -> DMat3;
@@ -164,7 +168,7 @@ pub fn wall_through(first: DVec3, second: DVec3) -> Result<DVec3>;
 #[must_use] pub fn isometry_defect(matrix: DMat3) -> f64;
 ```
 
-The module `hyperbolic` has one constant and 18 functions, the module `euclidean` has one constant and 8 functions, and the module `spherical` has one constant and 11 functions. The crate root re-exports `Error`, `ErrorKind`, and `Result` from the private module `error`, and nothing else.
+The module `hyperbolic` has one constant and 19 functions, the module `euclidean` has one constant and 9 functions, and the module `spherical` has one constant and 12 functions. The crate root re-exports `Error`, `ErrorKind`, and `Result` from the private module `error`, and nothing else.
 
 ### 3.2. Meaning and Invariants
 
@@ -180,6 +184,7 @@ Section 3.2 and `DEC-4` of the architecture decide that a point, a unit normal, 
 | `distance` | The hyperbolic distance $d(x, y)$ | Two points | Total. At least 0 |
 | `wall_distance` | The hyperbolic distance from the point of the ray of $x$ to the wall of $u$, from the covector $c$ of $u$ | A covector of a unit normal and a vector with $-\langle x, x \rangle > 0$ and $x_3 > 0$ | Total. At least 0, or NaN for a NaN input (Section 5.6) |
 | `wall_through` | A unit normal of the wall that contains both points | Two distinct points | A unit normal, or `DegenerateWall` (Section 5.3) |
+| `wall_meet` | The point that lies on both walls, from their covectors | Any two covectors, at any scale, such as the covectors of two unit normals or their difference | A point, or `DegenerateWall` when the walls do not meet in a point (Section 5.7) |
 | `boost` | The boost $T^\alpha$ along the first axis by the full distance $\alpha$ | Any finite length | An isometry |
 | `rotation` | The rotation $R^\alpha$ about `ORIGIN` by the angle $\alpha$ in radians | Any finite angle | An isometry |
 | `translation` | An isometry that maps `ORIGIN` to the point with the spatial coordinates of the target | A point. Its last coordinate is not read | An isometry (Section 6.4) |
@@ -195,6 +200,7 @@ Section 3.2 and `DEC-4` of the architecture decide that a point, a unit normal, 
 | `euclidean::side` | The side value $c \cdot x = a \cdot p - t$ of the point $p$ of $x$ for the line covector $c$ | A line covector and a Euclidean point | Total. Positive means outside a line whose covector is oriented outward (Section 5.2 of the architecture) |
 | `euclidean::wall_distance` | The Euclidean distance $\lvert c \cdot x \rvert$ from the point $p$ of $x$ to the line of the line covector $c$ | A line covector and a Euclidean point | Total. At least 0, or NaN for a NaN input (Section 5.6) |
 | `euclidean::wall_through` | A line covector of the line through both points | Two distinct Euclidean points | A line covector, or `DegenerateWall` (Section 5.4) |
+| `euclidean::wall_meet` | The Euclidean point that lies on both lines | Any two covectors, at any scale, such as two line covectors or their difference | A Euclidean point, or `DegenerateWall` for parallel lines (Section 5.7) |
 | `euclidean::reflection` | The reflection in the line of a covector | A line covector. It is not checked | A Euclidean isometry of determinant $-1$ when the covector is a line covector (Section 6.6) |
 | `euclidean::rotation` | The rotation about `euclidean::ORIGIN` by the angle in radians | Any finite angle | A Euclidean isometry, the same matrix as `hyperbolic::rotation` (Section 6.6) |
 | `euclidean::translation` | The translation that maps `euclidean::ORIGIN` to $(t_1, t_2, 1)$ | Any finite target. Its last coordinate is not read | A Euclidean isometry (Section 6.6) |
@@ -206,13 +212,14 @@ Section 3.2 and `DEC-4` of the architecture decide that a point, a unit normal, 
 | `spherical::distance` | The spherical distance $d_S(x, y)$ | Two sphere points | Total. In $[0, \pi]$, or NaN for a NaN input (Section 5.5) |
 | `spherical::wall_distance` | The spherical distance from the sphere point of the ray of $x$ to the great circle of the normal $u$, passed as its covector | A great-circle normal and a vector other than the zero vector | Total. In $[0, \pi/2]$, or NaN for a NaN input (Section 5.6) |
 | `spherical::wall_through` | A great-circle normal of the great circle that contains both points | Two sphere points that are neither equal nor antipodal | A great-circle normal, or `DegenerateWall` (Section 5.5) |
+| `spherical::wall_meet` | One of the two antipodal sphere points that lie on both great circles | Any two covectors, at any scale, such as two great-circle normals or their difference | A sphere point, or `DegenerateWall` for two linearly dependent covectors (Section 5.7). The caller chooses between the result and its negation |
 | `spherical::boost` | The translation $T^\alpha$ of [KC24] along the first axis by the angle $\alpha$ in radians | Any finite angle | A spherical isometry of determinant 1 (Section 6.7) |
 | `spherical::rotation` | The rotation $R^\alpha$ about `spherical::ORIGIN` by the angle in radians | Any finite angle | The same matrix as `hyperbolic::rotation` (Section 6.7) |
 | `spherical::translation` | A spherical isometry that maps `spherical::ORIGIN` to the sphere point on the ray of the target | Any finite target. All three coordinates are read | A spherical isometry of determinant 1, and the identity for every zero vector (Section 6.7) |
 | `spherical::reflection` | The reflection in the great circle of a normal | A great-circle normal. It is not checked | A spherical isometry of determinant $-1$ when the normal is a sphere point (Section 6.7) |
 | `spherical::inverse` | The inverse of a spherical isometry | A spherical isometry | Total and exact, the transpose (Section 6.7) |
 | `spherical::isometry_defect` | How far a matrix is from a spherical isometry | Any matrix | Total. 0 for an exact spherical isometry, and `f64::INFINITY` when an entry is not finite or the result is not a number (Section 6.7) |
-| `Error` | Why a vector is not a point, or two points span no wall | Not applicable | Holds no `glam` type (ERR-2 of the coding standard) |
+| `Error` | Why a vector is not a point, two points span no wall, or two walls meet in no point | Not applicable | Holds no `glam` type (ERR-2 of the coding standard) |
 | `ErrorKind` | What a caller matches on | Not applicable | `Copy` and `#[non_exhaustive]` (ERR-1 of the coding standard) |
 
 GEO-2. Every function of the crate MUST return without a panic for every input, including NaN, infinities, and subnormal values, because the inputs derive from untrusted signatures and options, and a panic stops the caller's whole program (ERR-5 of the coding standard). A total function MAY return any value for an input outside its domain, including NaN.
@@ -225,9 +232,9 @@ The crate has these modules, each a file named after the module:
 
 - `src/lib.rs`: The crate-level documentation, with a `# Features` section that states that the crate has no Cargo feature, `pub mod euclidean;`, `pub mod hyperbolic;`, `pub mod spherical;`, the re-exports of `Error`, `ErrorKind`, and `Result`, and the unit test "Auto traits" of Section 10.1.
 - `src/error.rs`: `Error`, `ErrorKind`, `Result`, and the private detail enum.
-- `src/hyperbolic.rs`: The constant, the 18 functions, and their unit tests. The file form, not `hyperbolic/mod.rs`, is what the workspace lint `mod_module_files` requires.
-- `src/euclidean.rs`: The constant, the 8 functions of the module `euclidean`, and their unit tests.
-- `src/spherical.rs`: The constant, the 11 functions of the module `spherical`, and their unit tests.
+- `src/hyperbolic.rs`: The constant, the 19 functions, and their unit tests. The file form, not `hyperbolic/mod.rs`, is what the workspace lint `mod_module_files` requires.
+- `src/euclidean.rs`: The constant, the 9 functions of the module `euclidean`, and their unit tests.
+- `src/spherical.rs`: The constant, the 12 functions of the module `spherical`, and their unit tests.
 
 ### 3.4. Modules of the Geometries
 
@@ -267,7 +274,7 @@ Section 2.4 of the reference gives every formula in the convention of its source
 
 1. The source states it with the time coordinate last, as the project does. The crate evaluates it as printed. This covers the form, `ORIGIN`, the distance, the normalization (except the sign rule of Section 5.1, which is a choice), the boost, the rotation, the inverse, the isometry conditions, and both disk maps. The covector and the side test are definitions of Sections 2.1 and 5.2 of the architecture with $J$ of the reference, and they use no source formula.
 2. The source states it with the form only, so the expression does not mention the position of the time coordinate. The crate evaluates it with the project's form. This covers the reflection (Section 6.5) and rests on an assumption (Section 13.1).
-3. The source states it only with the time coordinate first, or not at all on the hyperboloid. The step rests on an unverified statement of Section 12 and a test of Section 10 covers the property that the code relies on. This covers the wall through two points (Section 5.3), the distance to a wall (Section 5.6), and the translation (Section 6.4).
+3. The source states it only with the time coordinate first, or not at all on the hyperboloid. The step rests on an unverified statement of Section 12 and a test of Section 10 covers the property that the code relies on. This covers the wall through two points (Section 5.3), the distance to a wall (Section 5.6), the point where two walls meet (Section 5.7), and the translation (Section 6.4).
 
 [RAT] states one transfer rule between its conventions, at the start of its Section 4.5: "All the results of Chapter 3 remain true after one reverses the order of the coordinates of $\mathbb{R}^{n+1}$" (Section 2.4 of the reference). The reference restates no single result of that chapter in the time-last form, so this design applies the rule to no formula.
 
@@ -422,6 +429,22 @@ The hyperbolic and spherical functions divide by the length of the vector, so th
 GEO-31. Each function `wall_distance` MUST return a number of at least 0 for an input in its domain, and at most $\pi/2$ in the module `spherical`, and NaN for an input with a NaN coordinate, and `spherical::wall_distance` MUST clamp with a comparison that NaN fails, because `escher-render` compares the result with half the border width and draws a sample with a NaN distance as a border sample, so a NaN from rounding would draw a border where none is, while a NaN input must stay visible.
 
 GEO-32. `hyperbolic::wall_distance` and `spherical::wall_distance` MUST divide the side value by $\sqrt{-\langle x, x \rangle}$ or $\sqrt{x \cdot x}$ of the vector that they are given, and MUST NOT assume a vector of length 1, because `escher-render` passes the folded point, which the fold does not renormalize (`DEC-80` and Section 9.3 of the architecture), so its length can differ from 1 by the rounding of each step.
+
+### 5.7. Point Where Two Walls Meet
+
+`wall_meet(c, e)` returns a point that lies on the wall of the covector $c$ and on the wall of the covector $e$, so that `side(c, x)` and `side(e, x)` are 0 up to rounding. It takes covectors, as `side` and `wall_distance` do, because a domain stores the covector of each side, and `escher-render` calls it on the covectors of sides and of walls that it builds with `wall_through` to place the generator point and the feet of a Wythoff construction (Section 5.24 of `docs/design/render.md`). No other function of the crate gives a point from two walls: `wall_through` goes the other way, from two points to a wall, and `normalize_point` needs a vector that already lies on the ray of the point.
+
+Each module computes $w = c \times e$, which is `c.cross(e)`. The cross product is orthogonal to both factors under the dot product, by equation (2.1.3) of [RAT] (Section 11.1 of the reference), and `side` is the dot product in every module (Section 4.2), so every multiple of $w$ has the side value 0 for both walls. The function reads $c$ and $e$ only through the line of $w$, so it takes covectors at any scale, not only those of unit normals, line covectors, or great-circle normals. Its domain is any two covectors: it returns a point when the line of $w$ holds a point of its geometry, and `DegenerateWall` in the cases of the table below. The modules differ only in how they pick the point on the line of $w$:
+
+| Module | Result | `DegenerateWall` when |
+| --- | --- | --- |
+| `hyperbolic` | `normalize_point(w)`, or `normalize_point(-w)` when the first gives `NotAPoint` | Both give `NotAPoint`, as for two equal walls, two walls that do not meet, and a NaN or infinite coordinate |
+| `euclidean` | $w / w_3$ | $w_3$ is 0, as for two parallel lines, or the result is not finite |
+| `spherical` | `normalize_point(w)`, one of the two antipodal points of the two great circles | `normalize_point(w)` gives `NotAPoint`, as for two equal or antipodal normals |
+
+No source read states these formulas in the convention of this crate. As for `euclidean::wall_through` in Section 5.4, each formula only computes a candidate, and the tests of Section 10.1 check on the result that both side values are 0 within the bound of its row and that the result is a point of its geometry. The spherical function states no choice between the two antipodal points, and its caller picks one with `side`, as a caller orients the result of `wall_through`.
+
+GEO-33. Each function `wall_meet` MUST return either a point of its geometry or `DegenerateWall` for every input, and on the range of its row of Sections 8.4 to 8.6 the point MUST have the side value 0 for both covectors within that row, because `escher-render` builds the generator point of a Wythoff construction and the ends of its edges from the result, and a point off a wall moves every border and face of the tiling.
 
 ## 6. Isometries
 
@@ -640,12 +663,13 @@ which this design states (Section 12). The denominator $1 + r$ is at least 1. Ne
 
 ### 8.1. Input Outside a Domain
 
-Every function is total (GEO-2). Only the functions `normalize_point` and `wall_through` of each module, `from_disk`, and the three functions `disk_from_<model>` check their input, because each returns a value that a caller stores and builds on. The other functions return an unspecified value for input outside their domain, because a check in each would cost time in the fold and the caller already holds a value of the right kind:
+Every function is total (GEO-2). Only the functions `normalize_point`, `wall_through`, and `wall_meet` of each module, `from_disk`, and the three functions `disk_from_<model>` check their input, because each returns a value that a caller stores and builds on. The other functions return an unspecified value for input outside their domain, because a check in each would cost time in the fold and the caller already holds a value of the right kind:
 
 | Function | Input outside the domain | Behaviour |
 | --- | --- | --- |
 | `normalize_point` | Spacelike, null, non-positive last coordinate, NaN, infinite, or $q$ underflowing or overflowing | `NotAPoint` |
 | `wall_through` | Equal points, or a pair whose $w$ has a non-positive or non-finite form | `DegenerateWall` |
+| `wall_meet` of each module | Two covectors whose walls do not meet in a point, or the other inputs of its row of Section 5.7 | `DegenerateWall` |
 | `from_disk` | On or outside the unit circle, NaN | `None` |
 | `disk_from_half_plane` | On or below the real axis, NaN, infinite | `None` |
 | `disk_from_band` | On or outside an edge of the strip, NaN, infinite | `None` |
@@ -687,9 +711,9 @@ GEO-10. `translation` MUST compute the polar radius as $\operatorname{arsinh}$ o
 
 ### 8.3. Normalization Policy
 
-GEO-11. Every function other than the two functions `normalize_point` and the three functions `wall_through` MUST NOT divide its result by a norm, because where and how often a point or matrix is renormalized is the caller's policy, such as the fold, which renormalizes nothing (Section 9.3 of the architecture), and a hidden renormalization moves a point that the caller relies on, such as a vertex of a domain.
+GEO-11. Every function other than the two functions `normalize_point`, the three functions `wall_through`, and the three functions `wall_meet` MUST NOT divide its result by a norm, because where and how often a point or matrix is renormalized is the caller's policy, such as the fold, which renormalizes nothing (Section 9.3 of the architecture), and a hidden renormalization moves a point that the caller relies on, such as a vertex of a domain.
 
-`hyperbolic::wall_through` divides by $\sqrt{\langle w, w \rangle}$ because its contract is a unit normal, and `euclidean::wall_through` divides by $\sqrt{w_1^2 + w_2^2}$ because its contract is a line covector. `spherical::normalize_point` and `spherical::wall_through` divide by a Euclidean length because their contracts are a sphere point and a great-circle normal. `hyperbolic::wall_distance` and `spherical::wall_distance` divide a side value by the length of the vector, as GEO-32 requires, and return a distance, so they move no point that a caller holds, and GEO-11 does not apply to them. The crate has no function that renormalizes a matrix, such as the Gram-Schmidt process of `fixmatrix` in [HR] (Section 8.4 of the reference). A later change adds one when a caller needs it.
+`hyperbolic::wall_through` divides by $\sqrt{\langle w, w \rangle}$ because its contract is a unit normal, and `euclidean::wall_through` divides by $\sqrt{w_1^2 + w_2^2}$ because its contract is a line covector. `spherical::normalize_point` and `spherical::wall_through` divide by a Euclidean length because their contracts are a sphere point and a great-circle normal. Each `wall_meet` divides through `normalize_point`, or by $w_3$ in the module `euclidean`, because its contract is a point (Section 5.7). `hyperbolic::wall_distance` and `spherical::wall_distance` divide a side value by the length of the vector, as GEO-32 requires, and return a distance, so they move no point that a caller holds, and GEO-11 does not apply to them. The crate has no function that renormalizes a matrix, such as the Gram-Schmidt process of `fixmatrix` in [HR] (Section 8.4 of the reference). A later change adds one when a caller needs it.
 
 ### 8.4. Accuracy
 
@@ -709,6 +733,7 @@ The tests of Section 10.1 assert each bound against the reference arithmetic of 
 | `wall_through`, orthogonality, close points | $a$ within distance 10 of `ORIGIN`, and $b$ at a distance from $10^{-5}$ to 5 from $a$, log-uniform | $\lvert \langle u, a \rangle \rvert$ and $\lvert \langle u, b \rangle \rvert$ each at most $256\varepsilon K \max(a_3, b_3)$, as reference values from the exact `f64` values of $u$, $a$, and $b$. At most 136 of 10,000 results are `DegenerateWall` |
 | `wall_through`, orthogonality, near `ORIGIN` | $a$ and $b$ within distance 3 of `ORIGIN` and at least 0.1 apart | The quantity of the row above, at most $32\varepsilon K \max(a_3, b_3)$ |
 | `wall_through`, norm | The ranges of the two rows above | $\lvert \langle u, u \rangle - 1 \rvert$ at most $64\varepsilon K$, as a reference value |
+| `wall_meet` | Pairs drawn from the covectors of the unit normals of three walls through one point within distance 10 of `ORIGIN`, and from the differences of two of those covectors, each multiplied by a factor in $[0.5, 2]$ | $\lvert c \cdot x \rvert$ at most $k_M \varepsilon L \lvert c \rvert \lvert x \rvert$, and $\lvert e \cdot x \rvert$ at most $k_M \varepsilon L \lvert e \rvert \lvert x \rvert$, as reference values from the exact `f64` values of $c$, $e$, and the result $x$, with Euclidean lengths |
 | `boost` | $\lvert l \rvert \le 700$, half uniform and half log-uniform in $\lvert l \rvert$ from $10^{-300}$ with either sign. Also the lengths 0, $\pm 700$, $\pm 10^{-300}$, $5 \times 10^{-324}$, and $\pm 1$ | Each entry within a relative error of $16\varepsilon$ of the reference value of $\cosh l$ or $\sinh l$. The other five entries are exactly 0 or 1 |
 | `rotation` | Angles of absolute value up to 1000. Also the angles 0, $\pm 1000$, $\pi$, and $10^{-300}$. The function accepts any finite angle, and this row states its accuracy only on this range, because the reference arithmetic of Section 10.2 works at 256 bits and reducing a larger angle needs more digits of $\pi$ than that | Each entry within $10^{-14}$ of its reference value. The other five entries are exactly 0 or 1 |
 | `translation` | Targets $t$ with $r$, the reference value of $\rho$ of Section 6.4, from 0.1 to 709, half uniform and half log-uniform, and the targets $(0, 0, 1)$, $(10^{-300}, 0, 1)$, and $(5 \times 10^{-324}, 0, 1)$ | Each coordinate of `translation(t) * ORIGIN` within $8\varepsilon (1 + r) \, p_3$ of the point $p$ of Section 6.4. For the three listed targets, each coordinate is also within one rounding unit, $\varepsilon \lvert p_i \rvert$, of $p$, which makes the second coordinate exactly 0 |
@@ -752,6 +777,7 @@ The tests measure each row of this table as Section 8.4 states, and GEO-12 appli
 | `euclidean::wall_through`, norm | The pairs of the row above | $\lvert c_1^2 + c_2^2 - 1 \rvert$ at most $32\varepsilon$ |
 | `euclidean::distance` | The pairs of the row above | A relative error of at most $16\varepsilon$ against $\lvert p - q \rvert$ |
 | `euclidean::wall_distance` | The covectors of the row `euclidean::reflection`, and points within 64 | Within $8\varepsilon \sum_i \lvert c_i x_i \rvert$ of the reference value of $\lvert c \cdot x \rvert$ |
+| `euclidean::wall_meet` | Pairs drawn from the line covectors of three lines through one point within 64, and from the differences of two of those covectors, each multiplied by a factor in $[0.5, 2]$ | The bound of the row `wall_meet` of Section 8.4, with the constant $k_M$ of this module |
 
 `euclidean::rotation` runs the same operations as `hyperbolic::rotation` on the same input, so the row `rotation` of Section 8.4 states its accuracy, and a unit test asserts that the two matrices are equal bit for bit. `euclidean::translation` is exact (Section 6.6).
 
@@ -768,6 +794,7 @@ The tests measure each row of this table as Section 8.4 states, and GEO-12 appli
 | `spherical::wall_distance` | Random great-circle normals $u$, and points at an offset $o$ of either sign along $u$ from a random point of the great circle, with $\lvert o \rvert$ from $10^{-12}$ to $\pi/2 - 10^{-3}$, log-uniform, each multiplied by a factor in $[0.5, 2]$. Also the normals, vertices, and centres of the spherical domains of `docs/design/domain.md` | Within $32\varepsilon / \cos d$ of the reference value $d$ of $\arcsin\left(\lvert u \cdot x \rvert / \sqrt{x \cdot x}\right)$ |
 | `spherical::wall_through`, orthogonality | The pairs of the row `spherical::distance` | $\lvert u \cdot a \rvert$ and $\lvert u \cdot b \rvert$ each at most $8\varepsilon / \sin d$ |
 | `spherical::wall_through`, norm | The pairs of the row `spherical::distance` | $\lvert u \cdot u - 1 \rvert$ at most $32\varepsilon$ |
+| `spherical::wall_meet` | Pairs drawn from three random great-circle normals through one random sphere point, and from the differences of two of those normals, each multiplied by a factor in $[0.5, 2]$ | The bound of the row `wall_meet` of Section 8.4, with the constant $k_M$ of this module |
 | `spherical::boost` | The angles of the row `rotation` of Section 8.4 | Each entry within $10^{-14}$ of the reference value of $\cos\alpha$ or $\pm\sin\alpha$. The other five entries are exactly 0 or 1 |
 | `spherical::translation` | Random sphere points $t$, and $t$ equal to `spherical::ORIGIN`, to its negation, and to three points within $10^{-300}$ of each | Each coordinate of `translation(t) * ORIGIN` within $16\varepsilon$ of the reference value of $t / \lvert t \rvert$ |
 | `spherical::translation`, off the axis | The targets of the row above, each paired with one random sphere point $x$ | Each coordinate of `translation(t) * x` within $32\varepsilon$ of the reference value of $R^{\varphi} T^{\rho} R^{-\varphi} x$ |
@@ -785,7 +812,7 @@ The reference value of $R^{\varphi} T^{\rho} R^{-\varphi} x$ takes $\cos\rho = t
 
 The table guarantees nothing outside its ranges. `spherical::wall_through` has no stated accuracy for two points less than $10^{-3}$ apart or less than $10^{-3}$ from antipodal. For such points it returns a finite vector or `DegenerateWall`, and the tests below that floor assert only that. `spherical::wall_distance` has no stated accuracy for a point less than $10^{-3}$ from a pole of its great circle, and the tests there assert only a result in $[0, \pi/2]$.
 
-The constants of the three rows of `wall_distance` in Sections 8.4 to 8.6 are bounds that the tests assert, each at least 8 times the largest error that they measure, as TEST-13 of the coding standard requires.
+The constants of the three rows of `wall_distance` in Sections 8.4 to 8.6 are bounds that the tests assert, each at least 8 times the largest error that they measure, as TEST-13 of the coding standard requires. So is the constant $k_M$ of each row of `wall_meet`, at least 8 times the largest ratio of a side value to $\varepsilon L$ times the two lengths of its row that the tests measure. A pair whose two covectors are linearly dependent in the reference arithmetic is not drawn.
 
 ### 8.7. Accuracy of the Model Maps
 
@@ -811,8 +838,8 @@ GEO-13. The crate MUST implement `Error` as ERR-1 of the coding standard require
 
 `Error` has these private fields:
 
-- `operation`: A `&'static str`, which is `"normalize point"` for `NotAPoint` and `"find wall through two points"` for `DegenerateWall`.
-- `detail`: A private enum with one variant for each cause, which carries no data: a vector that is not a point of the hyperboloid, a vector with no finite, positive length, and two points that span no wall. The first two have the kind `NotAPoint`.
+- `operation`: A `&'static str`, which is `"normalize point"` for `NotAPoint`, `"find wall through two points"` for `DegenerateWall` from `wall_through`, and `"find point where two walls meet"` for `DegenerateWall` from `wall_meet`.
+- `detail`: A private enum with one variant for each cause, which carries no data: a vector that is not a point of the hyperboloid, a vector with no finite, positive length, two points that span no wall, and two walls that meet in no point. The first two have the kind `NotAPoint`.
 
 `kind()` computes the kind from `detail` with a `match` that has no wildcard arm, so the kind is not stored twice (TYPE-3 and TYPE-7 of the coding standard). `thiserror` derives `Display` and `std::error::Error` on `Error` and on the detail enum, in the pattern of `escher-signature` (Section 10.1 of `docs/design/signature.md`). No error of this crate has a cause, so `source()` returns `None` and the struct has no source field. No `glam` type and no value of the input appears in the error (ERR-2 of the coding standard).
 
@@ -827,6 +854,7 @@ GEO-14. `Display` for `Error` MUST be `cannot `, the operation, `: `, and the te
 | `NotAPoint` | `hyperbolic::normalize_point` | `cannot normalize point: the vector is not timelike with a positive last coordinate` |
 | `NotAPoint` | `spherical::normalize_point` | `cannot normalize point: the vector has no finite, positive length` |
 | `DegenerateWall` | `hyperbolic::wall_through`, `euclidean::wall_through`, and `spherical::wall_through` | `cannot find wall through two points: the points do not span a wall` |
+| `DegenerateWall` | `hyperbolic::wall_meet`, `euclidean::wall_meet`, and `spherical::wall_meet` | `cannot find point where two walls meet: the walls do not meet in a point` |
 
 Each text is in lower case and has no trailing punctuation (ERR-4 of the coding standard).
 
@@ -846,10 +874,10 @@ The tests form these layers:
 
 | Layer | What it checks | What it catches |
 | --- | --- | --- |
-| Reference arithmetic | Each row of Sections 8.4 to 8.7 against the reference arithmetic of Section 10.2, on the inputs of the row and within its bound, and the five functions of Section 8.4 on the triangle set. The maps of [KC24] and the disk maps against their formulas in the reference type, and the three properties of each wall evaluated in the reference type from the exact `f64` values of the result and the points. The Jacobian of each model map against central differences of the reference map, and the round trip of each model map from the model set. "Distance by minimization": for each module, the reference value of the formula of Section 5.6 against the minimum of the distance from the point to the points of the wall that the minimization of Section 10.2 finds, on walls and points over the ranges of the rows of `wall_distance` | A wrong formula, a wrong convention, a lost digit, a wrong Jacobian, and a distance form that is not the distance to the wall |
+| Reference arithmetic | Each row of Sections 8.4 to 8.7 against the reference arithmetic of Section 10.2, on the inputs of the row and within its bound, and the five functions of Section 8.4 on the triangle set. The maps of [KC24] and the disk maps against their formulas in the reference type, and the three properties of each wall evaluated in the reference type from the exact `f64` values of the result and the points. "Walls meet": for each module, on the pairs of its row, the two side values of the result of `wall_meet` evaluated in the reference type, within the bound of its row, and for the modules `hyperbolic` and `spherical` the norm of the result, within the accuracy of the row of `normalize_point` of its module. The Jacobian of each model map against central differences of the reference map, and the round trip of each model map from the model set. "Distance by minimization": for each module, the reference value of the formula of Section 5.6 against the minimum of the distance from the point to the points of the wall that the minimization of Section 10.2 finds, on walls and points over the ranges of the rows of `wall_distance` | A wrong formula, a wrong convention, a lost digit, a wrong Jacobian, and a distance form that is not the distance to the wall |
 | Property tests and sweeps | Deterministic sweeps of 100,000 cases, or of 10,000 for `disk_from_band` for the reason of Section 8.4, and `proptest` on 256 cases, of relations that hold in exact arithmetic: a reflection is an involution, fixes the points of its wall, and has a small `isometry_defect`, a product of isometries preserves `form` and `distance`, `distance(ORIGIN, boost(l) * ORIGIN)` is $\lvert l \rvert$, `distance` agrees with the disk formula of [RAT], Theorem 4.5.1, both disk round trips return their input, the product of the reflections in two walls at the angle $\pi/n$ raised to the power $n$ is the identity, and swapping the arguments of each `wall_through` negates its result exactly. Each `wall_distance` gives a point and its image under the reflection in the same wall the same distance, and `hyperbolic::wall_distance` and `spherical::wall_distance` give a vector and its multiples by $2^k$, for $k$ from $-40$ to 40, the same distance (GEO-32). For the model maps, on the model set: the modulus of the Jacobian of `disk_from_half_plane` meets the scale relation of Section 7.5, the modulus of the Jacobian of `disk_from_band` equals the scale factor of [SYMMHUB] of Section 7.6, each holomorphic Jacobian has the form of Section 2.1, and the map of [BEA], p. 128, applied to the result of `disk_from_klein` returns its input. Below the separation floors of Sections 8.4 and 8.6, and beyond distance 15 for `normalize_point`, the tests assert only a finite result or the error | A formula that holds on the reference inputs but breaks a law elsewhere in its range |
 | Exact cases | Unit tests of the values that IEEE 754 arithmetic gives exactly: the images of the centres of the three models in the table of Section 7.4, dyadic reflections, copies, negations, the identity from `spherical::translation` of `spherical::ORIGIN` and of every zero vector, the transpose, `rotation` of each module equal bit for bit to `hyperbolic::rotation`, the last row of `euclidean::reflection`, and the distance 0 of `ORIGIN` of each module to the wall of the normal $(1, 0, 0)$. Further unit tests assert `isometry_defect` within $10^{-12}$ of its value on six matrices that each break one of its equations | A wrong sign, a wrong constant, and a special case that rounds |
-| Failure paths and any input | `NotAPoint` and `DegenerateWall` for every input that Sections 5.1, 5.3 to 5.5, and 8.1 name, including underflow and overflow, the results of Section 8.1 for non-finite input, the rows of the tables of Sections 5.6, 7.3, and 7.4, and the error texts of Section 9.2. At the extremes of each model, a half-plane position close to the real axis or far from $i$ and a band position far along the strip give a disk position that `from_disk` rejects, and the Klein position of the largest radius below 1 gives a finite disk position inside the disk. A property test passes any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value to every function and asserts no panic and the invariants of GEO-2, GEO-20, GEO-21, GEO-23 to GEO-26, GEO-28, and GEO-31 | A missing check, a panic, and a changed text |
+| Failure paths and any input | `NotAPoint` and `DegenerateWall` for every input that Sections 5.1, 5.3 to 5.5, 5.7, and 8.1 name, including two equal walls and two parallel lines for `wall_meet`, including underflow and overflow, the results of Section 8.1 for non-finite input, the rows of the tables of Sections 5.6, 7.3, and 7.4, and the error texts of Section 9.2. At the extremes of each model, a half-plane position close to the real axis or far from $i$ and a band position far along the strip give a disk position that `from_disk` rejects, and the Klein position of the largest radius below 1 gives a finite disk position inside the disk. A property test passes any `f64` bit pattern, NaN, infinity, signed zero, or subnormal value to every function and asserts no panic and the invariants of GEO-2, GEO-20, GEO-21, GEO-23 to GEO-26, GEO-28, GEO-31, and GEO-33 | A missing check, a panic, and a changed text |
 | Other tests | A compile-time assertion that `Error` and `ErrorKind` are `Send`, `Sync`, and `'static`, and the doctests | A wrong auto trait and a stale example |
 
 Each reference test and sweep that asserts a bound prints its largest error, in the form of the bound, with its margin and the input that gave it. The test harness captures that output for a test that passes. The tests of `docs/design/domain.md` check its triangles themselves.
@@ -937,6 +965,7 @@ PLAN-3 of the plan requires this list. Each row names an unverified statement of
 | --- | --- | --- | --- |
 | `UNV-26` | The normal through two points with the time coordinate last, $w = J(a \times b)$ with $J = \operatorname{diag}(1, 1, -1)$, where [RAT] states the Lorentzian cross product with the time coordinate first (Section 7.4 of the reference). Also the Euclidean reflection of [RAT] (4.1.1) as the matrix of `euclidean::reflection` on the plane $x_3 = 1$ | 5.3, 6.6 | Uses the formula of the normal only to compute a candidate, checks that its form is positive and finite, and normalizes it. The tests check the three properties of Section 5.3 on the result, which are what callers rely on. They compare the Euclidean reflection applied to points with (4.1.1) in the reference arithmetic, and check that it is an involution that fixes the points of its line. The second part of `UNV-26`, the relation between normals and the corner angle, is not used by this crate |
 | None | The line through two points as a normalized cross product, item 24 of Section 15.1 of the reference | 5.4 | Uses the formula only to compute a candidate. The tests check the three properties of Section 5.4 on the result |
+| This design | The point where two walls meet as the cross product of their covectors, normalized onto the hyperboloid or the sphere or divided by its last coordinate | 5.7 | Uses the formula only to compute a candidate. "Walls meet" checks the side values and the norm of the result in the reference arithmetic |
 | `UNV-25` | Correct rounding of the reference-arithmetic crate, in tests only | 10.2 | Works at 256 bits against tolerances of a few multiples of $\varepsilon$ at the tightest, so a wrong last bit of the reference cannot change a verdict. The self-check of `escher-reference` (Section 7.1 of the architecture) checks the precision and rounding arguments. A comparison of six values with the MPFR library 4.2.2 at 200 bits, called through its C interface, agreed exactly to more than 60 significant digits, and item 2 of Section 13.3 asks the owner whether it closes `UNV-25` |
 | `UNV-4` | The precision of the disk map near the limit circle, and of the band and Klein maps near the edges of their models | 7.3, 7.6, 7.7, 8.4, 8.7 | States the loss of `from_disk` and the distance beyond which the radius of `to_disk` is within rounding of 1 (Section 7.3), and tests both against the reference arithmetic at radius up to $1 - 10^{-12}$. States the cancellation of the band and Klein maps and bounds it on the model set. The effect on an image is measured by the renderer |
 | `UNV-13` | The map from the band to the disk, $\tanh(\pi w / 4)$, which only the code of [SYMMHUB] states (item 14 of Section 13.1 of `docs/research/rendering.md`). The choice of the map between the half-plane and the disk, which the owner made in `DEC-75` of the architecture and which is not a fact, is the other part of the label. The band metric, the third part, is not used, because the renderer takes the Jacobian of the map | 7.6 | Evaluates the inverse of the forward map of [B2] and [B3] that Section 5.1 of the reference states. The round trip of Section 8.7 checks it against that forward map in the reference arithmetic, and the modulus of its Jacobian against the scale factor of [SYMMHUB] |
@@ -975,9 +1004,10 @@ No other document dictates these choices. Each looks like something a change cou
 | `normalize_point` rejects a vector with a non-positive last coordinate and does not flip it, because such a vector is a symptom of an error upstream | 5.1 |
 | `distance` has one form, because the forms for close points need polar input, clamped to at least 1 so that rounding cannot make the result NaN, and keeps a NaN input visible | 5.2 |
 | `wall_through` states no orientation, because the caller orients the result with `side` from a point that it knows to lie inside | 5.3 |
+| `wall_meet` takes two covectors, and its spherical form leaves the choice between two antipodal points to the caller, because the caller knows which side of a third wall the point lies on | 5.7 |
 | `translation` reads no last coordinate, and the design relies only on its product and its image of `ORIGIN`, because no source states the product on the hyperboloid | 6.4 |
 | `isometry_defect` returns a number, with infinity for a failed condition, because each caller has its own tolerance | 6.2 |
-| No function except `normalize_point` and `wall_through` renormalizes, because renormalization is the caller's policy | 8.3 |
+| No function except `normalize_point`, `wall_through`, and `wall_meet` renormalizes, because renormalization is the caller's policy | 8.3 |
 | `wall_distance` takes a covector, as `side` does, and in the modules `hyperbolic` and `spherical` reads a vector as its ray, so the renderer passes the folded point as it stands (`DEC-80` of the architecture) | 5.6 |
 | `spherical::wall_distance` through $\arcsin$ with a clamp, and no stated accuracy near a pole of the great circle, because the renderer compares small distances | 5.6, 8.6 |
 | Every accuracy bound of Sections 8.4 to 8.7 with its range of inputs, each constant set from the largest error measured on the code with a margin of at least 8, as TEST-13 of the coding standard requires | 8.4 to 8.7 |
@@ -1084,7 +1114,7 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-8 | `isometry_defect` returns infinity when the second condition fails or the result is NaN | 6.2 |
 | GEO-9 | `from_disk` returns `None` exactly when the computed $1 - \lvert z \rvert^2$ is not positive | 7.2 |
 | GEO-10 | `translation` computes the polar radius with `hypot` and $\operatorname{arsinh}$, and reads no last coordinate | 8.2 |
-| GEO-11 | Only the two functions `normalize_point` and the three functions `wall_through` divide a result by a norm | 8.3 |
+| GEO-11 | Only the two functions `normalize_point`, the three functions `wall_through`, and the three functions `wall_meet` divide a result by a norm | 8.3 |
 | GEO-12 | Each function meets the accuracy of Sections 8.4 to 8.7 | 8.4 |
 | GEO-13 | `Error` follows ERR-1, with the operation that failed | 9.1 |
 | GEO-14 | The `Display` text of each kind is the one stated | 9.2 |
@@ -1106,3 +1136,4 @@ The tags of the mathematical sources and source code resolve to the reference se
 | GEO-30 | The model maps use the formulas of Sections 7.5 to 7.7, with the half-plane map $\eta$ of [RAT] and the band constant $\pi/4$ | 7.4 |
 | GEO-31 | Each `wall_distance` returns at least 0, at most $\pi/2$ on the sphere, and NaN for a NaN input, with a clamp that NaN fails | 5.6 |
 | GEO-32 | `hyperbolic::wall_distance` and `spherical::wall_distance` divide the side value by the length of the vector and assume no length of 1 | 5.6 |
+| GEO-33 | Each `wall_meet` returns a point of its geometry or `DegenerateWall`, and in the range of its row the point lies on both walls within that row | 5.7 |

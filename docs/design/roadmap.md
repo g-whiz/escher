@@ -26,7 +26,7 @@ These topics are out of scope, by the owner's decision:
 - Tilings without a symmetry group, such as aperiodic tilings, for now, because in the owner's words they "don't fit with the orbifold idea".
 - Research on integrations with external tools (Section 3.3).
 
-`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-98` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M23`, the research prerequisites `RP-1` to `RP-6`, and the unverified statements `UNV-1` to `UNV-37`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
+`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-110` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M24`, the research prerequisites `RP-1` to `RP-7`, and the unverified statements `UNV-1` to `UNV-40`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
 
 Research documents are cited by file name, and each is in `docs/research/`.
 
@@ -98,7 +98,7 @@ Slint is offered under `GPL-3.0-only` among other licences. Section 16.2 of `rus
 
 ### 3.3. Motif Authoring
 
-This phase lets the user draw a motif on one or more fundamental domains, depending on the chosen subgroup, and see it replicated live. That is the owner's decision. The owner abstracts the motif as a colour sampler. The planning proposes that the renderer folds each pixel into the fundamental domain and that the sampler gives the colour from the folded point and the coset of the tile. The proof of concept uses a solid colour for each coset instead, so that the mathematical and geometric foundations are settled first, and adds image fills painted over polygon masks in its milestone `M22` (`DEC-66` of `docs/design/architecture.md`). The planning proposes that these image fills are the first form of the image medium of this phase.
+This phase lets the user draw a motif on one or more fundamental domains, depending on the chosen subgroup, and see it replicated live. That is the owner's decision. The owner abstracts the motif as a colour sampler. The planning proposes that the renderer folds each pixel into the fundamental domain and that the sampler gives the colour from the folded point and the coset of the tile. The proof of concept uses a solid colour for each coset instead, so that the mathematical and geometric foundations are settled first, and adds image fills painted over polygon masks in its milestone `M22` (`DEC-66` of `docs/design/architecture.md`) and whole pictures on the polygons of a tiling in its milestone `M24` (`DEC-110`). The planning proposes that these image fills are the first form of the image medium of this phase.
 
 The owner listed seven media that a sampler takes its colours from: hand-drawn raster, vector graphics, images, videos, procedural graphics, AI-generated graphics or style transfer, and a composite of these. Each arrives at its own stage, and the owner set no order among them. How each medium integrates into Escher is still to be explored. Gap 1 of Section 14 of `prior-art.md` records that no desktop tool lets the user paint a motif for an arbitrary orbifold signature. Section 10 of `rendering.md` surveys pattern fills, such as SymmHub's sampling of an image in a pattern box and Farris's wave functions.
 
@@ -159,7 +159,7 @@ These items are not tied to one phase. Each is a proposal of the planning unless
 | Selecting a tiling by another notation than the orbifold signature, such as a Schlafli symbol | None named | The Schlafli symbols of `M21` of `docs/design/poc-plan.md` | Owner for the item, as one to consider |
 | A machine-readable form of the info output | `DEC-23` | None | Proposal |
 | The milestones `M14` to `M18`, moved out of the proof of concept | Section 4.1 | Section 4.1 | Owner for the move (`DEC-64`), proposal for their order |
-| Wythoff constructions beyond their first version, which is `M23` of `docs/design/poc-plan.md` | Section 4.2 | `M23` | Owner for the item (`DEC-68`) |
+| Wythoff constructions beyond their first version, which is `M23` of `docs/design/poc-plan.md`, among them the constructions on the rotation signatures | Section 4.2 | `M23` | Owner for the item (`DEC-68`), and for the item on the rotation signatures that the owner raised on 2026-11-23, which is not yet placed |
 | Mask polygons and image fills for the domains that have no mask polygon, which Section 5.22 of `docs/design/render.md` lists | None named | `M22` | Owner for the deferral (`DEC-96`) |
 | Rendering of the general non-compact signatures, which Section 2.1 of `docs/design/architecture.md` defines | The deep-research item of Section 5. Section 4.1 records why the research knows no construction | `M18` | Owner for the item, which is outside the proof of concept (`DEC-19`) |
 | Procedural textures from PDE simulation, built with the features of the application and not a core feature | Sections 4 and 10.2 of `pdes-on-orbifolds.md`, and Section 10 of `rendering.md`, which records SymmHub's reaction-diffusion simulation | Phase 3 with procedural graphics as a medium, and the PDE reference of Section 5 | Owner for the item and that it is not a core feature, proposal for the dependencies |
@@ -182,13 +182,14 @@ The general non-compact signatures stay outside `M18` (`DEC-19`). The research r
 
 ### 4.2. Wythoff Constructions
 
-The owner placed the Wythoff constructions in the roadmap on 2026-11-22 and moved their first version into the proof of concept on 2026-11-23, as milestone `M23` (`DEC-68` of `docs/design/architecture.md`). Section 5.23 of `docs/design/poc-plan.md` states the scope of that version and what its design settles.
+The owner placed the Wythoff constructions in the roadmap on 2026-11-22 and moved their first version into the proof of concept on 2026-11-23, as milestone `M23` (`DEC-68` of `docs/design/architecture.md`). Section 5.23 of `docs/design/poc-plan.md` states the scope of that version and what its design settles. Also on 2026-11-23, the owner moved the image fills that use the whole face into the proof of concept, as milestone `M24` (`DEC-110`), which Section 5.24 of `docs/design/poc-plan.md` plans.
 
 This section keeps the work beyond the first version, which the owner has not ordered:
 
 - A movable generator point, on the reading of truncated tilings of Section 3.5.
 - Group colourings of the faces, the workstream on colourings of the faces of truncated tilings in the table above.
 - The construction beyond triangles, which item 12 of Section 14.1 of `colourings.md` records as open (Section 3.5).
+- Wythoff constructions on the rotation signatures, such as `732`, which `M23` refuses (`DEC-107`), raised by the owner on 2026-11-23 and not yet placed.
 
 ## 5. Deep Research
 
