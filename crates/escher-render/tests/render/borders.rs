@@ -6,14 +6,14 @@ use escher_render::{BorderUnit, Colour, Fill, HyperbolicModel, RenderOptions, Sh
 use glam::{DVec2, DVec3};
 
 use crate::common::{
-    DEFAULT_CAP, EUCLIDEAN_DOMAINS, Measure, SPHERICAL_GROUP_BOUNDS, euclidean_domain,
-    euclidean_name, options, pixel_position, plane_pixel, viewing_matrix,
+    DEFAULT_CAP, EUCLIDEAN_DOMAINS, SPHERICAL_GROUP_BOUNDS, euclidean_domain, euclidean_name,
+    options, pixel_position, plane_pixel, viewing_matrix,
 };
 use crate::golden_images::{
     GOLDEN_FILL, MODEL_MAPS, ModelMap, PLAN_TRIPLES, WALLPAPER_DOMAINS, disk_pixel,
     domain_with_aspect, domain_with_settings, pixel_centre, reference_walls, renderer,
 };
-use crate::reference::{self, ReferenceExt, count_bound};
+use crate::reference::{self, Measure, ReferenceExt, count_bound};
 
 const SIZE: u32 = 192;
 

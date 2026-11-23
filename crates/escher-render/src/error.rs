@@ -8,7 +8,8 @@ use crate::options::{
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// The reason why an operation failed. The operations are building options,
-/// a coset fill, or a renderer, rendering rows, and encoding an image.
+/// a coset fill, a renderer, or polygon masks, rendering rows or a mask, and
+/// encoding or decoding an image.
 ///
 /// Match on [`Error::kind`] to tell the causes apart. The
 /// [`Display`](fmt::Display) text starts with `cannot `, names the operation
@@ -38,6 +39,9 @@ const COSET_FILL: &str = "build coset fill";
 const RENDERER: &str = "build renderer";
 const RENDER: &str = "render rows";
 const ENCODE: &str = "encode image";
+pub(crate) const MASKS: &str = "build masks";
+pub(crate) const RENDER_MASK: &str = "render mask";
+pub(crate) const DECODE: &str = "decode image";
 
 impl Error {
     pub(crate) fn empty_size(width: u32, height: u32) -> Self {
@@ -108,6 +112,13 @@ impl Error {
         }
     }
 
+    pub(crate) fn no_mask_polygon() -> Self {
+        Self {
+            operation: RENDERER,
+            detail: Detail::NoMaskPolygon,
+        }
+    }
+
     pub(crate) fn colour_count(needed: usize, given: usize) -> Self {
         Self {
             operation: COSET_FILL,
@@ -151,6 +162,40 @@ impl Error {
         }
     }
 
+    pub(crate) fn mask_colour(colour: u32, count: u32) -> Self {
+        Self {
+            operation: RENDER_MASK,
+            detail: Detail::MaskColour { colour, count },
+        }
+    }
+
+    pub(crate) fn sixteen_bits() -> Self {
+        Self::decode(Detail::SixteenBits)
+    }
+
+    pub(crate) fn decoder_limit(source: png::DecodingError) -> Self {
+        Self::decode(Detail::DecoderLimit(source))
+    }
+
+    pub(crate) fn unreadable(source: png::DecodingError) -> Self {
+        Self::decode(Detail::Unreadable(source))
+    }
+
+    pub(crate) fn not_png(source: png::DecodingError) -> Self {
+        Self::decode(Detail::NotPng(source))
+    }
+
+    pub(crate) fn during(self, operation: &'static str) -> Self {
+        Self { operation, ..self }
+    }
+
+    fn decode(detail: Detail) -> Self {
+        Self {
+            operation: DECODE,
+            detail,
+        }
+    }
+
     fn build(detail: Detail) -> Self {
         Self {
             operation: BUILD,
@@ -171,16 +216,20 @@ impl Error {
             | Detail::GeneratorCount { .. }
             | Detail::BrokenRelator(_)
             | Detail::ColourCount { .. }
-            | Detail::OtherPresentation => ErrorKind::InvalidOption,
+            | Detail::OtherPresentation
+            | Detail::NoMaskPolygon
+            | Detail::MaskColour { .. } => ErrorKind::InvalidOption,
             Detail::LargeSide { .. }
             | Detail::ManyPixels { .. }
             | Detail::LargeGrid(_)
             | Detail::WideBorder(_)
-            | Detail::LargeCap(_) => ErrorKind::LimitExceeded,
+            | Detail::LargeCap(_)
+            | Detail::DecoderLimit(_) => ErrorKind::LimitExceeded,
             Detail::PartialRows { .. } | Detail::RowsOutside { .. } | Detail::WrongImage { .. } => {
                 ErrorKind::InvalidBuffer
             }
             Detail::Encoding(_) => ErrorKind::Encoding,
+            Detail::SixteenBits | Detail::Unreadable(_) | Detail::NotPng(_) => ErrorKind::Decoding,
         }
     }
 }
@@ -196,6 +245,9 @@ impl core::error::Error for Error {
         match &self.detail {
             Detail::Encoding(source) => Some(source),
             Detail::NoPresentation(source) => Some(source),
+            Detail::DecoderLimit(source) | Detail::Unreadable(source) | Detail::NotPng(source) => {
+                Some(source)
+            }
             Detail::EmptySize { .. }
             | Detail::EmptyGrid
             | Detail::NegativeBorder(_)
@@ -210,9 +262,12 @@ impl core::error::Error for Error {
             | Detail::BrokenRelator(_)
             | Detail::ColourCount { .. }
             | Detail::OtherPresentation
+            | Detail::NoMaskPolygon
             | Detail::PartialRows { .. }
             | Detail::RowsOutside { .. }
-            | Detail::WrongImage { .. } => None,
+            | Detail::WrongImage { .. }
+            | Detail::MaskColour { .. }
+            | Detail::SixteenBits => None,
         }
     }
 }
@@ -235,12 +290,15 @@ pub enum ErrorKind {
     /// An option has a value that means nothing, such as an empty image, an
     /// empty sample grid, a negative or non-finite border width, a rotation
     /// angle that is not finite, a light direction that is zero or not
-    /// finite, a coset fill whose colouring does not fit the domain or whose
-    /// colours do not fit the colouring, or a coset fill used with a domain
-    /// of another side presentation.
+    /// finite, a coset fill or polygon masks whose colouring does not fit the
+    /// domain, a coset fill whose paints do not fit the colouring, a coset
+    /// fill used with a domain of another side presentation, polygon masks or
+    /// an image fill for a domain without a mask polygon, or a mask of a
+    /// colour that the colouring does not have.
     InvalidOption,
-    /// An option is larger than its limit, which bounds the memory and the
-    /// time of a render.
+    /// An option or an image is larger than its limit, which bounds the
+    /// memory and the time of a render, or the PNG decoder reached its memory
+    /// limit.
     LimitExceeded,
     /// A buffer does not fit the image: its length does not hold whole rows
     /// or the whole image, or its rows lie outside the image.
@@ -248,6 +306,10 @@ pub enum ErrorKind {
     /// The PNG encoder failed, and [`source`](core::error::Error::source)
     /// returns its error.
     Encoding,
+    /// An image cannot be decoded: the stream cannot be read, is not a valid
+    /// PNG image, or has 16 bits per channel. When the PNG decoder reported
+    /// the cause, [`source`](core::error::Error::source) returns its error.
+    Decoding,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -290,6 +352,8 @@ enum Detail {
     BrokenRelator(usize),
     #[error("the coset fill was built for a domain with another side presentation")]
     OtherPresentation,
+    #[error("the domain has no mask polygon")]
+    NoMaskPolygon,
     #[error("the buffer of {length} bytes does not hold whole rows of {row} bytes")]
     PartialRows { length: usize, row: usize },
     #[error("the rows {first} to {last} are outside the image of {height} rows")]
@@ -302,6 +366,19 @@ enum Detail {
     },
     #[error("the PNG encoder failed")]
     Encoding(png::EncodingError),
+    #[error(
+        "the colour {colour} is not below the {} of the colouring",
+        counted(usize::try_from(*count).unwrap_or(usize::MAX), "colour", "colours")
+    )]
+    MaskColour { colour: u32, count: u32 },
+    #[error("the image has 16 bits per channel, and at most 8 are supported")]
+    SixteenBits,
+    #[error("the PNG decoder reached its memory limit")]
+    DecoderLimit(png::DecodingError),
+    #[error("the image cannot be read")]
+    Unreadable(png::DecodingError),
+    #[error("the data is not a valid PNG image")]
+    NotPng(png::DecodingError),
 }
 
 fn counted(count: usize, one: &str, many: &str) -> String {
@@ -311,7 +388,7 @@ fn counted(count: usize, one: &str, many: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, ErrorKind};
+    use super::{DECODE, Error, ErrorKind, MASKS, RENDER_MASK};
 
     fn png_error() -> png::EncodingError {
         png::EncodingError::LimitsExceeded
@@ -321,7 +398,88 @@ mod tests {
         let mut errors = option_errors();
         errors.extend(coset_errors());
         errors.extend(buffer_errors());
+        errors.extend(mask_errors());
+        errors.extend(decode_errors());
         errors
+    }
+
+    fn mask_errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
+            (
+                Error::generator_count(3, 4).during(MASKS),
+                ErrorKind::InvalidOption,
+                "cannot build masks: the colouring has 3 generators, and the domain has 4 sides",
+            ),
+            (
+                Error::broken_relator(3).during(MASKS),
+                ErrorKind::InvalidOption,
+                "cannot build masks: relator 3 of the side presentation of the domain moves a coset of the colouring",
+            ),
+            (
+                Error::no_mask_polygon().during(MASKS),
+                ErrorKind::InvalidOption,
+                "cannot build masks: the domain has no mask polygon",
+            ),
+            (
+                Error::mask_colour(4, 4),
+                ErrorKind::InvalidOption,
+                "cannot render mask: the colour 4 is not below the 4 colours of the colouring",
+            ),
+            (
+                Error::mask_colour(1, 1),
+                ErrorKind::InvalidOption,
+                "cannot render mask: the colour 1 is not below the 1 colour of the colouring",
+            ),
+            (
+                Error::empty_size(0, 512).during(RENDER_MASK),
+                ErrorKind::InvalidOption,
+                "cannot render mask: the image size 0x512 is empty",
+            ),
+            (
+                Error::large_side(16385, 512).during(RENDER_MASK),
+                ErrorKind::LimitExceeded,
+                "cannot render mask: the image size 16385x512 is larger than 16384 pixels on a side",
+            ),
+        ]
+    }
+
+    fn decoding_error() -> png::DecodingError {
+        png::DecodingError::IoError(std::io::ErrorKind::UnexpectedEof.into())
+    }
+
+    fn decode_errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
+            (
+                Error::large_side(16385, 512).during(DECODE),
+                ErrorKind::LimitExceeded,
+                "cannot decode image: the image size 16385x512 is larger than 16384 pixels on a side",
+            ),
+            (
+                Error::many_pixels(16384, 8192).during(DECODE),
+                ErrorKind::LimitExceeded,
+                "cannot decode image: the image size 16384x8192 has more than 67108864 pixels",
+            ),
+            (
+                Error::sixteen_bits(),
+                ErrorKind::Decoding,
+                "cannot decode image: the image has 16 bits per channel, and at most 8 are supported",
+            ),
+            (
+                Error::decoder_limit(decoding_error()),
+                ErrorKind::LimitExceeded,
+                "cannot decode image: the PNG decoder reached its memory limit",
+            ),
+            (
+                Error::unreadable(decoding_error()),
+                ErrorKind::Decoding,
+                "cannot decode image: the image cannot be read",
+            ),
+            (
+                Error::not_png(decoding_error()),
+                ErrorKind::Decoding,
+                "cannot decode image: the data is not a valid PNG image",
+            ),
+        ]
     }
 
     fn coset_errors() -> Vec<(Error, ErrorKind, &'static str)> {
@@ -355,6 +513,11 @@ mod tests {
                 Error::other_presentation(),
                 ErrorKind::InvalidOption,
                 "cannot build renderer: the coset fill was built for a domain with another side presentation",
+            ),
+            (
+                Error::no_mask_polygon(),
+                ErrorKind::InvalidOption,
+                "cannot build renderer: the domain has no mask polygon",
             ),
         ]
     }
@@ -469,11 +632,13 @@ mod tests {
     }
 
     #[test]
-    fn source_is_the_png_error_only_for_an_encoding_error() {
+    fn source_is_the_png_error_only_for_an_error_that_png_reported() {
         for (error, kind, text) in errors() {
             let source = core::error::Error::source(&error).map(ToString::to_string);
             if kind == ErrorKind::Encoding {
                 assert_eq!(source, Some(png_error().to_string()), "{text}");
+            } else if text.contains("PNG") || text.contains("cannot be read") {
+                assert_eq!(source, Some(decoding_error().to_string()), "{text}");
             } else {
                 assert_eq!(source, None, "{text}");
             }

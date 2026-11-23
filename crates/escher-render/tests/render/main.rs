@@ -2,8 +2,8 @@
 
 #[cfg(test)]
 use escher_render::{
-    BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, RenderOptions, RenderOptionsBuilder,
-    Renderer, Shading,
+    BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, Image, Masks, Paint, RenderOptions,
+    RenderOptionsBuilder, Renderer, Shading, encode_png,
 };
 
 #[cfg(test)]
@@ -17,7 +17,11 @@ mod folds;
 #[cfg(test)]
 mod golden_images;
 #[cfg(test)]
+mod image_fills;
+#[cfg(test)]
 mod images;
+#[cfg(test)]
+mod masks;
 #[cfg(test)]
 mod properties;
 #[cfg(test)]

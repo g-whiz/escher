@@ -105,7 +105,7 @@ Both commands support these signatures, with corner orders up to 100:
 | `escher-render` | Renders the tiling of a domain per pixel and encodes it as PNG | `docs/design/render.md` |
 | `escher-reference` | Test support: the shared reference arithmetic of the accuracy tests | `docs/design/architecture.md` |
 
-Milestones `M1` to `M13`, `M20`, and `M21` of `docs/design/poc-plan.md` are complete, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
+Milestones `M1` to `M13`, `M20`, and `M21` of `docs/design/poc-plan.md` are complete, `M22` is in progress in the branches of Section 5.22 of that document, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
 
 What does not exist yet:
 

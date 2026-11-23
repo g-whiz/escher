@@ -8,7 +8,7 @@ use anyhow::Context as _;
 use escher_domain::{FundamentalDomain, Orientation, ParameterSpec, ShapeParameters, parameters};
 use escher_group::{ColouringId, ColouringsOfIndex, IndexLimit, SearchBudget, colourings_of_index};
 use escher_render::{
-    Colour, CosetFill, Fill, RenderOptions, RenderStats, Renderer, Shading, encode_png,
+    Colour, CosetFill, Fill, Paint, RenderOptions, RenderStats, Renderer, Shading, encode_png,
 };
 use escher_signature::Signature;
 use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
@@ -342,8 +342,12 @@ fn fill(
         }
     };
     Ok(Fill::Cosets(
-        CosetFill::new(domain, found, colours)
-            .with_context(|| format!("cannot render {signature}"))?,
+        CosetFill::new(
+            domain,
+            found,
+            colours.into_iter().map(Paint::Solid).collect(),
+        )
+        .with_context(|| format!("cannot render {signature}"))?,
     ))
 }
 

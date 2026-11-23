@@ -364,16 +364,7 @@ impl RenderOptionsBuilder {
     /// value above its limit.
     pub fn build(self) -> Result<RenderOptions> {
         let options = self.options;
-        let (width, height) = (options.width, options.height);
-        if width == 0 || height == 0 {
-            return Err(Error::empty_size(width, height));
-        }
-        if width > LARGEST_SIDE || height > LARGEST_SIDE {
-            return Err(Error::large_side(width, height));
-        }
-        if u64::from(width) * u64::from(height) > LARGEST_PIXELS {
-            return Err(Error::many_pixels(width, height));
-        }
+        check_size(options.width, options.height)?;
         if options.samples == 0 {
             return Err(Error::empty_grid());
         }
@@ -404,6 +395,19 @@ impl RenderOptionsBuilder {
             ..options
         })
     }
+}
+
+pub(crate) fn check_size(width: u32, height: u32) -> Result<()> {
+    if width == 0 || height == 0 {
+        return Err(Error::empty_size(width, height));
+    }
+    if width > LARGEST_SIDE || height > LARGEST_SIDE {
+        return Err(Error::large_side(width, height));
+    }
+    if u64::from(width) * u64::from(height) > LARGEST_PIXELS {
+        return Err(Error::many_pixels(width, height));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

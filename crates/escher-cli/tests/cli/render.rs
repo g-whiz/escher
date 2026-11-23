@@ -4,7 +4,7 @@ use std::path::Path;
 use escher_cli::{Status, run};
 use escher_domain::FundamentalDomain;
 use escher_group::{ColouringSet, IndexLimit, SearchBudget, colourings_of_index};
-use escher_render::{Colour, CosetFill, Fill, RenderOptions, Renderer, encode_png};
+use escher_render::{Colour, CosetFill, Fill, Paint, RenderOptions, Renderer, encode_png};
 use escher_signature::Signature;
 
 use crate::common::{FailingWriter, NEVER_WRITTEN, output_path, path_text, run_args, snapshot};
@@ -775,14 +775,13 @@ fn render_writes_the_same_bytes_of_a_colouring_for_one_thread_and_four() {
         .find("4a".parse().expect("the id is valid"))
         .expect("the colouring 4a exists")
         .clone();
-    let colours = vec![
-        Colour::from_srgb8(0xe9, 0xc4, 0x6a),
-        Colour::from_srgb8(0x2a, 0x9d, 0x8f),
-        Colour::from_srgb8(0x91, 0x36, 0x71),
-        Colour::from_srgb8(0x91, 0xab, 0x3b),
+    let paints = vec![
+        Paint::Solid(Colour::from_srgb8(0xe9, 0xc4, 0x6a)),
+        Paint::Solid(Colour::from_srgb8(0x2a, 0x9d, 0x8f)),
+        Paint::Solid(Colour::from_srgb8(0x91, 0x36, 0x71)),
+        Paint::Solid(Colour::from_srgb8(0x91, 0xab, 0x3b)),
     ];
-    let fill =
-        Fill::Cosets(CosetFill::new(&domain, colouring, colours).expect("the fill is valid"));
+    let fill = Fill::Cosets(CosetFill::new(&domain, colouring, paints).expect("the fill is valid"));
     let options = RenderOptions::builder(fill)
         .size(64, 64)
         .samples(2)

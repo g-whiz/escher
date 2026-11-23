@@ -1,15 +1,15 @@
-use escher_domain::{FundamentalDomain, ShapeParameters, parameters};
+use escher_domain::{FundamentalDomain, PairingKind, ShapeParameters, parameters};
 use escher_geometry::hyperbolic::{disk_from_band, disk_from_half_plane, disk_from_klein};
 use escher_group::{
     Colouring, ColouringId, ColouringSet, IndexLimit, SearchBudget, colourings_of_index,
 };
-use escher_signature::Signature;
-use glam::{DMat2, DMat3, DVec2};
+use escher_signature::{Geometry, Signature};
+use glam::{DMat2, DMat3, DVec2, DVec3};
 
-use crate::reference::{self, ReferenceExt, Wall};
+use crate::reference::{self, ExactMask, MaskRule, Measure, ReferenceExt, Wall};
 use crate::{
-    BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, RenderOptions, RenderOptionsBuilder,
-    Renderer, Shading,
+    BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, Image, Masks, Paint, RenderOptions,
+    RenderOptionsBuilder, Renderer, Shading, encode_png,
 };
 use escher_reference::{Reference, matrix, vector};
 
@@ -37,6 +37,10 @@ impl GoldenImage {
             None => Fill::Parity([even, odd]),
             Some(id) => Fill::Cosets(coset_fill(domain, golden_colouring(domain, id))),
         };
+        self.builder_with_fill(fill)
+    }
+
+    pub(crate) fn builder_with_fill(&self, fill: Fill) -> RenderOptionsBuilder {
         let [yaw, pitch, roll] = self.rotation.map(f64::to_radians);
         RenderOptions::builder(fill)
             .size(GOLDEN_SIZE, GOLDEN_SIZE)
@@ -293,6 +297,180 @@ pub(crate) const COSET_GOLDEN_IMAGES: [GoldenImage; 18] = [
     coset("2*5", "5a", "cos-sg-2-s-5-5a.png"),
 ];
 
+pub(crate) struct MaskGolden {
+    pub(crate) signature: &'static str,
+    pub(crate) colouring: &'static str,
+    pub(crate) colour: u32,
+    pub(crate) file: &'static str,
+}
+
+impl MaskGolden {
+    pub(crate) fn masks(&self) -> (FundamentalDomain, Colouring, Masks) {
+        let domain = domain_with_settings(self.signature, &[]);
+        let colouring = golden_colouring(&domain, self.colouring);
+        let masks = masks(&domain, &colouring);
+        (domain, colouring, masks)
+    }
+
+    pub(crate) fn pixels(&self) -> Vec<u8> {
+        mask(&self.masks().2, self.colour, GOLDEN_SIZE, GOLDEN_SIZE)
+    }
+}
+
+pub(crate) const MASK_GOLDEN_IMAGES: [MaskGolden; 1] = [MaskGolden {
+    signature: "*642",
+    colouring: "4a",
+    colour: 1,
+    file: "mask-6-4-2-4a-1.png",
+}];
+
+pub(crate) struct ImageFillGolden {
+    pub(crate) golden: GoldenImage,
+    pub(crate) solid: &'static [usize],
+}
+
+impl ImageFillGolden {
+    pub(crate) fn fill(&self, domain: &FundamentalDomain) -> CosetFill {
+        let id = self
+            .golden
+            .colouring
+            .unwrap_or_else(|| panic!("{} has no colouring", self.golden.file));
+        let colouring = golden_colouring(domain, id);
+        let paints = image_paints(domain, &colouring, GOLDEN_SIZE, self.solid);
+        CosetFill::new(domain, colouring, paints).unwrap_or_else(|error| {
+            panic!(
+                "the image fill of {} is rejected: {error}",
+                self.golden.file
+            )
+        })
+    }
+
+    pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
+        self.golden
+            .builder_with_fill(Fill::Cosets(self.fill(domain)))
+            .build()
+            .unwrap_or_else(|error| {
+                panic!(
+                    "the golden options of {} are rejected: {error}",
+                    self.golden.file
+                )
+            })
+    }
+}
+
+pub(crate) const IMAGE_FILL_GOLDEN_IMAGES: [ImageFillGolden; 3] = [
+    ImageFillGolden {
+        golden: coset("*642", "4a", "img-6-4-2-4a.png"),
+        solid: &[],
+    },
+    ImageFillGolden {
+        golden: coset("*632", "2a", "img-6-3-2-2a.png"),
+        solid: &[1],
+    },
+    ImageFillGolden {
+        golden: coset("*532", "5a", "img-5-3-2-5a.png"),
+        solid: &[],
+    },
+];
+
+pub(crate) fn masks(domain: &FundamentalDomain, colouring: &Colouring) -> Masks {
+    Masks::new(domain, colouring)
+        .unwrap_or_else(|error| panic!("the masks of {} are rejected: {error}", colouring.id()))
+}
+
+pub(crate) fn mask(masks: &Masks, colour: u32, width: u32, height: u32) -> Vec<u8> {
+    masks
+        .render(colour, width, height)
+        .unwrap_or_else(|error| panic!("the mask of colour {colour} is rejected: {error}"))
+}
+
+const MARK: [u8; 3] = [20, 20, 20];
+
+const MARK_BARS: [[f64; 4]; 3] = [
+    [0.2, 0.4, 0.2, 0.8],
+    [0.2, 0.8, 0.2, 0.35],
+    [0.2, 0.6, 0.45, 0.6],
+];
+
+pub(crate) fn painted(mask: &[u8], width: u32, height: u32, colour: [u8; 3]) -> Vec<u8> {
+    let columns = usize::try_from(width).unwrap_or(usize::MAX);
+    let inside = |index: usize| mask.get(3 * index..3 * index + 3) == Some(&[u8::MAX; 3][..]);
+    let cells: Vec<(usize, usize)> = (0..mask.len() / 3)
+        .filter(|&index| inside(index))
+        .map(|index| (index % columns, index / columns))
+        .collect();
+    assert!(
+        !cells.is_empty(),
+        "the mask of a {width}x{height} image is black"
+    );
+    let low = cells
+        .iter()
+        .fold((usize::MAX, usize::MAX), |(column, row), &(x, y)| {
+            (column.min(x), row.min(y))
+        });
+    let high = cells
+        .iter()
+        .fold((0, 0), |(column, row), &(x, y)| (column.max(x), row.max(y)));
+    let span =
+        |low: usize, high: usize| f64::from(u32::try_from(high - low + 1).unwrap_or(u32::MAX));
+    let relative = |value: usize, low: usize, high: usize| {
+        (f64::from(u32::try_from(value - low).unwrap_or(u32::MAX)) + 0.5) / span(low, high)
+    };
+    let mut pixels: Vec<u8> = colour.repeat(mask.len() / 3);
+    for &(column, row) in &cells {
+        let across = relative(column, low.0, high.0);
+        let down = relative(row, low.1, high.1);
+        let marked = MARK_BARS.iter().any(|&[left, right, top, bottom]| {
+            (left..right).contains(&across) && (top..bottom).contains(&down)
+        });
+        if marked {
+            let start = 3 * (row * columns + column);
+            pixels[start..start + 3].copy_from_slice(&MARK);
+        }
+    }
+    pixels
+}
+
+pub(crate) fn image_of(width: u32, height: u32, pixels: &[u8]) -> Image {
+    let file = encode_png(width, height, pixels)
+        .unwrap_or_else(|error| panic!("a {width}x{height} test image is rejected: {error}"));
+    Image::decode_png(file.as_slice())
+        .unwrap_or_else(|error| panic!("a {width}x{height} test image cannot be decoded: {error}"))
+}
+
+pub(crate) fn painted_image(
+    masks: &Masks,
+    colour: u32,
+    width: u32,
+    height: u32,
+) -> (Vec<u8>, Image) {
+    let index = usize::try_from(colour).unwrap_or(usize::MAX);
+    let paint = GOLDEN_COSET_FILL[index % GOLDEN_COSET_FILL.len()];
+    let pixels = painted(&mask(masks, colour, width, height), width, height, paint);
+    let image = image_of(width, height, &pixels);
+    (pixels, image)
+}
+
+pub(crate) fn image_paints(
+    domain: &FundamentalDomain,
+    colouring: &Colouring,
+    size: u32,
+    solid: &[usize],
+) -> Vec<Paint> {
+    let masks = masks(domain, colouring);
+    (0..masks.count())
+        .map(|colour| {
+            let index = usize::try_from(colour).unwrap_or(usize::MAX);
+            if solid.contains(&index) {
+                let [red, green, blue] = GOLDEN_COSET_FILL[index];
+                Paint::Solid(Colour::from_srgb8(red, green, blue))
+            } else {
+                Paint::Image(painted_image(&masks, colour, size, size).1)
+            }
+        })
+        .collect()
+}
+
 pub(crate) const GOLDEN_FILL: [[u8; 3]; 2] = [[245, 222, 179], [70, 130, 180]];
 
 pub(crate) const GOLDEN_COSET_FILL: [[u8; 3]; 8] = [
@@ -357,7 +535,7 @@ pub(crate) fn coset_fill(domain: &FundamentalDomain, colouring: Colouring) -> Co
     let colours = GOLDEN_COSET_FILL
         .iter()
         .take(usize::try_from(colouring.colours()).unwrap_or(usize::MAX))
-        .map(|&[red, green, blue]| Colour::from_srgb8(red, green, blue))
+        .map(|&[red, green, blue]| Paint::Solid(Colour::from_srgb8(red, green, blue)))
         .collect();
     CosetFill::new(domain, colouring, colours)
         .unwrap_or_else(|error| panic!("the coset fill of {id} is rejected: {error}"))
@@ -442,6 +620,162 @@ pub(crate) fn domain_with_settings(text: &str, settings: &[(&str, f64)]) -> Fund
     }
     FundamentalDomain::build_with(&signature, &parameters)
         .unwrap_or_else(|error| panic!("{text} with {settings:?} has no domain: {error}"))
+}
+
+pub(crate) const FOLD_TRIPLES: [[u32; 3]; 7] = [
+    [7, 3, 2],
+    [5, 4, 2],
+    [4, 4, 4],
+    [4, 3, 3],
+    [12, 3, 2],
+    [100, 3, 2],
+    [100, 100, 100],
+];
+
+pub(crate) const EUCLIDEAN_DOMAINS: [(&str, Option<f64>); 7] = [
+    ("*632", None),
+    ("*442", None),
+    ("*333", None),
+    ("*2222", Some(1.0)),
+    ("*2222", Some(1.618)),
+    ("*2222", Some(0.125)),
+    ("*2222", Some(8.0)),
+];
+
+pub(crate) const SPHERICAL_DOMAINS: [&str; 13] = [
+    "*332",
+    "*432",
+    "*532",
+    "*222",
+    "*322",
+    "*522",
+    "*(12)22",
+    "*(100)22",
+    "*22",
+    "*33",
+    "*55",
+    "*(12)(12)",
+    "*(100)(100)",
+];
+
+pub(crate) const SPHERICAL_GROUP_DOMAINS: [&str; 19] = [
+    "3*2", "*", "x", "1", "2*", "3*", "5*", "(12)*", "(100)*", "2x", "3x", "5x", "(12)x", "(100)x",
+    "2*2", "2*3", "2*5", "2*(12)", "2*(50)",
+];
+
+pub(crate) fn text(orders: [u32; 3]) -> String {
+    let corners: String = orders
+        .into_iter()
+        .map(|order| {
+            if order < 10 {
+                order.to_string()
+            } else {
+                format!("({order})")
+            }
+        })
+        .collect();
+    format!("*{corners}")
+}
+
+pub(crate) fn rotation_text(starred: &str) -> &str {
+    starred
+        .strip_prefix('*')
+        .unwrap_or_else(|| panic!("{starred} has no star"))
+}
+
+pub(crate) const FLATLESS: [&str; 3] = ["*222", "222", "2*"];
+
+pub(crate) fn has_mask_polygon(signature: &str, domain: &FundamentalDomain) -> bool {
+    domain.sides().len() >= 3 && !FLATLESS.contains(&signature)
+}
+
+pub(crate) fn mask_domains() -> Vec<(String, FundamentalDomain)> {
+    let mut domains: Vec<(String, FundamentalDomain)> = Vec::new();
+    let mut add = |name: String, domain: FundamentalDomain| {
+        let signature = name.split(' ').next().unwrap_or_default().to_owned();
+        if has_mask_polygon(&signature, &domain) {
+            domains.push((name, domain));
+        }
+    };
+    for signature in PLAN_TRIPLES {
+        add(signature.to_owned(), domain_with_settings(signature, &[]));
+    }
+    for (signature, aspect) in EUCLIDEAN_DOMAINS {
+        let suffix = aspect.map_or(String::new(), |aspect| format!(" aspect {aspect}"));
+        add(
+            format!("{signature}{suffix}"),
+            domain_with_aspect(signature, aspect),
+        );
+        let rotation = rotation_text(signature);
+        add(
+            format!("{rotation}{suffix}"),
+            domain_with_aspect(rotation, aspect),
+        );
+    }
+    for signature in SPHERICAL_DOMAINS {
+        add(signature.to_owned(), domain_with_settings(signature, &[]));
+        let rotation = rotation_text(signature);
+        add(rotation.to_owned(), domain_with_settings(rotation, &[]));
+    }
+    for triple in FOLD_TRIPLES {
+        let rotation = text(triple)[1..].to_owned();
+        let domain = domain_with_settings(&rotation, &[]);
+        add(rotation, domain);
+    }
+    for shape in POLYGON_DOMAINS.iter().chain(&WALLPAPER_DOMAINS) {
+        add(shape.name(), shape.domain());
+    }
+    for signature in SPHERICAL_GROUP_DOMAINS {
+        add(signature.to_owned(), domain_with_settings(signature, &[]));
+    }
+    domains
+}
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the assertion keeps the rounded order between 1 and 200"
+)]
+fn corner_order(angle: f64) -> u32 {
+    let order = (core::f64::consts::PI / angle).round();
+    assert!(
+        (1.0..=200.0).contains(&order),
+        "the corner angle {angle} has no order"
+    );
+    order as u32
+}
+
+pub(crate) fn mask_rule(domain: &FundamentalDomain) -> MaskRule {
+    let sides = domain.sides();
+    let mirrors = sides
+        .iter()
+        .all(|side| matches!(side.kind(), PairingKind::Mirror));
+    let angles = domain.corner_angles();
+    match (domain.geometry(), sides.len(), mirrors) {
+        (Geometry::Euclidean, _, _) => MaskRule::Plane,
+        (_, 3, true) => MaskRule::Triangle([angles[0], angles[1], angles[2]].map(corner_order)),
+        (Geometry::Hyperbolic, 4.., true) | (Geometry::Hyperbolic, 6.., false) => MaskRule::Klein,
+        (_, 4, false) => {
+            MaskRule::Double([angles[0] / 2.0, angles[2] / 2.0, angles[3]].map(corner_order))
+        }
+        (geometry, count, _) => panic!("a {geometry:?} domain with {count} sides has no mask rule"),
+    }
+}
+
+pub(crate) fn exact_mask(reference: &mut Reference, domain: &FundamentalDomain) -> ExactMask {
+    let vertices: Vec<[f64; 3]> = domain.vertices().iter().map(DVec3::to_array).collect();
+    let covectors: Vec<[f64; 3]> = domain
+        .sides()
+        .iter()
+        .map(|side| side.covector().to_array())
+        .collect();
+    ExactMask::new(
+        reference,
+        Measure::of(domain.geometry()),
+        &vertices,
+        &covectors,
+        mask_rule(domain),
+    )
 }
 
 pub(crate) const PLAN_TRIPLES: [&str; 6] = ["*732", "*542", "*444", "*433", "*(12)32", "*(100)32"];

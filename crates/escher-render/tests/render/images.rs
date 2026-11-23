@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use escher_render::{
-    BorderUnit, Colour, CosetFill, ErrorKind, Fill, HyperbolicModel, RenderOptions,
+    BorderUnit, Colour, CosetFill, ErrorKind, Fill, HyperbolicModel, Paint, RenderOptions,
     RenderOptionsBuilder, RenderStats, Renderer, encode_png,
 };
 
@@ -11,9 +11,10 @@ use crate::common::{
 };
 use crate::golden_images::{
     ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
-    GoldenImage, MODEL_MAPS, POLYGON_DOMAINS, Shape, TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS,
-    colouring, colourings_of, compare, coset_fill, domain_with_aspect, domain_with_settings,
-    golden_colouring, linear_table, renderer, shifted_pairs, translation,
+    GoldenImage, IMAGE_FILL_GOLDEN_IMAGES, MASK_GOLDEN_IMAGES, MODEL_MAPS, POLYGON_DOMAINS, Shape,
+    TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS, colouring, colourings_of, compare, coset_fill,
+    domain_with_aspect, domain_with_settings, golden_colouring, linear_table, renderer,
+    shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -38,12 +39,12 @@ fn write(path: &std::path::Path, file: &[u8]) {
 }
 
 fn check(
-    image: &GoldenImage,
+    (signature, file_name): (&str, &str),
     path: &std::path::Path,
     pixels: &[u8],
     linear: &[f64],
 ) -> Option<String> {
-    let name = format!("{} in {}", image.signature, image.file);
+    let name = format!("{signature} in {file_name}");
     let file = match std::fs::read(path) {
         Ok(file) => file,
         Err(error) => {
@@ -91,8 +92,8 @@ fn check(
         return None;
     }
     let output = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
-    let actual = output.join(format!("actual-{}", image.file));
-    let difference = output.join(format!("difference-{}", image.file));
+    let actual = output.join(format!("actual-{file_name}"));
+    let difference = output.join(format!("difference-{file_name}"));
     let differences: Vec<u8> = decoded
         .pixels
         .iter()
@@ -114,12 +115,25 @@ fn golden_images_match_the_committed_files() {
     let update = std::env::var_os(UPDATE).is_some_and(|value| value == "1");
     let linear = linear_table();
     let mut failures = Vec::new();
-    for image in GOLDEN_IMAGES.iter().chain(&COSET_GOLDEN_IMAGES) {
-        let pixels = golden_pixels(image);
-        let path = directory.join(image.file);
+    let renders = GOLDEN_IMAGES
+        .iter()
+        .chain(&COSET_GOLDEN_IMAGES)
+        .map(|image| ((image.signature, image.file), golden_pixels(image)))
+        .chain(
+            MASK_GOLDEN_IMAGES
+                .iter()
+                .map(|image| ((image.signature, image.file), image.pixels())),
+        )
+        .chain(IMAGE_FILL_GOLDEN_IMAGES.iter().map(|image| {
+            let domain = image.golden.domain();
+            let pixels = renderer(&domain, image.options(&domain)).render().0;
+            ((image.golden.signature, image.golden.file), pixels)
+        }));
+    for (names, pixels) in renders {
+        let path = directory.join(names.1);
         if update {
             write(&path, &encoded(&pixels));
-        } else if let Some(failure) = check(image, &path, &pixels, &linear) {
+        } else if let Some(failure) = check(names, &path, &pixels, &linear) {
             failures.push(failure);
         }
     }
@@ -522,7 +536,7 @@ fn coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_par
     for text in ["*732", "*642", "*2222", "*532", "732"] {
         let domain = domain_with_aspect(text, None);
         let trivial = colouring(&domain, "1a");
-        let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
+        let cosets = match CosetFill::new(&domain, trivial, vec![Paint::Solid(first)]) {
             Ok(fill) => fill,
             Err(error) => panic!("{text}: {error}"),
         };
@@ -535,7 +549,11 @@ fn coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_and_the_par
         }
         let parity = parity_colouring(&domain);
         let id = parity.id();
-        let cosets = match CosetFill::new(&domain, parity, vec![first, second]) {
+        let cosets = match CosetFill::new(
+            &domain,
+            parity,
+            vec![Paint::Solid(first), Paint::Solid(second)],
+        ) {
             Ok(fill) => fill,
             Err(error) => panic!("{text}: {error}"),
         };
@@ -920,7 +938,7 @@ fn wallpaper_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_a
         let name = shape.name();
         let domain = shape.domain();
         let trivial = colouring(&domain, "1a");
-        let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
+        let cosets = match CosetFill::new(&domain, trivial, vec![Paint::Solid(first)]) {
             Ok(fill) => fill,
             Err(error) => panic!("{name}: {error}"),
         };
@@ -934,7 +952,11 @@ fn wallpaper_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the_one_a
         }
         let parity = parity_colouring(&domain);
         let id = parity.id();
-        let cosets = match CosetFill::new(&domain, parity, vec![first, second]) {
+        let cosets = match CosetFill::new(
+            &domain,
+            parity,
+            vec![Paint::Solid(first), Paint::Solid(second)],
+        ) {
             Ok(fill) => fill,
             Err(error) => panic!("{name}: {error}"),
         };
@@ -1169,7 +1191,7 @@ fn spherical_group_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the
             renderer(&domain, options).render()
         };
         let trivial = colouring(&domain, "1a");
-        let cosets = match CosetFill::new(&domain, trivial, vec![first]) {
+        let cosets = match CosetFill::new(&domain, trivial, vec![Paint::Solid(first)]) {
             Ok(fill) => fill,
             Err(error) => panic!("{text}: {error}"),
         };
@@ -1185,7 +1207,11 @@ fn spherical_group_coset_fills_of_the_trivial_and_the_parity_colouring_equal_the
         }
         let parity = parity_colouring(&domain);
         let id = parity.id();
-        let cosets = match CosetFill::new(&domain, parity, vec![first, second]) {
+        let cosets = match CosetFill::new(
+            &domain,
+            parity,
+            vec![Paint::Solid(first), Paint::Solid(second)],
+        ) {
             Ok(fill) => fill,
             Err(error) => panic!("{text}: {error}"),
         };

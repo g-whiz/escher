@@ -5,22 +5,49 @@ use escher_render::{Colour, Fill, RenderOptions, RenderOptionsBuilder, RenderSta
 use escher_signature::Signature;
 use glam::{DMat3, DVec2, DVec3};
 
+pub(crate) use crate::golden_images::{
+    EUCLIDEAN_DOMAINS, FOLD_TRIPLES, SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, rotation_text,
+    text,
+};
 use crate::golden_images::{
     FOLD_ANGLES, POLYGON_DOMAINS, PolygonShape, Shape, band_radius, disk_pixel, domain_with_aspect,
     on_circle, pixel_centre,
 };
-use crate::reference::{self, ReferenceExt};
-use escher_reference::{Reference, Vector, dot, normalize};
 
-pub(crate) const FOLD_TRIPLES: [[u32; 3]; 7] = [
-    [7, 3, 2],
-    [5, 4, 2],
-    [4, 4, 4],
-    [4, 3, 3],
-    [12, 3, 2],
-    [100, 3, 2],
-    [100, 100, 100],
-];
+const fn same_text(first: &str, second: &str) -> bool {
+    let (first, second) = (first.as_bytes(), second.as_bytes());
+    if first.len() != second.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < first.len() {
+        if first[index] != second[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+const _: () = {
+    let mut index = 0;
+    while index < SPHERICAL_DOMAINS.len() {
+        assert!(same_text(
+            SPHERICAL_BOUNDS[index].signature,
+            SPHERICAL_DOMAINS[index]
+        ));
+        index += 1;
+    }
+    let mut index = 0;
+    while index < SPHERICAL_GROUP_DOMAINS.len() {
+        assert!(same_text(
+            SPHERICAL_GROUP_BOUNDS[index].signature,
+            SPHERICAL_GROUP_DOMAINS[index]
+        ));
+        index += 1;
+    }
+};
+use crate::reference::Measure;
 
 pub(crate) const BANDS: [i32; 6] = [1, 2, 3, 4, 5, 6];
 
@@ -38,16 +65,6 @@ pub(crate) const VERTEX_TRIPLES: [[u32; 3]; 5] = [
     [98, 4, 4],
     [100, 4, 4],
     [100, 100, 2],
-];
-
-pub(crate) const EUCLIDEAN_DOMAINS: [(&str, Option<f64>); 7] = [
-    ("*632", None),
-    ("*442", None),
-    ("*333", None),
-    ("*2222", Some(1.0)),
-    ("*2222", Some(1.618)),
-    ("*2222", Some(0.125)),
-    ("*2222", Some(8.0)),
 ];
 
 pub(crate) const EUCLIDEAN_DISTANCES: [f64; 4] = [1.0, 4.0, 16.0, 65.0];
@@ -104,7 +121,7 @@ const fn spherical_bounds(
     }
 }
 
-pub(crate) const SPHERICAL_BOUNDS: [SphericalBounds; 13] = [
+pub(crate) const SPHERICAL_BOUNDS: [SphericalBounds; SPHERICAL_DOMAINS.len()] = [
     spherical_bounds("*332", 3e-15, 0, 3e-15, 0, 0, 2e-14),
     spherical_bounds("*432", 3e-15, 0, 3e-15, 0, 0, 3e-14),
     spherical_bounds("*532", 4e-15, 0, 4e-15, 0, 0, 5e-14),
@@ -120,33 +137,9 @@ pub(crate) const SPHERICAL_BOUNDS: [SphericalBounds; 13] = [
     spherical_bounds("*(100)(100)", 9e-15, 0, 6e-15, 0, 0, 9e-15),
 ];
 
-pub(crate) const SPHERICAL_DOMAINS: [&str; SPHERICAL_BOUNDS.len()] = {
-    let mut names = [""; SPHERICAL_BOUNDS.len()];
-    let mut index = 0;
-    while index < names.len() {
-        names[index] = SPHERICAL_BOUNDS[index].signature;
-        index += 1;
-    }
-    names
-};
-
 pub(crate) const RIM_DISTANCES: [f64; 7] = [120.0, 24.0, 8.0, 4.0, 2.0, 1.0, 0.5];
 
 pub(crate) const SPHERE_ROTATIONS: [[f64; 3]; 2] = [[0.0; 3], [20.0, 35.0, 0.0]];
-
-pub(crate) fn text(orders: [u32; 3]) -> String {
-    let corners: String = orders
-        .into_iter()
-        .map(|order| {
-            if order < 10 {
-                order.to_string()
-            } else {
-                format!("({order})")
-            }
-        })
-        .collect();
-    format!("*{corners}")
-}
 
 pub(crate) fn domain(orders: [u32; 3]) -> FundamentalDomain {
     let text = text(orders);
@@ -394,7 +387,7 @@ impl SphericalGroupBounds {
 
 const TURNED: [f64; 3] = [30.0, 50.0, 10.0];
 
-pub(crate) const SPHERICAL_GROUP_BOUNDS: [SphericalGroupBounds; 19] = [
+pub(crate) const SPHERICAL_GROUP_BOUNDS: [SphericalGroupBounds; SPHERICAL_GROUP_DOMAINS.len()] = [
     group_bounds("3*2", 4e-15, 0, 7, 4e-14, Some(2e-14)).bordered([0.0; 3]),
     group_bounds("*", 0.0, 0, 2, 0.0, Some(0.0)).bordered(TURNED),
     group_bounds("x", 0.0, 0, 2, 0.0, Some(0.0)).bordered(TURNED),
@@ -415,16 +408,6 @@ pub(crate) const SPHERICAL_GROUP_BOUNDS: [SphericalGroupBounds; 19] = [
     group_bounds("2*(12)", 4e-15, 0, 14, 1e-13, Some(2e-14)),
     group_bounds("2*(50)", 1e-14, 0, 52, 4e-12, Some(1e-13)),
 ];
-
-pub(crate) const SPHERICAL_GROUP_DOMAINS: [&str; SPHERICAL_GROUP_BOUNDS.len()] = {
-    let mut names = [""; SPHERICAL_GROUP_BOUNDS.len()];
-    let mut index = 0;
-    while index < names.len() {
-        names[index] = SPHERICAL_GROUP_BOUNDS[index].signature;
-        index += 1;
-    }
-    names
-};
 
 pub(crate) fn spherical_group_bounds(signature: &str) -> &'static SphericalGroupBounds {
     SPHERICAL_GROUP_BOUNDS
@@ -663,48 +646,6 @@ pub(crate) fn decode_png(file: &[u8]) -> Result<Decoded, png::DecodingError> {
         pixels,
         info,
     })
-}
-
-pub(crate) fn rotation_text(starred: &str) -> &str {
-    starred
-        .strip_prefix('*')
-        .unwrap_or_else(|| panic!("{starred} has no star"))
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Measure {
-    Hyperbolic,
-    Euclidean,
-    Spherical,
-}
-
-impl Measure {
-    pub(crate) fn distance(
-        self,
-        reference: &mut Reference,
-        x: &Vector,
-        y: &Vector,
-    ) -> astro_float_num::BigFloat {
-        match self {
-            Self::Hyperbolic => reference.distance(&normalize(x), &normalize(y)),
-            Self::Euclidean => reference::plane_distance(x, y),
-            Self::Spherical if dot(x, y).is_positive() => reference.angle(x, y),
-            Self::Spherical => reference.pi(),
-        }
-    }
-
-    pub(crate) fn wall_distance(
-        self,
-        reference: &mut Reference,
-        covector: &Vector,
-        point: &Vector,
-    ) -> astro_float_num::BigFloat {
-        match self {
-            Self::Hyperbolic => reference.wall_distance(covector, point),
-            Self::Euclidean => reference::plane_wall_distance(covector, point),
-            Self::Spherical => reference.sphere_wall_distance(covector, point),
-        }
-    }
 }
 
 pub(crate) struct RotationSample {

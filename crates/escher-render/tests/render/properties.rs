@@ -13,14 +13,15 @@ use proptest::test_runner::TestCaseError;
 
 use crate::common::{
     DEFAULT_CAP, EUCLIDEAN_DOMAINS, EUCLIDEAN_RANGE, EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES,
-    Measure, REPLAY_BOUNDS, ROTATION_EUCLIDEAN_REPLAY_BOUNDS, ROTATION_REPLAY_BOUNDS,
-    SPHERICAL_BOUNDS, SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, TOLERANCE, domain,
-    euclidean_band, euclidean_domain, rotation_domain, spherical_domain, spherical_group_bounds,
-    text, wallpaper_bounds,
+    REPLAY_BOUNDS, ROTATION_EUCLIDEAN_REPLAY_BOUNDS, ROTATION_REPLAY_BOUNDS, SPHERICAL_BOUNDS,
+    SPHERICAL_DOMAINS, SPHERICAL_GROUP_DOMAINS, TOLERANCE, domain, euclidean_band,
+    euclidean_domain, rotation_domain, spherical_domain, spherical_group_bounds, text,
+    wallpaper_bounds,
 };
 use crate::golden_images::{
     POLYGON_DOMAINS, PolygonShape, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings,
 };
+use crate::reference::Measure;
 use escher_reference::{Reference, Worst, int, num, vector};
 
 const WALL_CLEARANCE: f64 = 1e-6;

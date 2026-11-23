@@ -3,9 +3,11 @@ use escher_geometry::{euclidean, hyperbolic, spherical};
 use escher_signature::Geometry;
 use glam::{DVec2, DVec3};
 
-use crate::colour::{Colour, Fill, encode};
+use crate::colour::{Colour, CosetFill, Fill, Paint, decode_table, encode};
 use crate::error::{Error, Result};
 use crate::fold::{Fold, PointSize, Wall, fold_carrying};
+use crate::image::{Image, Placement, sample};
+use crate::mask::MaskMap;
 use crate::options::{BorderUnit, RenderOptions, Shading};
 use crate::view::{Lift, View};
 
@@ -70,6 +72,42 @@ pub struct Renderer {
     options: RenderOptions,
     border: Border,
     row_bytes: usize,
+    textures: Option<Textures>,
+}
+
+#[derive(Clone, Debug)]
+struct Textures {
+    map: MaskMap,
+    placements: Vec<Option<Placement>>,
+    linear: Box<[f64; 256]>,
+}
+
+impl Textures {
+    fn of(fill: &CosetFill, domain: &FundamentalDomain) -> Result<Option<Self>> {
+        let images = fill
+            .paints()
+            .iter()
+            .any(|paint| matches!(paint, Paint::Image(_)));
+        if !images {
+            return Ok(None);
+        }
+        let map = MaskMap::new(domain).ok_or_else(Error::no_mask_polygon)?;
+        let placements = fill
+            .paints()
+            .iter()
+            .map(|paint| match paint {
+                Paint::Solid(_) => None,
+                Paint::Image(image) => {
+                    Some(Placement::new(map.polygon(), image.width(), image.height()))
+                }
+            })
+            .collect();
+        Ok(Some(Self {
+            map,
+            placements,
+            linear: Box::new(decode_table()),
+        }))
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -111,7 +149,10 @@ impl Renderer {
     /// the hyperbolic model of the options for a hyperbolic domain, the plane
     /// for a Euclidean one, and the ball for a spherical one. It copies what it
     /// needs from the sides of the domain, so it keeps no reference to the
-    /// domain.
+    /// domain. For a coset fill with a [`Paint::Image`](crate::Paint::Image),
+    /// it also builds the flat polygon of the domain that
+    /// [`Masks`](crate::Masks) draws, and the map that carries each point of
+    /// the domain onto that polygon.
     ///
     /// # Errors
     ///
@@ -122,15 +163,25 @@ impl Renderer {
     /// no side presentation, because the colouring of such a fill does not
     /// colour the tiles of this domain. A domain with the same side
     /// presentation, such as the same signature with other shape parameters,
-    /// is accepted. Every other fill gives no error.
+    /// is accepted. Returns the same kind for a coset fill with an image paint
+    /// when the domain has no flat polygon, as
+    /// [`Masks::new`](crate::Masks::new) states. Every other fill gives no
+    /// error.
     pub fn new(domain: &FundamentalDomain, options: RenderOptions) -> Result<Self> {
         if let Fill::Cosets(fill) = &options.fill
             && domain.side_presentation().ok().as_ref() != Some(fill.presentation())
         {
             return Err(Error::other_presentation());
         }
+        let textures = match &options.fill {
+            Fill::Cosets(fill) => Textures::of(fill, domain)?,
+            Fill::One(_) | Fill::Parity(_) => None,
+        };
         let walls = domain.sides().iter().map(|&side| Wall::new(side)).collect();
-        Ok(Self::with_walls(walls, domain.geometry(), options))
+        Ok(Self {
+            textures,
+            ..Self::with_walls(walls, domain.geometry(), options)
+        })
     }
 
     fn with_walls(walls: Vec<Wall>, geometry: Geometry, options: RenderOptions) -> Self {
@@ -141,6 +192,7 @@ impl Renderer {
             border: Border::of(&options, geometry),
             row_bytes: length(3 * u64::from(options.width)),
             options,
+            textures: None,
         }
     }
 
@@ -264,8 +316,41 @@ impl Renderer {
                     *odd
                 }
             }
-            Fill::Cosets(fill) => fill.colour(sides),
+            Fill::Cosets(fill) => match fill.paint(sides) {
+                (_, Paint::Solid(colour)) => *colour,
+                (coset, Paint::Image(image)) => self.texture(coset, image, result.point()),
+            },
         }
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "the renderer builds a placement for each image paint of its coset fill, at the index of that paint"
+    )]
+    pub(crate) fn texture(&self, coset: usize, image: &Image, point: DVec3) -> Colour {
+        let textures = self
+            .textures
+            .as_ref()
+            .expect("internal error: a renderer with an image paint has textures");
+        let placement = textures
+            .placements
+            .get(coset)
+            .copied()
+            .flatten()
+            .expect("internal error: every image paint of the fill has a placement");
+        let background = self.options.background;
+        textures
+            .map
+            .map(point)
+            .and_then(|flat| placement.inside(placement.position(flat)))
+            .map_or(background, |position| {
+                Colour::from_linear(sample(
+                    image,
+                    position,
+                    background.linear(),
+                    &textures.linear,
+                ))
+            })
     }
 
     fn border_sample(&self, point: DVec3, tangents: [DVec3; 2]) -> bool {
@@ -442,28 +527,20 @@ mod tests {
     use escher_group::Colouring;
 
     use crate::ErrorKind;
-    use crate::colour::{Colour, CosetFill, Fill};
+    use crate::colour::{Colour, CosetFill, Fill, Paint};
     use crate::fold::{PointSize, Wall, fold, fold_carrying};
     use crate::golden_images::{
-        ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, FOLD_ANGLES, GOLDEN_COSET_FILL, GOLDEN_GRID,
-        GOLDEN_IMAGES, MODEL_MAPS, POLYGON_DOMAINS, WALLPAPER_DOMAINS, band_radius, colouring,
-        colourings_of, compare, coset_fill, domain_with_aspect, find_colouring, golden_colouring,
-        linear_table, on_circle, reference_walls, renderer,
+        ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, EUCLIDEAN_DOMAINS, FOLD_ANGLES, GOLDEN_COSET_FILL,
+        GOLDEN_GRID, GOLDEN_IMAGES, IMAGE_FILL_GOLDEN_IMAGES, MODEL_MAPS, POLYGON_DOMAINS,
+        WALLPAPER_DOMAINS, band_radius, colouring, colourings_of, compare, coset_fill,
+        domain_with_aspect, find_colouring, golden_colouring, image_paints, linear_table,
+        on_circle, reference_walls, renderer,
     };
+    use crate::image::sample;
     use crate::options::{BorderUnit, HyperbolicModel, RenderOptions, Shading};
     use crate::reference::{self, ReferenceExt, count_bound, plane_border_distance};
     use crate::view::View;
     use escher_reference::{Reference, Worst, error, int, num, sub, vector};
-
-    const EUCLIDEAN_DOMAINS: [(&str, Option<f64>); 7] = [
-        ("*632", None),
-        ("*442", None),
-        ("*333", None),
-        ("*2222", Some(1.0)),
-        ("*2222", Some(1.618)),
-        ("*2222", Some(0.125)),
-        ("*2222", Some(8.0)),
-    ];
 
     const FOLD_TRIPLES: [&str; 7] = [
         "*732",
@@ -1689,5 +1766,189 @@ mod tests {
             Err(error) => panic!("{error}"),
         };
         assert!(Renderer::new(&domain_with_aspect("*2222", None), options).is_ok());
+    }
+
+    #[test]
+    fn image_fill_golden_configurations_place_each_image_paint_and_no_solid_paint() {
+        for image in &IMAGE_FILL_GOLDEN_IMAGES {
+            let domain = image.golden.domain();
+            let renderer = renderer(&domain, image.options(&domain));
+            let Some(textures) = renderer.textures.as_ref() else {
+                panic!("{} has no texture", image.golden.file);
+            };
+            let solid: Vec<usize> = (0..textures.placements.len())
+                .filter(|&index| textures.placements[index].is_none())
+                .collect();
+            assert_eq!(solid, image.solid, "{}", image.golden.file);
+            assert!(
+                textures.placements.len() > image.solid.len(),
+                "{}",
+                image.golden.file
+            );
+        }
+        let domain = domain("*732");
+        let solid = coset_renderer(&domain, coset_fill(&domain, colouring(&domain, "2a")));
+        assert!(solid.textures.is_none());
+    }
+
+    #[test]
+    fn image_fill_gives_the_background_where_the_mask_map_or_the_image_has_no_value() {
+        let domain = domain("*732");
+        let colouring = golden_colouring(&domain, "2a");
+        let paints = image_paints(&domain, &colouring, 64, &[]);
+        let Paint::Image(image) = paints[0].clone() else {
+            panic!("the first paint is solid");
+        };
+        let fill = match CosetFill::new(&domain, colouring, paints) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{error}"),
+        };
+        let background = Colour::from_srgb8(10, 200, 30);
+        let options = match RenderOptions::builder(Fill::Cosets(fill))
+            .background(background)
+            .build()
+        {
+            Ok(options) => options,
+            Err(error) => panic!("{error}"),
+        };
+        let renderer = renderer(&domain, options);
+        for point in [
+            DVec3::ZERO,
+            DVec3::new(f64::NAN, 0.0, 1.0),
+            DVec3::new(0.0, f64::INFINITY, 1.0),
+            DVec3::new(0.0, 0.0, f64::NEG_INFINITY),
+            DVec3::new(0.0, 0.0, -1.0),
+        ] {
+            assert_eq!(renderer.texture(0, &image, point), background, "{point}");
+        }
+        let Some(textures) = renderer.textures.as_ref() else {
+            panic!("the renderer has no texture");
+        };
+        let placement = textures.placements[0].unwrap_or_else(|| panic!("no placement"));
+        let far = hyperbolic::normalize_point(DVec3::new(0.0, -30.0, 31.0))
+            .unwrap_or_else(|error| panic!("{error}"));
+        let Some(flat) = textures.map.map(far) else {
+            panic!("{far} has no mask point");
+        };
+        assert_eq!(placement.inside(placement.position(flat)), None, "{flat}");
+        assert_eq!(renderer.texture(0, &image, far), background, "{far}");
+        let centre = hyperbolic::normalize_point(domain.vertices().iter().sum())
+            .unwrap_or_else(|error| panic!("{error}"));
+        let value = renderer.texture(0, &image, centre);
+        let polygon = textures.map.polygon();
+        let flat_centre = polygon.iter().sum::<DVec2>() / 3.0;
+        assert_eq!(textures.map.map(centre), Some(flat_centre));
+        let expected = sample(
+            &image,
+            placement.position(flat_centre),
+            background.linear(),
+            &textures.linear,
+        );
+        assert_eq!(value.linear(), expected);
+        let centre = value;
+        assert_ne!(centre, background);
+    }
+
+    #[test]
+    fn image_fill_takes_the_same_value_for_a_point_in_every_model() {
+        const CLEARANCE: f64 = 1e-9;
+        const TOLERANCE: f64 = 1.1e-6;
+        const IMAGE_SIZE: u32 = 192;
+        let domain = domain("*732");
+        let walls = reference_walls(&domain);
+        let colouring = golden_colouring(&domain, "2a");
+        let paints = image_paints(&domain, &colouring, IMAGE_SIZE, &[]);
+        let fill = match CosetFill::new(&domain, colouring, paints) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{error}"),
+        };
+        let renderer_in = |model: HyperbolicModel| {
+            let options = match RenderOptions::builder(Fill::Cosets(fill.clone()))
+                .model(model)
+                .build()
+            {
+                Ok(options) => options,
+                Err(error) => panic!("{error}"),
+            };
+            renderer(&domain, options)
+        };
+        let value = |renderer: &Renderer, position: DVec2| {
+            let Some(lift) = renderer.view.point(position) else {
+                panic!("the screen position {position:?} has no point");
+            };
+            let mut sides = Vec::new();
+            let (result, _) = renderer.fold(&lift, |side| {
+                sides.push(u8::try_from(side).unwrap_or(u8::MAX));
+            });
+            assert!(
+                result.converged(),
+                "the screen position {position:?} does not converge"
+            );
+            let Fill::Cosets(fill) = &renderer.options.fill else {
+                panic!("the fill is not a coset fill");
+            };
+            match fill.paint(&sides) {
+                (coset, Paint::Image(image)) => (
+                    sides.clone(),
+                    renderer.texture(coset, image, result.point()).linear(),
+                ),
+                (_, Paint::Solid(_)) => panic!("every paint is an image"),
+            }
+        };
+        let disk = renderer_in(HyperbolicModel::Disk);
+        let models: Vec<_> = MODEL_MAPS
+            .iter()
+            .map(|map| (map, renderer_in(map.model)))
+            .collect();
+        let mut reference = Reference::new();
+        let clearance = num(CLEARANCE);
+        let (mut compared, mut near, mut largest) = (0, 0, 0.0_f64);
+        let mut values = Vec::new();
+        for band in 1..=3 {
+            for index in 0..FOLD_ANGLES {
+                let position = on_circle(band_radius(band), index, FOLD_ANGLES);
+                let name = format!("*732 in band {band} at angle {index} of {FOLD_ANGLES}");
+                let folded =
+                    reference::fold_exact(&walls, reference::from_disk(position.to_array()), 1500);
+                assert!(
+                    folded.converged,
+                    "{name}: the reference fold does not converge"
+                );
+                if walls
+                    .iter()
+                    .any(|wall| reference.wall_distance(&wall.covector, &folded.point) < clearance)
+                {
+                    near += 1;
+                    continue;
+                }
+                let (sides, expected) = value(&disk, position);
+                for (map, renderer) in &models {
+                    let model_position =
+                        DVec2::from_array(reference.disk_to_model(map.exact, position.to_array()));
+                    let (other_sides, other) = value(renderer, model_position - map.offset);
+                    assert_eq!(other_sides, sides, "{name} in the {:?} model", map.model);
+                    for (left, right) in expected.iter().zip(other) {
+                        largest = largest.max((left - right).abs());
+                    }
+                }
+                values.push(expected);
+                compared += 1;
+            }
+        }
+        values.sort_by(|left, right| {
+            left.partial_cmp(right)
+                .unwrap_or(core::cmp::Ordering::Equal)
+        });
+        values.dedup();
+        println!(
+            "*732 with image fills: {compared} disk positions take values within {largest:e} of each other in every model, allowed {TOLERANCE:e}, {} distinct values, {near} within {CLEARANCE:e} of a wall",
+            values.len()
+        );
+        assert!(largest <= TOLERANCE, "{largest:e}");
+        assert!(
+            compared >= 1000 && values.len() > 10,
+            "{compared} {}",
+            values.len()
+        );
     }
 }

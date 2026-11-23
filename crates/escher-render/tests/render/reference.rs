@@ -7,7 +7,7 @@ use astro_float_num::BigFloat;
 use escher_reference::{
     Complex, Matrix, Reference, Vector, add, apply, cross, difference, disk_to_half_plane,
     disk_to_klein, div, dot, half_plane_to_disk, int, klein_to_disk, max, mul, normalize, num,
-    product, scale, sqrt, sub, vector,
+    product, scale, sqrt, sub, unit, vector,
 };
 
 pub(crate) fn from_disk(position: [f64; 2]) -> Vector {
@@ -357,6 +357,402 @@ impl ReferenceExt for Reference {
             let power = self.pow(linear, &exponent);
             sub(&mul(&self.parse("1.055"), &power), &self.parse("0.055"))
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Measure {
+    Hyperbolic,
+    Euclidean,
+    Spherical,
+}
+
+impl Measure {
+    pub(crate) const fn of(geometry: escher_signature::Geometry) -> Self {
+        match geometry {
+            escher_signature::Geometry::Hyperbolic => Self::Hyperbolic,
+            escher_signature::Geometry::Euclidean => Self::Euclidean,
+            escher_signature::Geometry::Spherical => Self::Spherical,
+        }
+    }
+
+    pub(crate) fn distance(self, reference: &mut Reference, x: &Vector, y: &Vector) -> BigFloat {
+        match self {
+            Self::Hyperbolic => reference.distance(&normalize(x), &normalize(y)),
+            Self::Euclidean => plane_distance(x, y),
+            Self::Spherical if dot(x, y).is_positive() => reference.angle(x, y),
+            Self::Spherical => reference.pi(),
+        }
+    }
+
+    pub(crate) fn wall_distance(
+        self,
+        reference: &mut Reference,
+        covector: &Vector,
+        point: &Vector,
+    ) -> BigFloat {
+        match self {
+            Self::Hyperbolic => reference.wall_distance(covector, point),
+            Self::Euclidean => plane_wall_distance(covector, point),
+            Self::Spherical => reference.sphere_wall_distance(covector, point),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MaskRule {
+    Plane,
+    Triangle([u32; 3]),
+    Klein,
+    Double([u32; 3]),
+}
+
+pub(crate) type Flat = [BigFloat; 2];
+
+pub(crate) struct ExactMask {
+    pub(crate) measure: Measure,
+    pub(crate) vertices: Vec<Vector>,
+    covectors: Vec<Vector>,
+    pub(crate) centre: Vector,
+    chart_centre: Vector,
+    pub(crate) polygon: Vec<Flat>,
+    pub(crate) flat_centre: Flat,
+    lengths: Vec<BigFloat>,
+}
+
+fn flat_sub(left: &Flat, right: &Flat) -> Flat {
+    [sub(&left[0], &right[0]), sub(&left[1], &right[1])]
+}
+
+fn flat_add(left: &Flat, right: &Flat) -> Flat {
+    [add(&left[0], &right[0]), add(&left[1], &right[1])]
+}
+
+fn flat_scale(factor: &BigFloat, value: &Flat) -> Flat {
+    [mul(factor, &value[0]), mul(factor, &value[1])]
+}
+
+fn flat_dot(left: &Flat, right: &Flat) -> BigFloat {
+    add(&mul(&left[0], &right[0]), &mul(&left[1], &right[1]))
+}
+
+fn flat_triangle(reference: &mut Reference, orders: [u32; 3]) -> [Flat; 3] {
+    let pi = reference.pi();
+    let [first, second, third] = orders.map(|order| div(&pi, &int(order)));
+    let angles = match orders {
+        [_, second_order, 2] if second_order >= 3 => {
+            [sub(&sub(&pi, &second), &third), second, third]
+        }
+        [_, 2, 2] => [first.clone(), sub(&sub(&pi, &first), &third), third],
+        [_, _, third_order] if third_order >= 3 => [
+            first.clone(),
+            second.clone(),
+            sub(&sub(&pi, &first), &second),
+        ],
+        _ => panic!("the corner orders {orders:?} have no flat triangle"),
+    };
+    assert!(
+        angles.iter().all(BigFloat::is_positive),
+        "the corner orders {orders:?} have no flat triangle"
+    );
+    let reach = div(&reference.sin(&angles[0]), &reference.sin(&angles[1]));
+    let (cos, sin) = (reference.cos(&angles[2]), reference.sin(&angles[2]));
+    [
+        [int(1), int(0)],
+        [mul(&reach, &cos), mul(&reach, &sin)],
+        [int(0), int(0)],
+    ]
+}
+
+fn reflect_flat(point: &Flat, start: &Flat, end: &Flat) -> Flat {
+    let direction = flat_sub(end, start);
+    let along = div(
+        &flat_dot(&flat_sub(point, start), &direction),
+        &flat_dot(&direction, &direction),
+    );
+    let foot = flat_add(start, &flat_scale(&along, &direction));
+    flat_sub(&flat_scale(&int(2), &foot), point)
+}
+
+impl ExactMask {
+    pub(crate) fn new(
+        reference: &mut Reference,
+        measure: Measure,
+        vertices: &[[f64; 3]],
+        covectors: &[[f64; 3]],
+        rule: MaskRule,
+    ) -> Self {
+        let vertices: Vec<Vector> = vertices.iter().map(|&vertex| vector(vertex)).collect();
+        let count = u32::try_from(vertices.len()).unwrap_or(u32::MAX);
+        let sum = vertices
+            .iter()
+            .fold([int(0), int(0), int(0)], |total, vertex| {
+                [0, 1, 2].map(|index| add(&total[index], &vertex[index]))
+            });
+        let centre = match measure {
+            Measure::Hyperbolic => normalize(&sum),
+            Measure::Spherical => unit(&sum),
+            Measure::Euclidean => scale(&div(&int(1), &int(count)), &sum),
+        };
+        let polygon: Vec<Flat> = match rule {
+            MaskRule::Plane => vertices
+                .iter()
+                .map(|vertex| [div(&vertex[0], &vertex[2]), div(&vertex[1], &vertex[2])])
+                .collect(),
+            MaskRule::Triangle(orders) => flat_triangle(reference, orders).to_vec(),
+            MaskRule::Klein => {
+                let [x, y, z] = centre.clone();
+                let lift = add(&int(1), &z);
+                let recentre = [
+                    [
+                        add(&int(1), &div(&mul(&x, &x), &lift)),
+                        div(&mul(&x, &y), &lift),
+                        x.neg(),
+                    ],
+                    [
+                        div(&mul(&x, &y), &lift),
+                        add(&int(1), &div(&mul(&y, &y), &lift)),
+                        y.neg(),
+                    ],
+                    [x.neg(), y.neg(), z.clone()],
+                ];
+                vertices
+                    .iter()
+                    .map(|vertex| {
+                        let moved = apply(&recentre, vertex);
+                        [div(&moved[0], &moved[2]), div(&moved[1], &moved[2])]
+                    })
+                    .collect()
+            }
+            MaskRule::Double(orders) => {
+                let [first, second, third] = flat_triangle(reference, orders);
+                let mirrored = reflect_flat(&third, &first, &second);
+                vec![first, mirrored, second, third]
+            }
+        };
+        assert_eq!(polygon.len(), vertices.len(), "{rule:?}");
+        let flat_sum = polygon
+            .iter()
+            .fold([int(0), int(0)], |total, vertex| flat_add(&total, vertex));
+        let flat_centre = flat_scale(&div(&int(1), &int(count)), &flat_sum);
+        let mut mask = Self {
+            measure,
+            covectors: covectors.iter().map(|&covector| vector(covector)).collect(),
+            chart_centre: centre.clone(),
+            centre,
+            polygon,
+            flat_centre,
+            lengths: Vec::new(),
+            vertices,
+        };
+        mask.chart_centre = mask.chart(&mask.centre);
+        mask.lengths = (0..mask.vertices.len())
+            .map(|side| {
+                let previous = mask.vertices[mask.previous(side)].clone();
+                mask.distance(reference, &previous, &mask.vertices[side])
+            })
+            .collect();
+        mask
+    }
+
+    fn previous(&self, side: usize) -> usize {
+        (side + self.vertices.len() - 1) % self.vertices.len()
+    }
+
+    pub(crate) fn chart(&self, point: &Vector) -> Vector {
+        let divisor = match self.measure {
+            Measure::Hyperbolic | Measure::Euclidean => point[2].clone(),
+            Measure::Spherical => dot(&self.centre, point),
+        };
+        assert!(divisor.is_positive(), "a point lies outside the chart");
+        scale(&div(&int(1), &divisor), point)
+    }
+
+    fn turn(&self, first: &Vector, second: &Vector) -> BigFloat {
+        match self.measure {
+            Measure::Hyperbolic | Measure::Euclidean => {
+                sub(&mul(&first[0], &second[1]), &mul(&first[1], &second[0]))
+            }
+            Measure::Spherical => dot(&self.centre, &cross(first, second)),
+        }
+    }
+
+    fn unchart(&self, chart: &Vector) -> Vector {
+        match self.measure {
+            Measure::Hyperbolic => normalize(chart),
+            Measure::Euclidean => chart.clone(),
+            Measure::Spherical => unit(chart),
+        }
+    }
+
+    pub(crate) fn distance(&self, reference: &mut Reference, x: &Vector, y: &Vector) -> BigFloat {
+        match self.measure {
+            Measure::Hyperbolic => reference.distance(&normalize(x), &normalize(y)),
+            Measure::Euclidean => plane_distance(x, y),
+            Measure::Spherical => {
+                let cosine = dot(&unit(x), &unit(y));
+                let clamped = max(&min(&cosine, &int(1)), &int(1).neg());
+                reference.acos(&clamped)
+            }
+        }
+    }
+
+    pub(crate) fn along_side(
+        &self,
+        reference: &mut Reference,
+        side: usize,
+        fraction: &BigFloat,
+    ) -> Vector {
+        let first = &self.vertices[self.previous(side)];
+        let second = &self.vertices[side];
+        let length = &self.lengths[side];
+        let rest = sub(&int(1), fraction);
+        match self.measure {
+            Measure::Euclidean => {
+                let first = scale(&div(&int(1), &first[2]), first);
+                let second = scale(&div(&int(1), &second[2]), second);
+                add_vectors(&scale(&rest, &first), &scale(fraction, &second))
+            }
+            Measure::Hyperbolic => {
+                let whole = reference.sinh(length);
+                let near = div(&reference.sinh(&mul(&rest, length)), &whole);
+                let far = div(&reference.sinh(&mul(fraction, length)), &whole);
+                add_vectors(
+                    &scale(&near, &normalize(first)),
+                    &scale(&far, &normalize(second)),
+                )
+            }
+            Measure::Spherical => {
+                let whole = reference.sin(length);
+                let near = div(&reference.sin(&mul(&rest, length)), &whole);
+                let far = div(&reference.sin(&mul(fraction, length)), &whole);
+                add_vectors(&scale(&near, &unit(first)), &scale(&far, &unit(second)))
+            }
+        }
+    }
+
+    pub(crate) fn map(&self, reference: &mut Reference, point: &Vector) -> Flat {
+        let chart = self.chart(point);
+        let ray = difference(&chart, &self.chart_centre);
+        if ray.iter().all(BigFloat::is_zero) {
+            return self.flat_centre.clone();
+        }
+        let count = self.vertices.len();
+        let side = (0..count)
+            .find(|&side| {
+                let start = difference(
+                    &self.chart(&self.vertices[self.previous(side)]),
+                    &self.chart_centre,
+                );
+                let end = difference(&self.chart(&self.vertices[side]), &self.chart_centre);
+                !self.turn(&start, &ray).is_negative() && self.turn(&ray, &end).is_positive()
+            })
+            .unwrap_or_else(|| panic!("no sector of the chart holds the ray"));
+        let covector = &self.covectors[side];
+        let parameter = div(
+            &dot(covector, &self.chart_centre).neg(),
+            &dot(covector, &ray),
+        );
+        let boundary = self.unchart(&add_vectors(&self.chart_centre, &scale(&parameter, &ray)));
+        let previous = self.previous(side);
+        let start = self.vertices[previous].clone();
+        let fraction = div(
+            &self.distance(reference, &start, &boundary),
+            &self.lengths[side],
+        );
+        let fraction = max(&min(&fraction, &int(1)), &int(0));
+        let edge = flat_sub(&self.polygon[side], &self.polygon[previous]);
+        let flat = flat_add(&self.polygon[previous], &flat_scale(&fraction, &edge));
+        flat_add(
+            &self.flat_centre,
+            &flat_scale(
+                &div(&int(1), &parameter),
+                &flat_sub(&flat, &self.flat_centre),
+            ),
+        )
+    }
+
+    pub(crate) fn inverse(&self, reference: &mut Reference, point: &Flat) -> Vector {
+        let ray = flat_sub(point, &self.flat_centre);
+        let mut exit: Option<(BigFloat, usize)> = None;
+        for side in 0..self.polygon.len() {
+            let start = &self.polygon[self.previous(side)];
+            let edge = flat_sub(&self.polygon[side], start);
+            let outward = [edge[1].clone(), edge[0].neg()];
+            let rate = flat_dot(&outward, &ray);
+            if rate.is_positive() && !rate.is_zero() {
+                let parameter = div(
+                    &flat_dot(&outward, &flat_sub(start, &self.flat_centre)),
+                    &rate,
+                );
+                if exit.as_ref().is_none_or(|(least, _)| parameter < *least) {
+                    exit = Some((parameter, side));
+                }
+            }
+        }
+        let Some((parameter, side)) = exit else {
+            return self.centre.clone();
+        };
+        let start = &self.polygon[self.previous(side)];
+        let edge = flat_sub(&self.polygon[side], start);
+        let boundary = flat_add(&self.flat_centre, &flat_scale(&parameter, &ray));
+        let fraction = div(
+            &flat_dot(&flat_sub(&boundary, start), &edge),
+            &flat_dot(&edge, &edge),
+        );
+        let on_side = self.chart(&self.along_side(reference, side, &fraction));
+        let chart = add_vectors(
+            &self.chart_centre,
+            &scale(
+                &div(&int(1), &parameter),
+                &difference(&on_side, &self.chart_centre),
+            ),
+        );
+        self.unchart(&chart)
+    }
+
+    pub(crate) fn image_position(
+        &self,
+        reference: &mut Reference,
+        point: &Flat,
+        width: u32,
+        height: u32,
+    ) -> [f64; 2] {
+        let mut low = self.polygon[0].clone();
+        let mut high = self.polygon[0].clone();
+        for vertex in &self.polygon {
+            for axis in 0..2 {
+                low[axis] = min(&low[axis], &vertex[axis]);
+                high[axis] = max(&high[axis], &vertex[axis]);
+            }
+        }
+        let shorter = int(width.min(height));
+        let margin = div(&shorter, &int(16));
+        let size = [int(width), int(height)];
+        let scale_of = |axis: usize| div(&sub(&size[axis], &margin), &sub(&high[axis], &low[axis]));
+        let factor = min(&scale_of(0), &scale_of(1));
+        let middle = |axis: usize| div(&add(&low[axis], &high[axis]), &int(2));
+        let across = add(
+            &div(&size[0], &int(2)),
+            &mul(&factor, &sub(&point[0], &middle(0))),
+        );
+        let down = sub(
+            &div(&size[1], &int(2)),
+            &mul(&factor, &sub(&point[1], &middle(1))),
+        );
+        [reference.approximate(&across), reference.approximate(&down)]
+    }
+}
+
+fn add_vectors(x: &Vector, y: &Vector) -> Vector {
+    [0, 1, 2].map(|index| add(&x[index], &y[index]))
+}
+
+fn min(left: &BigFloat, right: &BigFloat) -> BigFloat {
+    if left <= right {
+        left.clone()
+    } else {
+        right.clone()
     }
 }
 

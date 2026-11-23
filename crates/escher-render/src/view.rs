@@ -7,7 +7,7 @@ use glam::{DMat2, DMat3, DVec2, DVec3};
 
 use crate::options::{HyperbolicModel, RenderOptions};
 
-const MARGIN: f64 = 1.0 / 32.0;
+pub(crate) const MARGIN: f64 = 1.0 / 32.0;
 
 const PLANE_SPAN: f64 = 8.0;
 

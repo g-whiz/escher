@@ -64,8 +64,11 @@
 //! background colour of its [`RenderOptions`]. The border width is in pixels
 //! of the image, or with [`BorderUnit::Intrinsic`] a length in the geometry
 //! of the domain. A [`Fill`] gives every tile
-//! one colour, two colours by parity, or the colour of its coset in a
-//! [`Colouring`](escher_group::Colouring), through a [`CosetFill`]. The
+//! one colour, two colours by parity, or the paint of its coset in a
+//! [`Colouring`](escher_group::Colouring), through a [`CosetFill`]. A
+//! [`Paint`] is a solid colour or an [`Image`] that [`Image::decode_png`]
+//! reads from a PNG stream, and [`Masks`] draws, for each colour, the flat
+//! polygon of the domain over which the image of that colour is painted. The
 //! renderer averages the samples of a pixel in linear light and stores the
 //! pixel as 8-bit sRGB.
 //! [`encode_png`] turns the pixels into the bytes of a PNG file. The crate
@@ -103,6 +106,8 @@ mod colour;
 mod encode;
 mod error;
 mod fold;
+mod image;
+mod mask;
 mod options;
 mod renderer;
 mod view;
@@ -115,18 +120,20 @@ mod reference;
 #[path = "../tests/render/golden_images.rs"]
 mod golden_images;
 
-pub use colour::{Colour, CosetFill, Fill};
+pub use colour::{Colour, CosetFill, Fill, Paint};
 pub use encode::encode_png;
 pub use error::{Error, ErrorKind, Result};
 pub use fold::{Fold, fold};
+pub use image::Image;
+pub use mask::Masks;
 pub use options::{BorderUnit, HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
 pub use renderer::{RenderStats, Renderer};
 
 #[cfg(test)]
 mod tests {
     use super::{
-        BorderUnit, Colour, CosetFill, Error, ErrorKind, Fill, Fold, HyperbolicModel,
-        RenderOptions, RenderOptionsBuilder, RenderStats, Renderer, Shading,
+        BorderUnit, Colour, CosetFill, Error, ErrorKind, Fill, Fold, HyperbolicModel, Image, Masks,
+        Paint, RenderOptions, RenderOptionsBuilder, RenderStats, Renderer, Shading,
     };
 
     fn assert_auto_traits<T: Send + Sync + 'static>() {}
@@ -136,6 +143,9 @@ mod tests {
         assert_auto_traits::<Colour>();
         assert_auto_traits::<Fill>();
         assert_auto_traits::<CosetFill>();
+        assert_auto_traits::<Paint>();
+        assert_auto_traits::<Image>();
+        assert_auto_traits::<Masks>();
         assert_auto_traits::<RenderOptions>();
         assert_auto_traits::<RenderOptionsBuilder>();
         assert_auto_traits::<Shading>();
