@@ -32,7 +32,7 @@ This document covers the six crates of the proof of concept and the test support
 
 These topics are owned elsewhere, and this document cites them:
 
-- The milestones `M1` to `M13` and `M19` to `M26`, the research prerequisites `RP-1` to `RP-8`, and the table of unverified statements `UNV-1` to `UNV-46` are defined in `docs/design/poc-plan.md`. The milestones `M14` to `M18` are items of Section 4.1 of `docs/design/roadmap.md`.
+- The milestones `M1` to `M13` and `M19` to `M26`, the research prerequisites `RP-1` to `RP-8`, and the table of unverified statements `UNV-1` to `UNV-50` are defined in `docs/design/poc-plan.md`. The milestones `M14` to `M18` are items of Section 4.1 of `docs/design/roadmap.md`.
 - The phases after the proof of concept are defined in `docs/design/roadmap.md`.
 - The application programming interface (API) of each crate, beyond the public surface of Section 3.2, is specified in the crate design documents `docs/design/signature.md`, `docs/design/geometry.md`, `docs/design/group.md`, `docs/design/domain.md`, `docs/design/render.md`, and `docs/design/cli.md` (`DEC-1`).
 - The commands, options, output format, exit status, and diagnostics of the binary are specified in `docs/design/cli.md`.
