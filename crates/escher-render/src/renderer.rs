@@ -10,7 +10,7 @@ use crate::image::{Image, Placement, sample};
 use crate::mask::MaskMap;
 use crate::options::{BorderUnit, RenderOptions, Shading};
 use crate::view::{Lift, View};
-use crate::wythoff::WythoffFill;
+use crate::wythoff::Wythoff;
 
 /// Renders the tiling of a fundamental domain into 8-bit sRGB pixels, in the
 /// Poincare disk or another hyperbolic model for a hyperbolic domain, in the
@@ -180,9 +180,14 @@ impl Renderer {
         {
             return Err(Error::other_domain());
         }
+        if let Fill::WholeFace(fill) = &options.fill
+            && !fill.wythoff().fits(domain)
+        {
+            return Err(Error::other_whole_face_domain());
+        }
         let textures = match &options.fill {
             Fill::Cosets(fill) => Textures::of(fill, domain)?,
-            Fill::One(_) | Fill::Parity(_) | Fill::Wythoff(_) => None,
+            Fill::One(_) | Fill::Parity(_) | Fill::Wythoff(_) | Fill::WholeFace(_) => None,
         };
         let walls = domain.sides().iter().map(|&side| Wall::new(side)).collect();
         Ok(Self {
@@ -279,7 +284,7 @@ impl Renderer {
             return self.options.background.linear();
         };
         let (result, tangents) = match &self.options.fill {
-            Fill::Cosets(_) => {
+            Fill::Cosets(_) | Fill::WholeFace(_) => {
                 sides.clear();
                 self.fold(&lift, |side| sides.push(side_byte(side)))
             }
@@ -312,7 +317,16 @@ impl Renderer {
 
     fn converged_colour(&self, result: Fold, tangents: [DVec3; 2], sides: &[u8]) -> Colour {
         match &self.options.fill {
-            Fill::Wythoff(fill) => self.face_colour(fill, result.point(), tangents),
+            Fill::Wythoff(fill) => {
+                self.face_colour(fill.wythoff(), result.point(), tangents, |face| {
+                    fill.colour(face)
+                })
+            }
+            Fill::WholeFace(fill) => {
+                self.face_colour(fill.wythoff(), result.point(), tangents, |_| {
+                    fill.value(sides, result.point(), self.options.background)
+                })
+            }
             Fill::One(_) | Fill::Parity(_) | Fill::Cosets(_)
                 if self.side_border(result.point(), tangents) =>
             {
@@ -337,13 +351,18 @@ impl Renderer {
         self.border(self.walls.iter().map(Wall::covector), point, tangents)
     }
 
-    fn face_colour(&self, fill: &WythoffFill, point: DVec3, tangents: [DVec3; 2]) -> Colour {
-        let wythoff = fill.wythoff();
+    fn face_colour(
+        &self,
+        wythoff: &Wythoff,
+        point: DVec3,
+        tangents: [DVec3; 2],
+        colour: impl FnOnce(usize) -> Colour,
+    ) -> Colour {
         let face = wythoff.face_of(point);
         if self.border(wythoff.perpendiculars_of(face), point, tangents) {
             self.options.border_colour
         } else {
-            fill.colour(face)
+            colour(face)
         }
     }
 
@@ -564,10 +583,11 @@ mod tests {
     use crate::fold::{PointSize, Wall, fold, fold_carrying};
     use crate::golden_images::{
         ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, EUCLIDEAN_DOMAINS, FOLD_ANGLES, GOLDEN_COSET_FILL,
-        GOLDEN_GRID, GOLDEN_IMAGES, IMAGE_FILL_GOLDEN_IMAGES, MODEL_MAPS, POLYGON_DOMAINS,
-        WALLPAPER_DOMAINS, band_radius, colouring, colourings_of, compare, coset_fill,
-        domain_with_aspect, find_colouring, golden_colouring, image_paints, linear_table,
-        on_circle, reference_walls, renderer,
+        GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE, IMAGE_FILL_GOLDEN_IMAGES, MODEL_MAPS,
+        POLYGON_DOMAINS, REGULAR, WALLPAPER_DOMAINS, arrangements, band_radius, colouring,
+        colourings_of, compare, coset_fill, domain_with_aspect, face_picture, find_colouring,
+        golden_colouring, image_paints, linear_table, on_circle, reference_walls, renderer,
+        whole_face, whole_face_fill,
     };
     use crate::image::sample;
     use crate::options::{BorderUnit, HyperbolicModel, RenderOptions, Shading};
@@ -1893,28 +1913,21 @@ mod tests {
         assert_ne!(centre, background);
     }
 
-    #[test]
-    fn image_fill_takes_the_same_value_for_a_point_in_every_model() {
+    fn same_value_in_every_model(
+        name: &str,
+        domain: &FundamentalDomain,
+        fill: &Fill,
+        sample_value: impl Fn(&Renderer, &[u8], DVec3) -> [f64; 3],
+    ) {
         const CLEARANCE: f64 = 1e-9;
         const TOLERANCE: f64 = 1.1e-6;
-        const IMAGE_SIZE: u32 = 192;
-        let domain = domain("*732");
-        let walls = reference_walls(&domain);
-        let colouring = golden_colouring(&domain, "2a");
-        let paints = image_paints(&domain, &colouring, IMAGE_SIZE, &[]);
-        let fill = match CosetFill::new(&domain, colouring, paints) {
-            Ok(fill) => fill,
-            Err(error) => panic!("{error}"),
-        };
+        let walls = reference_walls(domain);
         let renderer_in = |model: HyperbolicModel| {
-            let options = match RenderOptions::builder(Fill::Cosets(fill.clone()))
-                .model(model)
-                .build()
-            {
+            let options = match RenderOptions::builder(fill.clone()).model(model).build() {
                 Ok(options) => options,
                 Err(error) => panic!("{error}"),
             };
-            renderer(&domain, options)
+            renderer(domain, options)
         };
         let value = |renderer: &Renderer, position: DVec2| {
             let Some(lift) = renderer.view.point(position) else {
@@ -1928,16 +1941,8 @@ mod tests {
                 result.converged(),
                 "the screen position {position:?} does not converge"
             );
-            let Fill::Cosets(fill) = &renderer.options.fill else {
-                panic!("the fill is not a coset fill");
-            };
-            match fill.paint(&sides) {
-                (coset, Paint::Image(image)) => (
-                    sides.clone(),
-                    renderer.texture(coset, image, result.point()).linear(),
-                ),
-                (_, Paint::Solid(_)) => panic!("every paint is an image"),
-            }
+            let found = sample_value(renderer, &sides, result.point());
+            (sides, found)
         };
         let disk = renderer_in(HyperbolicModel::Disk);
         let models: Vec<_> = MODEL_MAPS
@@ -1951,7 +1956,7 @@ mod tests {
         for band in 1..=3 {
             for index in 0..FOLD_ANGLES {
                 let position = on_circle(band_radius(band), index, FOLD_ANGLES);
-                let name = format!("*732 in band {band} at angle {index} of {FOLD_ANGLES}");
+                let name = format!("{name} in band {band} at angle {index} of {FOLD_ANGLES}");
                 let folded =
                     reference::fold_exact(&walls, reference::from_disk(position.to_array()), 1500);
                 assert!(
@@ -1985,7 +1990,7 @@ mod tests {
         });
         values.dedup();
         println!(
-            "*732 with image fills: {compared} disk positions take values within {largest:e} of each other in every model, allowed {TOLERANCE:e}, {} distinct values, {near} within {CLEARANCE:e} of a wall",
+            "{name}: {compared} disk positions take values within {largest:e} of each other in every model, allowed {TOLERANCE:e}, {} distinct values, {near} within {CLEARANCE:e} of a wall",
             values.len()
         );
         assert!(largest <= TOLERANCE, "{largest:e}");
@@ -1993,6 +1998,53 @@ mod tests {
             compared >= 1000 && values.len() > 10,
             "{compared} {}",
             values.len()
+        );
+    }
+
+    #[test]
+    fn image_fill_takes_the_same_value_for_a_point_in_every_model() {
+        const IMAGE_SIZE: u32 = 192;
+        let domain = domain("*732");
+        let colouring = golden_colouring(&domain, "2a");
+        let paints = image_paints(&domain, &colouring, IMAGE_SIZE, &[]);
+        let fill = match CosetFill::new(&domain, colouring, paints) {
+            Ok(fill) => fill,
+            Err(error) => panic!("{error}"),
+        };
+        same_value_in_every_model(
+            "*732 with image fills",
+            &domain,
+            &Fill::Cosets(fill),
+            |renderer, sides, point| {
+                let Fill::Cosets(fill) = &renderer.options.fill else {
+                    panic!("the fill is not a coset fill");
+                };
+                match fill.paint(sides) {
+                    (coset, Paint::Image(image)) => renderer.texture(coset, image, point).linear(),
+                    (_, Paint::Solid(_)) => panic!("every paint is an image"),
+                }
+            },
+        );
+    }
+
+    #[test]
+    fn whole_face_fill_takes_the_same_value_for_a_point_in_every_model() {
+        let domain = domain("*732");
+        let face = whole_face(&domain, REGULAR);
+        let arrangement = find_colouring(&arrangements(&face), "14a");
+        let (_, image) = face_picture(&face, &arrangement, GOLDEN_SIZE);
+        let fill = whole_face_fill(face, arrangement, Paint::Image(image));
+        same_value_in_every_model(
+            "*732 with a whole-face fill of 14a",
+            &domain,
+            &Fill::WholeFace(fill),
+            |renderer, sides, point| {
+                let Fill::WholeFace(fill) = &renderer.options.fill else {
+                    panic!("the fill is not a whole-face fill");
+                };
+                fill.value(sides, point, renderer.options.background)
+                    .linear()
+            },
         );
     }
 }

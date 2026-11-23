@@ -77,7 +77,7 @@ impl Error {
             | Detail::BadName(_)
             | Detail::RepeatedName { .. }
             | Detail::RelatorLetter(_) => ErrorKind::InvalidPresentation,
-            Detail::SubgroupLetter(_) => ErrorKind::InvalidWord,
+            Detail::SubgroupLetter(_) | Detail::StabilizerLetter(_) => ErrorKind::InvalidWord,
             Detail::LimitExceeded(_) => ErrorKind::LimitExceeded,
             Detail::CosetLimitReached(_) => ErrorKind::CosetLimitReached,
             Detail::UnsupportedSignature(_) => ErrorKind::UnsupportedSignature,
@@ -106,15 +106,17 @@ pub enum ErrorKind {
     /// earlier name, or a relator uses a generator that the presentation does
     /// not have.
     InvalidPresentation,
-    /// A subgroup generator uses a generator that the presentation does not
-    /// have.
+    /// A subgroup generator, or a word of the stabilizer that
+    /// [`free_classes_of_index`](crate::free_classes_of_index) takes, uses a
+    /// generator that the presentation does not have.
     InvalidWord,
     /// An input is over one of the limits of the crate, or a coset limit, an
     /// index limit, or a search budget is out of its range.
     ///
     /// The limits are 256 generators and 1024 relators in a presentation,
     /// 4096 letters in a relator base, 256 subgroup generators of at most
-    /// 4096 letters each, 65536 letters in the relators written out with
+    /// 4096 letters each, 256 words of a stabilizer of at most 4096 letters
+    /// each, 65536 letters in the relators written out with
     /// their exponents, and 16777216 table entries, which is the coset limit
     /// times twice the number of generators. A coset limit is between 1 and
     /// [`CosetLimit::MAX`](crate::CosetLimit::MAX), an index limit between 1
@@ -148,6 +150,8 @@ pub(crate) enum Detail {
     RelatorLetter(usize),
     #[error("subgroup generator {0} uses a generator that the presentation does not have")]
     SubgroupLetter(usize),
+    #[error("stabilizer element {0} uses a generator that the presentation does not have")]
+    StabilizerLetter(usize),
     #[error("{0}")]
     LimitExceeded(Limit),
     #[error("the enumeration defined {0} cosets without finishing")]
@@ -167,6 +171,8 @@ pub(crate) enum Limit {
     Relators,
     SubgroupGenerators,
     SubgroupLetters(usize),
+    StabilizerElements,
+    StabilizerLetters(usize),
     Expanded(u64),
     Cosets(u32),
     TableEntries { limit: u32, columns: usize },
@@ -204,6 +210,14 @@ impl fmt::Display for Limit {
             Self::SubgroupLetters(position) => write!(
                 formatter,
                 "subgroup generator {position} has more than {MAX_BASE} letters"
+            ),
+            Self::StabilizerElements => write!(
+                formatter,
+                "the stabilizer has more than {MAX_SUBGROUP_GENERATORS} elements"
+            ),
+            Self::StabilizerLetters(position) => write!(
+                formatter,
+                "stabilizer element {position} has more than {MAX_BASE} letters"
             ),
             Self::Expanded(letters) => write!(
                 formatter,
@@ -342,6 +356,21 @@ mod tests {
                 Error::search(Detail::LimitExceeded(Limit::Expanded(120_011))),
                 ErrorKind::LimitExceeded,
                 "cannot search subgroups: the relators expand to 120011 letters, more than 65536",
+            ),
+            (
+                Error::search(Detail::StabilizerLetter(2)),
+                ErrorKind::InvalidWord,
+                "cannot search subgroups: stabilizer element 2 uses a generator that the presentation does not have",
+            ),
+            (
+                Error::search(Detail::LimitExceeded(Limit::StabilizerElements)),
+                ErrorKind::LimitExceeded,
+                "cannot search subgroups: the stabilizer has more than 256 elements",
+            ),
+            (
+                Error::search(Detail::LimitExceeded(Limit::StabilizerLetters(2))),
+                ErrorKind::LimitExceeded,
+                "cannot search subgroups: stabilizer element 2 has more than 4096 letters",
             ),
             (
                 Error::read_id(Detail::InvalidColouringId),

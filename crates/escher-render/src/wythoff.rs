@@ -113,7 +113,7 @@ impl Plane {
     }
 }
 
-fn corner_orders(angles: &[f64]) -> Option<[f64; 3]> {
+pub(crate) fn corner_orders(angles: &[f64]) -> Option<[f64; 3]> {
     let &[first, second, third] = angles else {
         return None;
     };
@@ -262,6 +262,16 @@ impl Wythoff {
             .position(matches)
             .or_else(|| self.faces.len().checked_sub(1))
             .expect("internal error: a Wythoff construction has a face")
+    }
+
+    pub(crate) fn single_face(&self) -> Option<(usize, usize)> {
+        match self.faces.as_slice() {
+            [face] => match face.cuts.as_slice() {
+                [cut] => Some((face.corner, cut.side)),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     pub(crate) fn perpendiculars_of(&self, face: usize) -> impl Iterator<Item = DVec3> + '_ {

@@ -8,8 +8,9 @@ use crate::options::{
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// The reason why an operation failed. The operations are building options,
-/// a coset fill, a renderer, polygon masks, a Wythoff construction, or a
-/// Wythoff fill, rendering rows or a mask, and encoding or decoding an image.
+/// a coset fill, a renderer, polygon masks, a Wythoff construction, a
+/// Wythoff fill, a whole face, or a whole-face fill, reading an edge pairing,
+/// rendering rows, a mask, or a face mask, and encoding or decoding an image.
 ///
 /// Match on [`Error::kind`] to tell the causes apart. The
 /// [`Display`](fmt::Display) text starts with `cannot `, names the operation
@@ -44,6 +45,10 @@ pub(crate) const RENDER_MASK: &str = "render mask";
 pub(crate) const DECODE: &str = "decode image";
 const WYTHOFF: &str = "build Wythoff construction";
 const WYTHOFF_FILL: &str = "build Wythoff fill";
+pub(crate) const WHOLE_FACE: &str = "build whole face";
+pub(crate) const EDGE_PAIRING: &str = "read edge pairing";
+pub(crate) const FACE_MASK: &str = "render face mask";
+pub(crate) const WHOLE_FACE_FILL: &str = "build whole-face fill";
 
 impl Error {
     pub(crate) fn empty_size(width: u32, height: u32) -> Self {
@@ -222,6 +227,48 @@ impl Error {
         }
     }
 
+    pub(crate) fn other_construction() -> Self {
+        Self {
+            operation: WHOLE_FACE,
+            detail: Detail::OtherConstruction,
+        }
+    }
+
+    pub(crate) fn not_regular() -> Self {
+        Self {
+            operation: WHOLE_FACE,
+            detail: Detail::NotRegular,
+        }
+    }
+
+    pub(crate) fn arrangement_size(cosets: usize, needed: usize) -> Self {
+        Self {
+            operation: EDGE_PAIRING,
+            detail: Detail::ArrangementSize { cosets, needed },
+        }
+    }
+
+    pub(crate) fn not_arrangement() -> Self {
+        Self {
+            operation: EDGE_PAIRING,
+            detail: Detail::NotArrangement,
+        }
+    }
+
+    pub(crate) fn paint_count(given: usize) -> Self {
+        Self {
+            operation: WHOLE_FACE_FILL,
+            detail: Detail::PaintCount { given },
+        }
+    }
+
+    pub(crate) fn other_whole_face_domain() -> Self {
+        Self {
+            operation: RENDERER,
+            detail: Detail::OtherWholeFaceDomain,
+        }
+    }
+
     pub(crate) fn during(self, operation: &'static str) -> Self {
         Self { operation, ..self }
     }
@@ -259,7 +306,13 @@ impl Error {
             | Detail::NotTriangle
             | Detail::NoFace
             | Detail::FaceColourCount { .. }
-            | Detail::OtherDomain => ErrorKind::InvalidOption,
+            | Detail::OtherDomain
+            | Detail::OtherConstruction
+            | Detail::NotRegular
+            | Detail::ArrangementSize { .. }
+            | Detail::NotArrangement
+            | Detail::PaintCount { .. }
+            | Detail::OtherWholeFaceDomain => ErrorKind::InvalidOption,
             Detail::LargeSide { .. }
             | Detail::ManyPixels { .. }
             | Detail::LargeGrid(_)
@@ -315,7 +368,13 @@ impl core::error::Error for Error {
             | Detail::NoFace
             | Detail::Degenerate(None)
             | Detail::FaceColourCount { .. }
-            | Detail::OtherDomain => None,
+            | Detail::OtherDomain
+            | Detail::OtherConstruction
+            | Detail::NotRegular
+            | Detail::ArrangementSize { .. }
+            | Detail::NotArrangement
+            | Detail::PaintCount { .. }
+            | Detail::OtherWholeFaceDomain => None,
         }
     }
 }
@@ -345,7 +404,11 @@ pub enum ErrorKind {
     /// that the colouring does not have, a Wythoff construction on a domain
     /// that is not a reflection triangle or with marks that give no face, or
     /// a Wythoff fill with another number of colours than face types or used
-    /// with another domain.
+    /// with another domain, a whole face of a construction that is not a
+    /// regular tiling or that was built for another domain, a colouring that
+    /// is not an arrangement of the faces of a whole face, or a whole-face
+    /// fill with another number of paints than one or used with another
+    /// domain.
     InvalidOption,
     /// An option or an image is larger than its limit, which bounds the
     /// memory and the time of a render, or the PNG decoder reached its memory
@@ -451,6 +514,24 @@ enum Detail {
     FaceColourCount { needed: usize, given: usize },
     #[error("the Wythoff fill was built for another domain")]
     OtherDomain,
+    #[error("the Wythoff construction was built for another domain")]
+    OtherConstruction,
+    #[error("the construction is not a regular tiling")]
+    NotRegular,
+    #[error(
+        "the colouring has {}, and an arrangement of these faces has {needed}",
+        counted(*cosets, "coset", "cosets")
+    )]
+    ArrangementSize { cosets: usize, needed: usize },
+    #[error("the colouring is not an arrangement of the faces")]
+    NotArrangement,
+    #[error(
+        "the arrangement needs 1 paint, and {given} {} given",
+        if *given == 1 { "was" } else { "were" }
+    )]
+    PaintCount { given: usize },
+    #[error("the whole-face fill was built for another domain")]
+    OtherWholeFaceDomain,
 }
 
 fn counted(count: usize, one: &str, many: &str) -> String {
@@ -460,7 +541,9 @@ fn counted(count: usize, one: &str, many: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{DECODE, Error, ErrorKind, MASKS, RENDER_MASK};
+    use super::{
+        DECODE, EDGE_PAIRING, Error, ErrorKind, FACE_MASK, MASKS, RENDER_MASK, WHOLE_FACE_FILL,
+    };
 
     fn png_error() -> png::EncodingError {
         png::EncodingError::LimitsExceeded
@@ -473,7 +556,68 @@ mod tests {
         errors.extend(mask_errors());
         errors.extend(decode_errors());
         errors.extend(wythoff_errors());
+        errors.extend(whole_face_errors());
         errors
+    }
+
+    fn whole_face_errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
+            (
+                Error::other_construction(),
+                ErrorKind::InvalidOption,
+                "cannot build whole face: the Wythoff construction was built for another domain",
+            ),
+            (
+                Error::not_regular(),
+                ErrorKind::InvalidOption,
+                "cannot build whole face: the construction is not a regular tiling",
+            ),
+            (
+                Error::generator_count(3, 4).during(EDGE_PAIRING),
+                ErrorKind::InvalidOption,
+                "cannot read edge pairing: the colouring has 3 generators, and the domain has 4 sides",
+            ),
+            (
+                Error::broken_relator(3).during(FACE_MASK),
+                ErrorKind::InvalidOption,
+                "cannot render face mask: relator 3 of the side presentation of the domain moves a coset of the colouring",
+            ),
+            (
+                Error::arrangement_size(8, 12),
+                ErrorKind::InvalidOption,
+                "cannot read edge pairing: the colouring has 8 cosets, and an arrangement of these faces has 12",
+            ),
+            (
+                Error::arrangement_size(1, 14).during(WHOLE_FACE_FILL),
+                ErrorKind::InvalidOption,
+                "cannot build whole-face fill: the colouring has 1 coset, and an arrangement of these faces has 14",
+            ),
+            (
+                Error::not_arrangement().during(FACE_MASK),
+                ErrorKind::InvalidOption,
+                "cannot render face mask: the colouring is not an arrangement of the faces",
+            ),
+            (
+                Error::empty_size(0, 512).during(FACE_MASK),
+                ErrorKind::InvalidOption,
+                "cannot render face mask: the image size 0x512 is empty",
+            ),
+            (
+                Error::paint_count(2),
+                ErrorKind::InvalidOption,
+                "cannot build whole-face fill: the arrangement needs 1 paint, and 2 were given",
+            ),
+            (
+                Error::paint_count(1),
+                ErrorKind::InvalidOption,
+                "cannot build whole-face fill: the arrangement needs 1 paint, and 1 was given",
+            ),
+            (
+                Error::other_whole_face_domain(),
+                ErrorKind::InvalidOption,
+                "cannot build renderer: the whole-face fill was built for another domain",
+            ),
+        ]
     }
 
     fn geometry_error() -> escher_geometry::Error {

@@ -2,12 +2,13 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use escher_group::{
     Colouring, ColouringSet, Colourings, CosetLimit, CosetTable, Letter, Presentation,
-    SearchBudget, Word, colourings, count_colourings, enumerate,
+    SearchBudget, Word, colourings, colourings_of_index, count_colourings, enumerate,
+    free_classes_of_index,
 };
 
 use crate::common::{
-    Expected, SEARCH_FIXTURES, SearchFixture, Table, conway, coxeter, index_limit, presentation,
-    word,
+    Expected, SEARCH_BUDGET, SEARCH_FIXTURES, SearchFixture, Table, budget, conway,
+    corner_stabilizer, coxeter, index_limit, presentation, word,
 };
 
 pub(crate) fn listing(presentation: &Presentation, limit: u32) -> Colourings {
@@ -793,5 +794,87 @@ fn the_search_agrees_with_coset_enumeration() {
                 .unwrap_or_else(|error| panic!("{label} {}: {error}", colouring.id()));
             assert_eq!(&table, colouring.table(), "{label} {}", colouring.id());
         }
+    }
+}
+
+fn fixes_no_coset(table: &CosetTable, words: &[Word]) -> bool {
+    (0..u32::try_from(table.index()).expect("small")).all(|coset| {
+        words
+            .iter()
+            .all(|word| table.trace(coset, word) != Some(coset))
+    })
+}
+
+pub(crate) fn free_filter_laws(
+    presentation: &Presentation,
+    words: &[Word],
+    colours: u32,
+    steps: u64,
+) -> Result<Option<usize>, String> {
+    let free = free_classes_of_index(presentation, words, index_limit(colours), budget(steps))
+        .map_err(|error| error.to_string())?;
+    let all = colourings_of_index(
+        presentation,
+        ColouringSet::All,
+        index_limit(colours),
+        budget(steps),
+    )
+    .map_err(|error| error.to_string())?;
+    if !free.is_complete() || !all.is_complete() {
+        return Ok(None);
+    }
+    let classes: Vec<&Colouring> = all
+        .list()
+        .iter()
+        .filter(|colouring| colouring.class() == colouring.id())
+        .collect();
+    let kept: Vec<&&Colouring> = classes
+        .iter()
+        .filter(|colouring| fixes_no_coset(colouring.table(), words))
+        .collect();
+    let tables = |list: &mut dyn Iterator<Item = &Colouring>| -> Vec<Vec<Vec<u32>>> {
+        list.map(|colouring| rows(colouring.table())).collect()
+    };
+    if tables(&mut free.list().iter()) != tables(&mut kept.iter().map(|colouring| **colouring)) {
+        return Err("the kept tables differ from the filtered class tables".to_owned());
+    }
+    for (ordinal, colouring) in (1..).zip(free.list()) {
+        let id = colouring.id();
+        if (id.colours(), id.ordinal()) != (colours, ordinal) || colouring.class() != id {
+            return Err(format!(
+                "colouring {ordinal} has the id {id} and the class {}",
+                colouring.class()
+            ));
+        }
+    }
+    for class in &classes {
+        let members = all
+            .list()
+            .iter()
+            .filter(|colouring| colouring.class() == class.id());
+        let free_class = fixes_no_coset(class.table(), words);
+        for member in members {
+            if fixes_no_coset(member.table(), words) != free_class {
+                return Err(format!(
+                    "{} and its class table {} disagree",
+                    member.id(),
+                    class.id()
+                ));
+            }
+        }
+    }
+    Ok(Some(free.list().len()))
+}
+
+#[test]
+fn the_free_filter_keeps_the_class_tables_whose_corner_stabilizer_fixes_no_coset() {
+    for (p, q, kept) in [(6, 3, 7), (4, 4, 16), (7, 3, 3), (5, 4, 13)] {
+        let found = free_filter_laws(
+            &coxeter(p, q, 2),
+            &corner_stabilizer(p),
+            2 * p,
+            SEARCH_BUDGET,
+        );
+        assert_eq!(found, Ok(Some(kept)), "*{p}{q}2");
     }
 }

@@ -10,11 +10,12 @@ use crate::common::{
     render_image_in_bands, render_in_bands, spherical_group_bounds,
 };
 use crate::golden_images::{
-    ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID, GOLDEN_IMAGES, GOLDEN_SIZE,
-    GoldenImage, IMAGE_FILL_GOLDEN_IMAGES, MASK_GOLDEN_IMAGES, MODEL_MAPS, POLYGON_DOMAINS, Shape,
-    TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS, WYTHOFF_GOLDEN_IMAGES, colouring, colourings_of,
-    compare, coset_fill, domain_with_aspect, domain_with_settings, golden_colouring, linear_table,
-    renderer, shifted_pairs, translation,
+    ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, FACE_MASK_GOLDEN_IMAGES, GOLDEN_FILL, GOLDEN_GRID,
+    GOLDEN_IMAGES, GOLDEN_SIZE, GoldenImage, IMAGE_FILL_GOLDEN_IMAGES, MASK_GOLDEN_IMAGES,
+    MODEL_MAPS, POLYGON_DOMAINS, Shape, TRANSLATION_TOLERANCE, WALLPAPER_DOMAINS,
+    WHOLE_FACE_GOLDEN_IMAGES, WYTHOFF_GOLDEN_IMAGES, colouring, colourings_of, compare, coset_fill,
+    domain_with_aspect, domain_with_settings, golden_colouring, linear_table, renderer,
+    shifted_pairs, translation,
 };
 
 const UPDATE: &str = "ESCHER_UPDATE_GOLDEN";
@@ -133,7 +134,17 @@ fn golden_images_match_the_committed_files() {
             let domain = image.golden.domain();
             let pixels = renderer(&domain, image.options(&domain)).render().0;
             ((image.golden.signature, image.golden.file), pixels)
-        }));
+        }))
+        .chain(WHOLE_FACE_GOLDEN_IMAGES.iter().map(|image| {
+            let domain = image.golden.domain();
+            let pixels = renderer(&domain, image.options(&domain)).render().0;
+            ((image.golden.signature, image.golden.file), pixels)
+        }))
+        .chain(
+            FACE_MASK_GOLDEN_IMAGES
+                .iter()
+                .map(|image| ((image.signature, image.file), image.pixels())),
+        );
     for (names, pixels) in renders {
         let path = directory.join(names.1);
         if update {

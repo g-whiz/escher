@@ -100,6 +100,20 @@ pub(crate) fn coxeter(p: u32, q: u32, r: u32) -> Presentation {
     Presentation::new(names, relators).expect("a Coxeter presentation is valid")
 }
 
+pub(crate) fn corner_stabilizer(order: u32) -> Vec<Word> {
+    let [s0, s1] = [0, 1].map(Letter::generator);
+    let rotation = |turns: u32| (0..turns).flat_map(move |_| [s0, s1]);
+    (0..order)
+        .flat_map(|turns| {
+            [
+                rotation(turns).collect::<Word>(),
+                rotation(turns).chain([s0]).collect(),
+            ]
+        })
+        .skip(1)
+        .collect()
+}
+
 pub(crate) fn index_limit(colours: u32) -> IndexLimit {
     match IndexLimit::new(colours) {
         Ok(limit) => limit,

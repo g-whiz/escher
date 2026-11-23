@@ -405,6 +405,7 @@ pub(crate) enum MaskRule {
     Triangle([u32; 3]),
     Klein,
     Double([u32; 3]),
+    FaceTriangle { corner: usize, order: u32 },
 }
 
 pub(crate) type Flat = [BigFloat; 2];
@@ -418,6 +419,58 @@ pub(crate) struct ExactMask {
     pub(crate) polygon: Vec<Flat>,
     pub(crate) flat_centre: Flat,
     lengths: Vec<BigFloat>,
+    charts: Vec<Vector>,
+}
+
+fn recentre(centre: &Vector) -> Matrix {
+    let [x, y, z] = centre.clone();
+    let lift = add(&int(1), &z);
+    [
+        [
+            add(&int(1), &div(&mul(&x, &x), &lift)),
+            div(&mul(&x, &y), &lift),
+            x.neg(),
+        ],
+        [
+            div(&mul(&x, &y), &lift),
+            add(&int(1), &div(&mul(&y, &y), &lift)),
+            y.neg(),
+        ],
+        [x.neg(), y.neg(), z],
+    ]
+}
+
+pub(crate) fn face_direction(measure: Measure, vertices: &[Vector], corner: usize) -> Flat {
+    let (centre, foot) = (&vertices[corner], &vertices[2]);
+    let toward = match measure {
+        Measure::Euclidean => {
+            let [centre, foot] = [centre, foot].map(|point| scale(&div(&int(1), &point[2]), point));
+            difference(&foot, &centre)
+        }
+        Measure::Hyperbolic => apply(&recentre(&normalize(centre)), &normalize(foot)),
+        Measure::Spherical => {
+            let (centre, foot) = (unit(centre), unit(foot));
+            difference(&foot, &scale(&dot(&centre, &foot), &centre))
+        }
+    };
+    let flat = [toward[0].clone(), toward[1].clone()];
+    if flat.iter().all(BigFloat::is_zero) {
+        return [int(0), int(1).neg()];
+    }
+    flat_scale(&div(&int(1), &sqrt(&flat_dot(&flat, &flat))), &flat)
+}
+
+fn flat_turn(direction: &Flat, point: &Flat) -> Flat {
+    [
+        sub(
+            &mul(&direction[0], &point[0]),
+            &mul(&direction[1], &point[1]),
+        ),
+        add(
+            &mul(&direction[1], &point[0]),
+            &mul(&direction[0], &point[1]),
+        ),
+    ]
 }
 
 fn flat_sub(left: &Flat, right: &Flat) -> Flat {
@@ -501,21 +554,7 @@ impl ExactMask {
                 .collect(),
             MaskRule::Triangle(orders) => flat_triangle(reference, orders).to_vec(),
             MaskRule::Klein => {
-                let [x, y, z] = centre.clone();
-                let lift = add(&int(1), &z);
-                let recentre = [
-                    [
-                        add(&int(1), &div(&mul(&x, &x), &lift)),
-                        div(&mul(&x, &y), &lift),
-                        x.neg(),
-                    ],
-                    [
-                        div(&mul(&x, &y), &lift),
-                        add(&int(1), &div(&mul(&y, &y), &lift)),
-                        y.neg(),
-                    ],
-                    [x.neg(), y.neg(), z.clone()],
-                ];
+                let recentre = recentre(&centre);
                 vertices
                     .iter()
                     .map(|vertex| {
@@ -528,6 +567,10 @@ impl ExactMask {
                 let [first, second, third] = flat_triangle(reference, orders);
                 let mirrored = reflect_flat(&third, &first, &second);
                 vec![first, mirrored, second, third]
+            }
+            MaskRule::FaceTriangle { corner, order } => {
+                let direction = face_direction(measure, &vertices, corner);
+                face_triangle(reference, corner, order, &direction).to_vec()
             }
         };
         assert_eq!(polygon.len(), vertices.len(), "{rule:?}");
@@ -543,9 +586,15 @@ impl ExactMask {
             polygon,
             flat_centre,
             lengths: Vec::new(),
+            charts: Vec::new(),
             vertices,
         };
         mask.chart_centre = mask.chart(&mask.centre);
+        mask.charts = mask
+            .vertices
+            .iter()
+            .map(|vertex| difference(&mask.chart(vertex), &mask.chart_centre))
+            .collect();
         mask.lengths = (0..mask.vertices.len())
             .map(|side| {
                 let previous = mask.vertices[mask.previous(side)].clone();
@@ -640,12 +689,9 @@ impl ExactMask {
         let count = self.vertices.len();
         let side = (0..count)
             .find(|&side| {
-                let start = difference(
-                    &self.chart(&self.vertices[self.previous(side)]),
-                    &self.chart_centre,
-                );
-                let end = difference(&self.chart(&self.vertices[side]), &self.chart_centre);
-                !self.turn(&start, &ray).is_negative() && self.turn(&ray, &end).is_positive()
+                let start = &self.charts[self.previous(side)];
+                let end = &self.charts[side];
+                !self.turn(start, &ray).is_negative() && self.turn(&ray, end).is_positive()
             })
             .unwrap_or_else(|| panic!("no sector of the chart holds the ray"));
         let covector = &self.covectors[side];
@@ -718,9 +764,31 @@ impl ExactMask {
         width: u32,
         height: u32,
     ) -> [f64; 2] {
-        let mut low = self.polygon[0].clone();
-        let mut high = self.polygon[0].clone();
-        for vertex in &self.polygon {
+        placement_position(reference, &self.polygon, point, width, height)
+    }
+}
+
+pub(crate) fn placement_position(
+    reference: &mut Reference,
+    polygon: &[Flat],
+    point: &Flat,
+    width: u32,
+    height: u32,
+) -> [f64; 2] {
+    ExactPlacement::new(polygon, width, height).position(reference, point)
+}
+
+pub(crate) struct ExactPlacement {
+    factor: BigFloat,
+    middle: Flat,
+    half: Flat,
+}
+
+impl ExactPlacement {
+    pub(crate) fn new(polygon: &[Flat], width: u32, height: u32) -> Self {
+        let mut low = polygon[0].clone();
+        let mut high = polygon[0].clone();
+        for vertex in polygon {
             for axis in 0..2 {
                 low[axis] = min(&low[axis], &vertex[axis]);
                 high[axis] = max(&high[axis], &vertex[axis]);
@@ -730,17 +798,155 @@ impl ExactMask {
         let margin = div(&shorter, &int(16));
         let size = [int(width), int(height)];
         let scale_of = |axis: usize| div(&sub(&size[axis], &margin), &sub(&high[axis], &low[axis]));
-        let factor = min(&scale_of(0), &scale_of(1));
-        let middle = |axis: usize| div(&add(&low[axis], &high[axis]), &int(2));
+        Self {
+            factor: min(&scale_of(0), &scale_of(1)),
+            middle: [0, 1].map(|axis| div(&add(&low[axis], &high[axis]), &int(2))),
+            half: [0, 1].map(|axis| div(&size[axis], &int(2))),
+        }
+    }
+
+    pub(crate) fn position(&self, reference: &mut Reference, point: &Flat) -> [f64; 2] {
         let across = add(
-            &div(&size[0], &int(2)),
-            &mul(&factor, &sub(&point[0], &middle(0))),
+            &self.half[0],
+            &mul(&self.factor, &sub(&point[0], &self.middle[0])),
         );
         let down = sub(
-            &div(&size[1], &int(2)),
-            &mul(&factor, &sub(&point[1], &middle(1))),
+            &self.half[1],
+            &mul(&self.factor, &sub(&point[1], &self.middle[1])),
         );
         [reference.approximate(&across), reference.approximate(&down)]
+    }
+}
+
+pub(crate) type FlatMatrix = [[BigFloat; 2]; 2];
+
+pub(crate) fn flat_identity() -> FlatMatrix {
+    [[int(1), int(0)], [int(0), int(1)]]
+}
+
+pub(crate) fn flat_apply(matrix: &FlatMatrix, point: &Flat) -> Flat {
+    [0, 1].map(|row| flat_dot(&matrix[row], point))
+}
+
+pub(crate) fn flat_product(left: &FlatMatrix, right: &FlatMatrix) -> FlatMatrix {
+    [0, 1].map(|row| {
+        [0, 1].map(|column| {
+            add(
+                &mul(&left[row][0], &right[0][column]),
+                &mul(&left[row][1], &right[1][column]),
+            )
+        })
+    })
+}
+
+pub(crate) fn flat_determinant(matrix: &FlatMatrix) -> BigFloat {
+    sub(
+        &mul(&matrix[0][0], &matrix[1][1]),
+        &mul(&matrix[0][1], &matrix[1][0]),
+    )
+}
+
+fn flat_reflection(through: &Flat) -> FlatMatrix {
+    let squared = flat_dot(through, through);
+    let entry =
+        |first: &BigFloat, second: &BigFloat| div(&mul(&int(2), &mul(first, second)), &squared);
+    [
+        [
+            sub(&entry(&through[0], &through[0]), &int(1)),
+            entry(&through[0], &through[1]),
+        ],
+        [
+            entry(&through[0], &through[1]),
+            sub(&entry(&through[1], &through[1]), &int(1)),
+        ],
+    ]
+}
+
+pub(crate) fn flat_face(reference: &mut Reference, order: u32, direction: &Flat) -> Vec<Flat> {
+    let pi = reference.pi();
+    (0..order)
+        .map(|vertex| {
+            let angle = div(&mul(&int(2 * vertex + 1), &pi), &int(order));
+            flat_turn(direction, &[reference.cos(&angle), reference.sin(&angle)])
+        })
+        .collect()
+}
+
+pub(crate) fn face_triangle(
+    reference: &mut Reference,
+    corner: usize,
+    order: u32,
+    direction: &Flat,
+) -> [Flat; 3] {
+    let face = flat_face(reference, order, direction);
+    let pi = reference.pi();
+    let apothem = reference.cos(&div(&pi, &int(order)));
+    let mut triangle = [
+        [int(0), int(0)],
+        [int(0), int(0)],
+        flat_scale(&apothem, direction),
+    ];
+    triangle[1 - corner] = if corner == 0 {
+        face[face.len() - 1].clone()
+    } else {
+        face[0].clone()
+    };
+    triangle
+}
+
+pub(crate) struct FaceElement {
+    pub(crate) matrix: Matrix,
+    pub(crate) flat: FlatMatrix,
+    pub(crate) reflection: bool,
+}
+
+pub(crate) struct ExactFace {
+    pub(crate) corner: usize,
+    pub(crate) elements: Vec<FaceElement>,
+    pub(crate) triangle: [Flat; 3],
+    pub(crate) polygon: Vec<Flat>,
+}
+
+impl ExactFace {
+    pub(crate) fn new(
+        reference: &mut Reference,
+        measure: Measure,
+        vertices: &[Vector],
+        walls: &[Wall],
+        corner: usize,
+        order: u32,
+    ) -> Self {
+        let direction = face_direction(measure, vertices, corner);
+        let triangle = face_triangle(reference, corner, order, &direction);
+        let polygon = flat_face(reference, order, &direction);
+        let centre_mirror = if corner == 0 { 0 } else { 2 };
+        let flat_centre_mirror = flat_reflection(&triangle[2]);
+        let flat_vertex_mirror = flat_reflection(&triangle[1 - corner]);
+        let turn = product(&walls[centre_mirror].pairing, &walls[1].pairing);
+        let flat_turn = flat_product(&flat_centre_mirror, &flat_vertex_mirror);
+        let mut matrix = [0, 1, 2].map(|row| [0, 1, 2].map(|column| int(u32::from(row == column))));
+        let mut flat = flat_identity();
+        let mut elements = Vec::new();
+        for _ in 0..order {
+            elements.push(FaceElement {
+                matrix: matrix.clone(),
+                flat: flat.clone(),
+                reflection: false,
+            });
+            elements.push(FaceElement {
+                matrix: product(&matrix, &walls[centre_mirror].pairing),
+                flat: flat_product(&flat, &flat_centre_mirror),
+                reflection: true,
+            });
+            matrix = product(&matrix, &turn);
+            flat = flat_product(&flat, &flat_turn);
+        }
+        Self {
+            corner,
+            elements,
+            triangle,
+            polygon,
+        }
     }
 }
 
@@ -819,7 +1025,7 @@ impl ExactWythoff {
     }
 }
 
-fn oriented(measure: Measure, centre: &Vector, point: &Vector) -> Vector {
+pub(crate) fn oriented(measure: Measure, centre: &Vector, point: &Vector) -> Vector {
     match measure {
         Measure::Hyperbolic if point[2].is_negative() => normalize(&scale(&int(1).neg(), point)),
         Measure::Hyperbolic => normalize(point),

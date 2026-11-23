@@ -3,6 +3,7 @@ use escher_group::{Colouring, CosetTable, Presentation};
 
 use crate::error::{Error, Result};
 use crate::image::Image;
+use crate::whole_face::WholeFaceFill;
 use crate::wythoff::WythoffFill;
 
 /// An opaque colour, stored in linear light.
@@ -100,6 +101,11 @@ pub enum Fill {
     /// takes the colour of its face type in a [`WythoffFill`]. The borders lie
     /// on the edges of the faces and not on the sides of the domain.
     Wythoff(WythoffFill),
+    /// The faces of a regular tiling replace the tiles, and every face shows
+    /// the picture of a [`WholeFaceFill`], turned or mirrored as its
+    /// arrangement says. The borders lie on the edges of the faces, as for
+    /// [`Fill::Wythoff`].
+    WholeFace(WholeFaceFill),
 }
 
 /// The fill of one coset of a [`CosetFill`]: a solid colour or an image.
@@ -247,15 +253,20 @@ pub(crate) fn checked_presentation(
     colouring: &Colouring,
 ) -> Result<Presentation> {
     let presentation = domain.side_presentation().map_err(Error::no_presentation)?;
+    check_colouring(&presentation, colouring)?;
+    Ok(presentation)
+}
+
+pub(crate) fn check_colouring(presentation: &Presentation, colouring: &Colouring) -> Result<()> {
     let generators = colouring.table().generator_count();
     let sides = presentation.generator_count();
     if generators != sides {
         return Err(Error::generator_count(generators, sides));
     }
-    if let Some(relator) = broken_relator(&presentation, colouring.table()) {
+    if let Some(relator) = broken_relator(presentation, colouring.table()) {
         return Err(Error::broken_relator(relator));
     }
-    Ok(presentation)
+    Ok(())
 }
 
 fn broken_relator(presentation: &Presentation, table: &CosetTable) -> Option<usize> {

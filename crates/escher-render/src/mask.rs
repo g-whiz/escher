@@ -12,7 +12,7 @@ use crate::error::{Error, MASKS, RENDER_MASK, Result};
 use crate::image::Placement;
 use crate::options::check_size;
 
-const MASK_GRID: u32 = 4;
+pub(crate) const MASK_GRID: u32 = 4;
 
 const BORDER_FRACTION: f64 = 1.0 / 64.0;
 
@@ -68,10 +68,10 @@ pub struct Masks {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct EdgeStyle {
-    class: usize,
-    code: [u8; 3],
-    marks: [bool; 2],
+pub(crate) struct EdgeStyle {
+    pub(crate) class: usize,
+    pub(crate) code: [u8; 3],
+    pub(crate) marks: [bool; 2],
 }
 
 impl Masks {
@@ -154,39 +154,54 @@ impl Masks {
     }
 
     fn mask(&self, colour: usize, width: u32, height: u32, grid: u32) -> Vec<u8> {
-        let placement = Placement::new(&self.polygon, width, height);
-        let edges: Vec<Edge> = self
-            .edge_styles_of(colour)
-            .iter()
-            .enumerate()
-            .map(|(side, style)| Edge::new(&self.polygon, side, style))
-            .collect();
-        let border = BORDER_FRACTION * f64::from(width.min(height));
-        let weight = f64::from(grid * grid);
-        let row_bytes = 3 * usize::try_from(width).unwrap_or(usize::MAX);
-        let rows = usize::try_from(height).unwrap_or(usize::MAX);
-        let mut pixels = vec![0; row_bytes * rows];
-        for (row, bytes) in (0..).zip(pixels.chunks_exact_mut(row_bytes)) {
-            for (column, pixel) in (0..).zip(bytes.as_chunks_mut::<3>().0) {
-                let mut sum = [0.0; 3];
-                for down in 0..grid {
-                    for across in 0..grid {
-                        let position = DVec2::new(
-                            f64::from(column) + (f64::from(across) + 0.5) / f64::from(grid),
-                            f64::from(row) + (f64::from(down) + 0.5) / f64::from(grid),
-                        );
-                        let point = placement.point(position);
-                        let value = sample_colour(&edges, point, border / placement.scale());
-                        for (total, channel) in sum.iter_mut().zip(value.linear()) {
-                            *total += channel;
-                        }
+        draw_mask(
+            &self.polygon,
+            self.edge_styles_of(colour),
+            width,
+            height,
+            grid,
+        )
+    }
+}
+
+pub(crate) fn draw_mask(
+    polygon: &[DVec2],
+    styles: &[EdgeStyle],
+    width: u32,
+    height: u32,
+    grid: u32,
+) -> Vec<u8> {
+    let placement = Placement::new(polygon, width, height);
+    let edges: Vec<Edge> = styles
+        .iter()
+        .enumerate()
+        .map(|(side, style)| Edge::new(polygon, side, style))
+        .collect();
+    let border = BORDER_FRACTION * f64::from(width.min(height));
+    let weight = f64::from(grid * grid);
+    let row_bytes = 3 * usize::try_from(width).unwrap_or(usize::MAX);
+    let rows = usize::try_from(height).unwrap_or(usize::MAX);
+    let mut pixels = vec![0; row_bytes * rows];
+    for (row, bytes) in (0..).zip(pixels.chunks_exact_mut(row_bytes)) {
+        for (column, pixel) in (0..).zip(bytes.as_chunks_mut::<3>().0) {
+            let mut sum = [0.0; 3];
+            for down in 0..grid {
+                for across in 0..grid {
+                    let position = DVec2::new(
+                        f64::from(column) + (f64::from(across) + 0.5) / f64::from(grid),
+                        f64::from(row) + (f64::from(down) + 0.5) / f64::from(grid),
+                    );
+                    let point = placement.point(position);
+                    let value = sample_colour(&edges, point, border / placement.scale());
+                    for (total, channel) in sum.iter_mut().zip(value.linear()) {
+                        *total += channel;
                     }
                 }
-                *pixel = sum.map(|total| encode(total / weight));
             }
+            *pixel = sum.map(|total| encode(total / weight));
         }
-        pixels
     }
+    pixels
 }
 
 struct Edge {
@@ -312,7 +327,7 @@ fn edge_styles(domain: &FundamentalDomain, colouring: &Colouring) -> Vec<EdgeSty
     clippy::expect_used,
     reason = "the walk over the meetings gives every edge a class before the styles are read"
 )]
-fn seam_classes(meetings: &[Vec<usize>], preserving: &[bool]) -> Vec<EdgeStyle> {
+pub(crate) fn seam_classes(meetings: &[Vec<usize>], preserving: &[bool]) -> Vec<EdgeStyle> {
     let count = preserving.len();
     let edges = meetings.len();
     let mut classes: Vec<Option<usize>> = vec![None; edges];
@@ -386,7 +401,7 @@ fn to_f64(value: usize) -> f64 {
     f64::from(u32::try_from(value).unwrap_or(u32::MAX))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MaskMap {
     geometry: Geometry,
     centre: DVec3,
@@ -401,6 +416,17 @@ pub(crate) struct MaskMap {
 
 impl MaskMap {
     pub(crate) fn new(domain: &FundamentalDomain) -> Option<Self> {
+        Self::with_polygon(domain, |centre| mask_polygon(domain, centre))
+    }
+
+    pub(crate) fn onto(domain: &FundamentalDomain, polygon: Vec<DVec2>) -> Option<Self> {
+        Self::with_polygon(domain, |_| Some(polygon))
+    }
+
+    fn with_polygon(
+        domain: &FundamentalDomain,
+        polygon_of: impl FnOnce(DVec3) -> Option<Vec<DVec2>>,
+    ) -> Option<Self> {
         let geometry = domain.geometry();
         let vertices = domain.vertices().to_vec();
         let count = vertices.len();
@@ -410,7 +436,7 @@ impl MaskMap {
             Geometry::Spherical => spherical::normalize_point(sum).ok()?,
             Geometry::Euclidean => sum / to_f64(count),
         };
-        let polygon = mask_polygon(domain, centre)?;
+        let polygon = polygon_of(centre)?;
         let flat_centre = polygon.iter().sum::<DVec2>() / to_f64(count);
         let lengths = (0..count)
             .map(|side| {
@@ -551,7 +577,7 @@ fn mask_polygon(domain: &FundamentalDomain, centre: DVec3) -> Option<Vec<DVec2>>
     clippy::cast_sign_loss,
     reason = "the rounded quotient of pi and a corner angle is a corner order from 1 to a few hundred, and a cast saturates any other value"
 )]
-fn corner_order(angle: f64) -> u32 {
+pub(crate) fn corner_order(angle: f64) -> u32 {
     (PI / angle).round() as u32
 }
 
@@ -590,16 +616,20 @@ mod tests {
     use glam::{DVec2, DVec3};
     use proptest::prelude::{ProptestConfig, any, prop, prop_assert, proptest};
 
-    use super::{MASK_GRID, MaskMap, Masks, code_colour, neighbour_pairs, seam_classes};
+    use super::{
+        EdgeStyle, MASK_GRID, MaskMap, Masks, code_colour, draw_mask, neighbour_pairs, seam_classes,
+    };
     use crate::colour::{Colour, CosetFill, Fill, Paint, decode_table};
     use crate::fold::fold;
     use crate::golden_images::{
-        GOLDEN_SIZE, MASK_GOLDEN_IMAGES, colouring, domain_with_settings, exact_mask,
-        golden_colouring, image_of, mask_domains, mask_rule, renderer,
+        GOLDEN_SIZE, MASK_GOLDEN_IMAGES, arrangements, colouring, domain_with_settings, exact_mask,
+        face_triangle_mask, golden_colouring, gradient, marks_text, mask_domains, mask_rule,
+        renderer, whole_face,
     };
     use crate::image::{Image, Placement, sample};
     use crate::options::RenderOptions;
     use crate::reference::{ExactMask, MaskRule};
+    use crate::whole_face::{WHOLE_FACE_SET, face_mask_styles};
     use escher_reference::{Reference, num, vector};
 
     static DOMAINS: LazyLock<Vec<(String, FundamentalDomain)>> = LazyLock::new(mask_domains);
@@ -732,6 +762,7 @@ mod tests {
                 (3, orders, [polygon[0], polygon[2], polygon[3]])
             }
             MaskRule::Klein | MaskRule::Plane => return 2,
+            MaskRule::FaceTriangle { .. } => panic!("{name}: a domain has no face triangle rule"),
         };
         for (vertex, expected) in table_angles(orders).into_iter().enumerate() {
             let angle = corner_angle(
@@ -864,75 +895,189 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct Worst {
+        outside: f64,
+        error: f64,
+        centre: f64,
+        compared: usize,
+    }
+
+    fn vertex_round_trips(
+        reference: &mut Reference,
+        name: &str,
+        map: &MaskMap,
+        exact: &ExactMask,
+        worst: &mut Worst,
+    ) {
+        assert_eq!(map.map(map.centre), Some(map.flat_centre), "{name}");
+        let (_, centre_error) = round_trip_error(reference, exact, map, map.centre)
+            .unwrap_or_else(|failure| panic!("{name}: {failure}"));
+        worst.centre = worst.centre.max(centre_error);
+        assert!(
+            centre_error <= ROUND_TRIP_TOLERANCE,
+            "{name}: the centre returns {centre_error:e} away"
+        );
+        for (index, &vertex) in map.vertices.iter().enumerate() {
+            let (outside, error) = round_trip_error(reference, exact, map, vertex)
+                .unwrap_or_else(|failure| panic!("{name}: {failure}"));
+            worst.outside = worst.outside.max(outside);
+            worst.error = worst.error.max(error);
+            assert!(
+                outside <= OUTSIDE_TOLERANCE && error <= VERTEX_ROUND_TRIP_TOLERANCE,
+                "{name}: vertex {index} lies {outside:e} outside and returns {error:e} away"
+            );
+            worst.compared += 1;
+        }
+    }
+
+    fn report_vertex_round_trips(worst: &Worst) {
+        println!(
+            "{} vertices: {:e} outside the polygon, allowed {OUTSIDE_TOLERANCE:e}, {:e} away after the round trip, allowed {VERTEX_ROUND_TRIP_TOLERANCE:e}, centres {:e} away after the round trip, allowed {ROUND_TRIP_TOLERANCE:e}",
+            worst.compared, worst.outside, worst.error, worst.centre
+        );
+    }
+
     #[test]
     fn mask_map_carries_the_vertices_and_the_centre_to_their_flat_points_and_back() {
         let mut reference = Reference::new();
-        let (mut worst_outside, mut worst_error, mut compared) = (0.0_f64, 0.0_f64, 0);
-        let mut worst_centre = 0.0_f64;
+        let mut worst = Worst::default();
         for (name, domain) in DOMAINS.iter() {
             let map = mask_map(name, domain);
             let exact = exact_mask(&mut reference, domain);
-            assert_eq!(map.map(map.centre), Some(map.flat_centre), "{name}");
-            let (_, centre_error) = round_trip_error(&mut reference, &exact, &map, map.centre)
-                .unwrap_or_else(|failure| panic!("{name}: {failure}"));
-            worst_centre = worst_centre.max(centre_error);
-            assert!(
-                centre_error <= ROUND_TRIP_TOLERANCE,
-                "{name}: the centre returns {centre_error:e} away"
-            );
-            for (index, &vertex) in map.vertices.iter().enumerate() {
-                let (outside, error) = round_trip_error(&mut reference, &exact, &map, vertex)
-                    .unwrap_or_else(|failure| panic!("{name}: {failure}"));
-                worst_outside = worst_outside.max(outside);
-                worst_error = worst_error.max(error);
+            vertex_round_trips(&mut reference, name, &map, &exact, &mut worst);
+        }
+        report_vertex_round_trips(&worst);
+        assert!(worst.compared >= 300, "{}", worst.compared);
+    }
+
+    const EDGE_FRACTION_TOLERANCE: f64 = 1.25e-5;
+
+    fn edge_fraction_gaps(
+        reference: &mut Reference,
+        name: &str,
+        map: &MaskMap,
+        exact: &ExactMask,
+        worst: &mut f64,
+    ) -> usize {
+        let polygon = map.polygon();
+        let size = extent(polygon);
+        let count = polygon.len();
+        for side in 0..count {
+            let start = polygon[(side + count - 1) % count];
+            for quarters in 0..=4 {
+                let fraction = f64::from(quarters) / 4.0;
+                let on_side = exact.along_side(reference, side, &num(fraction));
+                let point = exact_point(reference, &on_side);
+                let flat = map
+                    .map(point)
+                    .unwrap_or_else(|| panic!("{name}: side {side} has no mask point"));
+                let expected = start + fraction * (polygon[side] - start);
+                let gap = (flat - expected).abs().max_element() / size;
+                *worst = worst.max(gap);
                 assert!(
-                    outside <= OUTSIDE_TOLERANCE && error <= VERTEX_ROUND_TRIP_TOLERANCE,
-                    "{name}: vertex {index} lies {outside:e} outside and returns {error:e} away"
+                    gap <= EDGE_FRACTION_TOLERANCE,
+                    "{name}: side {side} at {fraction} maps {gap:e} away from its edge"
                 );
-                compared += 1;
             }
         }
-        println!(
-            "{compared} vertices: {worst_outside:e} outside the polygon, allowed {OUTSIDE_TOLERANCE:e}, {worst_error:e} away after the round trip, allowed {VERTEX_ROUND_TRIP_TOLERANCE:e}, centres {worst_centre:e} away after the round trip, allowed {ROUND_TRIP_TOLERANCE:e}"
-        );
-        assert!(compared >= 300, "{compared}");
+        5 * count
     }
 
     #[test]
     fn mask_map_sends_each_side_to_its_edge_in_proportion_to_distance_along_the_side() {
-        const TOLERANCE: f64 = 1.25e-5;
+        const TOLERANCE: f64 = EDGE_FRACTION_TOLERANCE;
         let mut reference = Reference::new();
         let (mut worst, mut compared) = (0.0_f64, 0);
         for (name, domain) in DOMAINS.iter() {
             let map = mask_map(name, domain);
             let exact = exact_mask(&mut reference, domain);
-            let polygon = map.polygon();
-            let size = extent(polygon);
-            let count = polygon.len();
-            for side in 0..count {
-                let start = polygon[(side + count - 1) % count];
-                for quarters in 0..=4 {
-                    let fraction = f64::from(quarters) / 4.0;
-                    let on_side = exact.along_side(&mut reference, side, &num(fraction));
-                    let point = exact_point(&mut reference, &on_side);
-                    let flat = map
-                        .map(point)
-                        .unwrap_or_else(|| panic!("{name}: side {side} has no mask point"));
-                    let expected = start + fraction * (polygon[side] - start);
-                    let gap = (flat - expected).abs().max_element() / size;
-                    worst = worst.max(gap);
-                    assert!(
-                        gap <= TOLERANCE,
-                        "{name}: side {side} at {fraction} maps {gap:e} away from its edge"
-                    );
-                    compared += 1;
-                }
-            }
+            compared += edge_fraction_gaps(&mut reference, name, &map, &exact, &mut worst);
         }
         println!(
             "{compared} points of the sides: {worst:e} from their edges, allowed {TOLERANCE:e}"
         );
         assert!(compared >= 1500, "{compared}");
+    }
+
+    struct FaceTriangle {
+        name: String,
+        text: &'static str,
+        marks: [bool; 3],
+        domain: FundamentalDomain,
+        map: MaskMap,
+    }
+
+    static FACE_TRIANGLES: LazyLock<Vec<FaceTriangle>> = LazyLock::new(|| {
+        WHOLE_FACE_SET
+            .iter()
+            .map(|&(text, marks)| {
+                let domain = domain_with_settings(text, &[]);
+                let name = format!("{text} {}", marks_text(marks));
+                let map = whole_face(&domain, marks)
+                    .face_map()
+                    .cloned()
+                    .unwrap_or_else(|| panic!("{name} has no face mask map"));
+                FaceTriangle {
+                    name,
+                    text,
+                    marks,
+                    domain,
+                    map,
+                }
+            })
+            .collect()
+    });
+
+    impl FaceTriangle {
+        fn exact(&self, reference: &mut Reference) -> ExactMask {
+            face_triangle_mask(reference, self.text, &self.domain, self.marks)
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(512))]
+        #[test]
+        fn face_triangle_map_carries_a_point_of_the_domain_into_the_triangle_and_back(
+            index in any::<prop::sample::Index>(),
+            weights in prop::collection::vec(1e-3..1.0_f64, 3),
+        ) {
+            let scene = index.get(&FACE_TRIANGLES);
+            let point = chart_point(&scene.map, &weights);
+            let mut reference = Reference::new();
+            let exact = scene.exact(&mut reference);
+            let (outside, error) = round_trip_error(&mut reference, &exact, &scene.map, point)
+                .unwrap_or_else(|failure| panic!("{}: {failure}", scene.name));
+            prop_assert!(outside <= OUTSIDE_TOLERANCE, "{}: {} lies {:e} outside", scene.name, point, outside);
+            prop_assert!(error <= ROUND_TRIP_TOLERANCE, "{}: {} returns {:e} away", scene.name, point, error);
+        }
+    }
+
+    #[test]
+    fn face_triangle_map_carries_the_vertices_and_the_centre_to_their_flat_points_and_back() {
+        let mut reference = Reference::new();
+        let mut worst = Worst::default();
+        for scene in FACE_TRIANGLES.iter() {
+            let exact = scene.exact(&mut reference);
+            vertex_round_trips(&mut reference, &scene.name, &scene.map, &exact, &mut worst);
+        }
+        report_vertex_round_trips(&worst);
+        assert_eq!(worst.compared, 3 * WHOLE_FACE_SET.len());
+    }
+
+    #[test]
+    fn face_triangle_map_sends_each_side_to_its_edge_in_proportion_to_distance_along_the_side() {
+        let mut reference = Reference::new();
+        let (mut worst, mut compared) = (0.0_f64, 0);
+        for scene in FACE_TRIANGLES.iter() {
+            let exact = scene.exact(&mut reference);
+            compared +=
+                edge_fraction_gaps(&mut reference, &scene.name, &scene.map, &exact, &mut worst);
+        }
+        println!(
+            "{compared} points of the sides: {worst:e} from their edges, allowed {EDGE_FRACTION_TOLERANCE:e}"
+        );
+        assert_eq!(compared, 15 * WHOLE_FACE_SET.len());
     }
 
     #[test]
@@ -1050,79 +1195,184 @@ mod tests {
             let colouring = golden_colouring(&domain, id);
             scenes.push((signature.to_owned(), domain, colouring));
         }
-        let (mut white, mut black, mut coded, mut marked) = (0, 0, 0, 0);
+        let mut content = Content::default();
         for (name, domain, colouring) in &scenes {
             let masks = masks_of(name, domain, colouring);
-            let count = masks.polygon.len();
-            for [width, height] in [[96_u32, 96_u32], [128, 64]] {
-                let placement = Placement::new(&masks.polygon, width, height);
-                let pixel_size = 1.0 / placement.scale();
-                let border = f64::from(width.min(height)) / 64.0 * pixel_size;
+            for [width, height] in MASK_SIZES {
                 for colour in 0..masks.colours {
                     let pixels = masks.mask(colour, width, height, 1);
-                    let styles = masks.edge_styles_of(colour);
-                    for row in 0..height {
-                        for column in 0..width {
-                            let centre = DVec2::new(f64::from(column) + 0.5, f64::from(row) + 0.5);
-                            let point = placement.point(centre);
-                            let distances: Vec<(f64, f64)> = (0..count)
-                                .map(|side| {
-                                    let start = masks.polygon[(side + count - 1) % count];
-                                    let edge = masks.polygon[side] - start;
-                                    (
-                                        edge.perp_dot(point - start) / edge.length(),
-                                        (point - start).dot(edge) / edge.length_squared(),
-                                    )
-                                })
-                                .collect();
-                            let nearest = distances
-                                .iter()
-                                .map(|&(distance, _)| distance)
-                                .fold(f64::INFINITY, f64::min);
-                            let found = pixel(&pixels, width, column, row);
-                            let name = format!(
-                                "{name} {} colour {colour} at {width}x{height} column {column} row {row}",
-                                colouring.id()
-                            );
-                            if nearest < -pixel_size {
-                                assert_eq!(found, [0; 3], "{name}");
-                                black += 1;
-                            } else if nearest > border + pixel_size {
-                                assert_eq!(found, [255; 3], "{name}");
-                                white += 1;
-                            } else if let Some(side) = (0..count).find(|&side| {
-                                let (distance, fraction) = distances[side];
-                                let length = (masks.polygon[side]
-                                    - masks.polygon[(side + count - 1) % count])
-                                    .length();
-                                let clear = pixel_size / length;
-                                distance > 1e-9 * pixel_size
-                                    && distance < border - pixel_size
-                                    && (0..count).all(|other| {
-                                        other == side || distances[other].0 > border + pixel_size
-                                    })
-                                    && (fraction - 0.25).abs() > clear
-                                    && (fraction - 0.75).abs() > clear
-                            }) {
-                                let fraction = distances[side].1;
-                                let style = styles[side];
-                                let at_mark = (style.marks[0] && fraction < 0.25)
-                                    || (style.marks[1] && fraction > 0.75);
-                                if at_mark {
-                                    assert_eq!(found, [0; 3], "{name}: edge {side}");
-                                    marked += 1;
-                                } else {
-                                    assert_eq!(found, style.code, "{name}: edge {side}");
-                                    coded += 1;
-                                }
-                            }
-                        }
+                    let name = format!("{name} {} colour {colour}", colouring.id());
+                    check_mask_content(
+                        &name,
+                        &masks.polygon,
+                        masks.edge_styles_of(colour),
+                        &pixels,
+                        [width, height],
+                        &mut content,
+                    );
+                }
+            }
+        }
+        content.report();
+        assert!(
+            content.white >= 10_000
+                && content.black >= 10_000
+                && content.coded >= 2000
+                && content.marked >= 500
+        );
+    }
+
+    const MASK_SIZES: [[u32; 2]; 2] = [[96, 96], [128, 64]];
+
+    #[derive(Default)]
+    struct Content {
+        white: usize,
+        black: usize,
+        coded: usize,
+        marked: usize,
+    }
+
+    impl Content {
+        fn report(&self) {
+            println!(
+                "{} white, {} black, {} code colour, and {} mark pixels",
+                self.white, self.black, self.coded, self.marked
+            );
+        }
+    }
+
+    fn check_mask_content(
+        name: &str,
+        polygon: &[DVec2],
+        styles: &[EdgeStyle],
+        pixels: &[u8],
+        [width, height]: [u32; 2],
+        content: &mut Content,
+    ) {
+        let count = polygon.len();
+        let placement = Placement::new(polygon, width, height);
+        let pixel_size = 1.0 / placement.scale();
+        let border = f64::from(width.min(height)) / 64.0 * pixel_size;
+        for row in 0..height {
+            for column in 0..width {
+                let centre = DVec2::new(f64::from(column) + 0.5, f64::from(row) + 0.5);
+                let point = placement.point(centre);
+                let distances: Vec<(f64, f64)> = (0..count)
+                    .map(|side| {
+                        let start = polygon[(side + count - 1) % count];
+                        let edge = polygon[side] - start;
+                        (
+                            edge.perp_dot(point - start) / edge.length(),
+                            (point - start).dot(edge) / edge.length_squared(),
+                        )
+                    })
+                    .collect();
+                let nearest = distances
+                    .iter()
+                    .map(|&(distance, _)| distance)
+                    .fold(f64::INFINITY, f64::min);
+                let found = pixel(pixels, width, column, row);
+                let name = format!("{name} at {width}x{height} column {column} row {row}");
+                if nearest < -pixel_size {
+                    assert_eq!(found, [0; 3], "{name}");
+                    content.black += 1;
+                } else if nearest > border + pixel_size {
+                    assert_eq!(found, [255; 3], "{name}");
+                    content.white += 1;
+                } else if let Some(side) = (0..count).find(|&side| {
+                    let (distance, fraction) = distances[side];
+                    let length = (polygon[side] - polygon[(side + count - 1) % count]).length();
+                    let clear = pixel_size / length;
+                    distance > 1e-9 * pixel_size
+                        && distance < border - pixel_size
+                        && (0..count)
+                            .all(|other| other == side || distances[other].0 > border + pixel_size)
+                        && (fraction - 0.25).abs() > clear
+                        && (fraction - 0.75).abs() > clear
+                }) {
+                    let fraction = distances[side].1;
+                    let style = styles[side];
+                    let at_mark =
+                        (style.marks[0] && fraction < 0.25) || (style.marks[1] && fraction > 0.75);
+                    if at_mark {
+                        assert_eq!(found, [0; 3], "{name}: edge {side}");
+                        content.marked += 1;
+                    } else {
+                        assert_eq!(found, style.code, "{name}: edge {side}");
+                        content.coded += 1;
                     }
                 }
             }
         }
-        println!("{white} white, {black} black, {coded} code colour, and {marked} mark pixels");
-        assert!(white >= 10_000 && black >= 10_000 && coded >= 2000 && marked >= 500);
+    }
+
+    #[test]
+    fn face_mask_shows_the_flat_face_with_one_code_colour_for_each_pair_of_edges_and_its_marks() {
+        let mut content = Content::default();
+        let (mut masks, mut alone, mut both) = (0, 0, 0);
+        for &(text, marks) in &WHOLE_FACE_SET {
+            let face = whole_face(&domain_with_settings(text, &[]), marks);
+            for arrangement in arrangements(&face) {
+                let name = format!("{text} {} {}", marks_text(marks), arrangement.id());
+                let edges = face
+                    .edges(&arrangement)
+                    .unwrap_or_else(|error| panic!("{name}: {error}"));
+                let styles = face_mask_styles(&edges);
+                let total = styles
+                    .iter()
+                    .map(|style| style.class)
+                    .max()
+                    .map_or(0, |last| last + 1);
+                let mut next_class = 0;
+                for (edge, meeting) in edges.iter().enumerate() {
+                    let partner = usize::try_from(meeting.partner()).unwrap_or(usize::MAX);
+                    let style = styles[edge];
+                    assert_eq!(
+                        style.code,
+                        code_colour(style.class, total),
+                        "{name}: edge {edge}"
+                    );
+                    assert_eq!(styles[partner].class, style.class, "{name}: edge {edge}");
+                    if style.class == next_class {
+                        next_class += 1;
+                    }
+                    assert!(
+                        style.class < next_class,
+                        "{name}: edge {edge} opens class {}",
+                        style.class
+                    );
+                    if partner == edge {
+                        let sharing = styles
+                            .iter()
+                            .filter(|other| other.class == style.class)
+                            .count();
+                        assert_eq!(sharing, 1, "{name}: edge {edge} shares its class");
+                        let wanted = if meeting.mirrored() {
+                            [true, false]
+                        } else {
+                            [true, true]
+                        };
+                        assert_eq!(style.marks, wanted, "{name}: edge {edge}");
+                        alone += 1;
+                        both += usize::from(!meeting.mirrored());
+                    }
+                }
+                for size in MASK_SIZES {
+                    let pixels = draw_mask(face.polygon(), &styles, size[0], size[1], 1);
+                    check_mask_content(&name, face.polygon(), &styles, &pixels, size, &mut content);
+                }
+                masks += 1;
+            }
+        }
+        content.report();
+        println!("{masks} face masks, {alone} edges paired with themselves, {both} of them turned");
+        assert_eq!((masks, alone, both), (114, 250, 120));
+        assert!(
+            content.white >= 500_000
+                && content.black >= 500_000
+                && content.coded >= 10_000
+                && content.marked >= 4000
+        );
     }
 
     fn is_normal(colouring: &Colouring, sides: usize) -> bool {
@@ -1354,21 +1604,6 @@ mod tests {
                 golden.file
             );
         }
-    }
-
-    fn gradient(colour: usize, size: u32) -> Image {
-        let last = size - 1;
-        let byte = |value: u32| u8::try_from((value * 255 + last / 2) / last).unwrap_or(u8::MAX);
-        let pixels: Vec<u8> = (0..size * size)
-            .flat_map(|index| {
-                [
-                    byte(index % size),
-                    byte(index / size),
-                    u8::try_from(colour * 67 % 256).unwrap_or(0),
-                ]
-            })
-            .collect();
-        image_of(size, size, &pixels)
     }
 
     fn seam_samples(domain: &FundamentalDomain) -> Vec<DVec3> {

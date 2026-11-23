@@ -1,10 +1,12 @@
 use crate::colouring::{
     Colouring, ColouringCounts, ColouringId, Colourings, ColouringsOfIndex, fixed_generator,
 };
+use crate::enumerate::MAX_SUBGROUP_GENERATORS;
 use crate::enumerate::{Prepared, build, check_expanded, grow_within};
 use crate::error::{Detail, Error, Limit, Result};
-use crate::presentation::Presentation;
+use crate::presentation::{MAX_BASE, Presentation, uses_only};
 use crate::table::{CosetTable, UNDEFINED, index};
+use crate::word::Word;
 
 pub(crate) const MAX_INDEX: u32 = 64;
 pub(crate) const MAX_STEPS: u64 = 1 << 36;
@@ -339,11 +341,116 @@ pub fn colourings_of_index(
     ))
 }
 
+/// Lists the class table of each conjugacy class of the subgroups of index
+/// exactly `colours` in the group of `presentation` in whose coset table no
+/// word of `stabilizer` fixes a coset, ordered by id.
+///
+/// The search is that of [`colourings_of_index`] with [`ColouringSet::All`],
+/// and of each class it considers only the class table, the table that names
+/// the class there. It keeps that table when tracing each word from each
+/// coset, letter by letter from the left and without reducing the word,
+/// leads to another coset, and drops the class otherwise. The other
+/// subgroups of a class have the same tables with the cosets renamed, so the
+/// one table decides for the whole class. The ids rank the kept tables among
+/// themselves, from `a` with no gap, and the class of each kept colouring is
+/// its own id. Each table entry that the test reads counts toward `budget`,
+/// and only the kept tables count toward the limits on what one call
+/// stores. When the search reaches `budget` or those limits, the list is
+/// empty and [`ColouringsOfIndex::is_complete`] is false, which says nothing
+/// about the classes.
+///
+/// An empty `stabilizer` keeps every class, and a `stabilizer` that holds
+/// the empty word keeps none, because the empty word fixes every coset.
+///
+/// # Examples
+///
+/// ```
+/// use escher_group::{
+///     ColouringSet, IndexLimit, Letter, SearchBudget, Word, colourings_of_index,
+///     conway_presentation, free_classes_of_index,
+/// };
+/// use escher_signature::Signature;
+///
+/// let signature: Signature = "*632".parse()?;
+/// let presentation = conway_presentation(&signature)?;
+/// let [s0, s1] = [Letter::generator(0), Letter::generator(1)];
+/// let words: Vec<Word> = (1..12)
+///     .map(|length| (0..length).map(|position| if position % 2 == 0 { s0 } else { s1 }).collect())
+///     .collect();
+/// let colours = IndexLimit::new(12)?;
+/// let free = free_classes_of_index(&presentation, &words, colours, SearchBudget::DEFAULT)?;
+/// assert!(free.is_complete());
+/// assert!(free.list().iter().all(|colouring| colouring.class() == colouring.id()));
+/// let all = colourings_of_index(&presentation, ColouringSet::All, colours, SearchBudget::DEFAULT)?;
+/// assert!(free.list().len() < all.list().len());
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # Errors
+///
+/// Returns an [`Error`] for the first of these causes, in this order:
+///
+/// - [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) when
+///   `stabilizer` has more than 256 words,
+/// - for the first word in order that has one,
+///   [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) when it
+///   has more than 4096 letters, and
+///   [`ErrorKind::InvalidWord`](crate::ErrorKind::InvalidWord) when it uses
+///   a generator that the presentation does not have,
+/// - [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) when the
+///   relators written out with their exponents have more than 65536 letters
+///   in total.
+///
+/// A search that reaches a limit returns its result and not an error.
+pub fn free_classes_of_index(
+    presentation: &Presentation,
+    stabilizer: &[Word],
+    colours: IndexLimit,
+    budget: SearchBudget,
+) -> Result<ColouringsOfIndex> {
+    check_stabilizer(presentation, stabilizer)?;
+    let settings = Settings::new(budget);
+    let (found, _) = search_with(
+        presentation,
+        stabilizer,
+        colours.get(),
+        Request::Free,
+        settings,
+    )?;
+    let complete = found.complete_to == colours.get();
+    Ok(ColouringsOfIndex::new(
+        colours.get(),
+        complete,
+        found.into_list(),
+    ))
+}
+
+fn check_stabilizer(presentation: &Presentation, stabilizer: &[Word]) -> Result<()> {
+    if stabilizer.len() > MAX_SUBGROUP_GENERATORS {
+        return Err(Error::search(Detail::LimitExceeded(
+            Limit::StabilizerElements,
+        )));
+    }
+    let generators = presentation.generator_count();
+    for (position, word) in (1..).zip(stabilizer) {
+        if word.len() > MAX_BASE {
+            return Err(Error::search(Detail::LimitExceeded(
+                Limit::StabilizerLetters(position),
+            )));
+        }
+        if !uses_only(word, generators) {
+            return Err(Error::search(Detail::StabilizerLetter(position)));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Request {
     Count,
     List,
     Index,
+    Free,
 }
 
 impl Request {
@@ -351,6 +458,7 @@ impl Request {
         match self {
             Self::Count => Keeping::Counts,
             Self::List | Self::Index => Keeping::Tables,
+            Self::Free => Keeping::FreeClasses,
         }
     }
 }
@@ -359,6 +467,7 @@ impl Request {
 enum Keeping {
     Counts,
     Tables,
+    FreeClasses,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -545,12 +654,22 @@ pub(crate) fn search(
     request: Request,
     settings: Settings,
 ) -> Result<(Found, Stats)> {
+    search_with(presentation, &[], limit, request, settings)
+}
+
+pub(crate) fn search_with(
+    presentation: &Presentation,
+    stabilizer: &[Word],
+    limit: u32,
+    request: Request,
+    settings: Settings,
+) -> Result<(Found, Stats)> {
     check_expanded(presentation).map_err(Error::search)?;
-    let prepared = build(presentation, &[]);
+    let prepared = build(presentation, stabilizer);
     let mut found = Found::new(limit);
     let mut stats = Stats::default();
     let keeping = request.keeping();
-    if request == Request::Index {
+    if matches!(request, Request::Index | Request::Free) {
         let mut steps = 0;
         let outcome = Run::new(&prepared, limit, Rows::Exact, settings, &mut stats)
             .execute(&mut found, keeping, &mut steps, &mut stats);
@@ -950,13 +1069,37 @@ impl<'a> Run<'a> {
             stats.leaf_discards += 1;
             return Ok(());
         }
-        let bases = if self.settings.pruning == Pruning::Off {
+        let bases = if self.settings.pruning == Pruning::Off || keeping == Keeping::FreeClasses {
             1
         } else {
             self.rows
         };
         self.expand(bases, stats)?;
+        if keeping == Keeping::FreeClasses && !self.free()? {
+            return Ok(());
+        }
         self.keep(found, keeping)
+    }
+
+    fn free(&mut self) -> core::result::Result<bool, Stop> {
+        let prepared = self.prepared;
+        for coset in 0..self.rows {
+            for word in &prepared.subgroup {
+                let mut current = coset;
+                for &column in word {
+                    self.tally(1)?;
+                    current = self
+                        .scratch
+                        .get(index(current) * self.columns + usize::from(column))
+                        .copied()
+                        .unwrap_or(UNDEFINED);
+                }
+                if current == coset {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
     }
 
     fn expand(&mut self, bases: u32, stats: &mut Stats) -> core::result::Result<(), Stop> {
@@ -1108,17 +1251,19 @@ mod tests {
 
     use super::{
         Capacities, ColouringSet, IndexLimit, Pruning, Request, Rows, Run, SearchBudget, Settings,
-        Stats, search,
+        Stats, free_classes_of_index, search, search_with,
     };
     use crate::colouring::{ColouringId, fixed_generator};
     use crate::common::{
-        Expected, SEARCH_BUDGET, SEARCH_FIXTURES, budget, coxeter, presentation,
-        small_presentation, word,
+        Expected, SEARCH_BUDGET, SEARCH_FIXTURES, budget, corner_stabilizer, coxeter, letters,
+        names, presentation, small_presentation, word,
     };
     use crate::enumerate::build;
     use crate::error::ErrorKind;
     use crate::presentation::Presentation;
+    use crate::presentation::Relator;
     use crate::table::CosetTable;
+    use crate::word::{Letter, Word};
 
     const NONE: u32 = u32::MAX;
     const S4: &[(&str, u32)] = &[("x", 2), ("y", 3), ("xy", 4)];
@@ -1662,5 +1807,123 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn free_listing(stabilizer: &[Word], settings: Settings) -> (u32, usize) {
+        let (found, _) = search_with(&coxeter(6, 4, 2), stabilizer, 12, Request::Free, settings)
+            .expect("the search runs");
+        (found.complete_to, found.into_list().len())
+    }
+
+    #[test]
+    fn an_empty_stabilizer_keeps_every_class_and_the_empty_word_keeps_none() {
+        let settings = Settings::new(SearchBudget::MAX);
+        let (all, _) =
+            search(&coxeter(6, 4, 2), 12, Request::Index, settings).expect("the search runs");
+        let classes = all
+            .into_list()
+            .iter()
+            .filter(|colouring| colouring.class() == colouring.id())
+            .count();
+        assert_eq!(classes, 115);
+        assert_eq!(free_listing(&[], settings), (12, classes));
+        assert_eq!(free_listing(&[Word::new()], settings), (12, 0));
+        let mut words = corner_stabilizer(6);
+        words.push(Word::new());
+        assert_eq!(free_listing(&words, settings), (12, 0));
+    }
+
+    #[test]
+    fn stored_limits_count_only_the_kept_class_tables() {
+        let words = corner_stabilizer(6);
+        let unlimited = Settings::new(SearchBudget::MAX);
+        let (_, kept) = free_listing(&words, unlimited);
+        assert_eq!(kept, 39);
+        let entries = kept * 12 * 6;
+        for (colourings, entries, expected) in [
+            (kept, entries, (12, kept)),
+            (kept - 1, entries, (0, 0)),
+            (kept, entries - 1, (0, 0)),
+        ] {
+            let limited = Settings {
+                colourings,
+                entries,
+                ..unlimited
+            };
+            assert_eq!(
+                free_listing(&words, limited),
+                expected,
+                "{colourings} {entries}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_free_search_checks_its_words_in_order() {
+        let fine = letters(&[Letter::generator(0)]);
+        let foreign = letters(&[Letter::generator(3)]);
+        let long: Word = core::iter::repeat_n(Letter::generator(0), 4097).collect();
+        let long_and_foreign: Word = long
+            .letters()
+            .iter()
+            .copied()
+            .chain([Letter::generator(3)])
+            .collect();
+        let over = Relator::new(letters(&[Letter::generator(0)]), 65537).expect("valid");
+        let expanded = Presentation::new(names(3), vec![over]).expect("valid");
+        let cases = [
+            (
+                coxeter(6, 4, 2),
+                vec![foreign.clone(); 257],
+                ErrorKind::LimitExceeded,
+                "the stabilizer has more than 256 elements",
+            ),
+            (
+                coxeter(6, 4, 2),
+                vec![fine.clone(), long_and_foreign, foreign.clone()],
+                ErrorKind::LimitExceeded,
+                "stabilizer element 2 has more than 4096 letters",
+            ),
+            (
+                coxeter(6, 4, 2),
+                vec![fine.clone(), foreign.clone(), long],
+                ErrorKind::InvalidWord,
+                "stabilizer element 2 uses a generator that the presentation does not have",
+            ),
+            (
+                expanded.clone(),
+                vec![foreign],
+                ErrorKind::InvalidWord,
+                "stabilizer element 1 uses a generator that the presentation does not have",
+            ),
+            (
+                expanded,
+                vec![fine.clone()],
+                ErrorKind::LimitExceeded,
+                "the relators expand to 65537 letters, more than 65536",
+            ),
+        ];
+        for (presentation, words, kind, text) in cases {
+            let error = free_classes_of_index(
+                &presentation,
+                &words,
+                IndexLimit::new(1).expect("valid"),
+                SearchBudget::DEFAULT,
+            )
+            .expect_err("a word or the presentation is over a limit");
+            assert_eq!(
+                (error.kind(), error.to_string()),
+                (kind, format!("cannot search subgroups: {text}"))
+            );
+        }
+        let widest: Word = core::iter::repeat_n(Letter::generator(1), 4096).collect();
+        let found = free_classes_of_index(
+            &coxeter(6, 4, 2),
+            &vec![widest; 256],
+            IndexLimit::new(2).expect("valid"),
+            SearchBudget::DEFAULT,
+        )
+        .expect("256 words of 4096 letters are within the limits");
+        assert!(found.is_complete());
     }
 }

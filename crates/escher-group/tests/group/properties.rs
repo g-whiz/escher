@@ -9,14 +9,14 @@ use escher_group::{
     count_colourings, enumerate,
 };
 use proptest::collection::vec;
-use proptest::prelude::{any, prop_assert, prop_assert_eq};
+use proptest::prelude::{Just, Strategy, any, prop_assert, prop_assert_eq};
 use proptest::proptest;
 
 use crate::common::{
     FIXTURES, SEARCH_BUDGET, budget, conway, coxeter, index_limit, letter, names,
     random_presentation, small_presentation,
 };
-use crate::search::{class_tables, published_presentations, relabelled, rows};
+use crate::search::{class_tables, free_filter_laws, published_presentations, relabelled, rows};
 use crate::spherical::spherical_signatures;
 
 fn expanded(relator: &Relator) -> Word {
@@ -337,6 +337,18 @@ fn appended_conjugate(presentation: &Presentation, target: usize, by: usize) -> 
 }
 
 proptest! {
+    #[test]
+    fn the_free_filter_keeps_exactly_the_class_tables_that_no_word_fixes(
+        ((presentation, colours), words) in small_presentation().prop_flat_map(|(presentation, colours)| {
+            let generators = u8::try_from(presentation.generator_count()).expect("a random presentation has few generators");
+            (Just((presentation, colours)), vec(vec(letter(generators), 0..=4), 0..=3))
+        }),
+    ) {
+        let words: Vec<Word> = words.into_iter().map(|letters| letters.into_iter().collect()).collect();
+        let found = free_filter_laws(&presentation, &words, colours, SEARCH_BUDGET);
+        prop_assert!(found.is_ok(), "{found:?}");
+    }
+
     #[test]
     fn classes_are_least_and_hold_their_relabellings((presentation, limit) in small_presentation()) {
         let found = search(&presentation, limit, SEARCH_BUDGET);

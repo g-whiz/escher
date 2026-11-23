@@ -1,17 +1,21 @@
 use escher_domain::{FundamentalDomain, PairingKind, ShapeParameters, parameters};
 use escher_geometry::hyperbolic::{disk_from_band, disk_from_half_plane, disk_from_klein};
 use escher_group::{
-    Colouring, ColouringId, ColouringSet, IndexLimit, SearchBudget, colourings_of_index,
+    Colouring, ColouringId, ColouringSet, IndexLimit, SearchBudget, Word, colourings_of_index,
+    free_classes_of_index,
 };
 use escher_signature::{Geometry, Signature};
 use glam::{DMat2, DMat3, DVec2, DVec3};
 
-use crate::reference::{self, ExactMask, ExactWythoff, MaskRule, Measure, ReferenceExt, Wall};
+use crate::reference::{
+    self, ExactFace, ExactMask, ExactWythoff, MaskRule, Measure, ReferenceExt, Wall,
+};
 use crate::{
     BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, Image, Masks, Paint, RenderOptions,
-    RenderOptionsBuilder, Renderer, Shading, Wythoff, WythoffFill, encode_png,
+    RenderOptionsBuilder, Renderer, Shading, WholeFace, WholeFaceFill, Wythoff, WythoffFill,
+    encode_png,
 };
-use escher_reference::{Reference, matrix, vector};
+use escher_reference::{Matrix, Reference, Vector, int, matrix, product, vector};
 
 pub(crate) struct GoldenImage {
     pub(crate) signature: &'static str,
@@ -1076,4 +1080,237 @@ pub(crate) fn shifted_pairs(
         }
     }
     (here, there)
+}
+
+pub(crate) const REGULAR: [bool; 3] = [false, true, false];
+
+pub(crate) const DUAL: [bool; 3] = [true, false, false];
+
+pub(crate) fn face_corner(marks: [bool; 3]) -> usize {
+    match marks {
+        REGULAR => 0,
+        DUAL => 1,
+        _ => panic!("the marks {} are not a regular tiling", marks_text(marks)),
+    }
+}
+
+pub(crate) fn whole_face(domain: &FundamentalDomain, marks: [bool; 3]) -> WholeFace {
+    WholeFace::new(domain, wythoff(domain, marks)).unwrap_or_else(|error| {
+        panic!(
+            "the whole face of {} is rejected: {error}",
+            marks_text(marks)
+        )
+    })
+}
+
+pub(crate) fn arrangements(face: &WholeFace) -> Vec<Colouring> {
+    let colours = IndexLimit::new(face.index())
+        .unwrap_or_else(|error| panic!("the index {} is too large: {error}", face.index()));
+    let found = free_classes_of_index(
+        face.presentation(),
+        face.stabilizer(),
+        colours,
+        SearchBudget::DEFAULT,
+    )
+    .unwrap_or_else(|error| panic!("the search of the arrangements fails: {error}"));
+    assert!(
+        found.is_complete(),
+        "the search of the arrangements is not complete"
+    );
+    found.list().to_vec()
+}
+
+pub(crate) fn exact_face(
+    reference: &mut Reference,
+    text: &str,
+    domain: &FundamentalDomain,
+    marks: [bool; 3],
+) -> ExactFace {
+    let corner = face_corner(marks);
+    let vertices: Vec<Vector> = domain
+        .vertices()
+        .iter()
+        .map(|vertex| vector(vertex.to_array()))
+        .collect();
+    ExactFace::new(
+        reference,
+        Measure::of(domain.geometry()),
+        &vertices,
+        &reference_walls(domain),
+        corner,
+        signature_orders(text)[corner],
+    )
+}
+
+pub(crate) fn face_triangle_mask(
+    reference: &mut Reference,
+    text: &str,
+    domain: &FundamentalDomain,
+    marks: [bool; 3],
+) -> ExactMask {
+    let corner = face_corner(marks);
+    let vertices: Vec<[f64; 3]> = domain.vertices().iter().map(DVec3::to_array).collect();
+    let covectors: Vec<[f64; 3]> = domain
+        .sides()
+        .iter()
+        .map(|side| side.covector().to_array())
+        .collect();
+    ExactMask::new(
+        reference,
+        Measure::of(domain.geometry()),
+        &vertices,
+        &covectors,
+        MaskRule::FaceTriangle {
+            corner,
+            order: signature_orders(text)[corner],
+        },
+    )
+}
+
+pub(crate) fn word_matrix(walls: &[Wall], word: &Word) -> Matrix {
+    word.letters().iter().fold(
+        [0, 1, 2].map(|row| [0, 1, 2].map(|column| int(u32::from(row == column)))),
+        |total, letter| product(&total, &walls[usize::from(letter.index())].pairing),
+    )
+}
+
+pub(crate) fn face_picture(
+    face: &WholeFace,
+    arrangement: &Colouring,
+    size: u32,
+) -> (Vec<u8>, Image) {
+    let mask = face
+        .render_mask(arrangement, size, size)
+        .unwrap_or_else(|error| {
+            panic!("the face mask of {} is rejected: {error}", arrangement.id())
+        });
+    let pixels = painted(&mask, size, size, GOLDEN_COSET_FILL[0]);
+    let image = image_of(size, size, &pixels);
+    (pixels, image)
+}
+
+pub(crate) fn whole_face_fill(
+    face: WholeFace,
+    arrangement: Colouring,
+    paint: Paint,
+) -> WholeFaceFill {
+    WholeFaceFill::new(face, arrangement, vec![paint])
+        .unwrap_or_else(|error| panic!("the whole-face fill is rejected: {error}"))
+}
+
+pub(crate) struct WholeFaceGolden {
+    pub(crate) golden: GoldenImage,
+    pub(crate) marks: [bool; 3],
+    pub(crate) arrangement: &'static str,
+}
+
+impl WholeFaceGolden {
+    pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
+        let face = whole_face(domain, self.marks);
+        let arrangement = find_colouring(&arrangements(&face), self.arrangement);
+        let (_, image) = face_picture(&face, &arrangement, GOLDEN_SIZE);
+        let fill = whole_face_fill(face, arrangement, Paint::Image(image));
+        self.golden
+            .builder_with_fill(Fill::WholeFace(fill))
+            .build()
+            .unwrap_or_else(|error| {
+                panic!(
+                    "the golden options of {} are rejected: {error}",
+                    self.golden.file
+                )
+            })
+    }
+}
+
+pub(crate) const WHOLE_FACE_GOLDEN_IMAGES: [WholeFaceGolden; 3] = [
+    WholeFaceGolden {
+        golden: golden("*732", &[], "wf-7-3-2-010-14a.png"),
+        marks: REGULAR,
+        arrangement: "14a",
+    },
+    WholeFaceGolden {
+        golden: golden("*632", &[], "wf-6-3-2-010-12a.png"),
+        marks: REGULAR,
+        arrangement: "12a",
+    },
+    WholeFaceGolden {
+        golden: golden("*532", &[], "wf-5-3-2-010-10a.png"),
+        marks: REGULAR,
+        arrangement: "10a",
+    },
+];
+
+pub(crate) struct FaceMaskGolden {
+    pub(crate) signature: &'static str,
+    pub(crate) marks: [bool; 3],
+    pub(crate) arrangement: &'static str,
+    pub(crate) file: &'static str,
+}
+
+impl FaceMaskGolden {
+    pub(crate) fn pixels(&self) -> Vec<u8> {
+        let face = whole_face(&domain_with_settings(self.signature, &[]), self.marks);
+        let arrangement = find_colouring(&arrangements(&face), self.arrangement);
+        face.render_mask(&arrangement, GOLDEN_SIZE, GOLDEN_SIZE)
+            .unwrap_or_else(|error| panic!("the face mask {} is rejected: {error}", self.file))
+    }
+}
+
+pub(crate) const FACE_MASK_GOLDEN_IMAGES: [FaceMaskGolden; 1] = [FaceMaskGolden {
+    signature: "*732",
+    marks: REGULAR,
+    arrangement: "14a",
+    file: "fmask-7-3-2-010-14a.png",
+}];
+
+pub(crate) fn gradient(colour: usize, size: u32) -> Image {
+    image_of(size, size, &gradient_pixels(colour, size))
+}
+
+pub(crate) fn gradient_pixels(colour: usize, size: u32) -> Vec<u8> {
+    let last = size - 1;
+    let byte = |value: u32| u8::try_from((value * 255 + last / 2) / last).unwrap_or(u8::MAX);
+    (0..size * size)
+        .flat_map(|index| {
+            [
+                byte(index % size),
+                byte(index / size),
+                u8::try_from(colour * 67 % 256).unwrap_or(0),
+            ]
+        })
+        .collect()
+}
+
+pub(crate) fn bilinear(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    position: DVec2,
+    table: &[f64],
+) -> [f64; 3] {
+    let corner = |coordinate: f64, size: u32| {
+        let shifted = coordinate - 0.5;
+        let low = shifted.floor();
+        let index = |value: f64| usize::try_from(texel_index(value, size)).unwrap_or(0);
+        (index(low), index(low + 1.0), shifted - low)
+    };
+    let (left, right, across) = corner(position.x, width);
+    let (top, bottom, down) = corner(position.y, height);
+    let columns = usize::try_from(width).unwrap_or(usize::MAX);
+    let texel = |column: usize, row: usize, channel: usize| {
+        table[usize::from(pixels[3 * (row * columns + column) + channel])]
+    };
+    [0, 1, 2].map(|channel| {
+        (1.0 - across) * (1.0 - down) * texel(left, top, channel)
+            + across * (1.0 - down) * texel(right, top, channel)
+            + (1.0 - across) * down * texel(left, bottom, channel)
+            + across * down * texel(right, bottom, channel)
+    })
+}
+
+pub(crate) fn texel_index(coordinate: f64, size: u32) -> u32 {
+    (0..size)
+        .rev()
+        .find(|&index| f64::from(index) <= coordinate)
+        .unwrap_or(0)
 }

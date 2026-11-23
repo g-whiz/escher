@@ -126,7 +126,7 @@ pub(crate) struct Prepared {
     pub(crate) relators: Vec<Span>,
     pub(crate) lists: Vec<Vec<Span>>,
     one_letter: Vec<u16>,
-    subgroup: Vec<Vec<u16>>,
+    pub(crate) subgroup: Vec<Vec<u16>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

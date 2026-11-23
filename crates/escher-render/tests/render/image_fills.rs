@@ -7,9 +7,9 @@ use glam::{DVec2, DVec3};
 
 use crate::common::{DEFAULT_CAP, plane_pixel};
 use crate::golden_images::{
-    GOLDEN_COSET_FILL, GOLDEN_GRID, colouring, compare, coset_fill, disk_pixel,
+    GOLDEN_COSET_FILL, GOLDEN_GRID, bilinear, colouring, compare, coset_fill, disk_pixel,
     domain_with_settings, exact_mask, golden_colouring, image_of, linear_table, masks,
-    painted_image, pixel_centre, reference_walls, renderer,
+    painted_image, pixel_centre, reference_walls, renderer, texel_index,
 };
 use crate::reference::{self, ExactMask, Measure, ReferenceExt};
 use escher_reference::{Reference, Vector, apply, matrix, num, vector};
@@ -81,14 +81,19 @@ fn render(
     renderer(&scene.domain, options).render().0
 }
 
-fn view_pixel(geometry: Geometry, width: u32, height: u32) -> f64 {
+pub(crate) fn view_pixel(geometry: Geometry, width: u32, height: u32) -> f64 {
     match geometry {
         Geometry::Hyperbolic | Geometry::Spherical => disk_pixel(width, height),
         Geometry::Euclidean => plane_pixel(width, height),
     }
 }
 
-fn screen(geometry: Geometry, [width, height]: [u32; 2], column: u32, row: u32) -> DVec2 {
+pub(crate) fn screen(
+    geometry: Geometry,
+    [width, height]: [u32; 2],
+    column: u32,
+    row: u32,
+) -> DVec2 {
     pixel_centre(
         width,
         height,
@@ -98,7 +103,7 @@ fn screen(geometry: Geometry, [width, height]: [u32; 2], column: u32, row: u32) 
     )
 }
 
-fn screen_point(geometry: Geometry, position: DVec2) -> Option<DVec3> {
+pub(crate) fn screen_point(geometry: Geometry, position: DVec2) -> Option<DVec3> {
     match geometry {
         Geometry::Hyperbolic => hyperbolic::from_disk(position),
         Geometry::Euclidean => Some(DVec3::new(position.x, position.y, 1.0)),
@@ -109,7 +114,11 @@ fn screen_point(geometry: Geometry, position: DVec2) -> Option<DVec3> {
     }
 }
 
-fn exact_point(reference: &mut Reference, geometry: Geometry, position: DVec2) -> Vector {
+pub(crate) fn exact_point(
+    reference: &mut Reference,
+    geometry: Geometry,
+    position: DVec2,
+) -> Vector {
     match geometry {
         Geometry::Hyperbolic => reference::from_disk(position.to_array()),
         Geometry::Euclidean => vector([position.x, position.y, 1.0]),
@@ -136,28 +145,7 @@ fn expected_value(
     }
 }
 
-fn bilinear(pixels: &[u8], width: u32, height: u32, position: DVec2, table: &[f64]) -> [f64; 3] {
-    let corner = |coordinate: f64, size: u32| {
-        let shifted = coordinate - 0.5;
-        let low = shifted.floor();
-        let index = |value: f64| usize::try_from(texel_index(value, size)).unwrap_or(0);
-        (index(low), index(low + 1.0), shifted - low)
-    };
-    let (left, right, across) = corner(position.x, width);
-    let (top, bottom, down) = corner(position.y, height);
-    let columns = usize::try_from(width).unwrap_or(usize::MAX);
-    let texel = |column: usize, row: usize, channel: usize| {
-        table[usize::from(pixels[3 * (row * columns + column) + channel])]
-    };
-    [0, 1, 2].map(|channel| {
-        (1.0 - across) * (1.0 - down) * texel(left, top, channel)
-            + across * (1.0 - down) * texel(right, top, channel)
-            + (1.0 - across) * down * texel(left, bottom, channel)
-            + across * down * texel(right, bottom, channel)
-    })
-}
-
-fn within_one_step(pixel: &[u8], expected: [f64; 3], table: &[f64]) -> bool {
+pub(crate) fn within_one_step(pixel: &[u8], expected: [f64; 3], table: &[f64]) -> bool {
     pixel.iter().zip(expected).all(|(&byte, value)| {
         let low = table[usize::from(byte.saturating_sub(1))];
         let high = table[usize::from(byte.saturating_add(1))];
@@ -165,7 +153,7 @@ fn within_one_step(pixel: &[u8], expected: [f64; 3], table: &[f64]) -> bool {
     })
 }
 
-fn pixel_at(pixels: &[u8], width: u32, column: u32, row: u32) -> &[u8] {
+pub(crate) fn pixel_at(pixels: &[u8], width: u32, column: u32, row: u32) -> &[u8] {
     let index = usize::try_from(3 * (row * width + column)).unwrap_or(usize::MAX);
     &pixels[index..index + 3]
 }
@@ -230,13 +218,6 @@ fn tile_across_side_0_shows_the_image_mirrored_in_the_wall_of_side_0() {
         marked += mark;
     }
     println!("{total} pixels across side 0 show the mirrored image, {marked} of them the mark");
-}
-
-fn texel_index(coordinate: f64, size: u32) -> u32 {
-    (0..size)
-        .rev()
-        .find(|&index| f64::from(index) <= coordinate)
-        .unwrap_or(0)
 }
 
 fn assert_texture_contract(scene: &Scene) {

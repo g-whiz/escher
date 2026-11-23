@@ -114,6 +114,7 @@ mod mask;
 mod options;
 mod renderer;
 mod view;
+mod whole_face;
 mod wythoff;
 
 #[cfg(test)]
@@ -132,14 +133,15 @@ pub use image::Image;
 pub use mask::Masks;
 pub use options::{BorderUnit, HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
 pub use renderer::{RenderStats, Renderer};
+pub use whole_face::{EdgeMeeting, WholeFace, WholeFaceFill};
 pub use wythoff::{Wythoff, WythoffFill};
 
 #[cfg(test)]
 mod tests {
     use super::{
-        BorderUnit, Colour, CosetFill, Error, ErrorKind, Fill, Fold, HyperbolicModel, Image, Masks,
-        Paint, RenderOptions, RenderOptionsBuilder, RenderStats, Renderer, Shading, Wythoff,
-        WythoffFill,
+        BorderUnit, Colour, CosetFill, EdgeMeeting, Error, ErrorKind, Fill, Fold, HyperbolicModel,
+        Image, Masks, Paint, RenderOptions, RenderOptionsBuilder, RenderStats, Renderer, Shading,
+        WholeFace, WholeFaceFill, Wythoff, WythoffFill,
     };
 
     fn assert_auto_traits<T: Send + Sync + 'static>() {}
@@ -162,6 +164,9 @@ mod tests {
         assert_auto_traits::<Fold>();
         assert_auto_traits::<Wythoff>();
         assert_auto_traits::<WythoffFill>();
+        assert_auto_traits::<WholeFace>();
+        assert_auto_traits::<EdgeMeeting>();
+        assert_auto_traits::<WholeFaceFill>();
         assert_auto_traits::<Error>();
         assert_auto_traits::<ErrorKind>();
     }

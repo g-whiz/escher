@@ -79,6 +79,7 @@ pub use error::{Error, ErrorKind, Result};
 pub use presentation::{Presentation, Relator, RelatorDisplay, WordDisplay};
 pub use search::{
     ColouringSet, IndexLimit, SearchBudget, colourings, colourings_of_index, count_colourings,
+    free_classes_of_index,
 };
 pub use table::{CosetLimit, CosetTable};
 pub use word::{Letter, Word};

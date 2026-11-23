@@ -235,7 +235,7 @@ The help text has these summaries, the long help of `--set` below the table, and
 | `--presentation` | `Print the generators and relators of the signature and of its fundamental domain, and for a spherical signature the group order by coset enumeration` |
 | `--colourings` | `Print the valid colourings of the fundamental domain, in which no two neighbouring tiles share a colour, one for each conjugacy class of subgroups, with its id, up to the largest number of colours` |
 | `--max-colours` | `The largest number of colours of the valid colourings to count and list, from 1 to 64` |
-| `--wythoff` of `info` | `List the arrangements of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732. Each arrangement puts one picture on every polygon, and lists for each edge the edge of the neighbour that lies on it, counted counterclockwise from the bottom edge of the mask, and whether that neighbour is turned or mirrored` |
+| `--wythoff` of `info` | `List the arrangements of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732. Each arrangement puts one picture on every polygon, and lists for each edge the edge of the neighbour that lies on it, numbered counterclockwise around the mask from edge 0, an edge with the red border, and whether that neighbour is turned or mirrored` |
 | `render` | `Render the tiling of a signature in orbifold notation and write it to a PNG file` |
 | `--output` | `The PNG file to write. An existing file is replaced` |
 | `--size` | `The image size in pixels, as WIDTHxHEIGHT` |
@@ -1117,7 +1117,13 @@ The value of row 36 is chosen in this order:
 | The search stopped at a limit | `none, the search stopped at a limit` |
 | The search is complete | The number of arrangements in decimal, which is `0` for a tiling without an arrangement with one picture |
 
-The value of row 37 is the id, `, `, `turned only` when no neighbour is mirrored or `with mirrored neighbours` otherwise, `, edges `, and the edge pairing, each pair once in the order of its lower edge, separated by `, `. A pair of two edges is written `<i> and <j> turned` or `<i> and <j> mirrored`, and an edge paired with itself `<i> turned` or `<i> mirrored` (`DEC-119`). The edges are numbered from 0 counterclockwise from the bottom edge of the face mask (Section 5.31 of `docs/design/render.md`). For example, an arrangement of the hexagons in which each edge meets the opposite edge of a turned copy prints:
+The value of row 37 is the id, `, `, `turned only` when no neighbour is mirrored or `with mirrored neighbours` otherwise, `, edges `, and the edge pairing, each pair once in the order of its lower edge, separated by `, `. A pair of two edges is written `<i> and <j> turned` or `<i> and <j> mirrored`, and an edge paired with itself `<i> turned` or `<i> mirrored` (`DEC-119`). The edges are numbered counterclockwise around the face mask from edge 0, the edge that holds the half edge of the domain (Section 5.31 of `docs/design/render.md`). The face mask shows no numbers. Edge 0 always has the red border, the code colour $(255, 0, 0)$ of class 0, because the classes are numbered in the order of their least edge (Section 5.32 of `docs/design/render.md`). A user finds edge 0 on the face mask as follows:
+
+- When only one edge has the red border, that edge is edge 0.
+- When two edges have it and their neighbours are turned, edge 0 is the one with its black mark at its start, the end that a walk counterclockwise around the mask reaches first, and the other has its mark at its end.
+- When two edges have it and their neighbours are mirrored, both have their marks at their starts, so their borders and marks do not show which of them is edge 0, and a user cannot place the numbers of the line on the mask with certainty. Point 48 of Section 11.3 puts this to the owner.
+
+For example, an arrangement of the hexagons in which each edge meets the opposite edge of a turned copy prints:
 
 ```text
 Arrangement: 12a, turned only, edges 0 and 3 turned, 1 and 4 turned, 2 and 5 turned
@@ -1789,9 +1795,10 @@ None of these blocks the implementation. Points 1, 3, 4, 5, 8, and 36 belong to 
 42. The larger order first, as `{7,3}, dual {3,7}` for `*732`, and `self-dual` when the two orders are equal (`DEC-82`, Section 5.9). The alternative puts the smaller order first, or prints `{4,4}, dual {4,4}` for `*442`.
 43. The names of the mask files (`DEC-87`, CLI-58): the stem of `--output`, `-`, and the colour from 0 with no leading zero, so `mask-10.png` sorts before `mask-2.png` in a listing by name. The alternatives are numbers with leading zeros to the width of the largest colour, or numbers from 1.
 44. Withdrawn on 2026-11-23, when the owner decided that an image fill has only the size limits of an output image, with no budget shared by the images of one render (`DEC-92`).
-45. The printed form of an arrangement (`DEC-119`, Section 5.10), such as `12a, turned only, edges 0 and 3 turned, 1 and 4 turned, 2 and 5 turned`, with the edges counted counterclockwise from the bottom edge of the face mask. The alternatives are a shorter form, such as `0-3t`, or a line for each edge.
+45. The printed form of an arrangement (`DEC-119`, Section 5.10), such as `12a, turned only, edges 0 and 3 turned, 1 and 4 turned, 2 and 5 turned`, with the edges numbered counterclockwise around the face mask from edge 0. The alternatives are a shorter form, such as `0-3t`, or a line for each edge.
 46. The option name `--arrangement` and the use of `--wythoff` on `info` (`DEC-119`). The alternatives are other names, such as `--picture` or `--whole-face`.
 47. The regular tilings whose index $2n$ is above 64, those with faces of more than 32 sides, such as $\{33, 3\}$ of `*(33)32` with `010`, are refused through the index limit of `escher-group`, which this design adds no limit to. The alternative is a higher index limit for this search, which the owner decides, because no measurement of the search at such an index exists.
+48. How a user finds edge 0 on the face mask (`DEC-117`, Section 5.10). The face mask shows no numbers, and edge 0 has the red border of class 0. When the two red edges are a mirrored pair, both are marked at their starts, so their borders and marks do not tell them apart, and the numbers of an arrangement line cannot be placed on the mask with certainty (Section 5.10). The alternative, a proposal that this design does not adopt, is a short black tick at the midpoint of edge 0 inside its border, drawn by `WholeFace::render_mask`.
 
 ## 12. Security Considerations
 
