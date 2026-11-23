@@ -26,7 +26,7 @@ These topics are out of scope, by the owner's decision:
 - Tilings without a symmetry group, such as aperiodic tilings, for now, because in the owner's words they "don't fit with the orbifold idea".
 - Research on integrations with external tools (Section 3.3).
 
-`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-91` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M23`, the research prerequisites `RP-1` to `RP-6`, and the unverified statements `UNV-1` to `UNV-37`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
+`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-98` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M23`, the research prerequisites `RP-1` to `RP-6`, and the unverified statements `UNV-1` to `UNV-37`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
 
 Research documents are cited by file name, and each is in `docs/research/`.
 
@@ -160,6 +160,7 @@ These items are not tied to one phase. Each is a proposal of the planning unless
 | A machine-readable form of the info output | `DEC-23` | None | Proposal |
 | The milestones `M14` to `M18`, moved out of the proof of concept | Section 4.1 | Section 4.1 | Owner for the move (`DEC-64`), proposal for their order |
 | Wythoff constructions beyond their first version, which is `M23` of `docs/design/poc-plan.md` | Section 4.2 | `M23` | Owner for the item (`DEC-68`) |
+| Mask polygons and image fills for the domains that have no mask polygon, which Section 5.22 of `docs/design/render.md` lists | None named | `M22` | Owner for the deferral (`DEC-96`) |
 | Rendering of the general non-compact signatures, which Section 2.1 of `docs/design/architecture.md` defines | The deep-research item of Section 5. Section 4.1 records why the research knows no construction | `M18` | Owner for the item, which is outside the proof of concept (`DEC-19`) |
 | Procedural textures from PDE simulation, built with the features of the application and not a core feature | Sections 4 and 10.2 of `pdes-on-orbifolds.md`, and Section 10 of `rendering.md`, which records SymmHub's reaction-diffusion simulation | Phase 3 with procedural graphics as a medium, and the PDE reference of Section 5 | Owner for the item and that it is not a core feature, proposal for the dependencies |
 
