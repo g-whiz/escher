@@ -26,7 +26,7 @@ These topics are out of scope, by the owner's decision:
 - Tilings without a symmetry group, such as aperiodic tilings, for now, because in the owner's words they "don't fit with the orbifold idea".
 - Research on integrations with external tools (Section 3.3).
 
-`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-110` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M24`, the research prerequisites `RP-1` to `RP-7`, and the unverified statements `UNV-1` to `UNV-43`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
+`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-121` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M26`, the research prerequisites `RP-1` to `RP-8`, and the unverified statements `UNV-1` to `UNV-46`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
 
 Research documents are cited by file name, and each is in `docs/research/`.
 
@@ -182,7 +182,7 @@ The general non-compact signatures stay outside `M18` (`DEC-19`). The research r
 
 ### 4.2. Wythoff Constructions
 
-The owner placed the Wythoff constructions in the roadmap on 2026-11-22 and moved their first version into the proof of concept on 2026-11-23, as milestone `M23` (`DEC-68` of `docs/design/architecture.md`). Section 5.23 of `docs/design/poc-plan.md` states the scope of that version and what its design settles. Also on 2026-11-23, the owner moved the image fills that use the whole face into the proof of concept, as milestone `M24` (`DEC-110`), which Section 5.24 of `docs/design/poc-plan.md` plans.
+The owner placed the Wythoff constructions in the roadmap on 2026-11-22 and moved their first version into the proof of concept on 2026-11-23, as milestone `M23` (`DEC-68` of `docs/design/architecture.md`). Section 5.23 of `docs/design/poc-plan.md` states the scope of that version and what its design settles. Also on 2026-11-23, the owner moved the image fills that use the whole face into the proof of concept, as milestone `M24` (`DEC-110`), which Section 5.24 of `docs/design/poc-plan.md` plans. The owner decided that the whole-face fills with several pictures of one polygon and those of tilings with several kinds of polygon are the last milestones of the proof of concept and not roadmap items (`DEC-114`). Sections 5.25 and 5.26 of that plan describe them as `M25` and `M26`.
 
 This section keeps the work beyond the first version, which the owner has not ordered:
 

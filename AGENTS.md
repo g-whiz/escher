@@ -200,7 +200,7 @@ The owner's decisions for the product, of which only those on the user interface
 - Until live rendering exists, the engine renders to PNG files on disk.
 - Slint provides the user interface of the GUI application.
 - Live rendering uses Slang, through the crates `slango` and `slang-slint` of the sibling project slang-rust, once those crates are published.
-- The proof of concept fills polygons with solid colours, except for the image fills of milestones `M22` and `M24` of `docs/design/poc-plan.md`.
+- The proof of concept fills polygons with solid colours, except for the image fills of milestones `M22`, `M24`, `M25`, and `M26` of `docs/design/poc-plan.md`.
 - All rendering is raster and per pixel. Escher has no vector output and no forward rendering path.
 - Aperiodic tilings are out of scope for now.
 
