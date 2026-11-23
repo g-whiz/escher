@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Date | 2026-11-16 |
+| Date | 2026-11-23 |
 | Applies to | The CPU renderer of the Escher command-line tool, and the later Slang shader renderer |
 
 ## Abstract
@@ -762,6 +762,8 @@ The items marked "candidate" were derived by a researcher and found in no source
 23. Rounding when encoding. [PNG2] rounds to the nearest integer with $\lfloor x M + 0.5 \rfloor$ only in its sections on decoders and on sample depth rescaling, and [SRGB96] and [IEC-CD1997] give $I = 255\, C'$ with no rounding step. Applying $\lfloor 255\, C' + 0.5 \rfloor$ in an encoder, and clamping $C'$ to the range 0 to 1 before it, are inferences of the research. A source that states the quantization of an sRGB encoder, such as [IEC61966-2-1], closes this item.
 24. Averaging in linear light. No source read for Section 7.5 states that the samples of a supersampled pixel, or the coverage of an antialiased border, are to be averaged in linear light rather than in encoded values. Zucker's `sqrt(colorOut)` as "approximate gamma correction" (Section 7.3) is the only related step in the other sources of this document. A source on compositing or on antialiasing that states the rule closes this item.
 25. Raw text of the specifications. The statements of Section 7.5 from [CSS-COLOUR-4], [PNG2], [PNG3], and [ICC-SRGB] were read through a summarizing fetch tool, not as raw text, and carry the mark "(secondary source only)". The section number of the decoder gamma handling in [PNG3] was not checked against its table of contents. Reading the raw HTML of the cited sections removes the mark.
+26. Distance from a point of the hyperboloid to a geodesic, with the time coordinate last. Candidate: $\operatorname{arsinh}\left(\lvert \langle x, u \rangle \rvert / \sqrt{-\langle x, x \rangle}\right)$ for a unit spacelike normal $u$ and a time-like vector $x$ of any length. [RATCLIFFE], first edition, equation (3.2.8), states the form with the time coordinate first, and no source read defines the norm for a vector of any length, so the design records this reading under `UNV-14` of `docs/design/geometry.md`.
+27. Distance in the Euclidean plane from a point to a line with a unit normal. Candidate: $\lvert c \cdot x \rvert$, the absolute value of the line covector $c$ applied to the point $x$ in homogeneous coordinates with last coordinate 1. No source read states it, so the geometry design records it as a statement of its own, which a test pins (Section 12 of `docs/design/geometry.md`).
 
 ### 13.2. Sources Not Read in Full
 

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-22 |
+| Date | 2026-11-23 |
 | Applies to | The workspace crates of the proof of concept, the conventions between them, and the decisions that bind them |
 
 ## Abstract
@@ -170,7 +170,7 @@ The command `render` turns a signature into a PNG file in these steps:
    2. It maps the model position to a point of the linear model, or to "outside the model".
    3. It runs the fold. The fold finds the first side whose covector test is violated, applies the pairing matrix of that side, records the side, and stops at the fold cap. It does not renormalize the point (Section 9.3).
    4. For a colouring by cosets, it computes the coset from the recorded side sequence with `colour_of` (Section 5.4).
-   5. It computes the screen distance to the nearest side (`DEC-28`).
+   5. It computes the screen distance to the nearest side (`DEC-28`), or with the intrinsic border unit the distance in the geometry to the nearest side (Section 5.17 of `docs/design/render.md`).
    6. It chooses the fill colour or the border colour, with shading on the sphere.
 6. The renderer averages the samples of each pixel in linear light, encodes the result as 8-bit sRGB (standard Red Green Blue), and writes it with the `png` crate with the sRGB chunk. Section 4 of `docs/research/rust-ecosystem.md` lists the setter `set_source_srgb`.
 
@@ -590,10 +590,15 @@ The table lists every labelled default. The owner has decided `DEC-3`, `DEC-4`, 
 | `DEC-75` | Map from the half-plane to the disk | Decided by the owner: $\eta(z) = (iz + 1)/(z + i)$ of [RAT], Exercise 4.4.4, p. 126, so that the picture of the half-plane sits the same way up as the picture of the disk. The choice is part of `UNV-13` | Section 10.1 |
 | `DEC-76` | Canonical views of the other hyperbolic models | Decided by the owner: the image of the centre of the disk at the centre of the image, which is $i$ in the half-plane and 0 in the band and the Klein model, and the scale and the margin of the disk for the Klein model. Amended by the owner on 2026-11-22, so that no margin of background surrounds the band and the half-plane: each fills the image, with one model unit over half the image height, the edges of the band on the top and bottom edges of the image, and the real axis of the half-plane on the bottom edge (Section 5.16 of `docs/design/render.md`) | Section 10.1 |
 | `DEC-77` | `--model` on another geometry | Decided by the owner: no effect on a Euclidean or spherical signature, and no diagnostic | Section 10.1 |
+| `DEC-78` | Limits of an intrinsic border width | The accepted values of a width in pixels, a finite number from 0 to 1024, in every geometry, with the same error kinds and texts (Section 4.1 of `docs/design/render.md`). The alternative is a limit for each geometry, such as $\pi$ on the sphere | One check in `build` serves both units, and no new error text is needed. A width beyond the largest distance in a tile draws every sample of it as a border sample and costs no more time or memory than a narrow one |
+| `DEC-79` | Default border width with the intrinsic unit | A default for each unit: 1 with the pixel unit, as `DEC-7` states, and 0.05 with the intrinsic unit, the width of the example of `M13` (Section 5.13 of `docs/design/poc-plan.md`). `escher-render` keeps the one default 1, and the command line passes 0.05 when `--border-unit intrinsic` comes without `--border-width` (CLI-56 of `docs/design/cli.md`). The alternative is one default of 1 for both units | The domain of `*732` has the area $\pi/42$ (Section 5.1 of `docs/design/poc-plan.md`), so a band of width 1 around its sides can cover the whole tile, and a default of 1 would draw an almost black image of a hyperbolic or spherical tiling. The library keeps its builder and its check unchanged |
+| `DEC-80` | Intrinsic distance of a folded point | `escher-geometry` gives the distance from a vector to a wall in each geometry as `wall_distance`, which reads a hyperbolic or spherical vector as its ray, so the renderer passes the folded point without renormalizing it (Section 9.3). Section 5.6 of `docs/design/geometry.md` and Section 5.17 of `docs/design/render.md` state it. The alternative is a renderer that normalizes the folded point before it calls a function that takes points only | The fold renormalizes nothing (`DEC-31`), and equation (3.2.8) of [RAT] holds, with the time coordinate first, for any positive timelike vector (Section 9.3 of `docs/research/geometry-models.md`). Its time-last form for a vector off the hyperboloid is part of `UNV-14`. The distance stays in the crate that owns the other formulas of the geometry and their accuracy |
 
 Items 34 to 39 of Section 15.3 of `docs/design/domain.md` put the defaults of the reflection polygons to the owner, with their alternatives: `DEC-13` as amended, `DEC-47`, the corner limit and the guard of `DEC-48`, `DEC-14` as amended, and `DEC-50`. Items 43 and 44 of Section 15.3 of `docs/design/domain.md` put the tiles of `DEC-51` to the owner, the kites of `4*2` and `3*3` and the layout of the rectangular groups, item 45 puts the convention of `DEC-52`, and point 40 of Section 12.3 of `docs/design/render.md` puts `DEC-55`. `DEC-51` to `DEC-55` and the amendments of `DEC-12`, `DEC-14`, and `DEC-17` for `M10` are proposals, and the owner has decided none of them.
 
 `DEC-56` to `DEC-62` and the amendments of `DEC-12` and `DEC-54` for `M11` are proposals, and the owner has decided none of them. Four of them are put to the owner with their alternatives: `DEC-58`, whether `1` has a domain, `DEC-59`, the limit of `2*n`, `DEC-61`, the shared pictures and the view of `*`, `x`, and `1`, and `DEC-62`, the lune of order 1 and the mirror side of `n*`. Items 47 to 50 of Section 15.3 of `docs/design/domain.md` state `DEC-58`, `DEC-59`, and `DEC-62`, and points 42 and 43 of Section 12.3 of `docs/design/render.md` state `DEC-61`.
+
+`DEC-78` to `DEC-80` for `M13` are proposals, and the owner has decided none of them. Point 45 of Section 12.3 of `docs/design/render.md` puts `DEC-78` to the owner, and item 40 of Section 11.3 of `docs/design/cli.md` puts `DEC-79`, each with its alternative.
 
 ## 11. Security Considerations
 

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-22 |
+| Date | 2026-11-23 |
 | Applies to | The order of work of the proof of concept, from the first crate to the completion audit |
 
 ## Abstract
@@ -32,7 +32,7 @@ This document covers the workflow of a milestone, the owner's staging, the resea
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-77`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-80`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the milestones `M14` to `M18` that the owner moved there, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -255,7 +255,7 @@ escher render '*732' --model band -o band.png
 
 ### 5.13. M13: Intrinsic Border Width
 
-**Goal.** `--border-unit intrinsic`.
+**Goal.** `--border-unit pixels|intrinsic`, with `pixels` as the default. With `intrinsic`, `--border-width` is a length in the metric of the geometry.
 
 **Command line.** This command draws borders 0.05 wide in the metric of the geometry:
 
@@ -263,19 +263,25 @@ escher render '*732' --model band -o band.png
 escher render '*732' --border-unit intrinsic --border-width 0.05 -o intrinsic.png
 ```
 
-**Scope.** The exact distance from the folded point to the nearest wall in each geometry.
+**Scope.** The distance from a point to a wall in each geometry, as the functions `wall_distance` of the modules `hyperbolic`, `euclidean`, and `spherical` of `escher-geometry` (Section 5.6 of `docs/design/geometry.md`). The option `BorderUnit` of `escher-render` and the intrinsic border test, which compares the distance from the folded point of a sample to each side of the domain with half the width (Section 5.17 of `docs/design/render.md`). The width is the full width of the band, as a width in pixels is. The pixel unit keeps every image byte for byte (RND-55 of `docs/design/render.md`). The option `--border-unit` of `escher render` (Section 4.6 of `docs/design/cli.md`). The units are those of Section 5.5 of `docs/design/architecture.md`, with the Euclidean unit of `DEC-17`.
 
-**Design documents.** Extensions of `render.md` and `geometry.md`.
+**Design documents.** Extensions of `geometry.md`, `render.md`, and `cli.md`, and the labels `DEC-78` to `DEC-80` of `docs/design/architecture.md`.
 
-**Sources.** Precedents with intrinsic widths (`rendering.md` 6.1). Formulas (`rendering.md` 6.2 and 9.4, `geometry-models.md` 9.3).
+**Sources.** Precedents with intrinsic widths (`rendering.md` 6.1). The distance from a point to a hyperplane of [RATCLIFFE], equation (3.2.8) and Theorem 3.2.12, p. 75 (`geometry-models.md` 9.3). The form on the sphere from the formula of [MOVABLE] (`rendering.md` 9.4). For the wedge test, the distance to the imaginary axis of [BEARDON], equation (7.20.3), and the equidistant curves of [CFKP], Fact 2 (`rendering.md` 6.2, `geometry-models.md` 9.3).
 
-**Unverified statements relied on.** `UNV-14`. The primary form on the hyperboloid is time-first and is not stated for unit normals (`geometry-models.md` 9.3 and 15.1 item 3). The form in the disk for a geodesic that is not a diameter, and the form on the sphere, are candidate statements (`rendering.md` 13.1 items 8 and 10).
+**Unverified statements relied on.** `UNV-14`: the hyperboloid form for a unit normal with the time coordinate last (`geometry-models.md` 9.3 and 15.1 item 3) and its reading for a vector off the hyperboloid, and the form $\sin d = \lvert x \cdot u \rvert$ on the sphere, a candidate statement (`rendering.md` 13.1 item 10). The design uses no form in the disk, so it does not rely on item 8 of `rendering.md` 13.1. The Euclidean distance $\lvert c \cdot x \rvert$ is an unverified statement of the geometry design without a label (Section 12 of `docs/design/geometry.md`). A test pins each form against a minimization of the distance between points.
 
-**Tests and acceptance.** The formula against an independent high-precision minimization of the distance between points. The band around a vertical geodesic of the half-plane is a wedge (Fact 2 of [CFKP], which needs M12). Golden images.
+**Tests and acceptance.** The test "Distance by minimization" and the accuracy rows of `wall_distance` of Section 10.1 of `docs/design/geometry.md`. The tests "Wedge", "Same point in every model", "Intrinsic each pixel", and "Pixel unit unchanged", and three golden images, of Sections 8.1 and 8.4 of `docs/design/render.md`. The snapshots and plain tests of Section 8.1 of `docs/design/cli.md`.
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Small. `DEC-17` defines the Euclidean unit.
+**Risks.** Small. `DEC-17` defines the Euclidean unit. Where a model shrinks a tile below a pixel, such as near the limit circle, an intrinsic border is narrower than the sample spacing and breaks into separate samples, which supersampling does not prevent (Section 5.17 of `docs/design/render.md`). The default width with the intrinsic unit is a proposal for the owner (`DEC-79`).
+
+**Split.** Three branches, in this order:
+
+1. Design: the design documents above.
+2. Geometry: the three functions `wall_distance` with their accuracy rows and their tests in `escher-geometry`, including the minimization in the reference arithmetic of the tests.
+3. Render and command line: `BorderUnit`, the intrinsic border test, and the tests and three golden images of `escher-render`, `--border-unit` of `escher-cli` with its snapshots and plain tests, and Project Status in `AGENTS.md`.
 
 ### 5.14. M14: Analytic Border Antialiasing
 
@@ -469,7 +475,7 @@ The table also keeps the rows that serve the roadmap items M14 to M18 (Section 4
 | UNV-11 | Constructions of mixed signatures and of the spherical generators from the signature. Their presentations are sourced (`fundamental-domains.md` 9.7). For the Euclidean groups of M10, the guard of DOM-54 of `docs/design/domain.md` checks each build, and the wallpaper certificate of DOM-57, with the equal counts up to 16 colours beside it, checks each group numerically. Neither closes it. For the spherical groups of M11, the guard of DOM-60 checks each build, and the certificate of DOM-64, whose census of the reversing elements and the reflections is the only check that tells `n*` and `nx` from other groups of the same order, checks each group numerically | Gap G8, `fundamental-domains.md` 9.7, and for the Euclidean and spherical groups 9.5.2, 9.6.2, and 13.3 items 15 and 16 | M10, M11, and the roadmap item M15 | A source that constructs them, or Lean |
 | UNV-12 | Trigonometry that rests on secondary or summarized sources: the Saccheri formulas, four of the six Lambert relations, the pentagon forms of `geometry-models.md` 15.1 items 12 and 14, and the claims that `geometry-models.md` 15.2 lists. The laws of triangles, the right-triangle relations, and the primary pentagon and hexagon laws are in `geometry-models.md` 10.2, 10.3, and 10.5, and the spherical law of cosines solved for a side, Theorem 2.5.4 of [RATCLIFFE], is in `geometry-models.md` 11.3 | `geometry-models.md` 10.5, 10.6, 15.1 items 12 and 14, and 15.2 | None. The construction of M9 does not use it (`DEC-46`) | Chapter 2 of [BUSER], or Lean |
 | UNV-13 | The inverse and metric of the band, and the choice of map between the disk and the half-plane. The maps between the disk, the hyperboloid, and the Klein model are sourced in `geometry-models.md` 4.2 | `geometry-models.md` 4.3 and 5.1, `rendering.md` 13.1 item 14 | M12 | [HUB], and round-trip tests |
-| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8 and 10 | M3 tests, M13 | A source, or Lean |
+| UNV-14 | The distance to a geodesic in the forms that no source states, which include the hyperboloid form for unit normals and the disk form for a geodesic that is not a diameter, and the distance to a great circle. For a vector off the hyperboloid, the hyperboloid form reads the norm $\lvert\lvert\lvert y \rvert\rvert\rvert$ of equation (3.2.8) of [RATCLIFFE] as $\sqrt{-\langle y, y \rangle}$, which no research document defines. The sourced forms are in `geometry-models.md` 9.3 and `rendering.md` 6.2 | `geometry-models.md` 9.3 and 15.1 item 3, `rendering.md` 13.1 items 8, 10, and 26 | M3 tests, M13 | A source, or Lean |
 | UNV-15 | The screen-distance estimate through the fold, analytic antialiasing, and the fade of tiles smaller than a pixel | `rendering.md` 7.1 and 13.1 items 19 and 20 | M3, and the roadmap item M14 | Measurement against supersampling |
 | UNV-16 | The lift onto the ball, the view scale of the sphere, and the Phong formulas | `rendering.md` 13.1 items 11 and 12, `geometry-models.md` 11.6 | M5 | [PHONG75], [BLINN77] |
 | UNV-17 | Coset colourings are perfect for every orbifold group, the composition order, completeness, and conjugacy. The composition order is the rule of GRP-38 of `docs/design/group.md`: the fold that applies the sides $i_1, \ldots, i_n$ in that order puts the sample in the tile $gF$ with $g = s_{i_1} \cdots s_{i_n}$, and the colour is the number of the right coset $S g^{-1}$, traced from coset 0 through the inverse column of each side in reverse order, which names the left coset $gS$. A prototype outside the repository found the rule perfect, with the exact permutation of each side, on every class that it tried, found the forward trace not perfect on every class that is not normal, and found the reverse trace without the inverse to give the mirror image on rotation domains (Sections 7.10 and 7.16 of `docs/design/group.md`). For conjugacy, the design lists every subgroup as its own colouring (`DEC-37`), after the prototype found that no sampled element of the group relates the pictures of two conjugate subgroups | `colourings.md` 4.2, 8.4, 8.7, and 14.1 items 1 to 3 | M8, M20, M22 | [DDL2009], [SCHWARZENBERGER1984], or Lean. [CBGS2008] defines colour types and states none of these (`colourings.md` 3.3 and 14.1 items 1 and 2) |
