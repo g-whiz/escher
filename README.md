@@ -111,6 +111,14 @@ escher render '*732' --model band -o band.png
 
 ![Teal and sand triangles fill the image and shrink toward its upper and lower edges.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/band.png)
 
+`--border-unit intrinsic` makes `--border-width` a length in the geometry of the tiling instead of a number of pixels, so the borders shrink with the tiles. This command draws `*732` with borders 0.05 wide in the hyperbolic metric:
+
+```sh
+escher render '*732' --border-unit intrinsic --border-width 0.05 -o intrinsic.png
+```
+
+![Teal and sand triangles fill the Poincare disk, with black borders that thin out with the triangles toward its edge.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/intrinsic.png)
+
 `--colourings` lists each colouring with its id, and `--max-colours` sets the largest number of colours, from 1 to 64. This command lists the colourings of `*642` with up to 4 colours:
 
 ```sh

@@ -27,10 +27,14 @@ Options:
       --colours <COLOURS>
           The fill colours, separated by commas, each as #rgb or #rrggbb, one for each colour of the colouring. The default takes the first colours of a built-in list of 12. In a POSIX shell, put the colours in single quotes, as in '#e9c46a,#2a9d8f'
 
-      --border-width <PIXELS>
-          The border width in pixels. 0 draws no border
+      --border-width <WIDTH>
+          The border width, in the unit of --border-unit. 0 draws no border. The default is 1 for pixels and 0.05 for intrinsic
 
-          [default: 1]
+      --border-unit <UNIT>
+          The unit of --border-width: pixels of the image, or intrinsic for a length in the geometry of the tiling, such as 0.05
+
+          [default: pixels]
+          [possible values: pixels, intrinsic]
 
       --border-colour <COLOUR>
           The border colour, as #rgb or #rrggbb

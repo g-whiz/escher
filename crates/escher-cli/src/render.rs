@@ -143,7 +143,11 @@ fn render_options(
     RenderOptions::builder(fill)
         .size(args.size.width, args.size.height)
         .samples(args.samples)
-        .border_width(args.border_width)
+        .border_width(
+            args.border_width
+                .unwrap_or_else(|| args.border_unit.default_width()),
+        )
+        .border_unit(args.border_unit.unit())
         .border_colour(border_colour)
         .background(background)
         .max_folds(args.max_folds)

@@ -61,7 +61,9 @@
 //! options. A [`Renderer`] maps each sample of a regular grid in each pixel to
 //! a point of the view, folds the point into the domain with [`fold`], and
 //! colours the sample with a [`Fill`] colour, the border colour, or the
-//! background colour of its [`RenderOptions`]. A [`Fill`] gives every tile
+//! background colour of its [`RenderOptions`]. The border width is in pixels
+//! of the image, or with [`BorderUnit::Intrinsic`] a length in the geometry
+//! of the domain. A [`Fill`] gives every tile
 //! one colour, two colours by parity, or the colour of its coset in a
 //! [`Colouring`](escher_group::Colouring), through a [`CosetFill`]. The
 //! renderer averages the samples of a pixel in linear light and stores the
@@ -117,14 +119,14 @@ pub use colour::{Colour, CosetFill, Fill};
 pub use encode::encode_png;
 pub use error::{Error, ErrorKind, Result};
 pub use fold::{Fold, fold};
-pub use options::{HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
+pub use options::{BorderUnit, HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
 pub use renderer::{RenderStats, Renderer};
 
 #[cfg(test)]
 mod tests {
     use super::{
-        Colour, CosetFill, Error, ErrorKind, Fill, Fold, HyperbolicModel, RenderOptions,
-        RenderOptionsBuilder, RenderStats, Renderer, Shading,
+        BorderUnit, Colour, CosetFill, Error, ErrorKind, Fill, Fold, HyperbolicModel,
+        RenderOptions, RenderOptionsBuilder, RenderStats, Renderer, Shading,
     };
 
     fn assert_auto_traits<T: Send + Sync + 'static>() {}
@@ -138,6 +140,7 @@ mod tests {
         assert_auto_traits::<RenderOptionsBuilder>();
         assert_auto_traits::<Shading>();
         assert_auto_traits::<HyperbolicModel>();
+        assert_auto_traits::<BorderUnit>();
         assert_auto_traits::<Renderer>();
         assert_auto_traits::<RenderStats>();
         assert_auto_traits::<Fold>();

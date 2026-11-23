@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use escher_render::{
-    Colour, CosetFill, ErrorKind, Fill, HyperbolicModel, RenderOptions, RenderStats, Renderer,
-    encode_png,
+    BorderUnit, Colour, CosetFill, ErrorKind, Fill, HyperbolicModel, RenderOptions,
+    RenderOptionsBuilder, RenderStats, Renderer, encode_png,
 };
 
 use crate::common::{
@@ -124,6 +124,34 @@ fn golden_images_match_the_committed_files() {
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
+fn pixel_unit_given_explicitly_gives_the_bytes_of_the_default_on_every_golden_configuration() {
+    let mut compared = 0;
+    for image in GOLDEN_IMAGES
+        .iter()
+        .chain(&COSET_GOLDEN_IMAGES)
+        .filter(|image| image.border_unit == BorderUnit::Pixels)
+    {
+        let domain = image.domain();
+        let render = |builder: RenderOptionsBuilder| {
+            render_image_in_bands(image.file, &domain, options(builder)).0
+        };
+        let default = render(image.builder_without_unit(&domain));
+        let explicit = render(
+            image
+                .builder_without_unit(&domain)
+                .border_unit(BorderUnit::Pixels),
+        );
+        assert!(default == explicit, "{}", image.file);
+        compared += 1;
+    }
+    println!("{compared} golden configurations give the same bytes with the explicit pixel unit");
+    assert_eq!(
+        compared,
+        GOLDEN_IMAGES.len() + COSET_GOLDEN_IMAGES.len() - 3
+    );
 }
 
 #[test]
@@ -960,7 +988,7 @@ const GROUP_IMAGE_SIZE: u32 = 256;
 
 const DEGENERATE: [&str; 3] = ["*", "x", "1"];
 
-fn turned_builder(fill: Fill, degrees: [f64; 3]) -> escher_render::RenderOptionsBuilder {
+fn turned_builder(fill: Fill, degrees: [f64; 3]) -> RenderOptionsBuilder {
     let [yaw, pitch, roll] = degrees.map(f64::to_radians);
     RenderOptions::builder(fill).rotation(yaw, pitch, roll)
 }

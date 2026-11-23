@@ -8,19 +8,18 @@ use glam::{DMat3, DVec2, DVec3};
 
 use crate::common::{
     BANDS, CONVERGENCE_SIZE, DEFAULT_CAP, EUCLIDEAN_DISTANCES, EUCLIDEAN_DOMAINS,
-    EUCLIDEAN_REPLAY_BOUNDS, FOLD_ANGLES, FOLD_TRIPLES, POLYGON_DECISION_COUNTS,
-    POLYGON_REPLAY_BOUNDS, PlaneSample, REPLAY_BOUNDS, RIM_DISTANCES, RotationCase,
-    SPHERE_ROTATIONS, SPHERICAL_BOUNDS, SPHERICAL_DOMAINS, SPHERICAL_GROUP_BOUNDS,
-    SPHERICAL_GROUP_DOMAINS, SphereSample, TOLERANCE, VERTEX_TRIPLES, describe, describe_plane,
-    describe_polygon, describe_sphere, domain, euclidean_domain, euclidean_fold_set,
-    euclidean_name, euclidean_rotation_cases, fold_set, hyperbolic_rotation_cases, one_fill,
-    options, pixel_position, polygon_fold_set, reference_walls, render_in_bands, rim_set,
-    rotation_domain, rotation_text, spherical_domain, spherical_fold_set, spherical_group_bounds,
-    spherical_rotation_cases, text, wallpaper_bounds,
+    EUCLIDEAN_REPLAY_BOUNDS, FOLD_TRIPLES, POLYGON_DECISION_COUNTS, POLYGON_REPLAY_BOUNDS,
+    PlaneSample, REPLAY_BOUNDS, RIM_DISTANCES, RotationCase, SPHERE_ROTATIONS, SPHERICAL_BOUNDS,
+    SPHERICAL_DOMAINS, SPHERICAL_GROUP_BOUNDS, SPHERICAL_GROUP_DOMAINS, SphereSample, TOLERANCE,
+    VERTEX_TRIPLES, describe, describe_plane, describe_polygon, describe_sphere, domain,
+    euclidean_domain, euclidean_fold_set, euclidean_name, euclidean_rotation_cases, fold_set,
+    hyperbolic_rotation_cases, one_fill, options, pixel_position, polygon_fold_set,
+    render_in_bands, rim_set, rotation_domain, rotation_text, spherical_domain, spherical_fold_set,
+    spherical_group_bounds, spherical_rotation_cases, text, wallpaper_bounds,
 };
 use crate::golden_images::{
-    MODEL_MAPS, POLYGON_DOMAINS, WALLPAPER_DOMAINS, colourings_of, domain_with_aspect,
-    domain_with_settings, renderer,
+    FOLD_ANGLES, MODEL_MAPS, POLYGON_DOMAINS, WALLPAPER_DOMAINS, colourings_of, domain_with_aspect,
+    domain_with_settings, reference_walls, renderer,
 };
 use crate::reference::{self, ReferenceExt, count_bound};
 use escher_reference::{

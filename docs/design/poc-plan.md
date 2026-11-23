@@ -275,7 +275,7 @@ escher render '*732' --border-unit intrinsic --border-width 0.05 -o intrinsic.pn
 
 **Dependencies and `deny.toml` work.** None new.
 
-**Risks.** Small. `DEC-17` defines the Euclidean unit. Where a model shrinks a tile below a pixel, such as near the limit circle, an intrinsic border is narrower than the sample spacing and breaks into separate samples, which supersampling does not prevent (Section 5.17 of `docs/design/render.md`). The default width with the intrinsic unit is a proposal for the owner (`DEC-79`).
+**Risks.** Small. Where a model shrinks a tile below a pixel, such as near the limit circle, an intrinsic border is narrower than the sample spacing and breaks into separate samples, which supersampling does not prevent (Section 5.17 of `docs/design/render.md`).
 
 **Split.** Three branches, in this order:
 

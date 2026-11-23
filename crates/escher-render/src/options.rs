@@ -82,6 +82,36 @@ pub enum HyperbolicModel {
     Klein,
 }
 
+/// The unit of the border width.
+///
+/// Pass it to [`RenderOptionsBuilder::border_unit`]. The renderer reads it for
+/// every geometry. The width is the full width of the band around each wall
+/// in either unit.
+///
+/// # Examples
+///
+/// ```
+/// use escher_render::{BorderUnit, Colour, Fill, RenderOptions};
+///
+/// let builder = RenderOptions::builder(Fill::One(Colour::WHITE));
+/// let options = builder.border_unit(BorderUnit::Intrinsic).border_width(0.05).build()?;
+/// assert_eq!(options.width(), 512);
+/// # Ok::<(), escher_render::Error>(())
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum BorderUnit {
+    /// Pixels of the image. A border keeps its width in the image wherever
+    /// the tiles lie and however small they are drawn.
+    Pixels,
+    /// The unit of length of the geometry of the domain: the hyperbolic
+    /// metric of curvature -1, the unit of the coordinates of the Euclidean
+    /// plane, or the radian of the unit sphere. A border keeps its width on
+    /// the tiling, so it is the same on every tile and in every hyperbolic
+    /// model, and it narrows in the image where the tiles do.
+    Intrinsic,
+}
+
 /// The validated options of a render: the image size, the sample grid, the
 /// border, the colours, the fold cap, the model of a hyperbolic domain, and
 /// the viewing rotation, the light, and the shading of the ball of a spherical
@@ -106,6 +136,7 @@ pub struct RenderOptions {
     pub(crate) height: u32,
     pub(crate) samples: u32,
     pub(crate) border_width: f64,
+    pub(crate) border_unit: BorderUnit,
     pub(crate) border_colour: Colour,
     pub(crate) background: Colour,
     pub(crate) max_folds: u32,
@@ -121,7 +152,7 @@ impl RenderOptions {
     /// given fill.
     ///
     /// The defaults are an image of 512 by 512 pixels, a grid of 4 by 4
-    /// samples in each pixel, a border 1 pixel wide in
+    /// samples in each pixel, a border 1 wide in [`BorderUnit::Pixels`] in
     /// [`Colour::BLACK`], a [`Colour::WHITE`] background, a fold cap of 1500
     /// steps, no viewing rotation, a light in the direction `(-1, 1, 2)`,
     /// [`Shading::Phong`], and [`HyperbolicModel::Disk`].
@@ -132,6 +163,7 @@ impl RenderOptions {
                 height: DEFAULT_SIDE,
                 samples: DEFAULT_GRID,
                 border_width: DEFAULT_BORDER_WIDTH,
+                border_unit: BorderUnit::Pixels,
                 border_colour: Colour::BLACK,
                 background: Colour::WHITE,
                 max_folds: DEFAULT_FOLD_CAP,
@@ -207,15 +239,31 @@ impl RenderOptionsBuilder {
         self
     }
 
-    /// Sets the width of the border of each tile, in pixels of the image.
+    /// Sets the width of the border of each tile, in the unit that
+    /// [`border_unit`](RenderOptionsBuilder::border_unit) sets.
     ///
-    /// A sample takes the border colour when its estimated distance to a side
-    /// of its tile is less than half this width. A sample whose side value is
-    /// NaN, or whose rate of change across the image is not finite, also takes
-    /// the border colour. The width must be a finite number from 0 to 1024. A
-    /// width of 0 draws no border.
-    pub fn border_width(mut self, pixels: f64) -> Self {
-        self.options.border_width = pixels;
+    /// With [`BorderUnit::Pixels`], a sample takes the border colour when its
+    /// estimated distance in pixels to a side of its tile is less than half
+    /// this width, and a sample whose side value is NaN, or whose rate of
+    /// change across the image is not finite, also takes the border colour.
+    /// With [`BorderUnit::Intrinsic`], a sample takes the border colour when
+    /// its distance in the geometry of the domain to the wall of a side of its
+    /// tile is less than half this width or is NaN. The width must be a finite
+    /// number from 0 to 1024 in either unit. A width of 0 draws no border.
+    pub fn border_width(mut self, width: f64) -> Self {
+        self.options.border_width = width;
+        self
+    }
+
+    /// Sets the unit of the border width.
+    ///
+    /// Every unit is accepted, and the default is [`BorderUnit::Pixels`]. The
+    /// unit does not change the accepted widths or the default width of 1, so
+    /// a caller that chooses [`BorderUnit::Intrinsic`] usually sets a width
+    /// well below 1 too, such as 0.05, because a band 1 wide around each wall
+    /// can cover the whole of a small tile.
+    pub fn border_unit(mut self, unit: BorderUnit) -> Self {
+        self.options.border_unit = unit;
         self
     }
 
@@ -362,7 +410,7 @@ impl RenderOptionsBuilder {
 mod tests {
     use glam::DVec3;
 
-    use super::{HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
+    use super::{BorderUnit, HyperbolicModel, RenderOptions, RenderOptionsBuilder, Shading};
     use crate::colour::{Colour, Fill};
     use crate::error::ErrorKind;
 
@@ -393,6 +441,7 @@ mod tests {
         assert_eq!((options.width(), options.height()), (512, 512));
         assert_eq!(options.samples, 4);
         assert_eq!(options.border_width.to_bits(), 1.0_f64.to_bits());
+        assert_eq!(options.border_unit, BorderUnit::Pixels);
         assert_eq!(options.border_colour, Colour::BLACK);
         assert_eq!(options.background, Colour::WHITE);
         assert_eq!(options.max_folds, 1500);
@@ -568,37 +617,47 @@ mod tests {
     }
 
     #[test]
-    fn border_width_accepts_its_limits_and_rejects_values_past_them() {
-        assert_eq!(accepted(builder().border_width(0.0)).border_width, 0.0);
-        assert_eq!(
-            accepted(builder().border_width(1024.0)).border_width,
-            1024.0
-        );
-        rejected(
-            builder().border_width(-1.0),
-            ErrorKind::InvalidOption,
-            "cannot build render options: the border width -1 is negative or not finite",
-        );
-        rejected(
-            builder().border_width(f64::NAN),
-            ErrorKind::InvalidOption,
-            "cannot build render options: the border width NaN is negative or not finite",
-        );
-        rejected(
-            builder().border_width(f64::INFINITY),
-            ErrorKind::InvalidOption,
-            "cannot build render options: the border width inf is negative or not finite",
-        );
-        rejected(
-            builder().border_width(1025.0),
-            ErrorKind::LimitExceeded,
-            "cannot build render options: the border width 1025 is larger than 1024",
-        );
-        rejected(
-            builder().border_width(1024.5),
-            ErrorKind::LimitExceeded,
-            "cannot build render options: the border width 1024.5 is larger than 1024",
-        );
+    fn border_unit_is_kept() {
+        for unit in [BorderUnit::Pixels, BorderUnit::Intrinsic] {
+            assert_eq!(accepted(builder().border_unit(unit)).border_unit, unit);
+        }
+    }
+
+    #[test]
+    fn border_width_accepts_its_limits_and_rejects_values_past_them_in_either_unit() {
+        for unit in [BorderUnit::Pixels, BorderUnit::Intrinsic] {
+            let builder = || builder().border_unit(unit);
+            assert_eq!(accepted(builder().border_width(0.0)).border_width, 0.0);
+            assert_eq!(
+                accepted(builder().border_width(1024.0)).border_width,
+                1024.0
+            );
+            rejected(
+                builder().border_width(-1.0),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the border width -1 is negative or not finite",
+            );
+            rejected(
+                builder().border_width(f64::NAN),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the border width NaN is negative or not finite",
+            );
+            rejected(
+                builder().border_width(f64::INFINITY),
+                ErrorKind::InvalidOption,
+                "cannot build render options: the border width inf is negative or not finite",
+            );
+            rejected(
+                builder().border_width(1025.0),
+                ErrorKind::LimitExceeded,
+                "cannot build render options: the border width 1025 is larger than 1024",
+            );
+            rejected(
+                builder().border_width(1024.5),
+                ErrorKind::LimitExceeded,
+                "cannot build render options: the border width 1024.5 is larger than 1024",
+            );
+        }
     }
 
     #[test]

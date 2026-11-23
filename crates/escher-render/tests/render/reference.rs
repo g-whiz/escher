@@ -67,7 +67,10 @@ pub(crate) struct ExactFold {
 }
 
 pub(crate) fn fold(walls: &[Wall], point: [f64; 3], cap: u32) -> ExactFold {
-    let mut x = vector(point);
+    fold_exact(walls, vector(point), cap)
+}
+
+pub(crate) fn fold_exact(walls: &[Wall], mut x: Vector, cap: u32) -> ExactFold {
     let mut sides = Vec::new();
     loop {
         let violated = walls

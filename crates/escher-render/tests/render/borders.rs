@@ -1,16 +1,19 @@
+use astro_float_num::BigFloat;
 use escher_geometry::hyperbolic::{distance, from_disk, inverse};
 use escher_geometry::{euclidean, spherical};
-use escher_render::{Colour, Fill, RenderOptions, Shading, fold};
+use escher_reference::{Reference, Vector, add, int, mul, num, sqrt, sub, vector};
+use escher_render::{BorderUnit, Colour, Fill, HyperbolicModel, RenderOptions, Shading, fold};
 use glam::{DVec2, DVec3};
 
 use crate::common::{
-    DEFAULT_CAP, EUCLIDEAN_DOMAINS, SPHERICAL_GROUP_BOUNDS, euclidean_domain, euclidean_name,
-    options, viewing_matrix,
+    DEFAULT_CAP, EUCLIDEAN_DOMAINS, Measure, SPHERICAL_GROUP_BOUNDS, euclidean_domain,
+    euclidean_name, options, pixel_position, plane_pixel, viewing_matrix,
 };
 use crate::golden_images::{
-    MODEL_MAPS, PLAN_TRIPLES, WALLPAPER_DOMAINS, domain_with_aspect, domain_with_settings, renderer,
+    GOLDEN_FILL, MODEL_MAPS, ModelMap, PLAN_TRIPLES, WALLPAPER_DOMAINS, disk_pixel,
+    domain_with_aspect, domain_with_settings, pixel_centre, reference_walls, renderer,
 };
-use crate::reference::count_bound;
+use crate::reference::{self, ReferenceExt, count_bound};
 
 const SIZE: u32 = 192;
 
@@ -27,12 +30,7 @@ const GRID_ASPECTS: [f64; 6] = [1.0, 4.0, 1.618, 0.125, 8.0, 0.3];
 const GRID_HALF_WIDTHS: [f64; 3] = [0.5, 0.75, 1.5];
 
 fn position(column: u32, row: u32) -> DVec2 {
-    let pixel = 2.0 / (15.0 / 16.0 * f64::from(SIZE));
-    let half = f64::from(SIZE) / 2.0;
-    DVec2::new(
-        (f64::from(column) + 0.5 - half) * pixel,
-        (half - f64::from(row) - 0.5) * pixel,
-    )
+    pixel_position(SIZE, column, row)
 }
 
 fn border_mask(domain: &escher_domain::FundamentalDomain, size: u32) -> Vec<bool> {
@@ -219,12 +217,7 @@ fn border_pixels_of_a_polygon_lie_where_the_tile_of_a_sample_changes() {
 }
 
 fn plane_position(size: u32, column: u32, row: u32) -> DVec2 {
-    let pixel = 8.0 / f64::from(size);
-    let half = f64::from(size) / 2.0;
-    DVec2::new(
-        (f64::from(column) + 0.5 - half) * pixel,
-        (half - f64::from(row) - 0.5) * pixel,
-    )
+    pixel_centre(size, size, column, row, plane_pixel(size, size))
 }
 
 fn assert_plane_borders_where_the_tile_changes(
@@ -290,7 +283,7 @@ fn grid_oracle(width: f64, height: f64, position: DVec2, pixel: f64, half_width:
 fn rectangle_borders_and_parities_match_the_grid_of_the_rectangle() {
     let even = Colour::from_srgb8(245, 222, 179);
     let odd = Colour::from_srgb8(70, 130, 180);
-    let pixel = 8.0 / f64::from(GRID_SIZE);
+    let pixel = plane_pixel(GRID_SIZE, GRID_SIZE);
     for aspect in GRID_ASPECTS {
         let domain = domain_with_aspect("*2222", Some(aspect));
         let lengths = domain.side_lengths();
@@ -497,4 +490,221 @@ fn every_border_pixel_of_a_kite_is_a_border_pixel_of_its_triangle() {
         assert!(kite_borders > 0, "{kite}");
         assert!(kite_borders < triangle_borders, "{kite}");
     }
+}
+
+#[derive(Clone, Copy)]
+enum Picture {
+    Disk,
+    Model(&'static ModelMap),
+    Plane,
+    Ball,
+}
+
+struct Centre {
+    point: Vector,
+    rim: Option<f64>,
+}
+
+impl Picture {
+    fn model(self) -> HyperbolicModel {
+        match self {
+            Self::Model(map) => map.model,
+            Self::Disk | Self::Plane | Self::Ball => HyperbolicModel::Disk,
+        }
+    }
+
+    fn name(self) -> String {
+        match self {
+            Self::Disk => "the disk".to_owned(),
+            Self::Model(map) => format!("the {:?} model", map.model),
+            Self::Plane => "the plane".to_owned(),
+            Self::Ball => "the ball".to_owned(),
+        }
+    }
+
+    fn measure(self) -> Measure {
+        match self {
+            Self::Disk | Self::Model(_) => Measure::Hyperbolic,
+            Self::Plane => Measure::Euclidean,
+            Self::Ball => Measure::Spherical,
+        }
+    }
+
+    fn centre(
+        self,
+        reference: &mut Reference,
+        (width, height): (u32, u32),
+        column: u32,
+        row: u32,
+    ) -> Option<Centre> {
+        match self {
+            Self::Disk => {
+                let position = pixel_centre(width, height, column, row, disk_pixel(width, height));
+                from_disk(position)?;
+                let [first, second] = position.to_array().map(num);
+                Some(Centre {
+                    point: reference::from_disk(position.to_array()),
+                    rim: Some(rim_distance(reference, &first, &second)),
+                })
+            }
+            Self::Model(map) => {
+                let position = map.position(width, height, column, row);
+                (map.to_disk)(position).and_then(|(disk, _)| from_disk(disk))?;
+                let [first, second] =
+                    reference.model_to_disk(map.exact, &position.to_array().map(num));
+                Some(Centre {
+                    point: reference::from_disk_exact(&first, &second),
+                    rim: Some(rim_distance(reference, &first, &second)),
+                })
+            }
+            Self::Plane => {
+                let position = pixel_centre(width, height, column, row, plane_pixel(width, height));
+                Some(Centre {
+                    point: vector([position.x, position.y, 1.0]),
+                    rim: None,
+                })
+            }
+            Self::Ball => {
+                let position = pixel_centre(width, height, column, row, disk_pixel(width, height));
+                if position.length_squared() >= 1.0 {
+                    return None;
+                }
+                let [first, second] = position.to_array().map(num);
+                Some(Centre {
+                    point: reference.lift(position.to_array(), [0.0; 3]),
+                    rim: Some(rim_distance(reference, &first, &second)),
+                })
+            }
+        }
+    }
+}
+
+fn rim_distance(reference: &mut Reference, first: &BigFloat, second: &BigFloat) -> f64 {
+    let radius = sqrt(&add(&mul(first, first), &mul(second, second)));
+    reference.approximate(&sub(&int(1), &radius))
+}
+
+const INTRINSIC_SIZES: [(u32, u32); 2] = [(48, 32), (96, 64)];
+
+const INTRINSIC_WIDTH: f64 = 0.1;
+
+const INTRINSIC_RANGE: f64 = 1e-3;
+
+const INTRINSIC_CLEARANCE: f64 = 1e-9;
+
+fn assert_intrinsic_border_at_each_pixel(text: &str, picture: Picture) {
+    let fill = GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
+    let background = Colour::from_srgb8(255, 0, 255);
+    let border = Colour::BLACK.to_srgb8();
+    let domain = domain_with_settings(text, &[]);
+    let walls = reference_walls(&domain);
+    let measure = picture.measure();
+    let mut reference = Reference::new();
+    let half_width = num(INTRINSIC_WIDTH / 2.0);
+    let clearance = num(INTRINSIC_CLEARANCE);
+    for (width, height) in INTRINSIC_SIZES {
+        let name = format!("{text} in {} at {width} by {height}", picture.name());
+        let options = options(
+            RenderOptions::builder(Fill::Parity(fill))
+                .size(width, height)
+                .samples(1)
+                .border_unit(BorderUnit::Intrinsic)
+                .border_width(INTRINSIC_WIDTH)
+                .background(background)
+                .shading(Shading::Flat)
+                .model(picture.model()),
+        );
+        let (pixels, _) = renderer(&domain, options).render();
+        let pixels = pixels.as_chunks::<3>().0;
+        let (mut compared, mut marked, mut outside, mut beyond, mut near) = (0, 0, 0, 0, 0);
+        for row in 0..height {
+            for column in 0..width {
+                let index = usize::try_from(row * width + column).unwrap_or(usize::MAX);
+                let shown = pixels[index];
+                let Some(centre) = picture.centre(&mut reference, (width, height), column, row)
+                else {
+                    outside += 1;
+                    continue;
+                };
+                if centre.rim.is_some_and(|rim| rim < INTRINSIC_RANGE) {
+                    beyond += 1;
+                    continue;
+                }
+                let folded = reference::fold_exact(&walls, centre.point, DEFAULT_CAP);
+                assert!(
+                    folded.converged,
+                    "{name}: the reference fold of pixel ({column}, {row}) does not converge"
+                );
+                let distances: Vec<_> = walls
+                    .iter()
+                    .map(|wall| {
+                        measure.wall_distance(&mut reference, &wall.covector, &folded.point)
+                    })
+                    .collect();
+                if distances
+                    .iter()
+                    .any(|distance| sub(distance, &half_width).abs() < clearance)
+                {
+                    near += 1;
+                    continue;
+                }
+                let expected = distances.iter().any(|distance| *distance < half_width);
+                assert_eq!(
+                    shown == border,
+                    expected,
+                    "{name}: pixel ({column}, {row}) shows {shown:?}"
+                );
+                assert!(
+                    expected || fill.iter().any(|colour| colour.to_srgb8() == shown),
+                    "{name}: pixel ({column}, {row}) shows {shown:?}, which is no fill colour"
+                );
+                compared += 1;
+                marked += usize::from(expected);
+            }
+        }
+        println!(
+            "{name}: {compared} pixels compared, {marked} of them border pixels, {outside} outside, {beyond} within {INTRINSIC_RANGE:e} of the rim, {near} within {INTRINSIC_CLEARANCE:e} of half the width"
+        );
+        assert!(
+            marked > 0 && marked < compared,
+            "{name}: {marked} of {compared}"
+        );
+    }
+}
+
+#[test]
+fn intrinsic_border_of_each_pixel_of_a_hyperbolic_disk_follows_the_reference_distance() {
+    assert_intrinsic_border_at_each_pixel("*732", Picture::Disk);
+}
+
+fn model_picture(model: HyperbolicModel) -> Picture {
+    match MODEL_MAPS.iter().find(|map| map.model == model) {
+        Some(map) => Picture::Model(map),
+        None => panic!("the model maps hold no {model:?} model"),
+    }
+}
+
+#[test]
+fn intrinsic_border_of_each_pixel_of_the_half_plane_follows_the_reference_distance() {
+    assert_intrinsic_border_at_each_pixel("*732", model_picture(HyperbolicModel::HalfPlane));
+}
+
+#[test]
+fn intrinsic_border_of_each_pixel_of_the_band_follows_the_reference_distance() {
+    assert_intrinsic_border_at_each_pixel("*732", model_picture(HyperbolicModel::Band));
+}
+
+#[test]
+fn intrinsic_border_of_each_pixel_of_the_klein_disk_follows_the_reference_distance() {
+    assert_intrinsic_border_at_each_pixel("*732", model_picture(HyperbolicModel::Klein));
+}
+
+#[test]
+fn intrinsic_border_of_each_pixel_of_a_euclidean_tiling_follows_the_reference_distance() {
+    assert_intrinsic_border_at_each_pixel("*632", Picture::Plane);
+}
+
+#[test]
+fn intrinsic_border_of_each_pixel_of_a_ball_follows_the_reference_distance() {
+    assert_intrinsic_border_at_each_pixel("*532", Picture::Ball);
 }

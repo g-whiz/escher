@@ -4,7 +4,7 @@ use core::fmt;
 
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use escher_group::{ColouringId, IndexLimit};
-use escher_render::HyperbolicModel;
+use escher_render::{BorderUnit, HyperbolicModel};
 
 const SIGNATURE_HELP: &str = "The signature in orbifold notation, such as *632. In a POSIX shell, put a signature that contains *, (, or ) in single quotes, as in '2*(12)'";
 
@@ -122,11 +122,18 @@ pub(crate) struct RenderArgs {
     pub(crate) colours: Option<String>,
     #[arg(
         long,
-        value_name = "PIXELS",
-        default_value_t = 1.0,
-        help = "The border width in pixels. 0 draws no border"
+        value_name = "WIDTH",
+        help = "The border width, in the unit of --border-unit. 0 draws no border. The default is 1 for pixels and 0.05 for intrinsic"
     )]
-    pub(crate) border_width: f64,
+    pub(crate) border_width: Option<f64>,
+    #[arg(
+        long,
+        value_name = "UNIT",
+        value_enum,
+        default_value_t = BorderUnitChoice::Pixels,
+        help = "The unit of --border-width: pixels of the image, or intrinsic for a length in the geometry of the tiling, such as 0.05"
+    )]
+    pub(crate) border_unit: BorderUnitChoice,
     #[arg(
         long,
         value_name = "COLOUR",
@@ -261,6 +268,28 @@ pub(crate) enum ModelChoice {
     Klein,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub(crate) enum BorderUnitChoice {
+    Pixels,
+    Intrinsic,
+}
+
+impl BorderUnitChoice {
+    pub(crate) fn unit(self) -> BorderUnit {
+        match self {
+            Self::Pixels => BorderUnit::Pixels,
+            Self::Intrinsic => BorderUnit::Intrinsic,
+        }
+    }
+
+    pub(crate) fn default_width(self) -> f64 {
+        match self {
+            Self::Pixels => 1.0,
+            Self::Intrinsic => 0.05,
+        }
+    }
+}
+
 impl ModelChoice {
     pub(crate) fn model(self) -> HyperbolicModel {
         match self {
@@ -345,11 +374,11 @@ mod tests {
     use escher_signature::Signature;
 
     use clap::ValueEnum;
-    use escher_render::HyperbolicModel;
+    use escher_render::{BorderUnit, HyperbolicModel};
 
     use super::{
-        Colouring, ModelChoice, SET_LONG_HELP, Setting, parse_colouring, parse_max_colours,
-        parse_setting, parse_triple,
+        BorderUnitChoice, Colouring, ModelChoice, SET_LONG_HELP, Setting, parse_colouring,
+        parse_max_colours, parse_setting, parse_triple,
     };
 
     #[test]
@@ -369,6 +398,24 @@ mod tests {
         }
         for text in ["poincare", "Band", "half_plane", ""] {
             assert!(ModelChoice::from_str(text, false).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn each_border_unit_value_maps_to_the_unit_of_the_same_name() {
+        let cases = [
+            ("pixels", BorderUnit::Pixels),
+            ("intrinsic", BorderUnit::Intrinsic),
+        ];
+        assert_eq!(BorderUnitChoice::value_variants().len(), cases.len());
+        for (text, unit) in cases {
+            match BorderUnitChoice::from_str(text, false) {
+                Ok(choice) => assert_eq!(choice.unit(), unit, "{text}"),
+                Err(error) => panic!("{text} is rejected: {error}"),
+            }
+        }
+        for text in ["px", "Intrinsic", "pixel", ""] {
+            assert!(BorderUnitChoice::from_str(text, false).is_err(), "{text}");
         }
     }
 

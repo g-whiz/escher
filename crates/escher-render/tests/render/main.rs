@@ -1,7 +1,10 @@
 //! Integration tests of `escher-render` through its public interface.
 
 #[cfg(test)]
-use escher_render::{Colour, CosetFill, Fill, HyperbolicModel, RenderOptions, Renderer, Shading};
+use escher_render::{
+    BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, RenderOptions, RenderOptionsBuilder,
+    Renderer, Shading,
+};
 
 #[cfg(test)]
 mod borders;

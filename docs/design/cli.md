@@ -1459,7 +1459,7 @@ None of these blocks the implementation. Points 1, 3, 4, 5, 8, and 36 belong to 
 37. Withdrawn on 2026-11-22.
 38. The pictures of the spherical groups (`DEC-61` of `docs/design/architecture.md`). With the default colouring, `5x` renders the image of `*55` and `x` that of `*`, and with `--colouring one`, `3*2` renders the image of `432`. For the orders that Section 5.15 of `docs/design/render.md` treats, no picture of a colouring id tells `n*` from `n22` or `nx` from `*nn`. The default images of `*`, `x`, and `1` differ only in a thin rim, so a user who renders `*` sees no mirror until `--rotation` turns the ball. Points 42 and 43 of Section 12.3 of `docs/design/render.md` hold the alternatives.
 39. Withdrawn on 2026-11-22, when the owner decided that `--model` has no effect on a Euclidean or spherical signature and gives no diagnostic (`DEC-77`).
-40. The default border width 0.05 with `--border-unit intrinsic`, while `pixels` keeps 1 (`DEC-79`, CLI-56). The alternative is one default of 1 for both units.
+40. Withdrawn on 2026-11-23, when the owner decided that the default border width is 0.05 with `--border-unit intrinsic` and stays 1 with `pixels` (`DEC-79`).
 
 ## 12. Security Considerations
 
@@ -1589,4 +1589,4 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-53 | 5.5 | For a domain with no side, `info` prints `Domain: no sides` and no `Corner angles in degrees` and `Side lengths` lines, and the `Side pairs` line names `rotary reflection` for `PairingKind::RotaryReflection`. |
 | CLI-54 | 8.1 | A snapshot of `info` on a spherical group domain uses the default colour limit of 12 and holds only inputs whose printed values meet the rounding condition of CLI-20. |
 | CLI-55 | 4.6 | `--model` accepts exactly `disk`, `half-plane`, `band`, and `klein`, defaults to `disk`, and passes the variant of the same name to `escher-render` for every signature. |
-| CLI-56 | 4.6 | `--border-unit` accepts exactly `pixels` and `intrinsic`, defaults to `pixels`, and passes the variant of the same name to `escher-render` for every signature. |
+| CLI-56 | 4.6 | `--border-unit` accepts exactly `pixels` and `intrinsic`, defaults to `pixels`, makes the default width 1 with `pixels` and 0.05 with `intrinsic`, and passes the variant of the same name to `escher-render` for every signature. |

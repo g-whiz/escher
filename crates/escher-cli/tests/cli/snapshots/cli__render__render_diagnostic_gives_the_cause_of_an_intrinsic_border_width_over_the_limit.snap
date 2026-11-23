@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "render_snapshot(\"intrinsic_border_limit\",\n&[\"*732\", \"--border-unit\", \"intrinsic\", \"--border-width\", \"1025\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732
+  caused by: cannot build render options: the border width 1025 is larger than 1024
+--- end

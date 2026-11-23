@@ -1,5 +1,3 @@
-use core::f64::consts::TAU;
-
 use escher_domain::FundamentalDomain;
 use escher_geometry::hyperbolic::from_disk;
 use escher_geometry::spherical;
@@ -7,9 +5,12 @@ use escher_render::{Colour, Fill, RenderOptions, RenderOptionsBuilder, RenderSta
 use escher_signature::Signature;
 use glam::{DMat3, DVec2, DVec3};
 
-use crate::golden_images::{POLYGON_DOMAINS, PolygonShape, Shape, domain_with_aspect};
-use crate::reference::{self, ReferenceExt, Wall};
-use escher_reference::{Reference, Vector, dot, matrix, normalize, vector};
+use crate::golden_images::{
+    FOLD_ANGLES, POLYGON_DOMAINS, PolygonShape, Shape, band_radius, disk_pixel, domain_with_aspect,
+    on_circle, pixel_centre,
+};
+use crate::reference::{self, ReferenceExt};
+use escher_reference::{Reference, Vector, dot, normalize};
 
 pub(crate) const FOLD_TRIPLES: [[u32; 3]; 7] = [
     [7, 3, 2],
@@ -22,8 +23,6 @@ pub(crate) const FOLD_TRIPLES: [[u32; 3]; 7] = [
 ];
 
 pub(crate) const BANDS: [i32; 6] = [1, 2, 3, 4, 5, 6];
-
-pub(crate) const FOLD_ANGLES: u32 = 512;
 
 pub(crate) const RIM_ANGLES: u32 = 64;
 
@@ -504,33 +503,12 @@ pub(crate) fn one_fill() -> Fill {
     Fill::One(Colour::from_srgb8(70, 130, 180))
 }
 
-pub(crate) fn reference_walls(domain: &FundamentalDomain) -> Vec<Wall> {
-    domain
-        .sides()
-        .iter()
-        .map(|side| Wall {
-            covector: vector(side.covector().to_array()),
-            pairing: matrix(side.pairing().to_cols_array()),
-        })
-        .collect()
-}
-
-pub(crate) fn band_radius(band: i32) -> f64 {
-    1.0 - 10.0_f64.powi(-band)
-}
-
-pub(crate) fn on_circle(radius: f64, index: u32, count: u32) -> DVec2 {
-    let angle = TAU * f64::from(index) / f64::from(count);
-    DVec2::new(radius * angle.cos(), radius * angle.sin())
+pub(crate) fn plane_pixel(width: u32, height: u32) -> f64 {
+    8.0 / f64::from(width.min(height))
 }
 
 pub(crate) fn pixel_position(size: u32, column: u32, row: u32) -> DVec2 {
-    let pixel = 2.0 / (15.0 / 16.0 * f64::from(size));
-    let half = f64::from(size) / 2.0;
-    DVec2::new(
-        (f64::from(column) + 0.5 - half) * pixel,
-        (half - f64::from(row) - 0.5) * pixel,
-    )
+    pixel_centre(size, size, column, row, disk_pixel(size, size))
 }
 
 pub(crate) struct Sample {

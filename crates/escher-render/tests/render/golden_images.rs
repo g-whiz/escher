@@ -6,9 +6,12 @@ use escher_group::{
 use escher_signature::Signature;
 use glam::{DMat2, DMat3, DVec2};
 
-use crate::reference::{self, ReferenceExt};
-use crate::{Colour, CosetFill, Fill, HyperbolicModel, RenderOptions, Renderer, Shading};
-use escher_reference::Reference;
+use crate::reference::{self, ReferenceExt, Wall};
+use crate::{
+    BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, RenderOptions, RenderOptionsBuilder,
+    Renderer, Shading,
+};
+use escher_reference::{Reference, matrix, vector};
 
 pub(crate) struct GoldenImage {
     pub(crate) signature: &'static str,
@@ -17,6 +20,8 @@ pub(crate) struct GoldenImage {
     pub(crate) shading: Shading,
     pub(crate) model: HyperbolicModel,
     pub(crate) colouring: Option<&'static str>,
+    pub(crate) border_unit: BorderUnit,
+    pub(crate) border_width: f64,
     pub(crate) file: &'static str,
 }
 
@@ -25,7 +30,7 @@ impl GoldenImage {
         domain_with_settings(self.signature, self.settings)
     }
 
-    pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
+    pub(crate) fn builder_without_unit(&self, domain: &FundamentalDomain) -> RenderOptionsBuilder {
         let [even, odd] =
             GOLDEN_FILL.map(|[red, green, blue]| Colour::from_srgb8(red, green, blue));
         let fill = match self.colouring {
@@ -33,13 +38,19 @@ impl GoldenImage {
             Some(id) => Fill::Cosets(coset_fill(domain, golden_colouring(domain, id))),
         };
         let [yaw, pitch, roll] = self.rotation.map(f64::to_radians);
-        match RenderOptions::builder(fill)
+        RenderOptions::builder(fill)
             .size(GOLDEN_SIZE, GOLDEN_SIZE)
             .samples(GOLDEN_GRID)
-            .border_width(1.0)
+            .border_width(self.border_width)
             .rotation(yaw, pitch, roll)
             .shading(self.shading)
             .model(self.model)
+    }
+
+    pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
+        match self
+            .builder_without_unit(domain)
+            .border_unit(self.border_unit)
             .build()
         {
             Ok(options) => options,
@@ -60,7 +71,19 @@ const fn golden(
         shading: Shading::Phong,
         model: HyperbolicModel::Disk,
         colouring: None,
+        border_unit: BorderUnit::Pixels,
+        border_width: 1.0,
         file,
+    }
+}
+
+pub(crate) const GOLDEN_INTRINSIC_WIDTH: f64 = 0.05;
+
+const fn intrinsic(signature: &'static str, file: &'static str) -> GoldenImage {
+    GoldenImage {
+        border_unit: BorderUnit::Intrinsic,
+        border_width: GOLDEN_INTRINSIC_WIDTH,
+        ..golden(signature, &[], file)
     }
 }
 
@@ -92,11 +115,13 @@ const fn coset_with(
         shading: Shading::Phong,
         model: HyperbolicModel::Disk,
         colouring: Some(id),
+        border_unit: BorderUnit::Pixels,
+        border_width: 1.0,
         file,
     }
 }
 
-pub(crate) const GOLDEN_IMAGES: [GoldenImage; 36] = [
+pub(crate) const GOLDEN_IMAGES: [GoldenImage; 39] = [
     golden("*732", &[], "7-3-2.png"),
     golden("*542", &[], "5-4-2.png"),
     golden("*433", &[], "4-3-3.png"),
@@ -116,6 +141,8 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 36] = [
         shading: Shading::Phong,
         model: HyperbolicModel::Disk,
         colouring: None,
+        border_unit: BorderUnit::Pixels,
+        border_width: 1.0,
         file: "5-3-2-rotated.png",
     },
     GoldenImage {
@@ -125,6 +152,8 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 36] = [
         shading: Shading::Flat,
         model: HyperbolicModel::Disk,
         colouring: None,
+        border_unit: BorderUnit::Pixels,
+        border_width: 1.0,
         file: "5-3-2-flat.png",
     },
     golden("732", &[], "rot-7-3-2.png"),
@@ -141,6 +170,8 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 36] = [
         shading: Shading::Phong,
         model: HyperbolicModel::Disk,
         colouring: None,
+        border_unit: BorderUnit::Pixels,
+        border_width: 1.0,
         file: "3-3-3-3-slice-2.5.png",
     },
     golden("*22222", &[], "2-2-2-2-2.png"),
@@ -157,6 +188,9 @@ pub(crate) const GOLDEN_IMAGES: [GoldenImage; 36] = [
     in_model("*732", HyperbolicModel::HalfPlane, "7-3-2-half-plane.png"),
     in_model("*732", HyperbolicModel::Band, "7-3-2-band.png"),
     in_model("*732", HyperbolicModel::Klein, "7-3-2-klein.png"),
+    intrinsic("*732", "7-3-2-intrinsic.png"),
+    intrinsic("*632", "6-3-2-intrinsic.png"),
+    intrinsic("*532", "5-3-2-intrinsic.png"),
 ];
 
 pub(crate) struct ModelMap {
@@ -172,17 +206,46 @@ impl ModelMap {
         if self.fills_height {
             2.0 / f64::from(height)
         } else {
-            2.0 / (15.0 / 16.0 * f64::from(width.min(height)))
+            disk_pixel(width, height)
         }
     }
 
     pub(crate) fn position(&self, width: u32, height: u32, column: u32, row: u32) -> DVec2 {
-        let pixel = self.pixel(width, height);
-        DVec2::new(
-            (f64::from(column) + 0.5 - f64::from(width) / 2.0) * pixel,
-            (f64::from(height) / 2.0 - (f64::from(row) + 0.5)) * pixel,
-        ) + self.offset
+        pixel_centre(width, height, column, row, self.pixel(width, height)) + self.offset
     }
+}
+
+pub(crate) fn disk_pixel(width: u32, height: u32) -> f64 {
+    2.0 / (15.0 / 16.0 * f64::from(width.min(height)))
+}
+
+pub(crate) fn pixel_centre(width: u32, height: u32, column: u32, row: u32, pixel: f64) -> DVec2 {
+    DVec2::new(
+        (f64::from(column) + 0.5 - f64::from(width) / 2.0) * pixel,
+        (f64::from(height) / 2.0 - (f64::from(row) + 0.5)) * pixel,
+    )
+}
+
+pub(crate) const FOLD_ANGLES: u32 = 512;
+
+pub(crate) fn band_radius(band: i32) -> f64 {
+    1.0 - 10.0_f64.powi(-band)
+}
+
+pub(crate) fn on_circle(radius: f64, index: u32, count: u32) -> DVec2 {
+    let angle = core::f64::consts::TAU * f64::from(index) / f64::from(count);
+    DVec2::new(radius * angle.cos(), radius * angle.sin())
+}
+
+pub(crate) fn reference_walls(domain: &FundamentalDomain) -> Vec<Wall> {
+    domain
+        .sides()
+        .iter()
+        .map(|side| Wall {
+            covector: vector(side.covector().to_array()),
+            pairing: matrix(side.pairing().to_cols_array()),
+        })
+        .collect()
 }
 
 pub(crate) const MODEL_MAPS: [ModelMap; 3] = [

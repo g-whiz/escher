@@ -154,6 +154,20 @@ fn render_diagnostic_gives_the_cause_of_a_negative_border_width() {
 }
 
 #[test]
+fn render_diagnostic_gives_the_cause_of_an_intrinsic_border_width_over_the_limit() {
+    insta::assert_snapshot!(render_snapshot(
+        "intrinsic_border_limit",
+        &[
+            "*732",
+            "--border-unit",
+            "intrinsic",
+            "--border-width",
+            "1025"
+        ]
+    ));
+}
+
+#[test]
 fn render_diagnostic_gives_the_cause_of_a_missing_directory() {
     let output = output_path("missing_directory");
     let missing = output.with_file_name("missing").join("tiling.png");
@@ -1473,4 +1487,55 @@ fn render_with_a_model_writes_the_bytes_of_the_default_for_a_euclidean_or_spheri
         );
         assert_eq!(band, default, "{signature}");
     }
+}
+
+#[test]
+fn render_with_the_pixel_border_unit_writes_the_bytes_of_the_default() {
+    let default = small_png("border_unit_pixels_default", &["*732"]);
+    let pixels = small_png(
+        "border_unit_pixels_given",
+        &["*732", "--border-unit", "pixels"],
+    );
+    assert_eq!(pixels, default);
+}
+
+#[test]
+fn render_with_the_intrinsic_border_unit_writes_another_image_in_each_geometry() {
+    for (signature, name) in [
+        ("*732", "hyperbolic"),
+        ("*632", "euclidean"),
+        ("*532", "spherical"),
+    ] {
+        let default = small_png(&format!("border_unit_{name}_default"), &[signature]);
+        let intrinsic = small_png(
+            &format!("border_unit_{name}_intrinsic"),
+            &[
+                signature,
+                "--border-unit",
+                "intrinsic",
+                "--border-width",
+                "0.05",
+            ],
+        );
+        assert_ne!(intrinsic, default, "{signature}");
+    }
+}
+
+#[test]
+fn render_with_the_intrinsic_border_unit_and_no_width_draws_the_width_0_05() {
+    let given = small_png(
+        "border_unit_width_given",
+        &[
+            "*732",
+            "--border-unit",
+            "intrinsic",
+            "--border-width",
+            "0.05",
+        ],
+    );
+    let default = small_png(
+        "border_unit_width_default",
+        &["*732", "--border-unit", "intrinsic"],
+    );
+    assert_eq!(default, given);
 }

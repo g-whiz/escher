@@ -1,11 +1,12 @@
 use escher_domain::FundamentalDomain;
+use escher_geometry::{euclidean, hyperbolic, spherical};
 use escher_signature::Geometry;
 use glam::{DVec2, DVec3};
 
 use crate::colour::{Colour, Fill, encode};
 use crate::error::{Error, Result};
 use crate::fold::{Fold, PointSize, Wall, fold_carrying};
-use crate::options::{RenderOptions, Shading};
+use crate::options::{BorderUnit, RenderOptions, Shading};
 use crate::view::{Lift, View};
 
 /// Renders the tiling of a fundamental domain into 8-bit sRGB pixels, in the
@@ -67,8 +68,40 @@ pub struct Renderer {
     size: PointSize,
     view: View,
     options: RenderOptions,
-    half_width: f64,
+    border: Border,
     row_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Border {
+    Pixels {
+        half_width: f64,
+    },
+    Intrinsic {
+        half_width: f64,
+        distance: fn(DVec3, DVec3) -> f64,
+    },
+}
+
+impl Border {
+    fn of(options: &RenderOptions, geometry: Geometry) -> Self {
+        let half_width = options.border_width / 2.0;
+        match options.border_unit {
+            BorderUnit::Pixels => Self::Pixels { half_width },
+            BorderUnit::Intrinsic => Self::Intrinsic {
+                half_width,
+                distance: wall_distance(geometry),
+            },
+        }
+    }
+}
+
+const fn wall_distance(geometry: Geometry) -> fn(DVec3, DVec3) -> f64 {
+    match geometry {
+        Geometry::Hyperbolic => hyperbolic::wall_distance,
+        Geometry::Euclidean => euclidean::wall_distance,
+        Geometry::Spherical => spherical::wall_distance,
+    }
 }
 
 impl Renderer {
@@ -105,7 +138,7 @@ impl Renderer {
             walls,
             size: PointSize::of(geometry),
             view: View::canonical(&options, geometry),
-            half_width: options.border_width / 2.0,
+            border: Border::of(&options, geometry),
             row_bytes: length(3 * u64::from(options.width)),
             options,
         }
@@ -219,7 +252,7 @@ impl Renderer {
     }
 
     fn converged_colour(&self, result: Fold, tangents: [DVec3; 2], sides: &[u8]) -> Colour {
-        if on_border(&self.walls, result.point(), tangents, self.half_width) {
+        if self.border_sample(result.point(), tangents) {
             return self.options.border_colour;
         }
         match &self.options.fill {
@@ -232,6 +265,16 @@ impl Renderer {
                 }
             }
             Fill::Cosets(fill) => fill.colour(sides),
+        }
+    }
+
+    fn border_sample(&self, point: DVec3, tangents: [DVec3; 2]) -> bool {
+        match self.border {
+            Border::Pixels { half_width } => on_border(&self.walls, point, tangents, half_width),
+            Border::Intrinsic {
+                half_width,
+                distance,
+            } => on_intrinsic_border(&self.walls, point, half_width, distance),
         }
     }
 }
@@ -277,6 +320,21 @@ fn on_border(walls: &[Wall], point: DVec3, tangents: [DVec3; 2], half_width: f64
         let gradient = (first * first + second * second).sqrt();
         !(value.abs() >= half_width * gradient)
     })
+}
+
+#[expect(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the negated comparison is true when a distance is NaN, which must give a border sample"
+)]
+fn on_intrinsic_border(
+    walls: &[Wall],
+    point: DVec3,
+    half_width: f64,
+    distance: fn(DVec3, DVec3) -> f64,
+) -> bool {
+    walls
+        .iter()
+        .any(|wall| !(distance(wall.covector(), point) >= half_width))
 }
 
 fn length(bytes: u64) -> usize {
@@ -374,27 +432,28 @@ impl Renderer {
 
 #[cfg(test)]
 mod tests {
-    use escher_domain::{FundamentalDomain, PairingKind};
-    use escher_geometry::hyperbolic::{covector, reflection};
-    use escher_geometry::{euclidean, spherical};
+    use escher_domain::{FundamentalDomain, Orientation, PairingKind};
+    use escher_geometry::hyperbolic::{covector, from_disk, reflection, wall_through};
+    use escher_geometry::{euclidean, hyperbolic, spherical};
     use escher_signature::{Geometry, Signature};
-    use glam::{DVec2, DVec3};
+    use glam::{DMat3, DVec2, DVec3};
 
-    use super::{AMBIENT, DIFFUSE, RenderStats, Renderer, on_border, shade};
+    use super::{AMBIENT, DIFFUSE, RenderStats, Renderer, on_border, on_intrinsic_border, shade};
     use escher_group::Colouring;
 
     use crate::ErrorKind;
     use crate::colour::{Colour, CosetFill, Fill};
     use crate::fold::{PointSize, Wall, fold, fold_carrying};
     use crate::golden_images::{
-        ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, GOLDEN_COSET_FILL, GOLDEN_GRID, GOLDEN_IMAGES,
-        POLYGON_DOMAINS, WALLPAPER_DOMAINS, colouring, colourings_of, compare, coset_fill,
-        domain_with_aspect, find_colouring, golden_colouring, linear_table, renderer,
+        ALLOWED_PIXELS, COSET_GOLDEN_IMAGES, FOLD_ANGLES, GOLDEN_COSET_FILL, GOLDEN_GRID,
+        GOLDEN_IMAGES, MODEL_MAPS, POLYGON_DOMAINS, WALLPAPER_DOMAINS, band_radius, colouring,
+        colourings_of, compare, coset_fill, domain_with_aspect, find_colouring, golden_colouring,
+        linear_table, on_circle, reference_walls, renderer,
     };
-    use crate::options::{RenderOptions, Shading};
-    use crate::reference::{ReferenceExt, count_bound, plane_border_distance};
+    use crate::options::{BorderUnit, HyperbolicModel, RenderOptions, Shading};
+    use crate::reference::{self, ReferenceExt, count_bound, plane_border_distance};
     use crate::view::View;
-    use escher_reference::{Reference, Worst, error, int, vector};
+    use escher_reference::{Reference, Worst, error, int, num, sub, vector};
 
     const EUCLIDEAN_DOMAINS: [(&str, Option<f64>); 7] = [
         ("*632", None),
@@ -489,6 +548,206 @@ mod tests {
     }
 
     #[test]
+    fn intrinsic_border_marks_a_nan_wall_distance_and_not_a_distance_of_exactly_half_the_width() {
+        let walls = [Wall::from_parts(
+            DVec3::X,
+            DMat3::IDENTITY,
+            Orientation::Reversing,
+        )];
+        let point = DVec3::new(0.25, 0.0, 1.0);
+        assert!(!on_intrinsic_border(
+            &walls,
+            point,
+            0.25,
+            euclidean::wall_distance
+        ));
+        assert!(on_intrinsic_border(
+            &walls,
+            point,
+            0.25_f64.next_up(),
+            euclidean::wall_distance
+        ));
+        let distances: [fn(DVec3, DVec3) -> f64; 3] = [
+            hyperbolic::wall_distance,
+            euclidean::wall_distance,
+            spherical::wall_distance,
+        ];
+        for distance in distances {
+            assert!(on_intrinsic_border(
+                &walls,
+                DVec3::new(f64::NAN, 0.0, 1.0),
+                0.0,
+                distance
+            ));
+        }
+    }
+
+    #[test]
+    fn intrinsic_border_of_the_imaginary_axis_is_the_wedge_of_its_equidistant_curves() {
+        const SIZE: u32 = 192;
+        const HALF_WIDTH: f64 = 0.1;
+        const RANGE: f64 = 1e-6;
+        const TOLERANCE: f64 = 1e-10;
+        let Some(map) = MODEL_MAPS
+            .iter()
+            .find(|map| map.model == HyperbolicModel::HalfPlane)
+        else {
+            panic!("the model maps hold no half-plane");
+        };
+        let point_of = |position: DVec2| {
+            (map.to_disk)(position)
+                .and_then(|(disk, _)| from_disk(disk))
+                .unwrap_or_else(|| panic!("the half-plane position {position:?} has no point"))
+        };
+        let normal = match wall_through(point_of(DVec2::Y), point_of(2.0 * DVec2::Y)) {
+            Ok(normal) => normal,
+            Err(error) => panic!("the wall through i and 2i is rejected: {error}"),
+        };
+        let walls = [Wall::from_parts(
+            covector(normal),
+            reflection(normal),
+            Orientation::Reversing,
+        )];
+        let options = match RenderOptions::builder(Fill::One(Colour::WHITE))
+            .size(SIZE, SIZE)
+            .samples(1)
+            .model(HyperbolicModel::HalfPlane)
+            .build()
+        {
+            Ok(options) => options,
+            Err(error) => panic!("{error}"),
+        };
+        let view = View::canonical(&options, Geometry::Hyperbolic);
+        let threshold = HALF_WIDTH.sinh();
+        let (mut compared, mut marked, mut skipped, mut beyond) = (0, 0, 0, 0);
+        let mut largest = (0.0_f64, DVec2::ZERO);
+        for row in 0..SIZE {
+            for column in 0..SIZE {
+                let position = view.position(column, row, 0, 0);
+                let model_position = position + map.offset;
+                let Some((disk, _)) = (map.to_disk)(model_position) else {
+                    panic!("the half-plane position {model_position:?} has no disk position");
+                };
+                if disk.length() > 1.0 - RANGE {
+                    beyond += 1;
+                    continue;
+                }
+                let Some(lift) = view.point(position) else {
+                    panic!("the half-plane position {model_position:?} has no point");
+                };
+                let ratio = model_position.x.abs() / model_position.y;
+                let sine = hyperbolic::wall_distance(walls[0].covector(), lift.point).sinh();
+                let relative = (sine - ratio).abs() / ratio.max(threshold);
+                if relative > largest.0 {
+                    largest = (relative, model_position);
+                }
+                if (ratio - threshold).abs() < TOLERANCE * threshold {
+                    skipped += 1;
+                    continue;
+                }
+                let border =
+                    on_intrinsic_border(&walls, lift.point, HALF_WIDTH, hyperbolic::wall_distance);
+                assert_eq!(
+                    border,
+                    ratio < threshold,
+                    "the half-plane position {model_position:?}, tan |theta| {ratio}, sinh {HALF_WIDTH} {threshold}"
+                );
+                compared += 1;
+                marked += usize::from(border);
+            }
+        }
+        println!(
+            "wedge of half width {HALF_WIDTH}: {compared} samples compared, {marked} in the wedge, {skipped} within the tolerance, {beyond} beyond the range; largest relative error of sinh of the distance {:.3e} at {:?}, tolerance {TOLERANCE:e}, margin {:.1}",
+            largest.0,
+            largest.1,
+            TOLERANCE / largest.0
+        );
+        assert!(8.0 * largest.0 <= TOLERANCE, "relative error {largest:?}");
+        assert!(marked > 0 && marked < compared, "{marked} of {compared}");
+    }
+
+    #[test]
+    fn intrinsic_border_takes_the_same_decision_for_a_point_in_every_model() {
+        const WIDTH: f64 = 0.05;
+        const CLEARANCE: f64 = 1e-9;
+        let domain = domain("*732");
+        let walls = reference_walls(&domain);
+        let renderer_in = |model: HyperbolicModel| {
+            let options = match RenderOptions::builder(Fill::One(Colour::WHITE))
+                .border_unit(BorderUnit::Intrinsic)
+                .border_width(WIDTH)
+                .model(model)
+                .build()
+            {
+                Ok(options) => options,
+                Err(error) => panic!("{error}"),
+            };
+            renderer(&domain, options)
+        };
+        let decision = |renderer: &Renderer, position: DVec2| {
+            let Some(lift) = renderer.view.point(position) else {
+                panic!("the screen position {position:?} has no point");
+            };
+            let (result, tangents) = renderer.fold(&lift, |_| {});
+            assert!(
+                result.converged(),
+                "the screen position {position:?} does not converge"
+            );
+            renderer.border_sample(result.point(), tangents)
+        };
+        let disk = renderer_in(HyperbolicModel::Disk);
+        let models: Vec<_> = MODEL_MAPS
+            .iter()
+            .map(|map| (map, renderer_in(map.model)))
+            .collect();
+        let mut reference = Reference::new();
+        let clearance = num(CLEARANCE);
+        let half_width = num(WIDTH / 2.0);
+        let (mut compared, mut marked, mut near) = (0, 0, 0);
+        for band in 1..=3 {
+            for index in 0..FOLD_ANGLES {
+                let position = on_circle(band_radius(band), index, FOLD_ANGLES);
+                let name = format!("*732 in band {band} at angle {index} of {FOLD_ANGLES}");
+                let folded =
+                    reference::fold_exact(&walls, reference::from_disk(position.to_array()), 1500);
+                assert!(
+                    folded.converged,
+                    "{name}: the reference fold does not converge"
+                );
+                let distances: Vec<_> = walls
+                    .iter()
+                    .map(|wall| reference.wall_distance(&wall.covector, &folded.point))
+                    .collect();
+                if distances
+                    .iter()
+                    .any(|distance| sub(distance, &half_width).abs() < clearance)
+                {
+                    near += 1;
+                    continue;
+                }
+                let expected = distances.iter().any(|distance| *distance < half_width);
+                assert_eq!(decision(&disk, position), expected, "{name} in the disk");
+                for (map, renderer) in &models {
+                    let model_position =
+                        DVec2::from_array(reference.disk_to_model(map.exact, position.to_array()));
+                    assert_eq!(
+                        decision(renderer, model_position - map.offset),
+                        expected,
+                        "{name} in the {:?} model at {model_position:?}",
+                        map.model
+                    );
+                }
+                compared += 1;
+                marked += usize::from(expected);
+            }
+        }
+        println!(
+            "*732 with the intrinsic width {WIDTH}: {compared} disk positions give one decision in every model, {marked} of them border samples, {near} within {CLEARANCE:e} of half the width"
+        );
+        assert!(marked > 0 && marked < compared, "{marked} of {compared}");
+    }
+
+    #[test]
     fn render_counts_every_sample_and_the_corners_outside_the_disk() {
         let options = match RenderOptions::builder(Fill::One(Colour::WHITE))
             .size(4, 4)
@@ -534,7 +793,7 @@ mod tests {
                 .map(|side| match geometry {
                     _ if side.kind() != PairingKind::Mirror => {
                         let pairing = side.pairing();
-                        let moved = glam::DMat3::from_cols(
+                        let moved = DMat3::from_cols(
                             next_up(pairing.x_axis),
                             next_up(pairing.y_axis),
                             next_up(pairing.z_axis),
@@ -558,7 +817,7 @@ mod tests {
             let moved_renderer = match geometry {
                 Geometry::Spherical => {
                     let viewing = crate::view::viewing_matrix(options.rotation);
-                    let moved_viewing = glam::DMat3::from_cols(
+                    let moved_viewing = DMat3::from_cols(
                         next_up(viewing.x_axis),
                         next_up(viewing.y_axis),
                         next_up(viewing.z_axis),
@@ -648,7 +907,6 @@ mod tests {
         measured: &BorderBounds<'_>,
         stride: usize,
     ) {
-        const ANGLES: u32 = 512;
         const NEAR: f64 = 4.0;
         const HALF_WIDTHS: [f64; 2] = [0.5, 1.5];
         const MINIMUM: usize = 1000;
@@ -660,7 +918,7 @@ mod tests {
         let view = View::canonical(&options, Geometry::Hyperbolic);
         let pixel = view.pixel();
         for (band_index, band) in (1..=6).enumerate() {
-            let radius = 1.0 - 10.0_f64.powi(-band);
+            let radius = band_radius(band);
             let mut near = 0;
             let mut differing = [0; 2];
             let mut largest = 0.0_f64;
@@ -672,9 +930,8 @@ mod tests {
                     .iter()
                     .map(|wall| vector(wall.covector().to_array()))
                     .collect();
-                for index in (0..ANGLES).step_by(stride) {
-                    let angle = core::f64::consts::TAU * f64::from(index) / f64::from(ANGLES);
-                    let position = DVec2::new(radius * angle.cos(), radius * angle.sin());
+                for index in (0..FOLD_ANGLES).step_by(stride) {
+                    let position = on_circle(radius, index, FOLD_ANGLES);
                     let Some(lift) = view.point(position) else {
                         panic!("{text}: {position:?} is outside the disk");
                     };
@@ -1212,12 +1469,7 @@ mod tests {
         }
     }
 
-    fn tile(
-        walls: &[Wall],
-        pairings: &[glam::DMat3],
-        point: DVec3,
-        centre: DVec3,
-    ) -> Option<DVec3> {
+    fn tile(walls: &[Wall], pairings: &[DMat3], point: DVec3, centre: DVec3) -> Option<DVec3> {
         let mut sides = Vec::new();
         let (result, _) = fold_carrying(
             walls,

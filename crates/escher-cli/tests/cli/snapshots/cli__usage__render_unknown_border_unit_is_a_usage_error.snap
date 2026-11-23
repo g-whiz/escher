@@ -1,0 +1,14 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"-o\", NEVER_WRITTEN, \"--border-unit\", \"px\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value 'px' for '--border-unit <UNIT>'
+  [possible values: pixels, intrinsic]
+
+  tip: a similar value exists: 'pixels'
+
+For more information, try '--help'.
+--- end
