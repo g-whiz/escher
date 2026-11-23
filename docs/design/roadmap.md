@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This document orders the development of Escher after the proof of concept. It lists the phases, from live rendering through motif authoring, tile reshaping, truncated tilings, animation, and video to releases on five platforms, and it marks which parts of the order the owner set and which are proposals. For each phase and each smaller workstream, including the milestones that the owner moved out of the proof of concept and the Wythoff constructions, it states what the work depends on and which research it starts from. It defines the deep-research items that turn a surveyed topic into a subject-matter reference before its design starts, and the order in which sources and a Lean development close the unverified statements. It designs none of this work.
+This document orders the development of Escher after the proof of concept. It lists the phases, from live rendering through motif authoring, tile reshaping, truncated tilings, animation, and video to releases on five platforms, and it marks which parts of the order the owner set and which are proposals. For each phase and each smaller workstream, including the milestones that the owner moved out of the proof of concept and the Wythoff constructions beyond their first version, it states what the work depends on and which research it starts from. It defines the deep-research items that turn a surveyed topic into a subject-matter reference before its design starts, and the order in which sources and a Lean development close the unverified statements. It designs none of this work.
 
 ## 1. Introduction
 
@@ -26,7 +26,7 @@ These topics are out of scope, by the owner's decision:
 - Tilings without a symmetry group, such as aperiodic tilings, for now, because in the owner's words they "don't fit with the orbifold idea".
 - Research on integrations with external tools (Section 3.3).
 
-`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-91` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M22`, the research prerequisites `RP-1` to `RP-5`, and the unverified statements `UNV-1` to `UNV-36`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
+`docs/design/architecture.md` owns the crates, the owner's decisions for the proof of concept (its Section 10.1), and the labelled defaults `DEC-1` to `DEC-91` (its Section 10.2). `docs/design/poc-plan.md` owns the milestones of the proof of concept, `M1` to `M13` and `M19` to `M23`, the research prerequisites `RP-1` to `RP-6`, and the unverified statements `UNV-1` to `UNV-37`. This document cites those labels and does not restate them. Section 4.1 holds the milestones `M14` to `M18`, which the owner moved out of the proof of concept and which keep their labels. It records the owner's decisions for the phases after the proof of concept.
 
 Research documents are cited by file name, and each is in `docs/research/`.
 
@@ -75,7 +75,7 @@ These points are open for the owner:
 - What "truncated versions of tilings" means (Section 3.5).
 - The order of the media of a motif (Section 3.3).
 - Where the deferred milestones of Section 4.1 sit relative to the phases. The owner has not ordered them.
-- Where the Wythoff constructions of Section 4.2 sit. The owner placed them much later in the roadmap.
+- Where the Wythoff constructions beyond their first version sit (Section 4.2).
 
 ### 3.1. Live Rendering
 
@@ -116,7 +116,7 @@ Section 10 of `orbifold-notation.md` gives the dimension of the space of deforma
 
 This phase lets the user make "truncated versions of tilings" with adjustable parameters, in the owner's words. The owner did not define "truncated".
 
-The planning proposes to read it as the Wythoff construction with a movable generator point. In a reflection triangle, the position of the generator point selects the regular, truncated, rectified, and other uniform forms of the family (Sections 10.1 to 10.3 of `colourings.md`), and the adjustable parameter is that position. The owner confirms or replaces this reading before the design of the phase starts. The owner placed the Wythoff constructions much later in the roadmap (Section 4.2), and whether they are this phase is open.
+The planning proposes to read it as the Wythoff construction with a movable generator point. In a reflection triangle, the position of the generator point selects the regular, truncated, rectified, and other uniform forms of the family (Sections 10.1 to 10.3 of `colourings.md`), and the adjustable parameter is that position. The owner confirms or replaces this reading before the design of the phase starts. The first version of the Wythoff constructions, with on or off marks on the mirrors, is milestone `M23` of the proof of concept (Section 4.2). Whether the work beyond it is this phase is open.
 
 On this reading, the phase starts from Section 10 of `colourings.md`. Its Section 10.7 records that most of the construction rests on secondary sources only, and that no source gives the faces that each position produces or a per-pixel classification of the faces (items 10 and 11 of Section 14.1). Item 12 of that section records the construction beyond triangles as open.
 
@@ -159,7 +159,7 @@ These items are not tied to one phase. Each is a proposal of the planning unless
 | Selecting a tiling by another notation than the orbifold signature, such as a Schlafli symbol | None named | The Schlafli symbols of `M21` of `docs/design/poc-plan.md` | Owner for the item, as one to consider |
 | A machine-readable form of the info output | `DEC-23` | None | Proposal |
 | The milestones `M14` to `M18`, moved out of the proof of concept | Section 4.1 | Section 4.1 | Owner for the move (`DEC-64`), proposal for their order |
-| Wythoff constructions | Section 4.2 | Section 4.2 | Owner for the item and its first version (`DEC-68`) |
+| Wythoff constructions beyond their first version, which is `M23` of `docs/design/poc-plan.md` | Section 4.2 | `M23` | Owner for the item (`DEC-68`) |
 | Rendering of the general non-compact signatures, which Section 2.1 of `docs/design/architecture.md` defines | The deep-research item of Section 5. Section 4.1 records why the research knows no construction | `M18` | Owner for the item, which is outside the proof of concept (`DEC-19`) |
 | Procedural textures from PDE simulation, built with the features of the application and not a core feature | Sections 4 and 10.2 of `pdes-on-orbifolds.md`, and Section 10 of `rendering.md`, which records SymmHub's reaction-diffusion simulation | Phase 3 with procedural graphics as a medium, and the PDE reference of Section 5 | Owner for the item and that it is not a core feature, proposal for the dependencies |
 
@@ -181,15 +181,13 @@ The general non-compact signatures stay outside `M18` (`DEC-19`). The research r
 
 ### 4.2. Wythoff Constructions
 
-The owner decided on 2026-11-22 that Wythoff constructions come much later in the roadmap (`DEC-68` of `docs/design/architecture.md`). The first version has this scope:
+The owner placed the Wythoff constructions in the roadmap on 2026-11-22 and moved their first version into the proof of concept on 2026-11-23, as milestone `M23` (`DEC-68` of `docs/design/architecture.md`). Section 5.23 of `docs/design/poc-plan.md` states the scope of that version and what its design settles.
 
-- The triangle groups `*pqr`.
-- On or off marks on the mirrors.
-- One colour or one image fill for each face type, so up to three fills.
+This section keeps the work beyond the first version, which the owner has not ordered:
 
-Group colourings of the faces are not part of the first version.
-
-The planning proposes that the work starts from the deep-research item on truncated tilings of Section 5, and that its image fills reuse the masks and image fills of `M22` of `docs/design/poc-plan.md`, which that plan proposes to define over a general region with a frame. Whether this work is the phase of truncated tilings of Section 3.5 is open for the owner.
+- A movable generator point, on the reading of truncated tilings of Section 3.5.
+- Group colourings of the faces, the workstream on colourings of the faces of truncated tilings in the table above.
+- The construction beyond triangles, which item 12 of Section 14.1 of `colourings.md` records as open (Section 3.5).
 
 ## 5. Deep Research
 
@@ -208,7 +206,7 @@ The planning proposes this rule, and the last two columns of the table are propo
 | PDEs on orbifolds, for procedural textures | Owner for the item, proposal for its link to the PDE workstream of Section 4 | Sections 4 and 10 of `pdes-on-orbifolds.md` | The error of symmetrization, ghost cells across glide-reflection and hyperbolic pairings, smoothness at a cone point, and a sourced time-step bound (items 1, 3, 4, and 2 of Section 10.2) |
 | General non-compact signatures | Proposal, following `DEC-19` | Section 7 of `fundamental-domains.md` for Maskit's cusps, its Section 4.7 with gaps G1 and G6, item 15 of Section 12 of `orbifold-notation.md`, and item 3 of Section 13.1 of `rendering.md` | A construction of the fundamental domain and its side pairings for each such signature, the open points of the polygon theorem at ideal points (`UNV-5`), the geometry and parameters of these signatures (`UNV-21`), and the fold at ideal vertices (`UNV-23`) |
 | Orbifold deformations, for phase 4 | Proposal | Section 10 of `orbifold-notation.md`, Section 6 of `fundamental-domains.md`, and Section 4.2 of `export-and-animation.md` | The deformations of the Euclidean signatures and whether their counts include the scale (item 7 of Section 12 of `orbifold-notation.md`), and the twists, which Deaton's thesis states, with a caveat on its numbering of the cuts (Section 6.3 and gap G4 of `fundamental-domains.md`) |
-| Truncated tilings, on the reading of Section 3.5, for phase 5 | Proposal | Section 10 of `colourings.md` | Primary sources for the construction, the faces that each position of the generator point produces, per-pixel classification of the faces, and the construction beyond triangles (Section 10.7 and items 10 to 12 of Section 14.1) |
+| Truncated tilings, on the reading of Section 3.5, for phase 5 | Proposal | Section 10 of `colourings.md`, with what `RP-6` of `docs/design/poc-plan.md` adds to it for `M23` | Primary sources for the construction, the faces that each position of the generator point produces, per-pixel classification of the faces, and the construction beyond triangles (Section 10.7 and items 10 to 12 of Section 14.1) |
 
 This roadmap uses Sections 4 and 5 of `export-and-animation.md`, on animation and shader export, and does not use its Section 3 on vector export.
 

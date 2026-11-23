@@ -26,7 +26,7 @@ The primary readers are the coding agents that plan and implement a milestone. T
 
 ### 1.4. Scope
 
-This document covers the workflow of a milestone, the owner's staging, the research prerequisites, the milestones `M1` to `M13` and `M19` to `M22`, the documentation obligations of each milestone, and the unverified statements that the milestones rely on. The milestones `M14` to `M18`, which the owner moved to the roadmap (`DEC-64`), keep their labels and a subsection each that points to the roadmap.
+This document covers the workflow of a milestone, the owner's staging, the research prerequisites, the milestones `M1` to `M13` and `M19` to `M23`, the documentation obligations of each milestone, and the unverified statements that the milestones rely on. The milestones `M14` to `M18`, which the owner moved to the roadmap (`DEC-64`), keep their labels and a subsection each that points to the roadmap.
 
 ### 1.5. Non-Goals
 
@@ -49,10 +49,10 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 This document uses the terms that Section 2.2 of `docs/writing-documentation.md` defines, and calls that document the writing guide. It calls `docs/rust-coding-standards.md` the coding standard and `docs/design/tooling.md` the tooling design. It adds these terms:
 
-- milestone: A unit of the plan with one goal, labelled `M1` to `M22`, delivered by one design branch and a few code branches. The labels `M14` to `M18` name work that the owner moved to the roadmap. The planning documents of Section 3.3 carry the label `M0` and are not delivered this way.
+- milestone: A unit of the plan with one goal, labelled `M1` to `M23`, delivered by one design branch and a few code branches. The labels `M14` to `M18` name work that the owner moved to the roadmap. The planning documents of Section 3.3 carry the label `M0` and are not delivered this way.
 - design branch: A branch named `feature/<name>-design` that changes only documents. It writes or extends the design documents of a milestone, and the research documents where a research prerequisite applies.
 - code branch: A branch in its own worktree that changes code together with its tests and the document updates that Hard Rule 1 of `AGENTS.md` requires.
-- research prerequisite: A design branch, labelled `RP-1` to `RP-5`, that adds to a research document what a milestone needs before its code can start (Section 4).
+- research prerequisite: A design branch, labelled `RP-1` to `RP-6`, that adds to a research document what a milestone needs before its code can start (Section 4).
 - unverified statement: A statement that a milestone relies on and that no cited source establishes, labelled `UNV-1` to `UNV-37` (Section 7).
 - stage: One of the stages of the owner's staging (Section 3.2).
 - proposed default: A decision labelled `DEC-n`, recorded in Section 10.2 of `docs/design/architecture.md`. Section 10.1 of that document states the defaults that the owner has decided, which keep their labels.
@@ -93,7 +93,7 @@ Hard Rule 15 of `AGENTS.md` bars project documents and milestone wording from co
 
 ### 3.2. Staging
 
-The owner decided to stage the proof of concept. On 2026-11-22 the owner moved stage 3, and the milestones `M14` to `M18`, to the roadmap (`DEC-64` of `docs/design/architecture.md`). With that move, the proof of concept is complete when every signature of this set renders:
+The owner decided to stage the proof of concept. On 2026-11-22 the owner moved stage 3, and the milestones `M14` to `M18`, to the roadmap (`DEC-64` of `docs/design/architecture.md`). With that move, the completed proof of concept renders every signature of this set:
 
 - The 17 Euclidean groups.
 - Every spherical signature, within the limits on its orders.
@@ -107,7 +107,7 @@ Every other valid signature has no domain in the proof of concept. These are the
 | 2 | All 17 Euclidean and all 14 spherical groups | M10, completed by M11 |
 | 3 | General hyperbolic signatures, including handles and crosscaps, by porting the SymmHub pipeline, which is under the MIT licence | None. The owner moved it to the roadmap with M15 to M17 (Section 4.1 of `docs/design/roadmap.md`) |
 
-The other milestones carry the owner's decisions on colourings (M7, M8, M20), models (M12), borders (M13), Schlafli symbols (M21), and polygon masks and image fills (M22). The parser accepts signatures with infinite orders from M1, and rendering the friezes and the triangle groups with ideal corners is the roadmap item M18. M19 checks the completion criterion.
+The other milestones carry the owner's decisions on colourings (M7, M8, M20), models (M12), borders (M13), Schlafli symbols (M21), polygon masks and image fills (M22), and Wythoff constructions (M23). The parser accepts signatures with infinite orders from M1, and rendering the friezes and the triangle groups with ideal corners is the roadmap item M18. M19 checks that every signature of the set renders.
 
 ### 3.3. Planning Documents
 
@@ -115,7 +115,7 @@ The planning documents, labelled M0, are the precondition of M1 and have no code
 
 ### 3.4. Milestone Overview
 
-The owner set the order of the remaining work on 2026-11-22 (`DEC-63`). A cleanup comes first and is not a milestone. Then come M20, M12 and M13, M21, and M22, and the completion audit M19 comes last. The order of the new milestones M20, M21, and M22 may still change, and the owner sets it. The table lists the milestones in the planned order. The column "Depends on" names the milestones and research prerequisites whose results a milestone uses, as Section 5 gives them. The milestones M14 to M18 are not in the table, because the owner moved them to the roadmap (Section 3.2).
+The owner set the order of the remaining work on 2026-11-22 and placed M23 in it on 2026-11-23 (`DEC-63`). A cleanup comes first and is not a milestone. Then come M20, M12 and M13, M21, M22, and M23, and the completion audit M19 comes last. The order of the new milestones M20, M21, and M22 may still change, and the owner sets it. The table lists the milestones in the planned order. The column "Depends on" names the milestones and research prerequisites whose results a milestone uses, as Section 5 gives them. The milestones M14 to M18 are not in the table, because the owner moved them to the roadmap (Section 3.2).
 
 | Label | Name | New command-line capability | Crates touched | Depends on |
 | --- | --- | --- | --- | --- |
@@ -135,7 +135,8 @@ The owner set the order of the remaining work on 2026-11-22 (`DEC-63`). A cleanu
 | M13 | Intrinsic border width | `--border-unit intrinsic` | `escher-render`, `escher-geometry`, `escher-cli` | M3, with M4 and M5 for the other geometries and M12 for one test |
 | M21 | Schlafli symbols in `escher info` | The Schlafli symbol of the regular tiling of a signature and of its dual | `escher-cli` | M1 |
 | M22 | Polygon masks and image fills | `escher render-masks`, and image fills in `escher render` | `escher-render`, `escher-cli` | M8 |
-| M19 | Completion audit | None | All six | M11, M12, M13, M20, M21, M22 |
+| M23 | Wythoff constructions | Wythoff tilings of `*pqr` from on or off marks on the mirrors, with one fill for each face type, in a form that the design defines | `escher-render` and `escher-cli`, as expected before the design | M2, M22, RP-6, with M4 and M5 if the design covers the other geometries and M6 if it covers the rotation signatures |
+| M19 | Completion audit | None | All six | M11, M12, M13, M20, M21, M22, M23 |
 
 ## 4. Research Prerequisites
 
@@ -148,8 +149,9 @@ Some milestones need material that a research document must supply first, so a d
 | RP-3 | `atomizeOrbifold`, the twelve `unfoldAtom` cases, the weld, the walls, and `produceGenerators` at line level, for the part of gap G4 that stays open: SymmHub's order of the cuts, its pairing of corners of order 2 across the end of the signature, and its departures from the cut rules of Deaton's thesis (`fundamental-domains.md` 8.15) | `fundamental-domains.md` 8, and `symmhub.md` 6. The sheet and slice part for `*p1...pn` is in `symmhub.md` 6.2.1 to 6.9, 8.1, and 15.3, and in `fundamental-domains.md` 8.4 to 8.14 and 9.4.1 to 9.4.3 | SymmHub source code, with [TH] pp. 311 to 318, [BEARDON], [RATCLIFFE], and [DAVIS] for the sheet and slice part. `symmhub.md` 17 item 8 records which lines were read | M9 for its sheet and slice part. The rest is for the roadmap item M15 |
 | RP-4 | `Group_Frieze`, and the ideal corners of the triangle groups and their rotation subgroups | `fundamental-domains.md` and `symmhub.md` | SymmHub source code | The roadmap item M18 |
 | RP-5 | What [CH] pp. 255 to 257 states for a boundary without corners (`orbifold-notation.md` 12 item 14), and the clearing of the rows of `source-requests.md` 7, "Obtained Since" | `orbifold-notation.md` 9.1 and 12, and `source-requests.md` | [CH], which is held locally | No milestone. It may run at any time |
+| RP-6 | The Wythoff construction on a reflection triangle from primary sources: the faces that each pattern of marks on the mirrors produces and how they fall into face types (`colourings.md` 14.1 item 10, without the snubs), and a per-pixel classification of a folded point into a face and its type (item 11) | `colourings.md` 10 and 14.1 | The sources that `colourings.md` 14.3 lists for items 10 and 11, and the passage on Wythoff triangles of [CBGS2008] that it names, with the precedents of `colourings.md` 10.6, `prior-art.md` 6.7, and `rendering.md` 4.4. A source that cannot be read goes into `source-requests.md` | M23 |
 
-RP-3, apart from its sheet and slice part, and RP-4 serve work that the owner moved to the roadmap (Section 4.1 of `docs/design/roadmap.md`), so no milestone of this plan waits on them. No remaining milestone has a research prerequisite. The design branches of M20 and M21 add to the subject-matter references the sources for the mathematics that they rely on, or record it as unverified there (Hard Rule 14 of `AGENTS.md`).
+RP-3, apart from its sheet and slice part, and RP-4 serve work that the owner moved to the roadmap (Section 4.1 of `docs/design/roadmap.md`), so no milestone of this plan waits on them. RP-6 precedes M23, because `colourings.md` 10.7 records that most of the construction rests on secondary sources, and that no source read gives the face-orbit rule for a pattern of marks or a per-pixel classification of a point into a face. The design branches of M20 and M21 add to the subject-matter references the sources for the mathematics that they rely on, or record it as unverified there (Hard Rule 14 of `AGENTS.md`).
 
 The research on the general non-compact signatures is not a prerequisite of any milestone. It is a deep-research item of Section 5 of `docs/design/roadmap.md`.
 
@@ -422,7 +424,7 @@ The design settles the open points of the planning as proposals:
 - `--colours` mixes hexadecimal colours and image items `image:FILE`, one item for each colour. An image item makes `render` draw `one` and `parity` through the coset fills of `1a` and `2a` (`DEC-91`, CLI-61 of `docs/design/cli.md`).
 - An image fill reads every PNG colour type at a bit depth of 8 or less as 8-bit sRGB with alpha, refuses an image with 16 bits per channel, samples bilinearly in linear light over the background colour, and takes the background colour where a position maps outside the image or to the hidden side of the ball (`DEC-88` to `DEC-90`, Sections 5.20 and 5.21 of `docs/design/render.md`). Section 5.21 of `docs/design/render.md` limits each image, and CLI-60 of `docs/design/cli.md` the images of one render.
 
-The frame of an image fill, a matrix and an image size, stays private until the faces of a Wythoff tiling need it (`DEC-88`, Section 4.2 of `docs/design/roadmap.md`).
+The frame of an image fill, a matrix and an image size, stays private until the faces of a Wythoff tiling need it (`DEC-88`, Section 5.23).
 
 Out of scope: research into external tools, which the owner ruled out (Section 1 of `docs/design/roadmap.md`).
 
@@ -443,6 +445,55 @@ Out of scope: research into external tools, which the owner ruled out (Section 1
 1. Design: the design documents above.
 2. Render library: the reference sequences and matrices, `Masks`, `Paint`, `Image` with `decode_png`, the frames and the sampling, the error kind `Decoding`, and the tests and golden images of `escher-render`.
 3. Command line: `render-masks` and the image items of `--colours` in `escher-cli`, with their snapshots and plain tests, the usage of `render-masks` and of an image fill in `README.md`, and Project Status and Repository Layout in `AGENTS.md` where they change.
+
+### 5.23. M23: Wythoff Constructions
+
+**Goal.** The user specifies a tiling by a Wythoff construction on a reflection triangle, such as the regular tiling `{7,3}` by heptagons with three at each vertex, and `escher` draws its faces with their own borders and fills. The owner moved this work from the roadmap into the proof of concept on 2026-11-23 (`DEC-68`), because the owner wants a way to specify such a tiling. Without it, `escher render` draws a border on the sides of the domain (RND-9 of `docs/design/render.md`), so its picture of `*732` shows triangles and not heptagons.
+
+**Command line.** This command is an illustration only. `--wythoff` and `<marks>` stand for an option and a value whose name and syntax the design decides, and the marks that give `{7,3}` come from the sources of RP-6:
+
+```sh
+escher render '*732' --wythoff <marks> -o heptagons.png
+```
+
+**Scope.** The owner decided the scope of the first version on 2026-11-22, and it stands (`DEC-68`):
+
+- The triangle groups `*pqr`.
+- On or off marks on the mirrors.
+- One colour or one image fill for each face type, so up to three fills.
+
+Group colourings of the faces are not part of the first version. The work beyond it stays in the roadmap (Section 4.2 of `docs/design/roadmap.md`).
+
+The design settles these open points as proposals:
+
+- How the marks are given on the command line, and whether they extend `escher render` or form a command of their own.
+- How the faces and their types are found from the fold, by the face rule that RP-6 sources or records as unverified.
+- Where borders are drawn: on the edges of the faces, and whether the mirrors of the triangle still draw one.
+- Which fill goes with which face type, and in what order the user gives the fills.
+- What happens for marks that give no face of some type, and for a degenerate construction, such as every mark off.
+- Whether the first version covers the rotation signatures `pqr`, and the Euclidean and spherical triangles as well as the hyperbolic ones.
+- How the polygon masks and image fills of M22 apply to a face: whether `render-masks` writes a mask for each face type, and how the frame of `DEC-88` places an image on a face.
+- What `escher info` reports for a construction, if anything.
+
+**Design documents.** Extensions of `render.md` and `cli.md`, the labels that the design adds to Section 10.2 of `docs/design/architecture.md`, with its data flow of Section 4.1 where the faces add a step, and `colourings.md` through RP-6. A change to another crate extends that crate's design document too.
+
+**Sources.** `colourings.md` 10 is the only research on the construction. Its Section 10.1 gives the generator position of each form of a Wythoff symbol, 10.2 the ring diagrams, in which a mirror is active only for a generator point off it, 10.3 the seven forms of a family and the vertex configurations of the family `(p q 2)` from a summarized table, among them the regular form `p^q`, and 10.6 the per-pixel fold into the triangle. Every part except 10.6 rests on Wikipedia only (`colourings.md` 14.2). Section 10.7 records that no source read gives the face-orbit rule for a pattern of marks or a per-pixel classification of a point into a face (items 10 and 11 of 14.1), so RP-6 precedes the code. Beyond `colourings.md`, the research names uniform tilings only as precedents: pywonderland takes a triangle triple with its active mirrors (`prior-art.md` 6.7), and its shader folds per pixel (`rendering.md` 4.4). The symmetry group of `{p,q}` is the reflection group of the right triangle with the angles $\pi/2$, $\pi/p$, and $\pi/q$ (`colourings.md` 5.1), and its name `*pq2` is `UNV-37`.
+
+**Unverified statements relied on.** This plan lists none of its own for M23. RP-6 records in `colourings.md` 14.1 each statement that no source establishes. The design branch adds a row to Section 7 for each such statement that the code relies on, and adds M23 to the rows that it shares with earlier milestones, such as `UNV-1` and `UNV-3` for the fold and for a sample on a wall.
+
+**Tests and acceptance.** The design fixes the tests. These are proposals:
+
+- A golden image of `{7,3}` from `*732`, and one golden image for each other form and geometry that the first version covers.
+- A test that a sample inside a face of each type, at a point that the face rule of RP-6 places there, takes the fill of that type.
+- A test that a construction with no face of a type, or a degenerate one, gives the behaviour that the design specifies, and, where that is a diagnostic, exit status 1 and no file written.
+- A test that an image fill on a face lands where drawn, as the test "Lands where drawn" of M22 does for a tile.
+- The snapshots and plain tests of the new options and diagnostics, and of any line that `info` adds, in Section 8.1 of `docs/design/cli.md`.
+
+**Dependencies and `deny.toml` work.** None expected.
+
+**Risks.** RP-6 may find no primary source for the face rule or the classification, so the milestone proceeds on unverified statements, and a wrong rule draws a wrong image without any error (Section 8). The borders of the faces are no longer the sides of the domain, so the border estimate of `DEC-28`, which RND-9 applies to the sides, may not carry over. The classification adds work to every sample, and its cost and accuracy at the corner orders up to 100 of `DEC-69` are unknown. A movable generator point and snubs lie close to this work and stay out of it.
+
+**Split.** Left open for the design branch, which follows RP-6.
 
 ## 6. Documentation Obligations
 

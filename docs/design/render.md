@@ -387,7 +387,7 @@ Section 3.2 of the architecture lists items that this surface does not have, and
 - A colouring id. `CosetFill::new` takes the `Colouring` itself, which `escher-group` finds from an id, so the crate parses no id and runs no search, and the command line owns the resolution of an id and its errors (Section 4.6 of the command-line design).
 - A palette. The caller gives every fill colour, so the library states no default colour, as Section 4.2 states.
 - The lift onto the ball as a public function. It lives in the private view beside its screen tangents, as the tangents of the disk do, because the view is its one caller.
-- A public frame or sampler interface. The frame of an image fill is a reference matrix and an image size, which `Renderer::new` builds from the coset fill and the domain, so a caller has nothing to choose (`DEC-88`). The later change that fills the faces of a Wythoff tiling (Section 4.2 of `docs/design/roadmap.md`) may make it public.
+- A public frame or sampler interface. The frame of an image fill is a reference matrix and an image size, which `Renderer::new` builds from the coset fill and the domain, so a caller has nothing to choose (`DEC-88`). The change that fills the faces of a Wythoff tiling, milestone `M23` of `docs/design/poc-plan.md`, may make it public.
 - A public reference sequence. The tests find the reference tiles by their own enumeration (Section 8.1), and the command line needs only the masks.
 
 `fold` is public so that the integration tests, which use only the public surface (TEST-1 of the coding standard), can read the side sequence for the reference tests and the border oracle.
