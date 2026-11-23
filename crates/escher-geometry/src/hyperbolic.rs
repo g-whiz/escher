@@ -188,6 +188,45 @@ pub fn distance(first: DVec3, second: DVec3) -> f64 {
     clamped.acosh()
 }
 
+/// Returns the hyperbolic distance from the point on the ray of a vector to
+/// the wall of a unit normal.
+///
+/// Use it to measure how far a point lies from a wall, such as to draw a
+/// border of a given width along a side of a region. The first argument is
+/// the [`covector`] of the wall's unit normal. The second is a timelike
+/// vector, one whose [`form`] with itself is negative, with a positive last
+/// coordinate, and it need not lie on the hyperboloid. The distance is the
+/// inverse hyperbolic sine of the absolute value of
+/// [`side`]`(covector, point)` divided by the square root of
+/// `-form(point, point)`. That is the distance to a hyperplane of equation
+/// (3.2.8) of J. G. Ratcliffe, "Foundations of Hyperbolic Manifolds", with
+/// the time coordinate last. A vector and each positive multiple of it give
+/// the same distance up to rounding. It is the distance to the whole wall,
+/// not to a segment of it.
+///
+/// The result is at least 0, and NaN when a coordinate of either argument is
+/// NaN. For a vector whose computed `-form(point, point)` is negative, the
+/// result is NaN, and for one where it is zero, the result is an infinity of
+/// either sign or NaN.
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::hyperbolic::{ORIGIN, boost, covector, wall_distance};
+/// use glam::DVec3;
+///
+/// let wall = covector(DVec3::new(1.0, 0.0, 0.0));
+/// let point = boost(0.5) * ORIGIN;
+/// assert!((wall_distance(wall, point) - 0.5).abs() < 1e-15);
+/// assert!((wall_distance(wall, 3.0 * point) - 0.5).abs() < 1e-15);
+/// assert_eq!(wall_distance(wall, ORIGIN), 0.0);
+/// ```
+#[must_use]
+pub fn wall_distance(covector: DVec3, point: DVec3) -> f64 {
+    let q = -form(point, point);
+    (side(covector, point).abs() / q.sqrt()).asinh()
+}
+
 /// Returns a unit normal of the wall that contains two points.
 ///
 /// Use it to build the wall through two vertices, such as a side of a
@@ -653,8 +692,9 @@ mod tests {
     use glam::{DMat2, DMat3, DVec2, DVec3};
 
     use super::{
-        ORIGIN, boost, disk_from_band, disk_from_half_plane, disk_from_klein, distance, from_disk,
-        isometry_defect, normalize_point, rotation, to_disk, translation, wall_through,
+        ORIGIN, boost, covector, disk_from_band, disk_from_half_plane, disk_from_klein, distance,
+        from_disk, isometry_defect, normalize_point, rotation, to_disk, translation, wall_distance,
+        wall_through,
     };
     use crate::ErrorKind;
 
@@ -1087,4 +1127,45 @@ mod tests {
     const UNIT_CIRCLE_TOLERANCE: f64 = 4.0 * f64::EPSILON;
     const BAND_VALUE_TOLERANCE: f64 = 4.0 * f64::EPSILON;
     const TANH_OF_PI_OVER_4: f64 = 0.655_794_202_632_672_4;
+
+    #[test]
+    fn wall_distance_of_the_origin_to_the_wall_of_the_first_axis_is_zero() {
+        assert_eq!(wall_distance(covector(DVec3::X), ORIGIN), 0.0);
+    }
+
+    #[test]
+    fn wall_distance_is_nan_for_a_nan_in_either_argument() {
+        let nan = DVec3::new(f64::NAN, 0.0, 1.0);
+        assert!(wall_distance(nan, ORIGIN).is_nan());
+        assert!(wall_distance(DVec3::X, nan).is_nan());
+        assert!(wall_distance(DVec3::X, DVec3::new(0.0, 0.0, f64::NAN)).is_nan());
+    }
+
+    #[test]
+    fn wall_distance_of_a_spacelike_vector_is_nan() {
+        assert!(wall_distance(DVec3::X, DVec3::new(2.0, 0.0, 1.0)).is_nan());
+    }
+
+    #[test]
+    fn wall_distance_of_a_null_vector_is_infinite_or_nan() {
+        let null = DVec3::new(1.0, 0.0, 1.0);
+        for wall in [DVec3::X, DVec3::Y] {
+            let result = wall_distance(wall, null);
+            assert!(
+                result.is_infinite() || result.is_nan(),
+                "{result} for {wall:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn wall_distance_of_an_infinite_coordinate_is_nan() {
+        for point in [
+            DVec3::new(f64::INFINITY, 0.0, 1.0),
+            DVec3::new(0.0, 0.0, f64::INFINITY),
+        ] {
+            let result = wall_distance(DVec3::X, point);
+            assert!(result.is_nan(), "{result} for {point:?}");
+        }
+    }
 }

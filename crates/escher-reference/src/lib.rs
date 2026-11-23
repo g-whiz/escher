@@ -175,6 +175,40 @@ pub fn normalize(x: &Vector) -> Vector {
     scale(&div(&int(1), &sqrt(&form(x, x).neg())), x)
 }
 
+/// Returns the vector divided by its Euclidean length, the square root of
+/// [`dot`]`(x, x)`.
+///
+/// The result lies on the unit sphere. The vector must not be the zero
+/// vector.
+#[must_use]
+pub fn unit(x: &Vector) -> Vector {
+    scale(&div(&int(1), &sqrt(&dot(x, x))), x)
+}
+
+/// Returns a column of a matrix as a vector.
+///
+/// # Panics
+///
+/// Panics if `index` is greater than 2.
+#[must_use]
+pub fn column(matrix: &Matrix, index: usize) -> Vector {
+    [0, 1, 2].map(|row| matrix[row][index].clone())
+}
+
+/// Returns the matrix of the rotation about the third axis by the angle with
+/// the given cosine and sine.
+///
+/// Its rows are `(cos, -sin, 0)`, `(sin, cos, 0)`, and `(0, 0, 1)`, so a
+/// positive sine turns the first axis towards the second.
+#[must_use]
+pub fn rotation_matrix(cos: &BigFloat, sin: &BigFloat) -> Matrix {
+    [
+        [cos.clone(), sin.neg(), int(0)],
+        [sin.clone(), cos.clone(), int(0)],
+        [int(0), int(0), int(1)],
+    ]
+}
+
 /// Returns the product of two matrices.
 #[must_use]
 pub fn product(left: &Matrix, right: &Matrix) -> Matrix {
@@ -610,8 +644,9 @@ impl Worst {
 #[cfg(test)]
 mod tests {
     use super::{
-        Reference, Vector, Worst, apply, cross, difference, div, dot, error, form, int,
-        largest_magnitude, matrix, mul, normalize, num, product, sqrt, sub, vector,
+        Reference, Vector, Worst, apply, column, cross, difference, div, dot, error, form, int,
+        largest_magnitude, matrix, mul, normalize, num, product, rotation_matrix, sqrt, sub, unit,
+        vector,
     };
 
     fn vector_error(x: &Vector, y: &Vector) -> astro_float_num::BigFloat {
@@ -716,6 +751,41 @@ mod tests {
             let size = difference.abs();
             let shown = reference.approximate(&size);
             println!("{name}: error {shown:e}");
+            assert!(size <= tolerance, "{name}: error {shown:e}");
+        }
+    }
+
+    #[test]
+    fn unit_column_and_rotation_matrix_reproduce_known_values() {
+        let mut reference = Reference::new();
+        let tolerance = reference.parse("1e-70");
+        let half = div(&int(1), &int(2));
+        let sin_third = div(&sqrt(&int(3)), &int(2));
+        let shear = matrix([1.0, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
+        let rotated = apply(
+            &rotation_matrix(&half, &sin_third),
+            &vector([1.0, 0.0, 1.0]),
+        );
+        let checks = [
+            (
+                "unit",
+                vector_error(
+                    &unit(&vector([3.0, 0.0, 4.0])),
+                    &[div(&int(3), &int(5)), int(0), div(&int(4), &int(5))],
+                ),
+            ),
+            (
+                "column",
+                vector_error(&column(&shear, 1), &vector([2.0, 1.0, 0.0])),
+            ),
+            (
+                "rotation matrix",
+                vector_error(&rotated, &[half.clone(), sin_third.clone(), int(1)]),
+            ),
+        ];
+        for (name, difference) in checks {
+            let size = difference.abs();
+            let shown = reference.approximate(&size);
             assert!(size <= tolerance, "{name}: error {shown:e}");
         }
     }

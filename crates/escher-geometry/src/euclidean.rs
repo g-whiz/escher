@@ -66,6 +66,35 @@ pub fn side(covector: DVec3, point: DVec3) -> f64 {
     covector.dot(point)
 }
 
+/// Returns the Euclidean distance from a point to the line of a line
+/// covector.
+///
+/// Use it to measure how far a point lies from a line, such as to draw a
+/// border of a given width along a side of a region. The first argument is a
+/// line covector `(a.x, a.y, -t)`, with `a` a unit vector, and the second is
+/// a point `(p, 1)`. The distance is the absolute value of [`side`], which is
+/// `|a . p - t|`, in the unit of the coordinates. The function does not
+/// divide by the last coordinate of the point. It is the distance to the
+/// whole line, not to a segment of it.
+///
+/// The result is at least 0, and NaN when a coordinate of either argument is
+/// NaN. An infinite coordinate gives an infinite result or NaN.
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::euclidean::wall_distance;
+/// use glam::DVec3;
+///
+/// let line = DVec3::new(1.0, 0.0, -0.5);
+/// assert_eq!(wall_distance(line, DVec3::new(2.0, 7.0, 1.0)), 1.5);
+/// assert_eq!(wall_distance(line, DVec3::new(0.0, 7.0, 1.0)), 0.5);
+/// ```
+#[must_use]
+pub fn wall_distance(covector: DVec3, point: DVec3) -> f64 {
+    side(covector, point).abs()
+}
+
 /// Returns a line covector of the line through two points.
 ///
 /// Use it to build the line through two vertices, such as a side of a
@@ -275,7 +304,8 @@ mod tests {
     use glam::{DMat3, DVec3};
 
     use super::{
-        ORIGIN, distance, isometry_defect, reflection, rotation, translation, wall_through,
+        ORIGIN, distance, isometry_defect, reflection, rotation, translation, wall_distance,
+        wall_through,
     };
     use crate::ErrorKind;
 
@@ -444,5 +474,25 @@ mod tests {
         let mut mirror = reflection(DVec3::new(0.6, 0.8, -3.0));
         mirror.y_axis.z = 1e-6;
         assert!(isometry_defect(mirror) > 1e-9);
+    }
+
+    #[test]
+    fn wall_distance_of_the_origin_to_the_line_of_the_first_axis_is_zero() {
+        assert_eq!(wall_distance(DVec3::X, ORIGIN), 0.0);
+    }
+
+    #[test]
+    fn wall_distance_is_nan_for_a_nan_in_either_argument() {
+        let nan = DVec3::new(f64::NAN, 0.0, 1.0);
+        assert!(wall_distance(nan, ORIGIN).is_nan());
+        assert!(wall_distance(DVec3::X, nan).is_nan());
+    }
+
+    #[test]
+    fn wall_distance_of_an_infinite_coordinate_is_infinite_or_nan() {
+        let along = wall_distance(DVec3::X, DVec3::new(f64::INFINITY, 0.0, 1.0));
+        assert_eq!(along, f64::INFINITY);
+        let across = wall_distance(DVec3::X, DVec3::new(0.0, f64::INFINITY, 1.0));
+        assert!(across.is_nan(), "{across}");
     }
 }

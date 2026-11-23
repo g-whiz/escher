@@ -34,6 +34,10 @@ const BAND_REFERENCE_CASES: usize = 5_000;
 
 pub(crate) const SPHERE_SEPARATION_FLOOR: f64 = 1e-3;
 
+pub(crate) const SPHERE_POLE_FLOOR: f64 = 1e-3;
+
+pub(crate) const SMALLEST_WALL_OFFSET: f64 = 1e-12;
+
 pub(crate) const SPHERE_DOMAIN_ORDERS: [u32; 5] = [2, 3, 5, 12, 100];
 
 pub(crate) const DOMAIN_TRIPLES: [[u32; 3]; 10] = [
@@ -81,6 +85,10 @@ impl Rng {
 
     pub(crate) fn sign(&mut self) -> f64 {
         if self.next() & 1 == 0 { 1.0 } else { -1.0 }
+    }
+
+    pub(crate) fn signed_log_uniform(&mut self, low: f64, high: f64) -> f64 {
+        self.sign() * self.log_uniform(low, high)
     }
 
     pub(crate) fn choice(&mut self, count: u64) -> u64 {
@@ -188,6 +196,39 @@ impl Rng {
         DVec2::new(angle.cos(), angle.sin()) * (1.0 - gap)
     }
 
+    pub(crate) fn hyperbolic_wall_sample(
+        &mut self,
+        within: bool,
+        radius: f64,
+        smallest_offset: f64,
+    ) -> WallSample {
+        let distance = self.uniform(0.0, radius);
+        let direction = self.angle();
+        let point = if within {
+            WallPoint::Within(self.point_within(radius))
+        } else {
+            let offset = self.signed_log_uniform(smallest_offset, 1.0);
+            WallPoint::OffWall {
+                along: self.uniform(-3.0, 3.0),
+                offset,
+            }
+        };
+        let factor = self.uniform(0.5, 2.0);
+        WallSample {
+            distance,
+            direction,
+            point,
+            factor,
+        }
+    }
+
+    pub(crate) fn spherical_wall_sample(&mut self) -> (DVec3, DVec3) {
+        let normal = self.sphere_point();
+        let offset = self.signed_log_uniform(SMALLEST_WALL_OFFSET, FRAC_PI_2 - SPHERE_POLE_FLOOR);
+        let x = sphere_point_off_wall(normal, self.angle(), offset) * self.uniform(0.5, 2.0);
+        (normal, x)
+    }
+
     pub(crate) fn separated_pair(&mut self) -> (DVec3, DVec3) {
         for _ in 0..ATTEMPTS {
             let (first, second) = (self.point_within(3.0), self.point_within(3.0));
@@ -267,6 +308,15 @@ pub(crate) fn point_off_wall(distance: f64, direction: f64, along: f64, offset: 
     rotation_map(direction, boost_map(distance, boost_map(offset, foot)))
 }
 
+pub(crate) fn great_circle_point(normal: DVec3, along: f64) -> DVec3 {
+    let (first, second) = tangent_basis(normal);
+    first * along.cos() + second * along.sin()
+}
+
+pub(crate) fn sphere_point_off_wall(normal: DVec3, along: f64, offset: f64) -> DVec3 {
+    great_circle_point(normal, along) * offset.cos() + normal * offset.sin()
+}
+
 pub(crate) fn table_points() -> Vec<DVec3> {
     let mut points = Vec::new();
     for distance in [0.0, 0.1, 1.0, 5.0, 10.0, 20.0] {
@@ -285,6 +335,34 @@ pub(crate) fn table_vectors() -> Vec<DVec3> {
         }
     }
     vectors
+}
+
+pub(crate) enum WallPoint {
+    Within(DVec3),
+    OffWall { along: f64, offset: f64 },
+}
+
+pub(crate) struct WallSample {
+    pub(crate) distance: f64,
+    pub(crate) direction: f64,
+    pub(crate) point: WallPoint,
+    pub(crate) factor: f64,
+}
+
+impl WallSample {
+    pub(crate) fn normal(&self) -> DVec3 {
+        wall_normal(self.distance, self.direction)
+    }
+
+    pub(crate) fn vector(&self) -> DVec3 {
+        let point = match self.point {
+            WallPoint::Within(point) => point,
+            WallPoint::OffWall { along, offset } => {
+                point_off_wall(self.distance, self.direction, along, offset)
+            }
+        };
+        point * self.factor
+    }
 }
 
 pub(crate) fn largest_entry(matrix: DMat3) -> f64 {

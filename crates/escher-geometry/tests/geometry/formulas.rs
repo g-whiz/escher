@@ -1,20 +1,26 @@
+use core::f64::consts::FRAC_PI_2;
+
 use astro_float_num::BigFloat;
 use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, distance, form, from_disk, inverse, isometry_defect, normalize_point,
-    reflection, rotation, side, to_disk, translation, wall_through,
+    reflection, rotation, side, to_disk, translation, wall_distance, wall_through,
 };
 use escher_geometry::{euclidean, spherical};
 use glam::{DVec2, DVec3};
 
 use crate::common::{
-    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, Model, REFERENCE_CASES, Rng, SPHERE_SEPARATION_FLOOR,
-    SphereDomain, SphereFactor, Triangle, pair, point_off_wall, polar_point, table_points,
-    table_vectors, tangent_basis, wall_normal,
+    CASES, DOMAIN_TRIPLES, EUCLIDEAN_RADIUS, Model, REFERENCE_CASES, Rng, SMALLEST_WALL_OFFSET,
+    SPHERE_POLE_FLOOR, SPHERE_SEPARATION_FLOOR, SphereDomain, SphereFactor, Triangle, WallPoint,
+    pair, point_off_wall, polar_point, sphere_point_off_wall, table_points, table_vectors,
+    wall_normal,
 };
-use crate::reference::{central_jacobian, complex, epsilon};
+use crate::reference::{
+    ReferenceExt, central_jacobian, complex, epsilon, euclidean_minimum_distance,
+    euclidean_wall_distance, spherical_wall_sine,
+};
 use escher_reference::{
     Reference, Vector, Worst, add, difference, div, dot, error, form as exact_form, int, max, mul,
-    num, scale, sqrt, squared_modulus, sub, vector,
+    num, scale, sqrt, squared_modulus, sub, unit, vector,
 };
 
 const DISTANCE_SEPARATED_MINIMUM: usize = 8_000;
@@ -47,6 +53,11 @@ const BAND_JACOBIAN_TOLERANCE: f64 = 32.0;
 const KLEIN_POSITION_TOLERANCE: f64 = 8.0;
 const KLEIN_JACOBIAN_TOLERANCE: f64 = 16.0;
 const MODEL_ROUND_TRIP_TOLERANCE: f64 = 16.0;
+const WALL_DISTANCE_TOLERANCE: f64 = 32.0;
+const EUCLIDEAN_WALL_DISTANCE_TOLERANCE: f64 = 8.0;
+const SPHERE_WALL_DISTANCE_TOLERANCE: f64 = 32.0;
+const MINIMIZATION_CASES: usize = 128;
+const MINIMUM_DISTANCE_TOLERANCE: f64 = 1e-50;
 
 fn big(value: DVec3) -> Vector {
     vector(value.to_array())
@@ -366,7 +377,7 @@ fn boost_entries_are_within_their_bound_of_the_reference() {
         if index % 2 == 0 {
             rng.uniform(-700.0, 700.0)
         } else {
-            rng.sign() * rng.log_uniform(1e-300, 700.0)
+            rng.signed_log_uniform(1e-300, 700.0)
         }
     });
     for length in edges.into_iter().chain(random.collect::<Vec<_>>()) {
@@ -597,7 +608,7 @@ fn translation_maps_points_off_the_axis_as_its_composition_does() {
     for index in 0..REFERENCE_CASES {
         let target = polar_point(translation_radius(&mut rng, index, 700.0), rng.angle());
         let point = if index % 4 == 0 {
-            polar_point(rng.uniform(0.5, 3.0), core::f64::consts::FRAC_PI_2)
+            polar_point(rng.uniform(0.5, 3.0), FRAC_PI_2)
         } else {
             rng.point_within(3.0)
         };
@@ -712,7 +723,7 @@ fn reflection_is_within_its_bounds_of_the_reference() {
         let x = if index % 2 == 0 {
             rng.point_within(3.0)
         } else {
-            let offset = rng.sign() * rng.log_uniform(1e-12, 1.0);
+            let offset = rng.signed_log_uniform(SMALLEST_WALL_OFFSET, 1.0);
             point_off_wall(distance, direction, rng.uniform(-3.0, 3.0), offset)
         };
         check_reflection(&mut points, normal, x);
@@ -1099,15 +1110,6 @@ fn euclidean_wall_through_and_distance_are_within_their_bounds_of_the_reference(
     distances.assert_at_most(&mut reference, EUCLIDEAN_DISTANCE_TOLERANCE);
 }
 
-fn unit(x: &Vector) -> Vector {
-    let length = sqrt(&dot(x, x));
-    [
-        div(&x[0], &length),
-        div(&x[1], &length),
-        div(&x[2], &length),
-    ]
-}
-
 fn record_vector(worst: &mut Worst, computed: DVec3, exact: &Vector, input: &dyn Fn() -> String) {
     for (value, exact) in computed.to_array().into_iter().zip(exact) {
         worst.record(&error(value, exact), &epsilon(), input);
@@ -1351,11 +1353,9 @@ fn spherical_reflection_is_within_its_bounds_of_the_reference() {
         let x = if index % 2 == 0 {
             rng.sphere_point()
         } else {
-            let (first, second) = tangent_basis(normal);
             let along = rng.angle();
-            let foot = first * along.cos() + second * along.sin();
-            let offset = rng.sign() * rng.log_uniform(1e-12, 1.0);
-            foot * offset.cos() + normal * offset.sin()
+            let offset = rng.signed_log_uniform(SMALLEST_WALL_OFFSET, 1.0);
+            sphere_point_off_wall(normal, along, offset)
         };
         let (ru, rx) = (big(normal), big(x));
         let along_normal = dot(&ru, &rx);
@@ -1399,4 +1399,203 @@ fn spherical_isometry_defect_of_products_is_within_its_bound() {
         });
     }
     worst.assert_at_most(&mut reference, SPHERE_PRODUCT_DEFECT_TOLERANCE);
+}
+
+fn check_wall_distance(reference: &mut Reference, worst: &mut Worst, normal: DVec3, x: DVec3) {
+    let c = covector(normal);
+    let (rc, rx) = (big(c), big(x));
+    let q = exact_form(&rx, &rx).neg();
+    let scale = mul(
+        &epsilon(),
+        &add(
+            &div(&terms_bound(&rc, &rx), &sqrt(&q)),
+            &div(&dot(&rx, &rx), &q),
+        ),
+    );
+    let exact = reference.hyperbolic_wall_distance(&rc, &rx);
+    worst.record(&error(wall_distance(c, x), &exact), &scale, || {
+        format!("{c:?} {x:?}")
+    });
+}
+
+#[test]
+fn wall_distance_is_within_its_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::of_the_scale(
+        "wall_distance, scaled by eps * (sum |c_i x_i| / sqrt q + sum x_i^2 / q)",
+        REFERENCE_CASES + DOMAIN_TRIPLES.len() * 12,
+    );
+    let mut rng = Rng::new(40);
+    for index in 0..REFERENCE_CASES {
+        let sample = rng.hyperbolic_wall_sample(index % 2 == 0, 10.0, SMALLEST_WALL_OFFSET);
+        check_wall_distance(&mut reference, &mut worst, sample.normal(), sample.vector());
+    }
+    for orders in DOMAIN_TRIPLES {
+        let triangle = Triangle::of(orders);
+        for normal in triangle.normals {
+            for x in triangle.points() {
+                check_wall_distance(&mut reference, &mut worst, normal, x);
+            }
+        }
+    }
+    worst.assert_at_most(&mut reference, WALL_DISTANCE_TOLERANCE);
+}
+
+#[test]
+fn euclidean_wall_distance_is_within_its_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::of_the_scale(
+        "euclidean wall_distance, scaled by eps * sum |c_i x_i|",
+        CASES,
+    );
+    let mut rng = Rng::new(41);
+    for index in 0..CASES {
+        let line = rng.line_covector(u32::try_from(index).unwrap_or(0));
+        let x = rng.euclidean_point_within(EUCLIDEAN_RADIUS);
+        let (rc, rx) = (big(line), big(x));
+        let scale = mul(&epsilon(), &terms_bound(&rc, &rx));
+        worst.record(
+            &error(
+                euclidean::wall_distance(line, x),
+                &euclidean_wall_distance(&rc, &rx),
+            ),
+            &scale,
+            || format!("{line:?} {x:?}"),
+        );
+    }
+    worst.assert_at_most(&mut reference, EUCLIDEAN_WALL_DISTANCE_TOLERANCE);
+}
+
+fn check_spherical_wall_distance(
+    reference: &mut Reference,
+    worst: &mut Worst,
+    normal: DVec3,
+    x: DVec3,
+    name: &str,
+) {
+    let (ru, rx) = (big(normal), big(x));
+    if spherical_wall_sine(&ru, &rx) > num(SPHERE_POLE_FLOOR.cos()) {
+        let result = spherical::wall_distance(normal, x);
+        assert!(
+            (0.0..=FRAC_PI_2).contains(&result),
+            "{result} near the pole for {name} {normal:?} {x:?}"
+        );
+        return;
+    }
+    let exact = reference.spherical_wall_distance(&ru, &rx);
+    let scale = div(&epsilon(), &reference.cos(&exact));
+    worst.record(
+        &error(spherical::wall_distance(normal, x), &exact),
+        &scale,
+        || format!("{name} {normal:?} {x:?}"),
+    );
+}
+
+#[test]
+fn spherical_wall_distance_is_within_its_bound_of_the_reference() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::of_the_scale(
+        "spherical wall_distance, scaled by eps / cos d",
+        REFERENCE_CASES,
+    );
+    let mut rng = Rng::new(42);
+    for _ in 0..REFERENCE_CASES {
+        let normal = rng.sphere_point();
+        let along = rng.angle();
+        let offset = rng.signed_log_uniform(SMALLEST_WALL_OFFSET, FRAC_PI_2 - SPHERE_POLE_FLOOR);
+        let x = sphere_point_off_wall(normal, along, offset) * rng.uniform(0.5, 2.0);
+        check_spherical_wall_distance(&mut reference, &mut worst, normal, x, "random");
+    }
+    for domain in SphereDomain::all() {
+        for &normal in &domain.normals {
+            for &point in &domain.points {
+                check_spherical_wall_distance(
+                    &mut reference,
+                    &mut worst,
+                    normal,
+                    point,
+                    &domain.name,
+                );
+            }
+        }
+    }
+    worst.assert_at_most(&mut reference, SPHERE_WALL_DISTANCE_TOLERANCE);
+}
+
+fn record_minimum(worst: &mut Worst, formula: &BigFloat, minimum: &BigFloat, input: &str) {
+    worst.record(&sub(formula, minimum).abs(), &int(1), || input.to_owned());
+}
+
+#[test]
+fn hyperbolic_wall_distance_formula_is_the_distance_by_minimization() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::new(
+        "hyperbolic wall_distance formula against the minimum distance to the wall, absolute",
+        MINIMIZATION_CASES,
+    );
+    let mut rng = Rng::new(43);
+    for index in 0..MINIMIZATION_CASES {
+        let sample = rng.hyperbolic_wall_sample(index % 2 == 0, 10.0, SMALLEST_WALL_OFFSET);
+        let (length, angle, factor) = (sample.distance, sample.direction, sample.factor);
+        let wall = reference.hyperbolic_wall(length, angle);
+        let (point, input) = match sample.point {
+            WallPoint::Within(point) => (big(point), format!("{point:?}")),
+            WallPoint::OffWall { along, offset } => (
+                reference.hyperbolic_point_off_wall(&wall, along, offset),
+                format!("along {along} offset {offset}"),
+            ),
+        };
+        let x = scale(&num(factor), &point);
+        let formula = reference.hyperbolic_wall_distance(&wall.covector, &x);
+        let minimum = reference.hyperbolic_minimum_distance(&wall, &x);
+        let input = format!("wall {length} {angle}, point {input}, factor {factor}");
+        record_minimum(&mut worst, &formula, &minimum, &input);
+    }
+    worst.assert_at_most(&mut reference, MINIMUM_DISTANCE_TOLERANCE);
+}
+
+#[test]
+fn euclidean_wall_distance_formula_is_the_distance_by_minimization() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::new(
+        "euclidean wall_distance formula against the minimum distance to the line, absolute",
+        MINIMIZATION_CASES,
+    );
+    let mut rng = Rng::new(44);
+    for _ in 0..MINIMIZATION_CASES {
+        let target = rng.euclidean_point_within(EUCLIDEAN_RADIUS);
+        let angle = rng.angle();
+        let wall = reference.euclidean_wall([target.x, target.y], angle);
+        let point = rng.euclidean_point_within(EUCLIDEAN_RADIUS);
+        let x = big(point);
+        let formula = euclidean_wall_distance(&wall.covector, &x);
+        let minimum = euclidean_minimum_distance(&wall, &x);
+        let input = format!("wall {target:?} {angle}, point {point:?}");
+        record_minimum(&mut worst, &formula, &minimum, &input);
+    }
+    worst.assert_at_most(&mut reference, MINIMUM_DISTANCE_TOLERANCE);
+}
+
+#[test]
+fn spherical_wall_distance_formula_is_the_distance_by_minimization() {
+    let mut reference = Reference::new();
+    let mut worst = Worst::new(
+        "spherical wall_distance formula against the minimum distance to the great circle, absolute",
+        MINIMIZATION_CASES,
+    );
+    let mut rng = Rng::new(45);
+    for _ in 0..MINIMIZATION_CASES {
+        let (length, angle) = (rng.uniform(0.0, 10.0), rng.angle());
+        let wall = reference.spherical_wall(length, angle);
+        let along = rng.angle();
+        let offset = rng.signed_log_uniform(SMALLEST_WALL_OFFSET, FRAC_PI_2 - SPHERE_POLE_FLOOR);
+        let factor = rng.uniform(0.5, 2.0);
+        let point = reference.spherical_point_off_wall(&wall, along, offset);
+        let x = scale(&num(factor), &point);
+        let formula = reference.spherical_wall_distance(&wall.covector, &x);
+        let minimum = reference.spherical_minimum_distance(&wall, &x);
+        let input = format!("wall {length} {angle}, along {along} offset {offset} factor {factor}");
+        record_minimum(&mut worst, &formula, &minimum, &input);
+    }
+    worst.assert_at_most(&mut reference, MINIMUM_DISTANCE_TOLERANCE);
 }

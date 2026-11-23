@@ -126,6 +126,42 @@ pub fn distance(first: DVec3, second: DVec3) -> f64 {
     first.dot(second).clamp(-1.0, 1.0).acos()
 }
 
+/// Returns the spherical distance from the sphere point on the ray of a
+/// vector to a great circle, an angle in radians.
+///
+/// Use it to measure how far a point lies from a great circle, such as to
+/// draw a border of a given width along a side of a spherical polygon. The
+/// first argument is the unit normal of the great circle, which is its own
+/// covector. The second is any vector other than the zero vector, which need
+/// not have length 1. The distance is the inverse sine of the absolute value
+/// of [`side`]`(normal, point)` divided by the length of the vector, with
+/// that ratio lowered to at most `1`, so a vector and each positive multiple
+/// of it give the same distance up to rounding. It is the distance to the
+/// whole great circle, not to an arc of it.
+///
+/// The result is in `[0, pi/2]`, and NaN when a coordinate of either
+/// argument is NaN or the vector is the zero vector. It loses accuracy for a
+/// point near a pole of the great circle, where the inverse sine amplifies
+/// the rounding error of its argument.
+///
+/// # Examples
+///
+/// ```
+/// use escher_geometry::spherical::{ORIGIN, boost, wall_distance};
+/// use glam::DVec3;
+///
+/// let point = boost(0.5) * ORIGIN;
+/// assert!((wall_distance(DVec3::Z, point) - (core::f64::consts::FRAC_PI_2 - 0.5)).abs() < 1e-14);
+/// assert!((wall_distance(DVec3::X, 2.0 * point) - 0.5).abs() < 1e-14);
+/// assert_eq!(wall_distance(DVec3::X, ORIGIN), 0.0);
+/// ```
+#[must_use]
+pub fn wall_distance(covector: DVec3, point: DVec3) -> f64 {
+    let s = side(covector, point).abs() / point.dot(point).sqrt();
+    let clamped = if s > 1.0 { 1.0 } else { s };
+    clamped.asin()
+}
+
 /// Returns a unit normal of the great circle that contains two points.
 ///
 /// Use it to build the great circle through two vertices, such as a side of
@@ -372,7 +408,7 @@ mod tests {
 
     use super::{
         ORIGIN, boost, inverse, isometry_defect, normalize_point, reflection, rotation,
-        translation, wall_through,
+        translation, wall_distance, wall_through,
     };
     use crate::ErrorKind;
 
@@ -521,5 +557,45 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn wall_distance_of_the_origin_to_the_great_circle_of_the_first_axis_is_zero() {
+        assert_eq!(wall_distance(DVec3::X, ORIGIN), 0.0);
+    }
+
+    #[test]
+    fn wall_distance_is_nan_for_a_nan_in_either_argument() {
+        let nan = DVec3::new(f64::NAN, 0.0, 1.0);
+        assert!(wall_distance(nan, ORIGIN).is_nan());
+        assert!(wall_distance(DVec3::X, nan).is_nan());
+    }
+
+    #[test]
+    fn wall_distance_of_the_zero_vector_is_nan() {
+        assert!(wall_distance(DVec3::X, DVec3::ZERO).is_nan());
+    }
+
+    #[test]
+    fn wall_distance_of_a_ratio_above_one_is_the_arcsine_of_one() {
+        let result = wall_distance(DVec3::new(2.0, 0.0, 0.0), DVec3::X);
+        assert_eq!(result, 1.0_f64.asin());
+    }
+
+    #[test]
+    fn wall_distance_of_an_infinite_point_coordinate_is_nan() {
+        for point in [
+            DVec3::new(f64::INFINITY, 0.0, 0.0),
+            DVec3::new(0.0, 0.0, f64::NEG_INFINITY),
+        ] {
+            let result = wall_distance(DVec3::X, point);
+            assert!(result.is_nan(), "{result} for {point:?}");
+        }
+    }
+
+    #[test]
+    fn wall_distance_of_an_infinite_covector_coordinate_is_the_arcsine_of_one() {
+        let result = wall_distance(DVec3::new(f64::INFINITY, 0.0, 0.0), DVec3::X);
+        assert_eq!(result, 1.0_f64.asin());
     }
 }

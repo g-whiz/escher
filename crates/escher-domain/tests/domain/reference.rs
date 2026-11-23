@@ -1,7 +1,7 @@
 use astro_float_num::BigFloat;
 use escher_reference::{
-    Matrix, Reference, Vector, add, apply, cross, div, dot, form, int, max, mul, normalize, num,
-    product, scale, sqrt, sub,
+    Matrix, Reference, Vector, add, apply, column, cross, div, dot, form, int, max, mul, normalize,
+    num, product, rotation_matrix, scale, sqrt, sub, unit,
 };
 
 pub(crate) fn sum(x: &Vector, y: &Vector) -> Vector {
@@ -443,7 +443,7 @@ impl ReferenceExt for Reference {
         let mut walk = vec![origin()];
         for (side, &order) in lengths.iter().zip(orders).skip(1) {
             frame = product(&frame, &boost_matrix(&self.cosh(side), &self.sinh(side)));
-            walk.push(column_two(&frame));
+            walk.push(column(&frame, 2));
             let angle = div(&pi, &int(order));
             frame = product(
                 &frame,
@@ -585,20 +585,20 @@ impl ReferenceExt for Reference {
             let feature = sheet[start];
             match feature.kind {
                 FeatureKind::Corner => {
-                    points.push((feature, 0, column_two(&frame), frame.clone()));
+                    points.push((feature, 0, column(&frame, 2), frame.clone()));
                     let angle = div(&pi, &int(orders[feature.first]));
                     let turn = rotation_matrix(&self.cos(&angle).neg(), &self.sin(&angle));
                     frame = product(&frame, &turn);
                 }
                 FeatureKind::Length(index) => {
                     frame = product(&frame, &quarter);
-                    points.push((feature, 0, column_two(&frame), frame.clone()));
+                    points.push((feature, 0, column(&frame, 2), frame.clone()));
                     let length = num(values[index]);
                     frame = product(
                         &frame,
                         &boost_matrix(&self.cosh(&length), &self.sinh(&length)),
                     );
-                    points.push((feature, 1, column_two(&frame), frame.clone()));
+                    points.push((feature, 1, column(&frame, 2), frame.clone()));
                     frame = product(&frame, &quarter);
                 }
             }
@@ -920,10 +920,6 @@ fn placed_polygon(placed: &[[BigFloat; 2]], angles: Vec<BigFloat>, mean: [BigFlo
     }
 }
 
-fn unit(x: &Vector) -> Vector {
-    scale(&div(&int(1), &sqrt(&dot(x, x))), x)
-}
-
 fn without(x: &Vector, direction: &Vector) -> Vector {
     let along = scale(&dot(x, direction), direction);
     [
@@ -1098,14 +1094,6 @@ pub(crate) fn boost_matrix(cosh: &BigFloat, sinh: &BigFloat) -> Matrix {
     ]
 }
 
-pub(crate) fn rotation_matrix(cos: &BigFloat, sin: &BigFloat) -> Matrix {
-    [
-        [cos.clone(), sin.neg(), int(0)],
-        [sin.clone(), cos.clone(), int(0)],
-        [int(0), int(0), int(1)],
-    ]
-}
-
 pub(crate) fn isometry_inverse(matrix: &Matrix) -> Matrix {
     [0, 1, 2].map(|row| {
         [0, 1, 2].map(|column| {
@@ -1121,14 +1109,6 @@ pub(crate) fn isometry_inverse(matrix: &Matrix) -> Matrix {
 
 fn origin() -> Vector {
     [int(0), int(0), int(1)]
-}
-
-fn column_two(matrix: &Matrix) -> Vector {
-    [
-        matrix[0][2].clone(),
-        matrix[1][2].clone(),
-        matrix[2][2].clone(),
-    ]
 }
 
 pub(crate) fn hyperbolic_normal(start: &Vector, end: &Vector) -> Vector {

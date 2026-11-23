@@ -5,7 +5,7 @@ use astro_float_num::BigFloat;
 use escher_geometry::hyperbolic::{
     ORIGIN, boost, covector, disk_from_band, disk_from_half_plane, disk_from_klein, distance, form,
     from_disk, inverse, isometry_defect, normalize_point, reflection, rotation, side, to_disk,
-    translation, wall_through,
+    translation, wall_distance, wall_through,
 };
 use escher_geometry::{ErrorKind, euclidean, spherical};
 use glam::{DMat2, DMat3, DVec2, DVec3};
@@ -13,9 +13,9 @@ use proptest::collection::vec;
 use proptest::prelude::{Just, Strategy, any, prop_assert, prop_assert_eq, prop_oneof, proptest};
 
 use crate::common::{
-    CASES, EUCLIDEAN_RADIUS, Factor, Model, ModelSample, Product, Rng, SPHERE_SEPARATION_FLOOR,
-    Wall, euclidean_point, largest_entry, line_covector, pair, polar_point, sphere_point,
-    sphere_step, tangent_basis,
+    CASES, EUCLIDEAN_RADIUS, Factor, Model, ModelSample, Product, Rng, SMALLEST_WALL_OFFSET,
+    SPHERE_SEPARATION_FLOOR, Wall, euclidean_point, great_circle_point, largest_entry,
+    line_covector, pair, polar_point, sphere_point, sphere_step,
 };
 use crate::reference::{ReferenceExt, complex, epsilon};
 use escher_reference::{Reference, Worst, error, int, mul, num, sub};
@@ -44,6 +44,11 @@ const SPHERE_LARGEST_CORNER_ORDER: u32 = 12;
 const HALF_PLANE_RELATION_TOLERANCE: f64 = 32.0;
 const BAND_RELATION_TOLERANCE: f64 = 64.0;
 const KLEIN_RELATION_TOLERANCE: f64 = 16.0;
+const WALL_DISTANCE_REFLECTED_TOLERANCE: f64 = 16.0;
+const EUCLIDEAN_WALL_DISTANCE_REFLECTED_TOLERANCE: f64 = 16.0;
+const SPHERE_WALL_DISTANCE_REFLECTED_TOLERANCE: f64 = 8.0;
+const LARGEST_POWER_OF_TWO: i32 = 40;
+const REFLECTED_WALL_RADIUS: f64 = 5.0;
 
 fn point_within(radius: f64) -> impl Strategy<Value = DVec3> {
     (0.0..radius, -PI..PI).prop_map(|(distance, angle)| polar_point(distance, angle))
@@ -186,11 +191,6 @@ fn separated_sphere_points() -> impl Strategy<Value = (DVec3, DVec3)> {
         })
 }
 
-fn great_circle_point(normal: DVec3, along: f64) -> DVec3 {
-    let (first, second) = tangent_basis(normal);
-    first * along.cos() + second * along.sin()
-}
-
 fn sphere_twice_reflected_error(normal: DVec3) -> f64 {
     let matrix = spherical::reflection(normal);
     identity_error(matrix * matrix) / f64::EPSILON
@@ -221,6 +221,59 @@ fn sphere_orthogonality_error(first: DVec3, second: DVec3, normal: DVec3) -> f64
         .abs()
         .max(spherical::side(normal, second).abs())
         / scale
+}
+
+fn hyperbolic_wall_input() -> impl Strategy<Value = (DVec3, DVec3)> {
+    (any::<u64>(), any::<bool>()).prop_map(|(seed, within)| {
+        let sample = Rng::new(seed).hyperbolic_wall_sample(
+            within,
+            REFLECTED_WALL_RADIUS,
+            SMALLEST_WALL_OFFSET,
+        );
+        (sample.normal(), sample.vector())
+    })
+}
+
+fn spherical_wall_input() -> impl Strategy<Value = (DVec3, DVec3)> {
+    any::<u64>().prop_map(|seed| Rng::new(seed).spherical_wall_sample())
+}
+
+fn power_of_two_mismatch(distance: fn(DVec3, DVec3) -> f64, c: DVec3, x: DVec3) -> Option<i32> {
+    let expected = distance(c, x).to_bits();
+    (-LARGEST_POWER_OF_TWO..=LARGEST_POWER_OF_TWO)
+        .find(|&power| distance(c, x * 2.0_f64.powi(power)).to_bits() != expected)
+}
+
+fn reflection_sigma(normal: DVec3, c: DVec3, x: DVec3) -> DVec3 {
+    x.abs() + 2.0 * normal.abs() * (c * x).abs().element_sum()
+}
+
+fn wall_distance_reflected_error(normal: DVec3, x: DVec3) -> f64 {
+    let c = covector(normal);
+    let image = reflection(normal) * x;
+    let difference = (wall_distance(c, image) - wall_distance(c, x)).abs();
+    let q = -form(x, x);
+    let sigma = reflection_sigma(normal, c, x);
+    let scale = f64::EPSILON * (sigma * (c.abs() / q.sqrt() + sigma / q)).element_sum();
+    difference / scale
+}
+
+fn euclidean_wall_distance_reflected_error(line: DVec3, x: DVec3) -> f64 {
+    let image = euclidean::reflection(line) * x;
+    let difference =
+        (euclidean::wall_distance(line, image) - euclidean::wall_distance(line, x)).abs();
+    let sigma = reflection_sigma(DVec3::new(line.x, line.y, 0.0), line, x);
+    difference / (f64::EPSILON * (line.abs() * sigma).element_sum())
+}
+
+fn spherical_wall_distance_reflected_error(normal: DVec3, x: DVec3) -> f64 {
+    let image = spherical::reflection(normal) * x;
+    let d = spherical::wall_distance(normal, x);
+    let difference = (spherical::wall_distance(normal, image) - d).abs();
+    let length = x.length();
+    let sigma = reflection_sigma(normal, normal, x);
+    let terms = sigma * (normal.abs() / length + sigma / (length * length));
+    difference / (f64::EPSILON * terms.element_sum() / d.cos())
 }
 
 fn identity_error(matrix: DMat3) -> f64 {
@@ -630,6 +683,46 @@ proptest! {
     }
 
     #[test]
+    fn wall_distance_of_a_reflected_point_and_of_a_scaled_vector_is_the_same(
+        input in hyperbolic_wall_input(),
+    ) {
+        let (normal, x) = input;
+        let reflected = wall_distance_reflected_error(normal, x);
+        prop_assert!(
+            reflected <= WALL_DISTANCE_REFLECTED_TOLERANCE,
+            "{reflected} for {normal:?} {x:?}"
+        );
+        let mismatch = power_of_two_mismatch(wall_distance, covector(normal), x);
+        prop_assert_eq!(mismatch, None, "{:?} {:?}", normal, x);
+    }
+
+    #[test]
+    fn euclidean_wall_distance_of_a_reflected_point_is_the_same(
+        line in euclidean_line(),
+        x in euclidean_point_within(EUCLIDEAN_RADIUS),
+    ) {
+        let reflected = euclidean_wall_distance_reflected_error(line, x);
+        prop_assert!(
+            reflected <= EUCLIDEAN_WALL_DISTANCE_REFLECTED_TOLERANCE,
+            "{reflected} for {line:?} {x:?}"
+        );
+    }
+
+    #[test]
+    fn spherical_wall_distance_of_a_reflected_point_and_of_a_scaled_vector_is_the_same(
+        input in spherical_wall_input(),
+    ) {
+        let (normal, x) = input;
+        let reflected = spherical_wall_distance_reflected_error(normal, x);
+        prop_assert!(
+            reflected <= SPHERE_WALL_DISTANCE_REFLECTED_TOLERANCE,
+            "{reflected} for {normal:?} {x:?}"
+        );
+        let mismatch = power_of_two_mismatch(spherical::wall_distance, normal, x);
+        prop_assert_eq!(mismatch, None, "{:?} {:?}", normal, x);
+    }
+
+    #[test]
     fn every_function_returns_for_any_input(
         x in any_vector(),
         y in any_vector(),
@@ -703,6 +796,17 @@ proptest! {
             Ok(normal) => prop_assert!(normal.is_finite(), "{normal:?}"),
             Err(error) => prop_assert_eq!(error.kind(), ErrorKind::DegenerateWall),
         }
+        let hyperbolic = wall_distance(x, y);
+        let plane = euclidean::wall_distance(x, y);
+        let sphere = spherical::wall_distance(x, y);
+        if x.is_nan() || y.is_nan() {
+            prop_assert!(hyperbolic.is_nan() && plane.is_nan() && sphere.is_nan());
+        }
+        if -form(y, y) > 0.0 {
+            prop_assert!(hyperbolic.is_nan() || hyperbolic >= 0.0, "{hyperbolic}");
+        }
+        prop_assert!(plane.is_nan() || plane >= 0.0, "{plane}");
+        prop_assert!(sphere.is_nan() || (0.0..=FRAC_PI_2).contains(&sphere), "{sphere}");
     }
 }
 
@@ -845,7 +949,7 @@ fn distances_of_boosts_and_disk_positions_are_within_their_bounds() {
             if index % 2 == 0 {
                 rng.uniform(-20.0, 20.0)
             } else {
-                rng.sign() * rng.log_uniform(1e-12, 20.0)
+                rng.signed_log_uniform(1e-12, 20.0)
             }
         })
         .collect();
@@ -1074,4 +1178,52 @@ fn disk_from_band_has_the_scale_factor_of_tanh_within_its_bound() {
 #[test]
 fn disk_from_klein_is_undone_by_the_map_from_the_disk_to_the_klein_model_within_its_bound() {
     assert_model_relations_within_their_bounds(Model::Klein, 42);
+}
+
+#[test]
+fn wall_distances_of_reflected_points_and_scaled_vectors_are_the_same_within_their_bounds() {
+    let mut reference = Reference::new();
+    let mut hyperbolic = Worst::of_the_scale(
+        "wall_distance of a reflected point, scaled by eps * sum sigma_i (|c_i| / sqrt q + sigma_i / q)",
+        CASES,
+    );
+    let mut plane = Worst::of_the_scale(
+        "euclidean wall_distance of a reflected point, scaled by eps * sum |c_i| sigma_i",
+        CASES,
+    );
+    let mut sphere = Worst::of_the_scale(
+        "spherical wall_distance of a reflected point, scaled by eps * sum sigma_i (|u_i| / |x| + sigma_i / |x|^2) / cos d",
+        CASES,
+    );
+    let mut rng = Rng::new(43);
+    for index in 0..CASES {
+        let sample =
+            rng.hyperbolic_wall_sample(index % 2 == 0, REFLECTED_WALL_RADIUS, SMALLEST_WALL_OFFSET);
+        let (normal, x) = (sample.normal(), sample.vector());
+        let input = || format!("{normal:?} {x:?}");
+        hyperbolic.record(
+            &num(wall_distance_reflected_error(normal, x)),
+            &int(1),
+            input,
+        );
+        let mismatch = power_of_two_mismatch(wall_distance, covector(normal), x);
+        assert_eq!(mismatch, None, "{normal:?} {x:?}");
+
+        let line = line_covector(
+            rng.angle(),
+            rng.uniform(-EUCLIDEAN_RADIUS, EUCLIDEAN_RADIUS),
+        );
+        let point = euclidean_point(rng.uniform(0.0, EUCLIDEAN_RADIUS), rng.angle());
+        let reflected = euclidean_wall_distance_reflected_error(line, point);
+        plane.record(&num(reflected), &int(1), || format!("{line:?} {point:?}"));
+
+        let (normal, x) = rng.spherical_wall_sample();
+        let reflected = spherical_wall_distance_reflected_error(normal, x);
+        sphere.record(&num(reflected), &int(1), || format!("{normal:?} {x:?}"));
+        let mismatch = power_of_two_mismatch(spherical::wall_distance, normal, x);
+        assert_eq!(mismatch, None, "{normal:?} {x:?}");
+    }
+    hyperbolic.assert_at_most(&mut reference, WALL_DISTANCE_REFLECTED_TOLERANCE);
+    plane.assert_at_most(&mut reference, EUCLIDEAN_WALL_DISTANCE_REFLECTED_TOLERANCE);
+    sphere.assert_at_most(&mut reference, SPHERE_WALL_DISTANCE_REFLECTED_TOLERANCE);
 }
