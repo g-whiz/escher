@@ -460,7 +460,7 @@ pub(crate) fn face_direction(measure: Measure, vertices: &[Vector], corner: usiz
     flat_scale(&div(&int(1), &sqrt(&flat_dot(&flat, &flat))), &flat)
 }
 
-fn flat_turn(direction: &Flat, point: &Flat) -> Flat {
+pub(crate) fn flat_turn(direction: &Flat, point: &Flat) -> Flat {
     [
         sub(
             &mul(&direction[0], &point[0]),
@@ -916,6 +916,14 @@ pub(crate) fn face_triangle(
     triangle
 }
 
+pub(crate) fn centre_mirror(corner: usize) -> usize {
+    if corner == 0 { 0 } else { 2 }
+}
+
+pub(crate) fn edge_side(corner: usize) -> usize {
+    if corner == 0 { 2 } else { 0 }
+}
+
 pub(crate) struct FaceElement {
     pub(crate) matrix: Matrix,
     pub(crate) flat: FlatMatrix,
@@ -941,7 +949,7 @@ impl ExactFace {
         let direction = face_direction(measure, vertices, corner);
         let triangle = face_triangle(reference, corner, order, &direction);
         let polygon = flat_face(reference, order, &direction);
-        let centre_mirror = if corner == 0 { 0 } else { 2 };
+        let centre_mirror = centre_mirror(corner);
         let flat_centre_mirror = flat_reflection(&triangle[2]);
         let flat_vertex_mirror = flat_reflection(&triangle[1 - corner]);
         let turn = product(&walls[centre_mirror].pairing, &walls[1].pairing);

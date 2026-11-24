@@ -2050,8 +2050,8 @@ mod tests {
         let domain = domain("*732");
         let face = whole_face(&domain, REGULAR);
         let arrangement = find_colouring(&arrangements(&face), "14a");
-        let (_, image) = face_picture(&face, &arrangement, GOLDEN_SIZE);
-        let fill = whole_face_fill(face, arrangement, Paint::Image(image));
+        let (_, image) = face_picture(&face, &arrangement, 0, GOLDEN_SIZE);
+        let fill = whole_face_fill(face, arrangement, vec![Paint::Image(image)]);
         same_value_in_every_model(
             "*732 with a whole-face fill of 14a",
             &domain,

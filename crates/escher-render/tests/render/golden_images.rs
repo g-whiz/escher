@@ -1,21 +1,22 @@
 use escher_domain::{FundamentalDomain, PairingKind, ShapeParameters, parameters};
 use escher_geometry::hyperbolic::{disk_from_band, disk_from_half_plane, disk_from_klein};
 use escher_group::{
-    Colouring, ColouringId, ColouringSet, IndexLimit, SearchBudget, Word, colourings_of_index,
-    free_classes_of_index,
+    Colouring, ColouringId, ColouringSet, CosetTable, IndexLimit, Letter, SearchBudget, Word,
+    colourings_of_index, free_classes_of_index,
 };
 use escher_signature::{Geometry, Signature};
 use glam::{DMat2, DMat3, DVec2, DVec3};
 
 use crate::reference::{
-    self, ExactFace, ExactMask, ExactWythoff, MaskRule, Measure, ReferenceExt, Wall,
+    self, ExactFace, ExactMask, ExactWythoff, Flat, MaskRule, Measure, ReferenceExt, Wall,
+    centre_mirror, edge_side,
 };
 use crate::{
     BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, Image, Masks, Paint, RenderOptions,
     RenderOptionsBuilder, Renderer, Shading, WholeFace, WholeFaceFill, Wythoff, WythoffFill,
     encode_png,
 };
-use escher_reference::{Matrix, Reference, Vector, int, matrix, product, vector};
+use escher_reference::{Matrix, Reference, Vector, apply, int, matrix, product, vector};
 
 pub(crate) struct GoldenImage {
     pub(crate) signature: &'static str,
@@ -1104,8 +1105,13 @@ pub(crate) fn whole_face(domain: &FundamentalDomain, marks: [bool; 3]) -> WholeF
 }
 
 pub(crate) fn arrangements(face: &WholeFace) -> Vec<Colouring> {
-    let colours = IndexLimit::new(face.index())
-        .unwrap_or_else(|error| panic!("the index {} is too large: {error}", face.index()));
+    arrangements_with(face, 1)
+}
+
+pub(crate) fn arrangements_with(face: &WholeFace, pictures: u32) -> Vec<Colouring> {
+    let index = pictures * face.index();
+    let colours = IndexLimit::new(index)
+        .unwrap_or_else(|error| panic!("the index {index} is too large: {error}"));
     let found = free_classes_of_index(
         face.presentation(),
         face.stabilizer(),
@@ -1115,7 +1121,7 @@ pub(crate) fn arrangements(face: &WholeFace) -> Vec<Colouring> {
     .unwrap_or_else(|error| panic!("the search of the arrangements fails: {error}"));
     assert!(
         found.is_complete(),
-        "the search of the arrangements is not complete"
+        "the search of the arrangements of index {index} is not complete"
     );
     found.list().to_vec()
 }
@@ -1167,6 +1173,336 @@ pub(crate) fn face_triangle_mask(
     )
 }
 
+pub(crate) fn letter(side: usize) -> Letter {
+    Letter::generator(u8::try_from(side).unwrap_or(u8::MAX))
+}
+
+pub(crate) fn stabilizer_words(corner: usize, order: u32) -> (Vec<Word>, Vec<Word>) {
+    let centre = letter(centre_mirror(corner));
+    let vertex = letter(1);
+    let edge = letter(edge_side(corner));
+    let turn = |turns: u32| -> Word { (0..turns).flat_map(|_| [centre, vertex]).collect() };
+    let elements = (0..order)
+        .flat_map(|turns| {
+            [
+                turn(turns),
+                turn(turns)
+                    .letters()
+                    .iter()
+                    .copied()
+                    .chain([centre])
+                    .collect(),
+            ]
+        })
+        .collect();
+    let reflections = (0..order)
+        .map(|turns| {
+            let there = turn(turns);
+            there
+                .letters()
+                .iter()
+                .copied()
+                .chain([edge])
+                .chain(there.inverse().letters().iter().copied())
+                .collect()
+        })
+        .collect();
+    (elements, reflections)
+}
+
+pub(crate) fn trace_from(table: &CosetTable, start: usize, word: &Word) -> usize {
+    table
+        .trace(u32::try_from(start).unwrap_or(u32::MAX), word)
+        .and_then(|coset| usize::try_from(coset).ok())
+        .unwrap_or_else(|| panic!("the trace of a word from coset {start} leaves the table"))
+}
+
+pub(crate) fn traversal(table: &CosetTable) -> Vec<(usize, Word)> {
+    let mut reached: Vec<bool> = vec![false; table.index()];
+    reached[0] = true;
+    let mut visits = vec![(0, Word::new())];
+    let mut next = 0;
+    while next < visits.len() {
+        let (from, word) = visits[next].clone();
+        for generator in 0..table.generator_count() {
+            let index = u8::try_from(generator).unwrap_or(u8::MAX);
+            for step in [Letter::generator(index), Letter::inverse_of(index)] {
+                let to = trace_from(table, from, &Word::from_iter([step]));
+                if !reached[to] {
+                    reached[to] = true;
+                    visits.push((to, word.letters().iter().copied().chain([step]).collect()));
+                }
+            }
+        }
+        next += 1;
+    }
+    assert_eq!(visits.len(), table.index(), "the traversal misses a coset");
+    visits
+}
+
+pub(crate) fn face_orbits(table: &CosetTable, corner: usize) -> Vec<usize> {
+    let columns = [centre_mirror(corner), 1].map(|side| Word::from_iter([letter(side)]));
+    let mut orbit: Vec<Option<usize>> = vec![None; table.index()];
+    let mut count = 0;
+    for start in 0..table.index() {
+        if orbit[start].is_some() {
+            continue;
+        }
+        orbit[start] = Some(count);
+        let mut queue = vec![start];
+        while let Some(from) = queue.pop() {
+            for column in &columns {
+                let to = trace_from(table, from, column);
+                if orbit[to].is_none() {
+                    orbit[to] = Some(count);
+                    queue.push(to);
+                }
+            }
+        }
+        count += 1;
+    }
+    orbit.into_iter().map(Option::unwrap_or_default).collect()
+}
+
+pub(crate) fn picture_bases(table: &CosetTable, corner: usize) -> Vec<Word> {
+    let orbits = face_orbits(table, corner);
+    let mut bases: Vec<Word> = Vec::new();
+    for (start, reach) in traversal(table) {
+        if orbits[start] < bases.len() {
+            continue;
+        }
+        assert_eq!(orbits[start], bases.len(), "the orbits are out of order");
+        let base = if reach.len() % 2 == 0 {
+            reach
+        } else {
+            reach
+                .letters()
+                .iter()
+                .copied()
+                .chain([letter(centre_mirror(corner))])
+                .collect()
+        };
+        bases.push(base);
+    }
+    bases
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PictureTiling {
+    pub(crate) signature: &'static str,
+    pub(crate) marks: [bool; 3],
+    pub(crate) pictures: u32,
+}
+
+impl PictureTiling {
+    pub(crate) fn name(self) -> String {
+        format!(
+            "{} {} with {} pictures",
+            self.signature,
+            marks_text(self.marks),
+            self.pictures
+        )
+    }
+
+    pub(crate) fn geometry(self) -> Geometry {
+        domain_with_settings(self.signature, &[]).geometry()
+    }
+}
+
+const fn tiling(signature: &'static str, marks: [bool; 3], pictures: u32) -> PictureTiling {
+    PictureTiling {
+        signature,
+        marks,
+        pictures,
+    }
+}
+
+pub(crate) const SQUARES_TWO: PictureTiling = tiling("*442", REGULAR, 2);
+
+pub(crate) const TRIANGLES_OF_732_THREE: PictureTiling = tiling("*732", DUAL, 3);
+
+pub(crate) const ICOSAHEDRON_TWO: PictureTiling = tiling("*532", DUAL, 2);
+
+pub(crate) const HEPTAGONS_TWO: PictureTiling = tiling("*732", REGULAR, 2);
+
+pub(crate) const HEPTAGONS_THREE: PictureTiling = tiling("*732", REGULAR, 3);
+
+pub(crate) const DODECAHEDRON_TWO: PictureTiling = tiling("*532", REGULAR, 2);
+
+pub(crate) const DODECAHEDRON_THREE: PictureTiling = tiling("*532", REGULAR, 3);
+
+pub(crate) const SEVERAL_PICTURES: [PictureTiling; 3] =
+    [SQUARES_TWO, TRIANGLES_OF_732_THREE, ICOSAHEDRON_TWO];
+
+pub(crate) const FOUR_PICTURES: PictureTiling = tiling("*332", REGULAR, 4);
+
+pub(crate) const FOUR_PICTURES_ID: &str = "24a";
+
+pub(crate) const CHECKERBOARDS: [&str; 6] = ["16w", "16x", "16y", "16aa", "16ab", "16ac"];
+
+pub(crate) struct MeetingKinds {
+    pub(crate) tiling: PictureTiling,
+    pub(crate) turned: Option<&'static str>,
+    pub(crate) mirrored: Option<&'static str>,
+}
+
+const fn kinds(
+    tiling: PictureTiling,
+    turned: Option<&'static str>,
+    mirrored: Option<&'static str>,
+) -> MeetingKinds {
+    MeetingKinds {
+        tiling,
+        turned,
+        mirrored,
+    }
+}
+
+pub(crate) const MEETING_KINDS: [MeetingKinds; 7] = [
+    kinds(SQUARES_TWO, Some("16a"), Some("16h")),
+    kinds(TRIANGLES_OF_732_THREE, Some("18a"), None),
+    kinds(HEPTAGONS_TWO, Some("28a"), None),
+    kinds(HEPTAGONS_THREE, Some("42a"), Some("42b")),
+    kinds(ICOSAHEDRON_TWO, Some("12a"), None),
+    kinds(DODECAHEDRON_TWO, Some("20a"), Some("20b")),
+    kinds(DODECAHEDRON_THREE, Some("30a"), None),
+];
+
+pub(crate) fn meeting_ids(geometry: Geometry) -> Vec<(PictureTiling, &'static str, bool)> {
+    MEETING_KINDS
+        .iter()
+        .filter(|kinds| kinds.tiling.geometry() == geometry)
+        .flat_map(|kinds| {
+            [(kinds.turned, false), (kinds.mirrored, true)]
+                .into_iter()
+                .filter_map(|(id, mirrored)| id.map(|id| (kinds.tiling, id, mirrored)))
+        })
+        .collect()
+}
+
+pub(crate) fn named_arrangements(geometry: Geometry) -> Vec<(PictureTiling, &'static str)> {
+    let ids = meeting_ids(geometry);
+    [false, true]
+        .into_iter()
+        .filter_map(|kind| {
+            ids.iter()
+                .find(|&&(_, _, mirrored)| mirrored == kind)
+                .map(|&(tiling, id, _)| (tiling, id))
+        })
+        .collect()
+}
+
+pub(crate) fn picture_tilings() -> Vec<PictureTiling> {
+    let mut tilings: Vec<PictureTiling> = SEVERAL_PICTURES.to_vec();
+    tilings.push(FOUR_PICTURES);
+    for geometry in [
+        Geometry::Euclidean,
+        Geometry::Hyperbolic,
+        Geometry::Spherical,
+    ] {
+        for (tiling, _) in named_arrangements(geometry) {
+            if !tilings.contains(&tiling) {
+                tilings.push(tiling);
+            }
+        }
+    }
+    tilings
+}
+
+pub(crate) fn picture_arrangements(face: &WholeFace, tiling: PictureTiling) -> Vec<Colouring> {
+    let first = if SEVERAL_PICTURES.contains(&tiling) {
+        8
+    } else {
+        0
+    };
+    let mut named: Vec<&str> = named_arrangements(tiling.geometry())
+        .into_iter()
+        .filter(|(named, _)| *named == tiling)
+        .map(|(_, id)| id)
+        .collect();
+    if tiling == FOUR_PICTURES {
+        named.push(FOUR_PICTURES_ID);
+    }
+    let listed = arrangements_with(face, tiling.pictures);
+    if tiling == FOUR_PICTURES {
+        assert_eq!(
+            listed.first().map(|first| first.id().to_string()),
+            Some(FOUR_PICTURES_ID.to_owned()),
+            "{}",
+            tiling.name()
+        );
+    }
+    let chosen: Vec<Colouring> = listed
+        .iter()
+        .enumerate()
+        .filter(|(position, arrangement)| {
+            *position < first || named.contains(&arrangement.id().to_string().as_str())
+        })
+        .map(|(_, arrangement)| arrangement.clone())
+        .collect();
+    for id in named {
+        assert!(
+            chosen
+                .iter()
+                .any(|arrangement| arrangement.id().to_string() == id),
+            "{}: the listing has no arrangement {id}",
+            tiling.name()
+        );
+    }
+    assert!(!chosen.is_empty(), "{}: no arrangement", tiling.name());
+    chosen
+}
+
+pub(crate) struct ExactPicture {
+    pub(crate) matrix: Matrix,
+    pub(crate) centre: Vector,
+    pub(crate) polygon: Vec<Flat>,
+}
+
+pub(crate) fn picture_direction(
+    domain: &FundamentalDomain,
+    corner: usize,
+    matrix: &Matrix,
+) -> Flat {
+    let moved: Vec<Vector> = domain
+        .vertices()
+        .iter()
+        .map(|vertex| apply(matrix, &vector(vertex.to_array())))
+        .collect();
+    reference::face_direction(Measure::of(domain.geometry()), &moved, corner)
+}
+
+pub(crate) fn exact_picture(
+    reference: &mut Reference,
+    text: &str,
+    domain: &FundamentalDomain,
+    (marks, walls): ([bool; 3], &[Wall]),
+    base: &Word,
+) -> ExactPicture {
+    let corner = face_corner(marks);
+    let matrix = word_matrix(walls, base);
+    let direction = picture_direction(domain, corner, &matrix);
+    ExactPicture {
+        centre: apply(&matrix, &vector(domain.vertices()[corner].to_array())),
+        polygon: reference::flat_face(reference, signature_orders(text)[corner], &direction),
+        matrix,
+    }
+}
+
+pub(crate) fn exact_pictures(
+    reference: &mut Reference,
+    text: &str,
+    domain: &FundamentalDomain,
+    marks: [bool; 3],
+    table: &CosetTable,
+) -> Vec<ExactPicture> {
+    let walls = reference_walls(domain);
+    picture_bases(table, face_corner(marks))
+        .iter()
+        .map(|base| exact_picture(reference, text, domain, (marks, &walls), base))
+        .collect()
+}
+
 pub(crate) fn word_matrix(walls: &[Wall], word: &Word) -> Matrix {
     word.letters().iter().fold(
         [0, 1, 2].map(|row| [0, 1, 2].map(|column| int(u32::from(row == column)))),
@@ -1174,17 +1510,26 @@ pub(crate) fn word_matrix(walls: &[Wall], word: &Word) -> Matrix {
     )
 }
 
+pub(crate) fn picture_count(face: &WholeFace, arrangement: &Colouring) -> u32 {
+    arrangement.colours() / face.index()
+}
+
 pub(crate) fn face_picture(
     face: &WholeFace,
     arrangement: &Colouring,
+    picture: u32,
     size: u32,
 ) -> (Vec<u8>, Image) {
     let mask = face
-        .render_mask(arrangement, size, size)
+        .render_mask(arrangement, picture, size, size)
         .unwrap_or_else(|error| {
-            panic!("the face mask of {} is rejected: {error}", arrangement.id())
+            panic!(
+                "the face mask of picture {picture} of {} is rejected: {error}",
+                arrangement.id()
+            )
         });
-    let pixels = painted(&mask, size, size, GOLDEN_COSET_FILL[0]);
+    let colour = GOLDEN_COSET_FILL[usize::try_from(picture).unwrap_or(usize::MAX)];
+    let pixels = painted(&mask, size, size, colour);
     let image = image_of(size, size, &pixels);
     (pixels, image)
 }
@@ -1192,24 +1537,28 @@ pub(crate) fn face_picture(
 pub(crate) fn whole_face_fill(
     face: WholeFace,
     arrangement: Colouring,
-    paint: Paint,
+    paints: Vec<Paint>,
 ) -> WholeFaceFill {
-    WholeFaceFill::new(face, arrangement, vec![paint])
+    WholeFaceFill::new(face, arrangement, paints)
         .unwrap_or_else(|error| panic!("the whole-face fill is rejected: {error}"))
 }
 
 pub(crate) struct WholeFaceGolden {
     pub(crate) golden: GoldenImage,
     pub(crate) marks: [bool; 3],
+    pub(crate) pictures: u32,
     pub(crate) arrangement: &'static str,
 }
 
 impl WholeFaceGolden {
     pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
         let face = whole_face(domain, self.marks);
-        let arrangement = find_colouring(&arrangements(&face), self.arrangement);
-        let (_, image) = face_picture(&face, &arrangement, GOLDEN_SIZE);
-        let fill = whole_face_fill(face, arrangement, Paint::Image(image));
+        let arrangement =
+            find_colouring(&arrangements_with(&face, self.pictures), self.arrangement);
+        let paints = (0..self.pictures)
+            .map(|picture| Paint::Image(face_picture(&face, &arrangement, picture, GOLDEN_SIZE).1))
+            .collect();
+        let fill = whole_face_fill(face, arrangement, paints);
         self.golden
             .builder_with_fill(Fill::WholeFace(fill))
             .build()
@@ -1222,46 +1571,76 @@ impl WholeFaceGolden {
     }
 }
 
-pub(crate) const WHOLE_FACE_GOLDEN_IMAGES: [WholeFaceGolden; 3] = [
+pub(crate) const WHOLE_FACE_GOLDEN_IMAGES: [WholeFaceGolden; 5] = [
     WholeFaceGolden {
         golden: golden("*732", &[], "wf-7-3-2-010-14a.png"),
         marks: REGULAR,
+        pictures: 1,
         arrangement: "14a",
     },
     WholeFaceGolden {
         golden: golden("*632", &[], "wf-6-3-2-010-12a.png"),
         marks: REGULAR,
+        pictures: 1,
         arrangement: "12a",
     },
     WholeFaceGolden {
         golden: golden("*532", &[], "wf-5-3-2-010-10a.png"),
         marks: REGULAR,
+        pictures: 1,
         arrangement: "10a",
+    },
+    WholeFaceGolden {
+        golden: golden("*442", &[], "wf-4-4-2-010-16w.png"),
+        marks: REGULAR,
+        pictures: 2,
+        arrangement: "16w",
+    },
+    WholeFaceGolden {
+        golden: golden("*732", &[], "wf-7-3-2-100-18a.png"),
+        marks: DUAL,
+        pictures: 3,
+        arrangement: "18a",
     },
 ];
 
 pub(crate) struct FaceMaskGolden {
     pub(crate) signature: &'static str,
     pub(crate) marks: [bool; 3],
+    pub(crate) pictures: u32,
     pub(crate) arrangement: &'static str,
+    pub(crate) picture: u32,
     pub(crate) file: &'static str,
 }
 
 impl FaceMaskGolden {
     pub(crate) fn pixels(&self) -> Vec<u8> {
         let face = whole_face(&domain_with_settings(self.signature, &[]), self.marks);
-        let arrangement = find_colouring(&arrangements(&face), self.arrangement);
-        face.render_mask(&arrangement, GOLDEN_SIZE, GOLDEN_SIZE)
+        let arrangement =
+            find_colouring(&arrangements_with(&face, self.pictures), self.arrangement);
+        face.render_mask(&arrangement, self.picture, GOLDEN_SIZE, GOLDEN_SIZE)
             .unwrap_or_else(|error| panic!("the face mask {} is rejected: {error}", self.file))
     }
 }
 
-pub(crate) const FACE_MASK_GOLDEN_IMAGES: [FaceMaskGolden; 1] = [FaceMaskGolden {
-    signature: "*732",
-    marks: REGULAR,
-    arrangement: "14a",
-    file: "fmask-7-3-2-010-14a.png",
-}];
+pub(crate) const FACE_MASK_GOLDEN_IMAGES: [FaceMaskGolden; 2] = [
+    FaceMaskGolden {
+        signature: "*732",
+        marks: REGULAR,
+        pictures: 1,
+        arrangement: "14a",
+        picture: 0,
+        file: "fmask-7-3-2-010-14a.png",
+    },
+    FaceMaskGolden {
+        signature: "*442",
+        marks: REGULAR,
+        pictures: 2,
+        arrangement: "16w",
+        picture: 1,
+        file: "fmask-4-4-2-010-16w-1.png",
+    },
+];
 
 pub(crate) fn gradient(colour: usize, size: u32) -> Image {
     image_of(size, size, &gradient_pixels(colour, size))

@@ -64,7 +64,7 @@ fn render_face_mask(
     check_size(task, width, height)?;
     let arrangement = arrangement(&face, task, id, SearchBudget::DEFAULT)?;
     let pixels = face
-        .render_mask(&arrangement, width, height)
+        .render_mask(&arrangement, 0, width, height)
         .with_context(|| task.failed())?;
     let png = encode_png(width, height, &pixels).with_context(|| task.failed())?;
     std::fs::write(&args.output, png).context("cannot write the face mask")

@@ -665,14 +665,15 @@ mod tests {
     use crate::colour::{Colour, CosetFill, Fill, Paint, decode_table};
     use crate::fold::fold;
     use crate::golden_images::{
-        GOLDEN_SIZE, MASK_GOLDEN_IMAGES, arrangements, colouring, domain_with_settings, exact_face,
-        exact_mask, face_triangle_mask, golden_colouring, gradient, marks_text, mask_domains,
-        mask_rule, renderer, texel_index, whole_face,
+        GOLDEN_SIZE, MASK_GOLDEN_IMAGES, arrangements, arrangements_with, colouring,
+        domain_with_settings, exact_face, exact_mask, exact_pictures, face_triangle_mask,
+        golden_colouring, gradient, marks_text, mask_domains, mask_rule, picture_arrangements,
+        picture_tilings, renderer, texel_index, whole_face,
     };
     use crate::image::{Image, Placement, sample};
     use crate::options::RenderOptions;
     use crate::reference::{ExactMask, ExactPlacement, Flat, MaskRule};
-    use crate::whole_face::{WHOLE_FACE_SET, face_mask_styles};
+    use crate::whole_face::{EdgeMeeting, PICTURE_COUNTS, WHOLE_FACE_SET, face_mask_styles};
     use escher_reference::{Reference, num, vector};
 
     static DOMAINS: LazyLock<Vec<(String, FundamentalDomain)>> = LazyLock::new(mask_domains);
@@ -1382,7 +1383,7 @@ mod tests {
                 let edges = face
                     .edges(&arrangement)
                     .unwrap_or_else(|error| panic!("{name}: {error}"));
-                let styles = face_mask_styles(&edges);
+                let styles = face_mask_styles(&edges, face.polygon().len());
                 let total = styles
                     .iter()
                     .map(|style| style.class)
@@ -1465,6 +1466,155 @@ mod tests {
     }
 
     const TICK_SIZE: u32 = 512;
+
+    fn assert_picture_styles(
+        name: &str,
+        edges: &[EdgeMeeting],
+        styles: &[EdgeStyle],
+        order: usize,
+    ) -> [usize; 3] {
+        let total = styles
+            .iter()
+            .map(|style| style.class)
+            .max()
+            .map_or(0, |last| last + 1);
+        let mut next_class = 0;
+        let mut kinds = [0; 3];
+        for (edge, meeting) in edges.iter().enumerate() {
+            let other = usize::try_from(meeting.picture()).unwrap_or(usize::MAX) * order
+                + usize::try_from(meeting.partner()).unwrap_or(usize::MAX);
+            let style = styles[edge];
+            let label = format!("{name}: edge {} of picture {}", edge % order, edge / order);
+            assert_eq!(style.code, code_colour(style.class, total), "{label}");
+            assert_eq!(styles[other].class, style.class, "{label}");
+            if style.class == next_class {
+                next_class += 1;
+            }
+            assert!(
+                style.class < next_class,
+                "{label} opens class {}",
+                style.class
+            );
+            let sharing = styles
+                .iter()
+                .filter(|another| another.class == style.class)
+                .count();
+            let turned = !meeting.mirrored();
+            if other == edge {
+                assert_eq!(sharing, 1, "{label} shares its class");
+                assert_eq!(style.marks, [true, turned], "{label}");
+                kinds[0] += 1;
+            } else {
+                assert_eq!(sharing, 2, "{label}");
+                let wanted = if other > edge {
+                    [true, false]
+                } else {
+                    [!turned, turned]
+                };
+                assert_eq!(style.marks, wanted, "{label}");
+                kinds[1 + usize::from(other / order != edge / order)] += 1;
+            }
+        }
+        kinds
+    }
+
+    #[test]
+    fn face_masks_of_several_pictures_share_one_code_colour_for_each_meeting_and_mark_its_ends() {
+        let mut kinds = [0; 3];
+        let mut arrangements = 0;
+        for &(text, marks) in &WHOLE_FACE_SET {
+            let face = whole_face(&domain_with_settings(text, &[]), marks);
+            let order = usize::try_from(face.index() / 2).unwrap_or(usize::MAX);
+            for pictures in PICTURE_COUNTS {
+                for arrangement in arrangements_with(&face, pictures) {
+                    let name = format!("{text} {} {}", marks_text(marks), arrangement.id());
+                    let edges = face
+                        .edges(&arrangement)
+                        .unwrap_or_else(|error| panic!("{name}: {error}"));
+                    let styles = face_mask_styles(&edges, order);
+                    let found = assert_picture_styles(&name, &edges, &styles, order);
+                    kinds = [0, 1, 2].map(|kind| kinds[kind] + found[kind]);
+                    let refused = face
+                        .render_mask(&arrangement, pictures, 8, 8)
+                        .err()
+                        .map(|error| error.to_string());
+                    assert_eq!(
+                        refused.as_deref(),
+                        Some(
+                            format!(
+                                "cannot render face mask: the picture {pictures} is not below the {pictures} pictures of the arrangement"
+                            )
+                            .as_str()
+                        ),
+                        "{name}"
+                    );
+                    arrangements += 1;
+                }
+            }
+        }
+        println!(
+            "{arrangements} arrangements, edges (paired with themselves, paired in one picture, paired across two pictures): {kinds:?}"
+        );
+        assert_eq!((arrangements, kinds), (3399, [16670, 10058, 29884]));
+    }
+
+    #[test]
+    fn face_mask_of_each_picture_shows_its_turned_face_with_its_borders_marks_and_tick() {
+        let mut content = Content::default();
+        let mut reference = Reference::new();
+        let mut masks = 0;
+        for tiling in picture_tilings() {
+            let domain = domain_with_settings(tiling.signature, &[]);
+            let face = whole_face(&domain, tiling.marks);
+            let order = usize::try_from(face.index() / 2).unwrap_or(usize::MAX);
+            for arrangement in picture_arrangements(&face, tiling) {
+                let name = format!("{} {}", tiling.name(), arrangement.id());
+                let edges = face
+                    .edges(&arrangement)
+                    .unwrap_or_else(|error| panic!("{name}: {error}"));
+                let styles = face_mask_styles(&edges, order);
+                let exact = exact_pictures(
+                    &mut reference,
+                    tiling.signature,
+                    &domain,
+                    tiling.marks,
+                    arrangement.table(),
+                );
+                let polygons = face.picture_polygons(&arrangement);
+                assert_eq!(polygons.len(), exact.len(), "{name}");
+                for (picture, (polygon, exact)) in polygons.iter().zip(&exact).enumerate() {
+                    let name = format!("{name} picture {picture}");
+                    let styles = &styles[picture * order..(picture + 1) * order];
+                    for size in MASK_SIZES {
+                        let pixels =
+                            draw_mask(polygon, styles, Tick::OnEdgeZero, size[0], size[1], 1);
+                        check_mask_content(
+                            &name,
+                            polygon,
+                            styles,
+                            Tick::OnEdgeZero,
+                            &pixels,
+                            size,
+                            &mut content,
+                        );
+                    }
+                    let pixels =
+                        draw_mask(polygon, styles, Tick::OnEdgeZero, TICK_SIZE, TICK_SIZE, 1);
+                    check_tick(&mut reference, &name, &exact.polygon, styles, &pixels);
+                    masks += 1;
+                }
+            }
+        }
+        content.report();
+        println!("{masks} face masks");
+        assert_eq!(masks, 32);
+        assert!(
+            content.white >= 120_000
+                && content.black >= 120_000
+                && content.coded >= 2500
+                && content.marked >= 800
+        );
+    }
 
     fn check_tick(
         reference: &mut Reference,

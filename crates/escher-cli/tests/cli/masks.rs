@@ -489,7 +489,7 @@ fn written_face_mask(output: &Path, id: &str, size: u32) -> Vec<u8> {
     assert_eq!(outcome.stderr, "");
     let (_, face, arrangement) = hexagon_arrangement(id);
     let pixels = face
-        .render_mask(&arrangement, size, size)
+        .render_mask(&arrangement, 0, size, size)
         .expect("the face mask is rendered");
     assert_eq!(
         std::fs::read(output).expect("the face mask is written"),

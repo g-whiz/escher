@@ -102,8 +102,8 @@ pub enum Fill {
     /// on the edges of the faces and not on the sides of the domain.
     Wythoff(WythoffFill),
     /// The faces of a regular tiling replace the tiles, and every face shows
-    /// the picture of a [`WholeFaceFill`], turned or mirrored as its
-    /// arrangement says. The borders lie on the edges of the faces, as for
+    /// the picture of its orbit in a [`WholeFaceFill`], turned or mirrored as
+    /// its arrangement says. The borders lie on the edges of the faces, as for
     /// [`Fill::Wythoff`].
     WholeFace(WholeFaceFill),
 }

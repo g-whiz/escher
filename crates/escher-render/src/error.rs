@@ -269,10 +269,17 @@ impl Error {
         }
     }
 
-    pub(crate) fn paint_count(given: usize) -> Self {
+    pub(crate) fn paint_count(needed: usize, given: usize) -> Self {
         Self {
             operation: WHOLE_FACE_FILL,
-            detail: Detail::PaintCount { given },
+            detail: Detail::PaintCount { needed, given },
+        }
+    }
+
+    pub(crate) fn mask_picture(picture: u32, count: usize) -> Self {
+        Self {
+            operation: FACE_MASK,
+            detail: Detail::MaskPicture { picture, count },
         }
     }
 
@@ -328,6 +335,7 @@ impl Error {
             | Detail::ArrangementSize { .. }
             | Detail::NotArrangement
             | Detail::PaintCount { .. }
+            | Detail::MaskPicture { .. }
             | Detail::OtherWholeFaceDomain => ErrorKind::InvalidOption,
             Detail::LargeSide { .. }
             | Detail::ManyPixels { .. }
@@ -392,6 +400,7 @@ impl core::error::Error for Error {
             | Detail::ArrangementSize { .. }
             | Detail::NotArrangement
             | Detail::PaintCount { .. }
+            | Detail::MaskPicture { .. }
             | Detail::OtherWholeFaceDomain => None,
         }
     }
@@ -425,9 +434,10 @@ pub enum ErrorKind {
     /// a Wythoff fill with another number of colours than face types or used
     /// with another domain, a whole face of a construction that is not a
     /// regular tiling or that was built for another domain, a colouring that
-    /// is not an arrangement of the faces of a whole face, or a whole-face
-    /// fill with another number of paints than one or used with another
-    /// domain.
+    /// is not an arrangement of the faces of a whole face, a face mask of a
+    /// picture that the arrangement does not have, or a whole-face fill with
+    /// another number of paints than the arrangement has pictures or used
+    /// with another domain.
     InvalidOption,
     /// An option or an image is larger than its limit, which bounds the
     /// memory and the time of a render, or the PNG decoder reached its memory
@@ -545,17 +555,23 @@ enum Detail {
     #[error("the construction is not a regular tiling")]
     NotRegular,
     #[error(
-        "the colouring has {}, and an arrangement of these faces has {needed}",
+        "the colouring has {}, and an arrangement of these faces has a multiple of {needed}",
         counted(*cosets, "coset", "cosets")
     )]
     ArrangementSize { cosets: usize, needed: usize },
     #[error("the colouring is not an arrangement of the faces")]
     NotArrangement,
     #[error(
-        "the arrangement needs 1 paint, and {given} {} given",
+        "the arrangement needs {}, and {given} {} given",
+        counted(*needed, "paint", "paints"),
         if *given == 1 { "was" } else { "were" }
     )]
-    PaintCount { given: usize },
+    PaintCount { needed: usize, given: usize },
+    #[error(
+        "the picture {picture} is not below the {} of the arrangement",
+        counted(*count, "picture", "pictures")
+    )]
+    MaskPicture { picture: u32, count: usize },
     #[error("the whole-face fill was built for another domain")]
     OtherWholeFaceDomain,
 }
@@ -612,12 +628,12 @@ mod tests {
             (
                 Error::arrangement_size(8, 12),
                 ErrorKind::InvalidOption,
-                "cannot read edge pairing: the colouring has 8 cosets, and an arrangement of these faces has 12",
+                "cannot read edge pairing: the colouring has 8 cosets, and an arrangement of these faces has a multiple of 12",
             ),
             (
                 Error::arrangement_size(1, 14).during(WHOLE_FACE_FILL),
                 ErrorKind::InvalidOption,
-                "cannot build whole-face fill: the colouring has 1 coset, and an arrangement of these faces has 14",
+                "cannot build whole-face fill: the colouring has 1 coset, and an arrangement of these faces has a multiple of 14",
             ),
             (
                 Error::not_arrangement().during(FACE_MASK),
@@ -630,14 +646,24 @@ mod tests {
                 "cannot render face mask: the image size 0x512 is empty",
             ),
             (
-                Error::paint_count(2),
+                Error::paint_count(1, 2),
                 ErrorKind::InvalidOption,
                 "cannot build whole-face fill: the arrangement needs 1 paint, and 2 were given",
             ),
             (
-                Error::paint_count(1),
+                Error::paint_count(2, 1),
                 ErrorKind::InvalidOption,
-                "cannot build whole-face fill: the arrangement needs 1 paint, and 1 was given",
+                "cannot build whole-face fill: the arrangement needs 2 paints, and 1 was given",
+            ),
+            (
+                Error::mask_picture(2, 2),
+                ErrorKind::InvalidOption,
+                "cannot render face mask: the picture 2 is not below the 2 pictures of the arrangement",
+            ),
+            (
+                Error::mask_picture(1, 1),
+                ErrorKind::InvalidOption,
+                "cannot render face mask: the picture 1 is not below the 1 picture of the arrangement",
             ),
             (
                 Error::other_whole_face_domain(),
