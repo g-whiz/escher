@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-23 |
+| Date | 2026-11-24 |
 | Applies to | `crates/escher-group` |
 
 ## Abstract
@@ -760,6 +760,8 @@ GRP-45. `free_classes_of_index` with the colour count $k$ MUST run the bound $k$
 The call counts every read of a table entry of the filter as a step and compares it with the budget at each read (GRP-29). A stop at a limit gives `is_complete()` false and an empty list, and claims nothing, as for `colourings_of_index`. The kept tables are class tables, so for a set that holds a class table $T$, `colourings_of_index` with `ColouringSet::All` lists $T$ with `class()` equal to `id()`.
 
 An empty list of words keeps every class of the colour count. The empty word fixes every coset, so a list that holds it keeps none. The words are traced as given, without reduction.
+
+The command line calls `free_classes_of_index` at the index $2n$ for the arrangements with one picture and at the indices $2nm$ for those with $m$ pictures, one call for each index, from $m = 1$ up to the colour limit of `--max-colours` while $2nm$ is within `IndexLimit::MAX`, and stops after the first call that stops at a limit or returns an error (Section 5.10 of `docs/design/cli.md`). Each call ranks only the tables of its own index, so the ids of different indices never collide, and the ids of one index do not depend on the calls at other indices (GRP-37, GRP-39). This crate needs no change for it, and the index limit of 64 and the budget of Section 7.12 apply to each call unchanged. The search reaches its budget sooner at a larger index (Section 7.14), so a listing can stop at a number of pictures below the index limit, and each call that stops claims nothing about its index (GRP-35).
 
 GRP-46. `free_classes_of_index` MUST check the words of `stabilizer` against the limits of the subgroup generators of `enumerate`, at most 256 words of at most 4096 letters each (Section 15), and that every letter names a generator of the presentation, in this order: the number of words, then each word in order, its length before its letters, then the expanded relator letters, and MUST return `LimitExceeded` or `InvalidWord` with the texts of Section 8.2 before any allocation that depends on them, because the words come from the caller, and the limits of the subgroup generators already bound words of this kind.
 
