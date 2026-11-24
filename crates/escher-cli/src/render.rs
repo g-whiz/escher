@@ -19,7 +19,7 @@ use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
 use rayon::slice::ParallelSliceMut as _;
 
 use crate::args::{Colouring, RenderArgs, Setting, ShadingChoice};
-use crate::count_of_colours;
+use crate::count_of;
 use crate::diagnostic::{SignatureError, echoed};
 
 const MAX_THREADS: usize = 256;
@@ -115,11 +115,10 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
         Painting::Wythoff { wythoff, colours } => {
             Fill::Wythoff(WythoffFill::new(*wythoff, colours).with_context(|| task.failed())?)
         }
-        Painting::WholeFace { face, id, paint } => {
+        Painting::WholeFace { face, id, paints } => {
             let arrangement = arrangement(&face, task, id, SearchBudget::DEFAULT)?;
             Fill::WholeFace(
-                WholeFaceFill::new(*face, arrangement, vec![paint])
-                    .with_context(|| task.failed())?,
+                WholeFaceFill::new(*face, arrangement, paints).with_context(|| task.failed())?,
             )
         }
     };
@@ -383,7 +382,7 @@ enum Painting {
     WholeFace {
         face: Box<WholeFace>,
         id: ColouringId,
-        paint: Paint,
+        paints: Vec<Paint>,
     },
 }
 
@@ -419,13 +418,13 @@ fn whole_face_painting(
 ) -> anyhow::Result<Painting> {
     refuse_colouring(task, args.tiling.colouring)?;
     let face = Box::new(whole_face(domain, marks).with_context(|| task.failed())?);
-    let paint = match picture_item(id, args.colours.as_deref())
-        .map_err(|detail| cannot_render(task, detail))?
-    {
-        Item::Colour(colour) => Paint::Solid(colour),
-        Item::Image(path) => Paint::Image(open_image(task, 1, path)?),
+    let items = picture_items(id, pictures(&face, id), args.colours.as_deref())
+        .map_err(|detail| cannot_render(task, detail))?;
+    let paints = match read_paints(task, items)? {
+        Paints::Solid(colours) => colours.into_iter().map(Paint::Solid).collect(),
+        Paints::Images(paints) => paints,
     };
-    Ok(Painting::WholeFace { face, id, paint })
+    Ok(Painting::WholeFace { face, id, paints })
 }
 
 pub(crate) fn whole_face(
@@ -435,11 +434,20 @@ pub(crate) fn whole_face(
     WholeFace::new(domain, Wythoff::new(domain, marks)?)
 }
 
+pub(crate) fn pictures(face: &WholeFace, id: ColouringId) -> u32 {
+    if id.colours().is_multiple_of(face.index()) {
+        id.colours() / face.index()
+    } else {
+        1
+    }
+}
+
 pub(crate) fn arrangements(
     face: &WholeFace,
+    pictures: u32,
     budget: SearchBudget,
 ) -> escher_group::Result<ColouringsOfIndex> {
-    let index = IndexLimit::new(face.index())?;
+    let index = IndexLimit::new(face.index() * pictures)?;
     free_classes_of_index(face.presentation(), face.stabilizer(), index, budget)
 }
 
@@ -449,13 +457,15 @@ pub(crate) fn arrangement(
     id: ColouringId,
     budget: SearchBudget,
 ) -> anyhow::Result<escher_group::Colouring> {
-    let found = arrangements(face, budget).with_context(|| task.failed())?;
-    found_arrangement(&found, id).map_err(|detail| cannot_render(task, detail))
+    let pictures = pictures(face, id);
+    let found = arrangements(face, pictures, budget).with_context(|| task.failed())?;
+    found_arrangement(&found, id, pictures).map_err(|detail| cannot_render(task, detail))
 }
 
 fn found_arrangement(
     found: &ColouringsOfIndex,
     id: ColouringId,
+    pictures: u32,
 ) -> Result<escher_group::Colouring, String> {
     if let Some(arrangement) = found.find(id) {
         return Ok(arrangement.clone());
@@ -465,13 +475,17 @@ fn found_arrangement(
             "the search for the arrangement {id} stopped at a limit before it found it"
         ));
     }
+    let with = count_of(u64::from(pictures), "picture");
     match found.list().len() {
-        0 => Err("the tiling has no arrangement that puts one picture on every polygon".to_owned()),
+        0 if pictures == 1 => {
+            Err("the tiling has no arrangement that puts one picture on every polygon".to_owned())
+        }
+        0 => Err(format!("the tiling has no arrangement with {with}")),
         1 => Err(format!(
-            "the arrangement {id} does not exist, because the tiling has 1 arrangement"
+            "the arrangement {id} does not exist, because the tiling has 1 arrangement with {with}"
         )),
         count => Err(format!(
-            "the arrangement {id} does not exist, because the tiling has {count} arrangements"
+            "the arrangement {id} does not exist, because the tiling has {count} arrangements with {with}"
         )),
     }
 }
@@ -651,7 +665,7 @@ fn missing_text(id: ColouringId, count: usize) -> String {
     };
     format!(
         "the colouring {id} does not exist, because the signature has {colourings} with {}",
-        count_of_colours(u64::from(id.colours()))
+        count_of(u64::from(id.colours()), "colour")
     )
 }
 
@@ -664,27 +678,24 @@ enum Item<'a> {
 fn fill_items(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Item<'_>>, String> {
     let needed = colouring.colours();
     let Some(text) = colours else {
-        return default_colours(needed)
-            .map(|colours| colours.into_iter().map(Item::Colour).collect())
-            .ok_or_else(|| {
-                format!(
-                    "the colouring {colouring} needs {needed} colours, more than the {} default colours, so give {needed} colours with --colours",
-                    DEFAULT_COLOURS.len()
-                )
-            });
+        return default_items(needed).ok_or_else(|| {
+            format!(
+                "the colouring {colouring} needs {needed} colours, more than the {} default colours, so give {needed} colours with --colours",
+                DEFAULT_COLOURS.len()
+            )
+        });
     };
-    counted_items(text, needed, format_args!("the colouring {colouring}"))?
-        .iter()
-        .enumerate()
-        .map(|(position, item)| fill_item(position + 1, item))
-        .collect()
+    read_items(text, needed, format_args!("the colouring {colouring}"))
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "a Wythoff construction has at most 3 face types, fewer than the 12 default colours"
+)]
 fn face_colours(face_types: u32, colours: Option<&str>) -> Result<Vec<Colour>, String> {
     let Some(text) = colours else {
-        return default_colours(face_types).ok_or_else(|| {
-            format!("internal error: the Wythoff construction has {face_types} face types")
-        });
+        return Ok(default_colours(face_types)
+            .expect("internal error: a Wythoff construction has no more face types than there are default colours"));
     };
     counted_items(text, face_types, "the Wythoff construction")?
         .iter()
@@ -700,15 +711,38 @@ fn face_colours(face_types: u32, colours: Option<&str>) -> Result<Vec<Colour>, S
         .collect()
 }
 
-fn picture_item(id: ColouringId, colours: Option<&str>) -> Result<Item<'_>, String> {
+#[expect(
+    clippy::expect_used,
+    reason = "an arrangement has at most 10 pictures, because its index is at most 64 and is twice the number of sides of a face, at least 3, times the number of pictures, so it has fewer pictures than the 12 default colours"
+)]
+fn picture_items(
+    id: ColouringId,
+    pictures: u32,
+    colours: Option<&str>,
+) -> Result<Vec<Item<'_>>, String> {
     let Some(text) = colours else {
-        let [red, green, blue] = DEFAULT_COLOURS[0];
-        return Ok(Item::Colour(Colour::from_srgb8(red, green, blue)));
+        return Ok(default_items(pictures).expect(
+            "internal error: an arrangement has no more pictures than there are default colours",
+        ));
     };
-    fill_item(
-        1,
-        counted_items(text, 1, format_args!("the arrangement {id}"))?[0],
+    read_items(text, pictures, format_args!("the arrangement {id}"))
+}
+
+fn default_items(needed: u32) -> Option<Vec<Item<'static>>> {
+    Some(
+        default_colours(needed)?
+            .into_iter()
+            .map(Item::Colour)
+            .collect(),
     )
+}
+
+fn read_items(text: &str, needed: u32, subject: impl Display) -> Result<Vec<Item<'_>>, String> {
+    counted_items(text, needed, subject)?
+        .iter()
+        .enumerate()
+        .map(|(position, item)| fill_item(position + 1, item))
+        .collect()
 }
 
 fn default_colours(needed: u32) -> Option<Vec<Colour>> {
@@ -726,7 +760,7 @@ fn counted_items(text: &str, needed: u32, subject: impl Display) -> Result<Vec<&
     if u64::try_from(items.len()).ok() != Some(u64::from(needed)) {
         return Err(format!(
             "{subject} needs {}, and {} given",
-            count_of_colours(u64::from(needed)),
+            count_of(u64::from(needed), "colour"),
             given(items.len())
         ));
     }
@@ -898,8 +932,8 @@ mod tests {
     use super::{
         DEFAULT_COLOURS, Item, Paints, Parity, Task, arrangement, arrangements, chosen_colouring,
         coset_colouring, coset_fill, decode_image, face_colours, fill, fill_item, fill_items,
-        found_arrangement, missing_text, parse_colour, picture_item, resolve, setting_text,
-        shape_parameters, statistics_text, thread_pool_error, whole_face,
+        found_arrangement, missing_text, parse_colour, picture_items, pictures, resolve,
+        setting_text, shape_parameters, statistics_text, thread_pool_error, whole_face,
     };
     use crate::Status;
     use crate::args::{Colouring, Setting};
@@ -1578,7 +1612,38 @@ mod tests {
         assert_eq!(
             arrangement_text("*532", "10b", SearchBudget::DEFAULT.get()),
             Err(
-                "cannot render *532: the arrangement 10b does not exist, because the tiling has 1 arrangement"
+                "cannot render *532: the arrangement 10b does not exist, because the tiling has 1 arrangement with 1 picture"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn an_id_whose_number_is_not_a_multiple_of_the_index_is_resolved_with_one_picture() {
+        let face = regular_face("*632");
+        assert_eq!(pictures(&face, colouring_id("14a")), 1);
+        assert_eq!(pictures(&face, colouring_id("12a")), 1);
+        assert_eq!(pictures(&face, colouring_id("24a")), 2);
+        assert_eq!(pictures(&face, colouring_id("60a")), 5);
+        assert_eq!(
+            arrangement_text("*632", "14a", SearchBudget::DEFAULT.get()),
+            Err(
+                "cannot render *632: the arrangement 14a does not exist, because the tiling has 7 arrangements with 1 picture"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn an_id_of_two_pictures_is_resolved_at_twice_the_index() {
+        assert_eq!(
+            arrangement_text("*632", "24k", SearchBudget::DEFAULT.get()),
+            Ok("24k".to_owned())
+        );
+        assert_eq!(
+            arrangement_text("*632", "24l", SearchBudget::DEFAULT.get()),
+            Err(
+                "cannot render *632: the arrangement 24l does not exist, because the tiling has 11 arrangements with 2 pictures"
                     .to_owned()
             )
         );
@@ -1597,36 +1662,78 @@ mod tests {
         .expect("the search runs");
         assert!(found.is_complete());
         assert_eq!(
-            found_arrangement(&found, colouring_id("12a")).map(|found| found.id().to_string()),
+            found_arrangement(&found, colouring_id("12a"), 1).map(|found| found.id().to_string()),
             Err("the tiling has no arrangement that puts one picture on every polygon".to_owned())
         );
-        let complete = arrangements(&face, SearchBudget::DEFAULT).expect("the search runs");
+        assert_eq!(
+            found_arrangement(&found, colouring_id("24a"), 2).map(|found| found.id().to_string()),
+            Err("the tiling has no arrangement with 2 pictures".to_owned())
+        );
+        let complete = arrangements(&face, 1, SearchBudget::DEFAULT).expect("the search runs");
         assert_eq!(complete.list().len(), 7);
     }
 
     #[test]
-    fn picture_item_takes_one_colour_or_image_item_and_the_first_default_colour() {
+    fn a_missing_arrangement_with_two_pictures_gives_their_number_in_words() {
+        assert_eq!(
+            arrangement_text("*432", "16b", SearchBudget::DEFAULT.get()),
+            Err(
+                "cannot render *432: the arrangement 16b does not exist, because the tiling has 1 arrangement with 2 pictures"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn picture_items_take_one_colour_or_image_item_and_the_first_default_colour() {
         let id = colouring_id("12a");
         let [red, green, blue] = DEFAULT_COLOURS[0];
         assert_eq!(
-            picture_item(id, None),
-            Ok(Item::Colour(Colour::from_srgb8(red, green, blue)))
+            picture_items(id, 1, None),
+            Ok(vec![Item::Colour(Colour::from_srgb8(red, green, blue))])
         );
         assert_eq!(
-            picture_item(id, Some("#123")),
-            Ok(Item::Colour(Colour::from_srgb8(0x11, 0x22, 0x33)))
+            picture_items(id, 1, Some("#123")),
+            Ok(vec![Item::Colour(Colour::from_srgb8(0x11, 0x22, 0x33))])
         );
         assert_eq!(
-            picture_item(id, Some("image:a.png")),
-            Ok(Item::Image("a.png"))
+            picture_items(id, 1, Some("image:a.png")),
+            Ok(vec![Item::Image("a.png")])
         );
         assert_eq!(
-            picture_item(id, Some("#123,#456")),
+            picture_items(id, 1, Some("#123,#456")),
             Err("the arrangement 12a needs 1 colour, and 2 were given".to_owned())
         );
         assert_eq!(
-            picture_item(id, Some("red")),
+            picture_items(id, 1, Some("red")),
             Err("colour 1 of --colours is not of the form #rgb, #rrggbb, or image:FILE".to_owned())
+        );
+    }
+
+    #[test]
+    fn picture_items_take_one_item_for_each_picture_in_order() {
+        let id = colouring_id("24a");
+        let face = regular_face("*632");
+        assert_eq!(pictures(&face, id), 2);
+        let defaults: Vec<Item<'_>> = DEFAULT_COLOURS[..2]
+            .iter()
+            .map(|&[red, green, blue]| Item::Colour(Colour::from_srgb8(red, green, blue)))
+            .collect();
+        assert_eq!(picture_items(id, 2, None), Ok(defaults));
+        assert_eq!(
+            picture_items(id, 2, Some("image:b.png,#123")),
+            Ok(vec![
+                Item::Image("b.png"),
+                Item::Colour(Colour::from_srgb8(0x11, 0x22, 0x33))
+            ])
+        );
+        assert_eq!(
+            picture_items(id, 2, Some("#123")),
+            Err("the arrangement 24a needs 2 colours, and 1 was given".to_owned())
+        );
+        assert_eq!(
+            picture_items(id, 2, Some("#123,red")),
+            Err("colour 2 of --colours is not of the form #rgb, #rrggbb, or image:FILE".to_owned())
         );
     }
 }

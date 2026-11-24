@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/masks.rs
+expression: "masks_snapshot(&[\"*732\", \"--wythoff\", \"100\", \"--arrangement\", \"18a\"],\nPath::new(\"/\"))"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render the masks of *732: the output path names no file
+--- end

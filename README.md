@@ -227,6 +227,37 @@ escher render '*732' --wythoff 010 --arrangement 14a --colours 'image:heptagon.p
 
 ![White heptagons fill the Poincare disk, each with the coloured borders and the tick of the mask, turned so that borders of the same colour meet across every edge.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/heptagon-tiling.png)
 
+An arrangement can also use several pictures of your own, named A, B, and so on, with each polygon showing one of them. After the arrangements with one picture, `escher info` lists those with two pictures, then three, and so on, up to at most the value of `--max-colours`, so a lower value shortens the listing. For some tilings it lists none with one or two pictures: for the triangles of `*732` with `100`, the first arrangements that it lists have three. Each line of an arrangement with several pictures gives its number of pictures and writes each edge after the letter of its picture, so `A0 and B0 turned` means that edge 0 of a polygon with picture A meets edge 0 of a neighbour that shows picture B turned. This command lists the arrangements of the squares of `*442` with one and two pictures:
+
+```sh
+escher info '*442' --wythoff 010 --max-colours 2
+```
+
+Among the lines that it prints are the count of the arrangements with two pictures and the checkerboard `16ab`, in which each edge of A meets the same edge of B:
+
+```text
+Arrangements with 2 pictures: 29
+Arrangement: 16ab, 2 pictures, turned only, edges A0 and B0 turned, A1 and B1 turned, A2 and B2 turned, A3 and B3 turned
+```
+
+For an arrangement with several pictures, `escher render-masks` writes one mask for each picture, numbered from 0 as the masks of a colouring are. Each mask has its own tick on its own edge 0, and on these masks each border turns black near one end of its edge. The border colours match across the masks, so edges with the same colour meet in the tiling, also when they belong to two pictures. You can lay the masks edge to edge, with the black ends together, to paint pictures that continue across them. This command writes `square-0.png` for A and `square-1.png` for B:
+
+```sh
+escher render-masks '*442' --wythoff 010 --arrangement 16ab -o square.png
+```
+
+![A white square on black, with a coloured border on each edge, each black near one end, and a short black tick across the middle of the red edge at the left.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/square-0.png)
+
+![The same square turned half a turn, with the tick across the middle of the red edge at the right and each border black near its other end.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/square-1.png)
+
+Paint one picture over each mask, then pass the painted files to `escher render`. `--colours` takes one item for each picture, in the order A, B, and so on. This command passes the unpainted masks instead, so the borders show how the squares meet. The mask of B is the mask of A turned a half turn, except that each border is black near the other end of its edge:
+
+```sh
+escher render '*442' --wythoff 010 --arrangement 16ab --colours 'image:square-0.png,image:square-1.png' -o squares.png
+```
+
+![A grid of white squares whose coloured borders meet across every edge, with ticks on both sides of each red edge.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/squares.png)
+
 `escher info` prints one `Parameter` line for each shape parameter of a signature. For `*2222`, the line is:
 
 ```text

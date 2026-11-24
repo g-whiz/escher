@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "arrangement_snapshot(\"arrangement_three_pictures_one_colour\",\n&[\"*732\", \"--wythoff\", \"100\", \"--arrangement\", \"18a\", \"--colours\", \"#000\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the arrangement 18a needs 3 colours, and 1 was given
+--- end

@@ -2053,7 +2053,7 @@ fn render_with_an_arrangement_that_fails_gives_its_diagnostic_and_changes_no_fil
         (
             "arrangement_refused_missing_id",
             &["12h"][..],
-            "error: cannot render *632: the arrangement 12h does not exist, because the tiling has 7 arrangements\n",
+            "error: cannot render *632: the arrangement 12h does not exist, because the tiling has 7 arrangements with 1 picture\n",
         ),
         (
             "arrangement_refused_image",
@@ -2153,4 +2153,36 @@ fn render_applies_the_model_the_border_width_and_the_size_to_an_arrangement() {
         assert_eq!(file, library_heptagons_png(width, height, adjust), "{name}");
         assert_ne!(file, default, "{name}");
     }
+}
+
+#[test]
+fn render_diagnostic_counts_three_colours_for_an_arrangement_of_three_pictures() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_three_pictures_one_colour",
+        &[
+            "*732",
+            "--wythoff",
+            "100",
+            "--arrangement",
+            "18a",
+            "--colours",
+            "#000"
+        ]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_an_arrangement_of_two_pictures_does_not_exist() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_two_pictures_missing",
+        &["*632", "--wythoff", "010", "--arrangement", "24zz"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_the_tiling_has_no_arrangement_with_2_pictures() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_none_of_two_pictures",
+        &["*732", "--wythoff", "100", "--arrangement", "12a"]
+    ));
 }

@@ -5,5 +5,5 @@ expression: "arrangement_snapshot(\"arrangement_missing\",\n&[\"*632\", \"--wyth
 status: Failure
 --- stdout
 --- stderr
-error: cannot render *632: the arrangement 12h does not exist, because the tiling has 7 arrangements
+error: cannot render *632: the arrangement 12h does not exist, because the tiling has 7 arrangements with 1 picture
 --- end

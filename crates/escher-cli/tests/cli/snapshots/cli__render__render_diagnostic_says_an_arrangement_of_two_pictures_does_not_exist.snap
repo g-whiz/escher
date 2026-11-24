@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "arrangement_snapshot(\"arrangement_two_pictures_missing\",\n&[\"*632\", \"--wythoff\", \"010\", \"--arrangement\", \"24zz\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *632: the arrangement 24zz does not exist, because the tiling has 11 arrangements with 2 pictures
+--- end

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-23 |
+| Date | 2026-11-24 |
 | Applies to | The repository's configuration, recipes, hooks, and continuous integration |
 
 ## Abstract
@@ -108,10 +108,11 @@ Otherwise `check-toml` and `check-typos` fail on files that are correct. taplo i
 
 `typos.toml` accepts correct text in three forms: patterns, identifiers, and words. An agent adds each new entry in the narrowest form that accepts the correct text, because every wider form stops typos from checking more of the repository.
 
-The two patterns are the entries of the `extend-ignore-re` list in the `[default]` table:
+The three patterns are the entries of the `extend-ignore-re` list in the `[default]` table:
 
 - The first matches the full name of a cited author in `docs/rust-references.md`, whose surname typos reports. The surname is correct only inside that name.
 - The second matches the id of a colouring in a `Colouring` line of `escher info`, in a snapshot of `escher-cli`, from `Colouring: ` to the comma after the id. The letters of an id count in base 26 and are not words, so typos reports some of them.
+- The third matches the id of an arrangement in an `Arrangement` line of `escher info` in the same way, from `Arrangement: ` to the comma after the id, because an arrangement id has the form of a colouring id.
 
 typos skips only the text that a pattern matches, so it still checks the same letters everywhere else.
 
@@ -153,7 +154,7 @@ This table lists every recipe, what it runs, and whether `check` runs it. The co
 | `check-doctest` | `checks` | The doctest command of Section 4.8 | Yes, through `check-rust` |
 | `test` | `rust` | The nextest command of Section 4.8 with the `default` profile | Yes, through `check-rust` |
 | `update-golden` | `rust` | Only the golden image test of `escher-render`, `images::golden_images_match_the_committed_files`, through the command of `test` with `-p escher-render` in place of `--workspace` and that test as the filter of `-E`, with `ESCHER_UPDATE_GOLDEN=1` in its environment, so that the test writes each image it renders over its committed PNG file (Section 14.9) | No |
-| `readme-images` | `rust` | `scripts/readme-images`, which builds `escher` in release mode and runs each `escher render` and `escher render-masks` command that `README.md` shows, with its options, in `docs/images/`, so that each image there is the file that its command writes. Two `render` commands read masks that the script wrote as image fills, one the polygon masks and one the face mask, and the script then removes the masks that `README.md` does not show | No |
+| `readme-images` | `rust` | `scripts/readme-images`, which builds `escher` in release mode and runs each `escher render` and `escher render-masks` command that `README.md` shows, with its options, in `docs/images/`, so that each image there is the file that its command writes. Three `render` commands read masks that the script wrote as image fills: the polygon masks, the face mask of an arrangement with one picture, and the two face masks of an arrangement with two pictures. The script then removes the masks that `README.md` does not show | No |
 | `check-deny` | `checks` | The cargo-deny command of Section 4.8 | Yes, through `check-rust` |
 | `check-rust-comments` | `checks` | The comment checker of Section 6.2 | Yes, through `check-rust` |
 | `check-doc-headings` | `checks` | The heading checker of Section 6.3 | Yes, through `check-rust` |

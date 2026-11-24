@@ -18,11 +18,11 @@ const SET_DISPLAY_ORDER: usize = 15;
 
 const WYTHOFF_HELP: &str = "Draw the Wythoff construction of a reflection triangle instead of its tiles, as three digits, one for each corner of the signature in the order that info prints, where 1 turns on the mirror opposite that corner, such as 010 for the regular tiling {7,3} of *732. --colours then gives one colour for each face type, in the order of the corners that have a face";
 
-const MASKS_WYTHOFF_HELP: &str = "With --arrangement, write the mask of the polygon of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732, to the --output file itself";
+const MASKS_WYTHOFF_HELP: &str = "With --arrangement, write one mask of the polygon of the regular tiling of a Wythoff construction for each picture, as three digits as for render, such as 010 for the heptagons of *732: for one picture to the --output file itself, and for several to files named as the masks of a colouring, mask-0.png for picture A, mask-1.png for B, and so on";
 
-const ARRANGEMENT_HELP: &str = "With --wythoff on a regular tiling, put one picture on every polygon, turned or mirrored as the arrangement with this id says, such as 12a, which the command info --wythoff lists. --colours then gives one colour or one image:FILE painted over the mask that render-masks writes for the same arrangement";
+const ARRANGEMENT_HELP: &str = "With --wythoff on a regular tiling, put a picture on every polygon, turned or mirrored as the arrangement with this id says, such as 12a, which the command info --wythoff lists. --colours then gives one colour or image:FILE for each picture of the arrangement, in the order A, B, and so on, each painted over the mask that render-masks writes for that picture";
 
-const MASKS_ARRANGEMENT_HELP: &str = "With --wythoff on a regular tiling, border each edge of the mask to show how it meets its neighbour in the arrangement with this id, such as 12a, which the command info --wythoff lists";
+const MASKS_ARRANGEMENT_HELP: &str = "With --wythoff on a regular tiling, border each edge of the mask of each picture to show how it meets its neighbour in the arrangement with this id, such as 12a, which the command info --wythoff lists";
 
 const SET_HELP: &str = "Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature";
 
@@ -110,14 +110,14 @@ pub(crate) enum Command {
             value_name = "N",
             default_value = "12",
             value_parser = parse_max_colours,
-            help = "The largest number of colours of the valid colourings to count and list, from 1 to 64"
+            help = "The largest number of colours of the valid colourings to count and list, and with --wythoff the largest number of pictures of the arrangements to list, from 1 to 64"
         )]
         max_colours: IndexLimit,
         #[arg(
             long,
             value_name = "MARKS",
             value_parser = parse_wythoff,
-            help = "List the arrangements of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732. Each arrangement puts one picture on every polygon. For each arrangement, it lists the edge of the neighbour that lies on each edge and whether that neighbour is turned or mirrored, with the edges numbered counterclockwise around the mask from edge 0, the edge with the black tick"
+            help = "List the arrangements of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732. Each arrangement puts one of its pictures, A, B, and so on, on every polygon, and the number of its id is twice the number of sides of a polygon times the number of pictures. For each edge of each picture, it lists the edge of the neighbour that lies on it and whether that neighbour is turned or mirrored, with the edges numbered counterclockwise around each mask from edge 0, the edge with the black tick, and with several pictures each edge written after the letter of its picture, such as B2"
         )]
         wythoff: Option<[bool; 3]>,
     },

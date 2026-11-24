@@ -100,9 +100,33 @@ pub(crate) fn output_path(test: &str) -> PathBuf {
 }
 
 pub(crate) fn failure_with_no_file_change(command: &str, test: &str, args: &[&str]) -> String {
+    failure_with_no_mask_change(command, test, args, 0)
+}
+
+pub(crate) fn failure_with_no_mask_change(
+    command: &str,
+    test: &str,
+    args: &[&str],
+    masks: u32,
+) -> String {
     let existing = output_path(test);
     let missing = existing.with_file_name("missing.png");
-    std::fs::write(&existing, b"old").expect("the existing file is written");
+    let mask_names = |stem: &str| -> Vec<PathBuf> {
+        (0..masks)
+            .map(|mask| existing.with_file_name(format!("{stem}-{mask}.png")))
+            .collect()
+    };
+    let existing_files: Vec<PathBuf> = [existing.clone()]
+        .into_iter()
+        .chain(mask_names("tiling"))
+        .collect();
+    let missing_files: Vec<PathBuf> = [missing.clone()]
+        .into_iter()
+        .chain(mask_names("missing"))
+        .collect();
+    for file in &existing_files {
+        std::fs::write(file, b"old").expect("the existing file is written");
+    }
     let diagnostics: Vec<String> = [&existing, &missing]
         .into_iter()
         .map(|output| {
@@ -115,12 +139,17 @@ pub(crate) fn failure_with_no_file_change(command: &str, test: &str, args: &[&st
             outcome.stderr
         })
         .collect();
-    assert_eq!(
-        std::fs::read(&existing).expect("the existing file stays"),
-        b"old",
-        "{args:?}"
-    );
-    assert!(!missing.exists(), "{args:?}");
+    for file in &existing_files {
+        assert_eq!(
+            std::fs::read(file).expect("the existing file stays"),
+            b"old",
+            "{args:?} {}",
+            file.display()
+        );
+    }
+    for file in &missing_files {
+        assert!(!file.exists(), "{args:?} {}", file.display());
+    }
     assert_eq!(diagnostics[0], diagnostics[1], "{args:?}");
     diagnostics[0].clone()
 }
@@ -141,7 +170,7 @@ pub(crate) fn regular_arrangement(
     let arrangement = free_classes_of_index(
         face.presentation(),
         face.stabilizer(),
-        IndexLimit::new(face.index()).expect("the index is within the limit"),
+        IndexLimit::new(id.colours()).expect("the index is within the limit"),
         SearchBudget::DEFAULT,
     )
     .expect("the search runs")

@@ -3,6 +3,7 @@
 #[cfg(test)]
 mod common;
 mod diagnostics;
+#[cfg(test)]
 mod info;
 #[cfg(test)]
 mod masks;

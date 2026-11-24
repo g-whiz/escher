@@ -15,8 +15,8 @@ Options:
       --check            Verify the fundamental domain of the signature and print the result of each check
       --presentation     Print the generators and relators of the signature and of its fundamental domain, and for a spherical signature the group order by coset enumeration
       --colourings       Print the valid colourings of the fundamental domain, in which no two neighbouring tiles share a colour, one for each conjugacy class of subgroups, with its id, up to the largest number of colours
-      --max-colours <N>  The largest number of colours of the valid colourings to count and list, from 1 to 64 [default: 12]
-      --wythoff <MARKS>  List the arrangements of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732. Each arrangement puts one picture on every polygon. For each arrangement, it lists the edge of the neighbour that lies on each edge and whether that neighbour is turned or mirrored, with the edges numbered counterclockwise around the mask from edge 0, the edge with the black tick
+      --max-colours <N>  The largest number of colours of the valid colourings to count and list, and with --wythoff the largest number of pictures of the arrangements to list, from 1 to 64 [default: 12]
+      --wythoff <MARKS>  List the arrangements of the regular tiling of a Wythoff construction, as three digits as for render, such as 010 for the heptagons of *732. Each arrangement puts one of its pictures, A, B, and so on, on every polygon, and the number of its id is twice the number of sides of a polygon times the number of pictures. For each edge of each picture, it lists the edge of the neighbour that lies on it and whether that neighbour is turned or mirrored, with the edges numbered counterclockwise around each mask from edge 0, the edge with the black tick, and with several pictures each edge written after the letter of its picture, such as B2
   -h, --help             Print help
 --- stderr
 --- end

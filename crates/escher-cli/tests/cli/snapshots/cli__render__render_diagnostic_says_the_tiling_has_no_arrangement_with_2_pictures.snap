@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "arrangement_snapshot(\"arrangement_none_of_two_pictures\",\n&[\"*732\", \"--wythoff\", \"100\", \"--arrangement\", \"12a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the tiling has no arrangement with 2 pictures
+--- end

@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::num::NonZeroU64;
 use std::borrow::Cow;
 use std::io::Write;
@@ -7,10 +8,10 @@ use escher_group::{
     Colouring, ColouringCounts, ColouringId, Colourings, CosetLimit, ErrorKind, IndexLimit,
     Presentation, SearchBudget, colourings, conway_presentation, count_colourings, enumerate,
 };
-use escher_render::EdgeMeeting;
+use escher_render::{EdgeMeeting, WholeFace};
 use escher_signature::{Geometry, Rational, Signature};
 
-use crate::count_of_colours;
+use crate::count_of;
 use crate::diagnostic::SignatureError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -129,7 +130,7 @@ pub(crate) fn info(text: &str, options: Options, stdout: &mut dyn Write) -> Vec<
             if let Some(marks) = options.wythoff {
                 push_arrangements(
                     &mut lines,
-                    find_arrangements(domain, marks, SearchBudget::DEFAULT),
+                    &find_arrangements(domain, marks, options.max_colours, SearchBudget::DEFAULT),
                 );
             }
             Some(presentation.map_err(|error| error.to_string()))
@@ -335,47 +336,100 @@ fn push_colourings(lines: &mut Lines, found: Result<Found, String>) {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Arrangements {
     Stopped,
-    Listed(Vec<(ColouringId, Vec<EdgeMeeting>)>),
+    Listed {
+        sides: u32,
+        list: Vec<(ColouringId, Vec<EdgeMeeting>)>,
+    },
 }
 
 fn find_arrangements(
     domain: &FundamentalDomain,
     marks: [bool; 3],
+    max_pictures: IndexLimit,
+    budget: SearchBudget,
+) -> Vec<Result<Arrangements, String>> {
+    let face = match crate::render::whole_face(domain, marks) {
+        Ok(face) => face,
+        Err(error) => return vec![Err(error.to_string())],
+    };
+    let mut found = Vec::new();
+    for pictures in 1..=largest_pictures(max_pictures, face.index()) {
+        let listed = arrangements_of(&face, pictures, budget);
+        let complete = matches!(listed, Ok(Arrangements::Listed { .. }));
+        found.push(listed);
+        if !complete {
+            break;
+        }
+    }
+    found
+}
+
+fn largest_pictures(max_pictures: IndexLimit, index: u32) -> u32 {
+    max_pictures.get().min(IndexLimit::MAX.get() / index).max(1)
+}
+
+fn arrangements_of(
+    face: &WholeFace,
+    pictures: u32,
     budget: SearchBudget,
 ) -> Result<Arrangements, String> {
-    let face = crate::render::whole_face(domain, marks).map_err(|error| error.to_string())?;
-    let found = crate::render::arrangements(&face, budget).map_err(|error| error.to_string())?;
+    let found =
+        crate::render::arrangements(face, pictures, budget).map_err(|error| error.to_string())?;
     if !found.is_complete() {
         return Ok(Arrangements::Stopped);
     }
-    found
+    let list = found
         .list()
         .iter()
         .map(|arrangement| {
             let edges = face.edges(arrangement).map_err(|error| error.to_string())?;
             Ok((arrangement.id(), edges))
         })
-        .collect::<Result<_, String>>()
-        .map(Arrangements::Listed)
+        .collect::<Result<_, String>>()?;
+    Ok(Arrangements::Listed {
+        sides: face.index() / 2,
+        list,
+    })
 }
 
-fn push_arrangements(lines: &mut Lines, found: Result<Arrangements, String>) {
-    match found {
-        Err(text) => lines.push(("Arrangements".into(), format!("none, {text}"))),
-        Ok(Arrangements::Stopped) => lines.push((
-            "Arrangements".into(),
-            "none, the search stopped at a limit".to_owned(),
-        )),
-        Ok(Arrangements::Listed(list)) => {
-            lines.push(("Arrangements".into(), list.len().to_string()));
-            for (id, edges) in &list {
-                lines.push(("Arrangement".into(), arrangement_text(*id, edges)));
+fn push_arrangements(lines: &mut Lines, found: &[Result<Arrangements, String>]) {
+    for (pictures, found) in (1..).zip(found) {
+        let label: Cow<'static, str> = if pictures == 1 {
+            "Arrangements".into()
+        } else {
+            format!("Arrangements with {pictures} pictures").into()
+        };
+        match found {
+            Err(text) => lines.push((label, format!("none, {text}"))),
+            Ok(Arrangements::Stopped) => {
+                lines.push((label, "none, the search stopped at a limit".to_owned()));
+            }
+            Ok(Arrangements::Listed { sides, list }) => {
+                lines.push((label, list.len().to_string()));
+                for (id, meetings) in list {
+                    lines.push((
+                        "Arrangement".into(),
+                        arrangement_text(*id, pictures, *sides, meetings),
+                    ));
+                }
             }
         }
     }
 }
 
-fn arrangement_text(id: ColouringId, edges: &[EdgeMeeting]) -> String {
+fn arrangement_text(
+    id: ColouringId,
+    pictures: u32,
+    sides: u32,
+    meetings: &[EdgeMeeting],
+) -> String {
+    let name = |picture: u32, edge: u32| {
+        if pictures == 1 {
+            edge.to_string()
+        } else {
+            format!("{}{edge}", crate::picture_letter(picture))
+        }
+    };
     let kind = |meeting: &EdgeMeeting| {
         if meeting.mirrored() {
             "mirrored"
@@ -383,39 +437,48 @@ fn arrangement_text(id: ColouringId, edges: &[EdgeMeeting]) -> String {
             "turned"
         }
     };
-    let neighbours = if edges.iter().any(|meeting| meeting.mirrored()) {
+    let neighbours = if meetings.iter().any(|meeting| meeting.mirrored()) {
         "with mirrored neighbours"
     } else {
         "turned only"
     };
     let pairs: Vec<String> = (0..)
-        .zip(edges)
-        .filter(|&(edge, meeting)| meeting.partner() >= edge)
-        .map(|(edge, meeting)| {
-            if meeting.partner() == edge {
-                format!("{edge} {}", kind(meeting))
-            } else {
-                format!("{edge} and {} {}", meeting.partner(), kind(meeting))
+        .zip(meetings)
+        .filter_map(|(position, meeting)| {
+            let own = name(position / sides, position % sides);
+            match (meeting.picture() * sides + meeting.partner()).cmp(&position) {
+                Ordering::Less => None,
+                Ordering::Equal => Some(format!("{own} {}", kind(meeting))),
+                Ordering::Greater => Some(format!(
+                    "{own} and {} {}",
+                    name(meeting.picture(), meeting.partner()),
+                    kind(meeting)
+                )),
             }
         })
         .collect();
-    format!("{id}, {neighbours}, edges {}", pairs.join(", "))
+    let count = if pictures == 1 {
+        String::new()
+    } else {
+        format!("{pictures} pictures, ")
+    };
+    format!("{id}, {count}{neighbours}, edges {}", pairs.join(", "))
 }
 
 fn summary_text(total: u64, complete_to: u32, requested: u32) -> String {
-    let complete = count_of_colours(u64::from(complete_to));
+    let complete = count_of(u64::from(complete_to), "colour");
     if complete_to >= requested {
         format!("{total}, complete to {complete}")
     } else {
         format!(
             "{total}, complete to {complete}, the search stopped at a limit before {}",
-            count_of_colours(u64::from(complete_to) + 1)
+            count_of(u64::from(complete_to) + 1, "colour")
         )
     }
 }
 
 fn count_label(colours: u32) -> String {
-    format!("Colourings with {}", count_of_colours(u64::from(colours)))
+    format!("Colourings with {}", count_of(u64::from(colours), "colour"))
 }
 
 fn listed_text(id: ColouringId, alias: Option<Alias>) -> String {
@@ -424,7 +487,10 @@ fn listed_text(id: ColouringId, alias: Option<Alias>) -> String {
         Some(Alias::Parity) => ", alias parity",
         None => "",
     };
-    format!("{id}, {}{alias}", count_of_colours(u64::from(id.colours())))
+    format!(
+        "{id}, {}{alias}",
+        count_of(u64::from(id.colours()), "colour")
+    )
 }
 
 fn reported(conway: Option<Fault>, side: Option<Fault>) -> Vec<anyhow::Error> {
@@ -808,11 +874,12 @@ mod tests {
     use escher_signature::Signature;
 
     use super::{
-        Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, alias_of, check_text,
-        count_label, enumerate_order, failed_checks, find_arrangements, index_list, joined,
-        kind_name, listed_text, order_mismatch, order_text, push_arrangements, push_colourings,
-        push_order, push_verification, reported, search_colourings, signature_lines, size_text,
-        summary_text, write_text,
+        Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, alias_of,
+        arrangement_text, check_text, count_label, enumerate_order, failed_checks,
+        find_arrangements, index_list, joined, kind_name, largest_pictures, listed_text,
+        order_mismatch, order_text, push_arrangements, push_colourings, push_order,
+        push_verification, reported, search_colourings, signature_lines, size_text, summary_text,
+        write_text,
     };
     use crate::Status;
     use crate::diagnostic::report;
@@ -1254,20 +1321,144 @@ mod tests {
         }
     }
 
-    fn arrangement_lines(signature: &str, marks: [bool; 3], steps: u64) -> String {
+    fn arrangement_lines(
+        signature: &str,
+        marks: [bool; 3],
+        max_pictures: u32,
+        steps: u64,
+    ) -> String {
         let signature: Signature = signature.parse().expect("the signature is valid");
         let domain = FundamentalDomain::build(&signature).expect("the signature has a domain");
+        let limit = IndexLimit::new(max_pictures).expect("the limit is valid");
         let budget = SearchBudget::new(steps).expect("the budget is valid");
         let mut lines = Vec::new();
-        push_arrangements(&mut lines, find_arrangements(&domain, marks, budget));
+        push_arrangements(
+            &mut lines,
+            &find_arrangements(&domain, marks, limit, budget),
+        );
         joined(&lines)
     }
+
+    const HEXAGONS: [bool; 3] = [false, true, false];
 
     #[test]
     fn an_arrangement_search_stopped_at_a_limit_prints_no_number() {
         assert_eq!(
-            arrangement_lines("*632", [false, true, false], 1),
+            arrangement_lines("*632", HEXAGONS, 12, 1),
             "Arrangements: none, the search stopped at a limit\n"
+        );
+    }
+
+    #[test]
+    fn a_search_stopped_at_two_pictures_ends_the_listing_after_the_lines_of_one_picture() {
+        let complete = arrangement_lines("*632", HEXAGONS, 1, SearchBudget::DEFAULT.get());
+        assert_eq!(complete.lines().count(), 8);
+        assert_eq!(
+            arrangement_lines("*632", HEXAGONS, 12, 100_000),
+            format!(
+                "{complete}Arrangements with 2 pictures: none, the search stopped at a limit\n"
+            )
+        );
+    }
+
+    #[test]
+    fn a_colour_limit_of_one_lists_the_arrangements_of_one_picture_only() {
+        let lines = arrangement_lines("*632", HEXAGONS, 1, SearchBudget::DEFAULT.get());
+        assert!(lines.starts_with("Arrangements: 7\n"), "{lines}");
+        assert!(!lines.contains("pictures"), "{lines}");
+        let two = arrangement_lines("*632", HEXAGONS, 2, SearchBudget::DEFAULT.get());
+        assert!(two.starts_with(&lines), "{two}");
+        assert_eq!(
+            two[lines.len()..].lines().next(),
+            Some("Arrangements with 2 pictures: 11")
+        );
+        assert!(!two.contains("Arrangements with 3 pictures"), "{two}");
+    }
+
+    #[test]
+    fn the_largest_number_of_pictures_is_the_colour_limit_or_what_the_index_limit_allows() {
+        let limit = |value| IndexLimit::new(value).expect("the limit is valid");
+        for (colours, index, largest) in [
+            (12, 6, 10),
+            (12, 8, 8),
+            (12, 10, 6),
+            (12, 12, 5),
+            (12, 14, 4),
+            (12, 16, 4),
+            (12, 18, 3),
+            (12, 32, 2),
+            (12, 34, 1),
+            (12, 64, 1),
+            (3, 6, 3),
+            (1, 6, 1),
+            (64, 6, 10),
+        ] {
+            assert_eq!(
+                largest_pictures(limit(colours), index),
+                largest,
+                "{colours} {index}"
+            );
+        }
+    }
+
+    fn listed_arrangement(signature: &str, marks: [bool; 3], id: &str) -> String {
+        let signature: Signature = signature.parse().expect("the signature is valid");
+        let domain = FundamentalDomain::build(&signature).expect("the signature has a domain");
+        let face = crate::render::whole_face(&domain, marks).expect("the face exists");
+        let id = crate::colouring_id(id);
+        let pictures = crate::render::pictures(&face, id);
+        let found = crate::render::arrangements(&face, pictures, SearchBudget::DEFAULT)
+            .expect("the search runs");
+        assert!(found.is_complete(), "{id}");
+        let arrangement = found.find(id).expect("the arrangement exists");
+        let edges = face.edges(arrangement).expect("the arrangement has edges");
+        arrangement_text(id, pictures, face.index() / 2, &edges)
+    }
+
+    const SQUARES: [bool; 3] = [false, true, false];
+    const TRIANGLES: [bool; 3] = [true, false, false];
+
+    #[test]
+    fn an_arrangement_of_one_picture_is_written_with_edge_numbers_only() {
+        for (id, text) in [
+            (
+                "8e",
+                "8e, with mirrored neighbours, edges 0 mirrored, 1 and 3 turned, 2 turned",
+            ),
+            (
+                "8o",
+                "8o, with mirrored neighbours, edges 0 and 2 mirrored, 1 and 3 turned",
+            ),
+            (
+                "8n",
+                "8n, turned only, edges 0 and 2 turned, 1 and 3 turned",
+            ),
+        ] {
+            assert_eq!(listed_arrangement("*442", SQUARES, id), text);
+        }
+    }
+
+    #[test]
+    fn an_arrangement_of_two_pictures_writes_each_edge_after_the_letter_of_its_picture() {
+        for (id, text) in [
+            (
+                "16ab",
+                "16ab, 2 pictures, turned only, edges A0 and B0 turned, A1 and B1 turned, A2 and B2 turned, A3 and B3 turned",
+            ),
+            (
+                "16h",
+                "16h, 2 pictures, with mirrored neighbours, edges A0 mirrored, A1 and B2 mirrored, A2 mirrored, A3 and B0 turned, B1 mirrored, B3 mirrored",
+            ),
+        ] {
+            assert_eq!(listed_arrangement("*442", SQUARES, id), text);
+        }
+    }
+
+    #[test]
+    fn an_arrangement_of_three_pictures_writes_each_edge_after_the_letter_of_its_picture() {
+        assert_eq!(
+            listed_arrangement("*732", TRIANGLES, "18a"),
+            "18a, 3 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and C0 turned, B2 turned, C1 and C2 turned"
         );
     }
 }

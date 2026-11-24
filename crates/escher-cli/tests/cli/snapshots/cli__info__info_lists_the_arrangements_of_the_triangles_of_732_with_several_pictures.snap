@@ -1,0 +1,63 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*732\", \"--wythoff\", \"100\"])"
+---
+status: Success
+--- stdout
+Signature: *732
+Geometry: hyperbolic
+Euler characteristic: -1/84
+Compact: yes
+Area: pi/42
+Deformation dimension: 0
+Regular tiling: {7,3}, dual {3,7}
+Domain: 3 mirror sides
+Corner angles in degrees: 25.714286, 60.000000, 90.000000
+Side lengths: 0.545275, 0.620672, 0.283128
+Domain area: 0.074800
+Colourings: 3, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 8 colours: 1
+Colourings with 9 colours: 1
+Arrangements: 0
+Arrangements with 2 pictures: 0
+Arrangements with 3 pictures: 1
+Arrangement: 18a, 3 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and C0 turned, B2 turned, C1 and C2 turned
+Arrangements with 4 pictures: 0
+Arrangements with 5 pictures: 5
+Arrangement: 30a, 5 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and D1 turned, C2 turned, D2 and E0 turned, E1 turned, E2 turned
+Arrangement: 30b, 5 pictures, with mirrored neighbours, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and D1 turned, C2 turned, D2 and E0 turned, E1 and E2 mirrored
+Arrangement: 30c, 5 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 turned, C2 and E0 turned, D1 and E2 turned, D2 turned, E1 turned
+Arrangement: 30d, 5 pictures, with mirrored neighbours, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 turned, C2 and E0 turned, D1 and E2 turned, D2 and E1 mirrored
+Arrangement: 30e, 5 pictures, with mirrored neighbours, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and D2 mirrored, C2 and E0 turned, D1 and E2 turned, E1 turned
+Arrangements with 6 pictures: 0
+Arrangements with 7 pictures: 14
+Arrangement: 42a, 7 pictures, turned only, edges A0 turned, A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and E0 turned, C2 and D1 turned, D2 and F0 turned, E1 turned, E2 and G0 turned, F1 turned, F2 and G1 turned, G2 turned
+Arrangement: 42b, 7 pictures, with mirrored neighbours, edges A0 turned, A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and E0 turned, C2 and D1 turned, D2 and F0 turned, E1 turned, E2 and G0 turned, F1 and G2 mirrored, F2 and G1 turned
+Arrangement: 42c, 7 pictures, turned only, edges A0 turned, A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and E0 turned, C2 and D1 turned, D2 and F0 turned, E1 and G0 turned, E2 turned, F1 turned, F2 and G2 turned, G1 turned
+Arrangement: 42d, 7 pictures, with mirrored neighbours, edges A0 turned, A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and E0 turned, C2 and D1 turned, D2 and F0 turned, E1 and G0 turned, E2 and F1 mirrored, F2 and G2 turned, G1 turned
+Arrangement: 42e, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 turned, B2 and E0 turned, C1 turned, C2 and D0 turned, D1 and F2 turned, D2 and E1 turned, E2 and F0 turned, F1 and G0 turned, G1 and G2 mirrored
+Arrangement: 42f, 7 pictures, turned only, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 turned, B2 and E0 turned, C1 and F0 turned, C2 and D0 turned, D1 turned, D2 and E1 turned, E2 and G0 turned, F1 turned, F2 and G2 turned, G1 turned
+Arrangement: 42g, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 turned, B2 and E0 turned, C1 and F0 turned, C2 and D0 turned, D1 and G1 mirrored, D2 and E1 turned, E2 and G0 turned, F1 turned, F2 and G2 turned
+Arrangement: 42h, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 and D0 turned, B2 turned, C1 turned, C2 and E0 turned, D1 and F0 turned, D2 and E1 turned, E2 and F1 turned, F2 and G0 turned, G1 and G2 mirrored
+Arrangement: 42i, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 and D0 turned, B2 turned, C1 and F0 turned, C2 and E0 turned, D1 and E1 turned, D2 and G0 turned, E2 turned, F1 and G2 turned, F2 and G1 mirrored
+Arrangement: 42j, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 and D0 turned, B2 and C1 mirrored, C2 and E0 turned, D1 and F0 turned, D2 and E1 turned, E2 and F1 turned, F2 and G0 turned, G1 and G2 mirrored
+Arrangement: 42k, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 and D0 turned, B2 and D2 mirrored, C1 and F0 turned, C2 and E0 turned, D1 and F1 turned, E1 and G0 turned, E2 and F2 turned, G1 and G2 mirrored
+Arrangement: 42l, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 and D0 turned, B2 and E1 mirrored, C1 and F0 turned, C2 and E0 turned, D1 and G0 turned, D2 turned, E2 and G1 turned, F1 turned, F2 and G2 mirrored
+Arrangement: 42m, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 and D0 turned, B2 and F0 turned, C1 and F2 mirrored, C2 and E0 turned, D1 and G0 turned, D2 and G2 mirrored, E1 and F1 turned, E2 and G1 turned
+Arrangement: 42n, 7 pictures, with mirrored neighbours, edges A0 turned, A1 and B0 turned, A2 and C0 turned, B1 and D0 turned, B2 and F0 turned, C1 and G0 turned, C2 and E0 turned, D1 and F2 mirrored, D2 and G2 mirrored, E1 turned, E2 and F1 mirrored, G1 turned
+Arrangements with 8 pictures: 1
+Arrangement: 48a, 8 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and F0 turned, C2 and E0 turned, D1 and E2 turned, D2 and F2 turned, E1 and G0 turned, F1 and H0 turned, G1 and G2 turned, H1 and H2 turned
+Arrangements with 9 pictures: 0
+Arrangements with 10 pictures: 9
+Arrangement: 60a, 10 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and D1 turned, C2 turned, D2 and E0 turned, E1 and F2 turned, E2 and F0 turned, F1 and G0 turned, G1 and H0 turned, G2 and I0 turned, H1 and I2 turned, H2 turned, I1 and J0 turned, J1 and J2 turned
+Arrangement: 60b, 10 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and D1 turned, C2 turned, D2 and E0 turned, E1 and F2 turned, E2 and F0 turned, F1 and G0 turned, G1 and H0 turned, G2 and I0 turned, H1 and I2 turned, H2 and J0 turned, I1 turned, J1 and J2 turned
+Arrangement: 60c, 10 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 turned, C2 and E0 turned, D1 and E2 turned, D2 and F0 turned, E1 and G0 turned, F1 and H0 turned, F2 and G1 turned, G2 and I0 turned, H1 turned, H2 and I2 turned, I1 and J0 turned, J1 and J2 turned
+Arrangement: 60d, 10 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 turned, C2 and E0 turned, D1 and E2 turned, D2 and F0 turned, E1 and G0 turned, F1 and H0 turned, F2 and G1 turned, G2 and I0 turned, H1 and I1 turned, H2 and J0 turned, I2 turned, J1 and J2 turned
+Arrangement: 60e, 10 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and F0 turned, C2 and E0 turned, D1 and E2 turned, D2 and G0 turned, E1 turned, F1 and H0 turned, F2 and I0 turned, G1 and I2 turned, G2 and H2 turned, H1 turned, I1 and J0 turned, J1 and J2 turned
+Arrangement: 60f, 10 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and F0 turned, C2 and E0 turned, D1 and E2 turned, D2 and G0 turned, E1 and H0 turned, F1 turned, F2 and I2 turned, G1 and H1 turned, G2 and I0 turned, H2 and J0 turned, I1 turned, J1 and J2 turned
+Arrangement: 60g, 10 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and F0 turned, C2 and E0 turned, D1 and E2 turned, D2 and G0 turned, E1 and H0 turned, F1 and I0 turned, F2 turned, G1 and J0 turned, G2 and H2 turned, H1 and I1 turned, I2 turned, J1 and J2 turned
+Arrangement: 60h, 10 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and F0 turned, C2 and E0 turned, D1 and E2 turned, D2 and G0 turned, E1 and H0 turned, F1 and I0 turned, F2 turned, G1 and H1 turned, G2 and I2 turned, H2 and J0 turned, I1 turned, J1 and J2 turned
+Arrangement: 60i, 10 pictures, with mirrored neighbours, edges A0 and A1 turned, A2 and B0 turned, B1 and D0 turned, B2 and C0 turned, C1 and F0 turned, C2 and E0 turned, D1 and E2 turned, D2 and G0 turned, E1 and H0 turned, F1 and H1 turned, F2 and J0 turned, G1 and I1 mirrored, G2 and I0 turned, H2 and I2 turned, J1 and J2 turned
+--- stderr
+--- end

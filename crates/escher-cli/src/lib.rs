@@ -253,12 +253,21 @@ fn usage(error: &clap::Error, stdout: &mut dyn Write, stderr: &mut dyn Write) ->
 
 const COLOURING_SET: escher_group::ColouringSet = escher_group::ColouringSet::ValidClasses;
 
-fn count_of_colours(count: u64) -> String {
+fn count_of(count: u64, noun: &str) -> String {
     if count == 1 {
-        "1 colour".to_owned()
+        format!("1 {noun}")
     } else {
-        format!("{count} colours")
+        format!("{count} {noun}s")
     }
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "an arrangement has at most 10 pictures, because its index is at most 64 and is twice the number of sides of a face, at least 3, times the number of pictures, so the letter of a picture is an ASCII letter"
+)]
+fn picture_letter(picture: u32) -> char {
+    char::from_u32(u32::from('A') + picture)
+        .expect("internal error: the letter of a picture is a character")
 }
 
 #[cfg(test)]

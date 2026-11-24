@@ -11,9 +11,10 @@ use escher_render::{
 use escher_signature::Signature;
 
 use crate::common::{
-    Outcome, assert_png_bytes, failure_with_no_file_change, output_path, path_text,
-    regular_arrangement, run_args, snapshot,
+    Outcome, assert_png_bytes, failure_with_no_file_change, failure_with_no_mask_change,
+    output_path, path_text, regular_arrangement, run_args, snapshot,
 };
+use crate::info::{CHECKERBOARD, THREE_TRIANGLES};
 
 fn mask_path(test: &str) -> PathBuf {
     output_path(test).with_file_name("mask.png")
@@ -388,7 +389,23 @@ fn render_masks_refuses_an_arrangement_without_wythoff() {
     assert_eq!(file_names(directory(&output)), names(&[]));
 }
 
-const HEXAGONS: [bool; 3] = [false, true, false];
+struct Tiling {
+    signature: &'static str,
+    marks: [bool; 3],
+    marks_text: &'static str,
+}
+
+const HEXAGONS: Tiling = Tiling {
+    signature: "*632",
+    marks: [false, true, false],
+    marks_text: "010",
+};
+
+const HEPTAGONS: Tiling = Tiling {
+    signature: "*732",
+    marks: [false, true, false],
+    marks_text: "010",
+};
 
 #[test]
 fn render_masks_refuses_a_face_mask_with_the_diagnostic_of_render_and_changes_no_file() {
@@ -396,7 +413,7 @@ fn render_masks_refuses_a_face_mask_with_the_diagnostic_of_render_and_changes_no
         (
             "masks_face_missing_id",
             &["*632", "--wythoff", "010", "--arrangement", "12h"][..],
-            "error: cannot render the masks of *632: the arrangement 12h does not exist, because the tiling has 7 arrangements\n",
+            "error: cannot render the masks of *632: the arrangement 12h does not exist, because the tiling has 7 arrangements with 1 picture\n",
         ),
         (
             "masks_face_none",
@@ -466,17 +483,32 @@ fn render_masks_refuses_a_face_mask_with_the_diagnostic_of_render_and_changes_no
     }
 }
 
-fn hexagon_arrangement(id: &str) -> (FundamentalDomain, WholeFace, escher_group::Colouring) {
-    regular_arrangement("*632", HEXAGONS, id)
+impl Tiling {
+    fn arrangement(&self, id: &str) -> (FundamentalDomain, WholeFace, escher_group::Colouring) {
+        regular_arrangement(self.signature, self.marks, id)
+    }
 }
 
-fn written_face_mask(output: &Path, id: &str, size: u32) -> Vec<u8> {
+fn library_whole_face_png(domain: &FundamentalDomain, fill: WholeFaceFill, size: u32) -> Vec<u8> {
+    let options = RenderOptions::builder(Fill::WholeFace(fill))
+        .size(size, size)
+        .samples(1)
+        .border_width(0.0)
+        .build()
+        .expect("the options are valid");
+    let (pixels, _) = Renderer::new(domain, options)
+        .expect("the renderer is built")
+        .render();
+    encode_png(size, size, &pixels).expect("the tiling is encoded")
+}
+
+fn written_face_mask(output: &Path, tiling: &Tiling, id: &str, size: u32) -> Vec<u8> {
     let size_text = format!("{size}x{size}");
     let outcome = render_masks(
         &[
-            "*632",
+            tiling.signature,
             "--wythoff",
-            "010",
+            tiling.marks_text,
             "--arrangement",
             id,
             "--size",
@@ -487,7 +519,7 @@ fn written_face_mask(output: &Path, id: &str, size: u32) -> Vec<u8> {
     assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
     assert_eq!(outcome.stdout, "");
     assert_eq!(outcome.stderr, "");
-    let (_, face, arrangement) = hexagon_arrangement(id);
+    let (_, face, arrangement) = tiling.arrangement(id);
     let pixels = face
         .render_mask(&arrangement, 0, size, size)
         .expect("the face mask is rendered");
@@ -503,7 +535,7 @@ fn written_face_mask(output: &Path, id: &str, size: u32) -> Vec<u8> {
 fn render_masks_writes_exactly_the_face_mask_of_escher_render_to_the_output() {
     let output = mask_path("masks_face_mask").with_file_name("face.png");
     std::fs::write(&output, b"old").expect("the existing file is written");
-    written_face_mask(&output, "12a", 40);
+    written_face_mask(&output, &HEXAGONS, "12a", 40);
     assert_png_bytes(
         &std::fs::read(&output).expect("the face mask is written"),
         40,
@@ -537,7 +569,7 @@ fn render_masks_names_the_face_mask_that_cannot_be_written() {
     );
 }
 
-fn picture_over(mask: &[u8], size: u32) -> Vec<u8> {
+fn picture_over(mask: &[u8], size: u32, blue: u8) -> Vec<u8> {
     let row = usize::try_from(size).expect("the size fits a usize");
     mask.as_chunks::<3>()
         .0
@@ -547,7 +579,7 @@ fn picture_over(mask: &[u8], size: u32) -> Vec<u8> {
             let shade =
                 |value: usize| u8::try_from(value * 255 / row).expect("a shade fits a byte");
             if pixel == WHITE {
-                [shade(index % row), shade(index / row), 0x80]
+                [shade(index % row), shade(index / row), blue]
             } else {
                 pixel
             }
@@ -572,12 +604,16 @@ fn render_with_a_picture_painted_over_the_face_mask_draws_the_whole_face_fill_of
     for id in ["12a", "12e"] {
         assert!(arrangement_listed(id), "{id}");
         let mask = mask_path(test).with_file_name(format!("face-{id}.png"));
-        let pixels = written_face_mask(&mask, id, mask_size);
+        let pixels = written_face_mask(&mask, &HEXAGONS, id, mask_size);
         let picture = mask.with_file_name(format!("picture-{id}.png"));
         std::fs::write(
             &picture,
-            encode_png(mask_size, mask_size, &picture_over(&pixels, mask_size))
-                .expect("the picture is encoded"),
+            encode_png(
+                mask_size,
+                mask_size,
+                &picture_over(&pixels, mask_size, 0x80),
+            )
+            .expect("the picture is encoded"),
         )
         .expect("the picture is written");
         let tiling = mask.with_file_name(format!("tiling-{id}.png"));
@@ -602,7 +638,7 @@ fn render_with_a_picture_painted_over_the_face_mask_draws_the_whole_face_fill_of
             path_text(&tiling),
         ]);
         assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
-        let (domain, face, arrangement) = hexagon_arrangement(id);
+        let (domain, face, arrangement) = HEXAGONS.arrangement(id);
         let image = Image::decode_png(
             std::fs::read(&picture)
                 .expect("the picture is read")
@@ -611,22 +647,430 @@ fn render_with_a_picture_painted_over_the_face_mask_draws_the_whole_face_fill_of
         .expect("the picture decodes");
         let fill = WholeFaceFill::new(face, arrangement, vec![Paint::Image(image)])
             .expect("the fill is valid");
-        let options = RenderOptions::builder(Fill::WholeFace(fill))
-            .size(tiling_size, tiling_size)
-            .samples(1)
-            .border_width(0.0)
-            .build()
-            .expect("the options are valid");
-        let (pixels, _) = Renderer::new(&domain, options)
-            .expect("the renderer is built")
-            .render();
         let written = std::fs::read(&tiling).expect("the tiling is written");
         assert_eq!(
             written,
-            encode_png(tiling_size, tiling_size, &pixels).expect("the tiling is encoded"),
+            library_whole_face_png(&domain, fill, tiling_size),
             "{id}"
         );
         files.push(written);
     }
     assert_ne!(files[0], files[1]);
+}
+
+struct SeveralPictures {
+    test: &'static str,
+    signature: &'static str,
+    marks: [bool; 3],
+    marks_text: &'static str,
+    id: &'static str,
+    pictures: u32,
+    listed: &'static str,
+}
+
+const SQUARES_TWO: SeveralPictures = SeveralPictures {
+    test: "masks_squares_two",
+    signature: "*442",
+    marks: [false, true, false],
+    marks_text: "010",
+    id: "16ab",
+    pictures: 2,
+    listed: CHECKERBOARD,
+};
+
+const TRIANGLES_THREE: SeveralPictures = SeveralPictures {
+    test: "masks_triangles_three",
+    signature: "*732",
+    marks: [true, false, false],
+    marks_text: "100",
+    id: "18a",
+    pictures: 3,
+    listed: THREE_TRIANGLES,
+};
+
+const PICTURE_BLUES: [u8; 3] = [0x80, 0x10, 0xf0];
+
+fn usize_of(value: u32) -> usize {
+    usize::try_from(value).expect("a number of pictures fits a usize")
+}
+
+impl SeveralPictures {
+    fn tiling_args<'a>(&'a self, extra: &[&'a str]) -> Vec<&'a str> {
+        let mut args = vec![
+            self.signature,
+            "--wythoff",
+            self.marks_text,
+            "--arrangement",
+            self.id,
+        ];
+        args.extend_from_slice(extra);
+        args
+    }
+
+    fn mask_names(&self, stem: &str) -> Vec<String> {
+        (0..self.pictures)
+            .map(|picture| format!("{stem}-{picture}.png"))
+            .collect()
+    }
+
+    fn rendered(&self, output: &Path, extra: &[&str]) -> Vec<u8> {
+        let mut args = vec!["render"];
+        args.extend(self.tiling_args(extra));
+        args.extend_from_slice(&["-o", path_text(output)]);
+        let outcome = run_args(&args);
+        assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+        std::fs::read(output).expect("the tiling is written")
+    }
+}
+
+fn assert_flow_of_several_pictures(case: &SeveralPictures) {
+    let (mask_size, tiling_size) = (96, 96);
+    let listing = run_args(&["info", case.signature, "--wythoff", case.marks_text]);
+    assert_eq!(listing.status, Status::Success, "{}", listing.stderr);
+    assert!(
+        listing.stdout.lines().any(|line| line == case.listed),
+        "{}",
+        case.id
+    );
+    let mask = mask_path(case.test).with_file_name("face.png");
+    let size_text = format!("{mask_size}x{mask_size}");
+    let outcome = render_masks(&case.tiling_args(&["--size", &size_text]), &mask);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(outcome.stderr, "");
+    let mask_names = case.mask_names("face");
+    assert_eq!(
+        file_names(directory(&mask)),
+        mask_names.iter().cloned().collect()
+    );
+    let (domain, face, arrangement) = regular_arrangement(case.signature, case.marks, case.id);
+    let mut items = Vec::new();
+    let mut images = Vec::new();
+    for (picture, name) in (0..case.pictures).zip(&mask_names) {
+        let pixels = face
+            .render_mask(&arrangement, picture, mask_size, mask_size)
+            .expect("the face mask is rendered");
+        let written = std::fs::read(mask.with_file_name(name)).expect("the face mask is written");
+        assert_png_bytes(&written, mask_size, mask_size);
+        assert_eq!(
+            written,
+            encode_png(mask_size, mask_size, &pixels).expect("the face mask is encoded"),
+            "{name}"
+        );
+        let painted = picture_over(&pixels, mask_size, PICTURE_BLUES[usize_of(picture)]);
+        let file = encode_png(mask_size, mask_size, &painted).expect("the picture is encoded");
+        let path = mask.with_file_name(format!("picture-{picture}.png"));
+        std::fs::write(&path, &file).expect("the picture is written");
+        items.push(format!("image:{}", path_text(&path)));
+        images.push(Paint::Image(
+            Image::decode_png(file.as_slice()).expect("the picture decodes"),
+        ));
+    }
+    let tiling_text = format!("{tiling_size}x{tiling_size}");
+    let options = [
+        "--size",
+        &tiling_text,
+        "--samples",
+        "1",
+        "--border-width",
+        "0",
+    ];
+    let colours = items.join(",");
+    let mut extra = vec!["--colours", &colours];
+    extra.extend_from_slice(&options);
+    let written = case.rendered(&mask.with_file_name("tiling.png"), &extra);
+    let fill = WholeFaceFill::new(face, arrangement, images).expect("the fill is valid");
+    assert_eq!(
+        written,
+        library_whole_face_png(&domain, fill, tiling_size),
+        "{}",
+        case.id
+    );
+    items.swap(0, 1);
+    let swapped = items.join(",");
+    let mut extra = vec!["--colours", &swapped];
+    extra.extend_from_slice(&options);
+    assert_ne!(
+        case.rendered(&mask.with_file_name("swapped.png"), &extra),
+        written,
+        "{}",
+        case.id
+    );
+}
+
+#[test]
+fn the_flow_of_two_pictures_on_the_checkerboard_of_the_squares_draws_each_painted_mask() {
+    assert_flow_of_several_pictures(&SQUARES_TWO);
+}
+
+#[test]
+fn the_flow_of_three_pictures_on_the_triangles_of_732_draws_each_painted_mask() {
+    assert_flow_of_several_pictures(&TRIANGLES_THREE);
+}
+
+fn assert_refusals_of_several_pictures(case: &SeveralPictures, missing: &str, count: &str) {
+    let test = format!("{}_refused", case.test);
+    let default_colours = ["#e9c46a", "#2a9d8f", "#913671"][..usize_of(case.pictures)].join(",");
+    let output = output_path(&format!("{test}_default"));
+    assert_eq!(
+        case.rendered(&output, &["--size", "24x24"]),
+        case.rendered(
+            &output.with_file_name("given.png"),
+            &["--size", "24x24", "--colours", &default_colours]
+        )
+    );
+    let (image, unreadable) = {
+        let image = output.with_file_name("fill.png");
+        let item = format!("image:{}", path_text(&image));
+        (image, item)
+    };
+    std::fs::write(&image, b"not a PNG image").expect("the file is written");
+    let fewer = ["#000", "#111", "#222", "#333"][..usize_of(case.pictures) - 1].join(",");
+    let more = ["#000", "#111", "#222", "#333"][..=usize_of(case.pictures)].join(",");
+    let bad_image = ["#000", unreadable.as_str(), "#222"][..usize_of(case.pictures)].join(",");
+    let pictures = case.pictures;
+    let render_failed = format!("error: cannot render {}: ", case.signature);
+    let masks_failed = format!("error: cannot render the masks of {}: ", case.signature);
+    let missing_text = format!(
+        "the arrangement {missing} does not exist, because the tiling has {count} with {pictures} pictures\n"
+    );
+    let missing_args = [
+        case.signature,
+        "--wythoff",
+        case.marks_text,
+        "--arrangement",
+        missing,
+    ];
+    for (name, command, args, diagnostic) in [
+        (
+            "fewer",
+            "render",
+            case.tiling_args(&["--colours", &fewer]),
+            format!(
+                "{render_failed}the arrangement {} needs {pictures} colours, and {} given\n",
+                case.id,
+                if pictures == 2 {
+                    "1 was".to_owned()
+                } else {
+                    format!("{} were", pictures - 1)
+                }
+            ),
+        ),
+        (
+            "more",
+            "render",
+            case.tiling_args(&["--colours", &more]),
+            format!(
+                "{render_failed}the arrangement {} needs {pictures} colours, and {} were given\n",
+                case.id,
+                pictures + 1
+            ),
+        ),
+        (
+            "missing",
+            "render",
+            missing_args.to_vec(),
+            format!("{render_failed}{missing_text}"),
+        ),
+        (
+            "image",
+            "render",
+            case.tiling_args(&["--colours", &bad_image]),
+            format!(
+                "{render_failed}the image of colour 2 of --colours cannot be used\n  caused by: cannot decode image: the data is not a valid PNG image\n  caused by: Invalid PNG signature.\n"
+            ),
+        ),
+        (
+            "masks_missing",
+            "render-masks",
+            missing_args.to_vec(),
+            format!("{masks_failed}{missing_text}"),
+        ),
+    ] {
+        assert_eq!(
+            failure_with_no_mask_change(command, &format!("{test}_{name}"), &args, pictures),
+            diagnostic,
+            "{name}"
+        );
+    }
+    let no_file = format!("{masks_failed}the output path names no file\n");
+    let empty_stem = case.mask_names("");
+    assert_eq!(
+        stemless_refusal(case, &format!("{test}_stemless_existing"), &empty_stem),
+        no_file
+    );
+    assert_eq!(
+        stemless_refusal(case, &format!("{test}_stemless_missing"), &[]),
+        no_file
+    );
+}
+
+fn stemless_refusal(case: &SeveralPictures, test: &str, existing: &[String]) -> String {
+    let directory = directory(&output_path(test)).to_path_buf();
+    let inner = directory.join("inner");
+    std::fs::create_dir(&inner).expect("the inner directory is created");
+    for name in existing {
+        std::fs::write(directory.join(name), b"old").expect("the existing file is written");
+    }
+    let outcome = render_masks(&case.tiling_args(&[]), &inner.join(".."));
+    assert_eq!(outcome.status, Status::Failure, "{test}");
+    assert_eq!(outcome.stdout, "", "{test}");
+    let mut expected: BTreeSet<String> = existing.iter().cloned().collect();
+    expected.insert("inner".to_owned());
+    assert_eq!(file_names(&directory), expected, "{test}");
+    assert_eq!(file_names(&inner), names(&[]), "{test}");
+    for name in existing {
+        assert_eq!(
+            std::fs::read(directory.join(name)).expect("the existing file stays"),
+            b"old",
+            "{test} {name}"
+        );
+    }
+    outcome.stderr
+}
+
+#[test]
+fn several_pictures_on_the_checkerboard_of_the_squares_are_refused_without_a_file_change() {
+    assert_refusals_of_several_pictures(&SQUARES_TWO, "16ad", "29 arrangements");
+}
+
+#[test]
+fn several_pictures_on_the_triangles_of_732_are_refused_without_a_file_change() {
+    assert_refusals_of_several_pictures(&TRIANGLES_THREE, "18b", "1 arrangement");
+}
+
+#[test]
+fn render_masks_writes_the_masks_before_the_picture_that_cannot_be_written_and_none_after() {
+    let output = mask_path("masks_three_pictures_directory").with_file_name("face.png");
+    std::fs::create_dir(output.with_file_name("face-1.png")).expect("the directory is created");
+    let outcome = render_masks(&TRIANGLES_THREE.tiling_args(&["--size", "16x16"]), &output);
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot write the face mask of picture B\n  caused by: Is a directory (os error 21)\n"
+    );
+    let (_, face, arrangement) = regular_arrangement("*732", [true, false, false], "18a");
+    let pixels = face
+        .render_mask(&arrangement, 0, 16, 16)
+        .expect("the face mask is rendered");
+    assert_eq!(
+        std::fs::read(output.with_file_name("face-0.png")).expect("the mask of A is written"),
+        encode_png(16, 16, &pixels).expect("the face mask is encoded")
+    );
+    assert_eq!(
+        file_names(directory(&output)),
+        names(&["face-0.png", "face-1.png"])
+    );
+}
+
+#[test]
+fn render_masks_diagnostic_says_the_output_path_of_several_pictures_names_no_file() {
+    insta::assert_snapshot!(masks_snapshot(
+        &["*732", "--wythoff", "100", "--arrangement", "18a"],
+        Path::new("/")
+    ));
+}
+
+#[test]
+fn render_masks_refuses_an_output_path_without_a_file_stem_before_a_bad_size() {
+    let outcome = render_masks(
+        &TRIANGLES_THREE.tiling_args(&["--size", "0x16"]),
+        Path::new("/"),
+    );
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot render the masks of *732: the output path names no file\n"
+    );
+}
+
+#[test]
+fn render_masks_refuses_a_tiling_that_is_not_regular_before_a_path_without_a_file_stem() {
+    let outcome = render_masks(
+        &["*732", "--wythoff", "111", "--arrangement", "18a"],
+        Path::new("/"),
+    );
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot render the masks of *732\n  caused by: cannot build whole face: the construction is not a regular tiling\n"
+    );
+}
+
+#[test]
+fn render_masks_names_the_face_masks_of_three_pictures_by_the_rule_of_the_polygon_masks() {
+    for (test, output, expected) in [
+        (
+            "masks_three_pictures_extension",
+            "face.png",
+            ["face-0.png", "face-1.png", "face-2.png"],
+        ),
+        (
+            "masks_three_pictures_no_extension",
+            "face",
+            ["face-0", "face-1", "face-2"],
+        ),
+        (
+            "masks_three_pictures_two_dots",
+            "face.tar.png",
+            ["face.tar-0.png", "face.tar-1.png", "face.tar-2.png"],
+        ),
+    ] {
+        let output = mask_path(test).with_file_name(output);
+        let outcome = render_masks(&TRIANGLES_THREE.tiling_args(&["--size", "8x8"]), &output);
+        assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+        assert_eq!(file_names(directory(&output)), names(&expected), "{test}");
+    }
+}
+
+#[test]
+fn render_masks_diagnostic_says_the_tiling_has_no_arrangement_with_2_pictures() {
+    let output = mask_path("masks_no_arrangement_of_two_pictures");
+    insta::assert_snapshot!(masks_snapshot(
+        &["*732", "--wythoff", "100", "--arrangement", "12a"],
+        &output
+    ));
+    assert_eq!(file_names(directory(&output)), names(&[]));
+}
+
+#[test]
+fn an_arrangement_with_one_picture_writes_one_mask_at_the_output_and_renders_with_one_paint() {
+    let size = 24;
+    let size_text = format!("{size}x{size}");
+    for (tiling, id) in [(&HEPTAGONS, "14a"), (&HEXAGONS, "12a"), (&HEXAGONS, "12g")] {
+        let output = mask_path(&format!("masks_one_picture_{id}")).with_file_name("face.png");
+        written_face_mask(&output, tiling, id, size);
+        assert_eq!(file_names(directory(&output)), names(&["face.png"]), "{id}");
+        let rendered = output.with_file_name("tiling.png");
+        let outcome = run_args(&[
+            "render",
+            tiling.signature,
+            "--wythoff",
+            tiling.marks_text,
+            "--arrangement",
+            id,
+            "--colours",
+            "#123456",
+            "--size",
+            &size_text,
+            "--samples",
+            "1",
+            "--border-width",
+            "0",
+            "-o",
+            path_text(&rendered),
+        ]);
+        assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+        let (domain, face, arrangement) = tiling.arrangement(id);
+        let paint = Paint::Solid(Colour::from_srgb8(0x12, 0x34, 0x56));
+        let fill = WholeFaceFill::new(face, arrangement, vec![paint]).expect("the fill is valid");
+        assert_eq!(
+            std::fs::read(&rendered).expect("the tiling is written"),
+            library_whole_face_png(&domain, fill, size),
+            "{id}"
+        );
+    }
 }

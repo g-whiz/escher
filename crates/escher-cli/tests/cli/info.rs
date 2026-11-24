@@ -1048,3 +1048,212 @@ fn info_prints_arrangements_0_and_no_arrangement_line_for_the_dual_of_a_triangle
         assert_no_arrangement_listed(text, DUAL);
     }
 }
+
+#[test]
+fn info_lists_the_arrangements_of_the_triangles_of_732_with_several_pictures() {
+    insta::assert_snapshot!(snapshot(&["info", "*732", "--wythoff", "100"]));
+}
+
+const SEVERAL_PICTURES_SET: [(&str, [bool; 3]); 10] = [
+    ("*632", REGULAR),
+    ("*632", DUAL),
+    ("*442", REGULAR),
+    ("*332", REGULAR),
+    ("*432", REGULAR),
+    ("*432", DUAL),
+    ("*532", REGULAR),
+    ("*532", DUAL),
+    ("*732", REGULAR),
+    ("*732", DUAL),
+];
+
+type Meetings = Vec<(u32, u32, bool)>;
+
+fn edge_position(name: &str, pictures: u32, sides: u32) -> u32 {
+    let (picture, edge) = if pictures == 1 {
+        (0, name)
+    } else {
+        let letter = name.chars().next().expect("the edge has a letter");
+        assert!(letter.is_ascii_uppercase(), "{name}");
+        (u32::from(letter) - u32::from('A'), &name[1..])
+    };
+    assert!(picture < pictures, "{name}");
+    let edge: u32 = edge.parse().expect("the edge has a number");
+    assert!(edge < sides, "{name}");
+    picture * sides + edge
+}
+
+fn parsed_arrangement(line: &str, pictures: u32, sides: u32) -> (String, bool, Meetings) {
+    let value = line
+        .strip_prefix("Arrangement: ")
+        .expect("the line is an arrangement line");
+    let (id, rest) = value.split_once(", ").expect("the line has an id");
+    let rest = if pictures == 1 {
+        rest
+    } else {
+        rest.strip_prefix(&format!("{pictures} pictures, "))
+            .expect("the line gives its number of pictures")
+    };
+    let (turned_only, pairs) = if let Some(pairs) = rest.strip_prefix("turned only, edges ") {
+        (true, pairs)
+    } else {
+        let pairs = rest
+            .strip_prefix("with mirrored neighbours, edges ")
+            .expect("the line says whether a neighbour is mirrored");
+        (false, pairs)
+    };
+    let index = |edge: u32| usize::try_from(edge).expect("an edge number fits a usize");
+    let mut meetings: Vec<Option<(u32, u32, bool)>> = vec![None; index(pictures * sides)];
+    let mut lower_edges = Vec::new();
+    for pair in pairs.split(", ") {
+        let (edges, kind) = pair.rsplit_once(' ').expect("the pair has a kind");
+        let mirrored = match kind {
+            "turned" => false,
+            "mirrored" => true,
+            _ => panic!("unknown kind in {line}"),
+        };
+        let (first, second) = edges.split_once(" and ").unwrap_or((edges, edges));
+        let first = edge_position(first, pictures, sides);
+        let second = edge_position(second, pictures, sides);
+        assert!(first <= second, "{line}");
+        lower_edges.push(first);
+        let ends = if first == second {
+            vec![(first, first)]
+        } else {
+            vec![(first, second), (second, first)]
+        };
+        for (edge, partner) in ends {
+            let slot = &mut meetings[index(edge)];
+            assert_eq!(*slot, None, "{line}");
+            *slot = Some((partner / sides, partner % sides, mirrored));
+        }
+    }
+    assert!(lower_edges.is_sorted_by(|a, b| a < b), "{line}");
+    let meetings = meetings
+        .into_iter()
+        .map(|meeting| meeting.expect("every edge is paired"))
+        .collect();
+    (id.to_owned(), turned_only, meetings)
+}
+
+fn default_listing(signature: &str, marks: [bool; 3]) -> Vec<String> {
+    let outcome = run_args(&["info", signature, "--wythoff", &marks_text(marks)]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    outcome
+        .stdout
+        .lines()
+        .filter(|line| line.starts_with("Arrangement"))
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn info_lists_exactly_the_arrangements_of_each_number_of_pictures_of_escher_group() {
+    let mut above_three = 0;
+    for (text, marks) in SEVERAL_PICTURES_SET {
+        let signature: Signature = text.parse().expect("the signature is valid");
+        let domain = FundamentalDomain::build(&signature).expect("the domain is built");
+        let wythoff = Wythoff::new(&domain, marks).expect("the construction is built");
+        let face = WholeFace::new(&domain, wythoff).expect("the tiling is regular");
+        let sides = face.index() / 2;
+        let largest = (64 / face.index()).min(12);
+        let lines = default_listing(text, marks);
+        let mut lines = lines.iter();
+        for pictures in 1..=largest {
+            let found = free_classes_of_index(
+                face.presentation(),
+                face.stabilizer(),
+                IndexLimit::new(face.index() * pictures).expect("the index is within the limit"),
+                SearchBudget::DEFAULT,
+            )
+            .expect("the search runs");
+            assert!(found.is_complete(), "{text} {pictures}");
+            let count = if pictures == 1 {
+                format!("Arrangements: {}", found.list().len())
+            } else {
+                format!(
+                    "Arrangements with {pictures} pictures: {}",
+                    found.list().len()
+                )
+            };
+            assert_eq!(lines.next(), Some(&count), "{text}");
+            for arrangement in found.list() {
+                let edges = face.edges(arrangement).expect("the edges are read");
+                let expected: Meetings = edges
+                    .iter()
+                    .map(|meeting| (meeting.picture(), meeting.partner(), meeting.mirrored()))
+                    .collect();
+                let line = lines.next().expect("the arrangement is listed");
+                assert_eq!(
+                    parsed_arrangement(line, pictures, sides),
+                    (
+                        arrangement.id().to_string(),
+                        !edges.iter().any(|meeting| meeting.mirrored()),
+                        expected
+                    ),
+                    "{text}"
+                );
+            }
+        }
+        assert_eq!(lines.next(), None, "{text}");
+        if largest > 3 {
+            above_three += 1;
+        }
+    }
+    assert!(above_three >= 1);
+}
+
+#[test]
+fn info_lists_the_several_pictures_of_the_triangles_without_an_arrangement_of_one() {
+    for (text, count_line) in [
+        ("*732", "Arrangements with 3 pictures: "),
+        ("*532", "Arrangements with 2 pictures: "),
+    ] {
+        let lines = default_listing(text, DUAL);
+        assert_eq!(lines.first().map(String::as_str), Some("Arrangements: 0"));
+        let position = lines
+            .iter()
+            .position(|line| line.starts_with(count_line))
+            .expect("the count line is listed");
+        let count: usize = lines[position][count_line.len()..]
+            .parse()
+            .expect("the count is a number");
+        assert!(count > 0, "{text}");
+        let pictures =
+            &count_line["Arrangements with ".len()..count_line.len() - " pictures: ".len()];
+        for line in &lines[position + 1..=position + count] {
+            assert!(line.contains(&format!(", {pictures} pictures, ")), "{line}");
+        }
+    }
+}
+
+pub(crate) const CHECKERBOARD: &str = "Arrangement: 16ab, 2 pictures, turned only, edges A0 and B0 turned, A1 and B1 turned, A2 and B2 turned, A3 and B3 turned";
+
+pub(crate) const THREE_TRIANGLES: &str = "Arrangement: 18a, 3 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and C0 turned, B2 turned, C1 and C2 turned";
+
+#[test]
+fn info_lists_the_checkerboard_of_the_squares_and_the_three_pictures_of_the_triangles_of_732() {
+    assert!(default_listing("*442", REGULAR).contains(&CHECKERBOARD.to_owned()));
+    assert!(default_listing("*732", DUAL).contains(&THREE_TRIANGLES.to_owned()));
+}
+
+#[test]
+fn info_max_colours_bounds_the_number_of_pictures_of_the_listing() {
+    let outcome = run_args(&["info", "*442", "--max-colours", "2", "--wythoff", "010"]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    let counts: Vec<&str> = outcome
+        .stdout
+        .lines()
+        .filter(|line| line.starts_with("Arrangements"))
+        .collect();
+    assert_eq!(
+        counts,
+        ["Arrangements: 16", "Arrangements with 2 pictures: 29"]
+    );
+    assert_eq!(
+        outcome.stdout.lines().last(),
+        Some(
+            "Arrangement: 16ac, 2 pictures, with mirrored neighbours, edges A0 and B0 turned, A1 and B2 mirrored, A2 and B1 mirrored, A3 and B3 turned"
+        )
+    );
+}
