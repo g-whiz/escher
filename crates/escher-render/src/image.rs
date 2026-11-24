@@ -265,6 +265,21 @@ impl Placement {
         }
     }
 
+    pub(crate) fn arrangement(polygons: &[Vec<DVec2>], width: u32, height: u32) -> Vec<Self> {
+        let placements: Vec<Self> = polygons
+            .iter()
+            .map(|polygon| Self::new(polygon, width, height))
+            .collect();
+        let scale = placements
+            .iter()
+            .map(|placement| placement.scale)
+            .fold(f64::INFINITY, f64::min);
+        placements
+            .into_iter()
+            .map(|placement| Self { scale, ..placement })
+            .collect()
+    }
+
     pub(crate) fn scale(&self) -> f64 {
         self.scale
     }

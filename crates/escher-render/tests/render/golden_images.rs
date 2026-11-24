@@ -9,7 +9,7 @@ use glam::{DMat2, DMat3, DVec2, DVec3};
 
 use crate::reference::{
     self, ExactFace, ExactMask, ExactWythoff, Flat, MaskRule, Measure, ReferenceExt, Wall,
-    centre_mirror, edge_side,
+    centre_mirror,
 };
 use crate::{
     BorderUnit, Colour, CosetFill, Fill, HyperbolicModel, Image, Masks, Paint, RenderOptions,
@@ -1175,10 +1175,13 @@ pub(crate) fn letter(side: usize) -> Letter {
     Letter::generator(u8::try_from(side).unwrap_or(u8::MAX))
 }
 
-pub(crate) fn stabilizer_words(corner: usize, order: u32) -> (Vec<Word>, Vec<Word>) {
-    let centre = letter(centre_mirror(corner));
-    let vertex = letter(1);
-    let edge = letter(edge_side(corner));
+pub(crate) fn stabilizer_words(centre: usize, vertex: usize, order: u32) -> (Vec<Word>, Vec<Word>) {
+    let edge = letter(
+        (0..3)
+            .find(|&side| side != centre && side != vertex)
+            .unwrap_or_else(|| panic!("the sides {centre} and {vertex} leave no third side")),
+    );
+    let [centre, vertex] = [centre, vertex].map(letter);
     let turn = |turns: u32| -> Word { (0..turns).flat_map(|_| [centre, vertex]).collect() };
     let elements = (0..order)
         .flat_map(|turns| {
@@ -1223,7 +1226,7 @@ pub(crate) fn traversal(table: &CosetTable) -> Vec<(usize, Word)> {
     while next < visits.len() {
         let (from, word) = visits[next].clone();
         for generator in 0..table.generator_count() {
-            let index = u8::try_from(generator).unwrap_or(u8::MAX);
+            let index = u8::try_from(generator).expect("a side of a triangle is below 3");
             for step in [Letter::generator(index), Letter::inverse_of(index)] {
                 let to = trace_from(table, from, &Word::from_iter([step]));
                 if !reached[to] {
@@ -1526,7 +1529,8 @@ pub(crate) fn face_picture(
                 arrangement.id()
             )
         });
-    let colour = GOLDEN_COSET_FILL[usize::try_from(picture).unwrap_or(usize::MAX)];
+    let colour =
+        GOLDEN_COSET_FILL[usize::try_from(picture).unwrap_or(usize::MAX) % GOLDEN_COSET_FILL.len()];
     let pixels = painted(&mask, size, size, colour);
     let image = image_of(size, size, &pixels);
     (pixels, image)
@@ -1544,6 +1548,7 @@ pub(crate) fn whole_face_fill(
 pub(crate) struct WholeFaceGolden {
     pub(crate) golden: GoldenImage,
     pub(crate) marks: [bool; 3],
+    pub(crate) multiple: u32,
     pub(crate) pictures: u32,
     pub(crate) arrangement: &'static str,
 }
@@ -1552,7 +1557,7 @@ impl WholeFaceGolden {
     pub(crate) fn options(&self, domain: &FundamentalDomain) -> RenderOptions {
         let face = whole_face(domain, self.marks);
         let arrangement =
-            find_colouring(&arrangements_with(&face, self.pictures), self.arrangement);
+            find_colouring(&arrangements_with(&face, self.multiple), self.arrangement);
         let paints = (0..self.pictures)
             .map(|picture| Paint::Image(face_picture(&face, &arrangement, picture, GOLDEN_SIZE).1))
             .collect();
@@ -1569,42 +1574,69 @@ impl WholeFaceGolden {
     }
 }
 
-pub(crate) const WHOLE_FACE_GOLDEN_IMAGES: [WholeFaceGolden; 5] = [
+pub(crate) const WHOLE_FACE_GOLDEN_IMAGES: [WholeFaceGolden; 8] = [
     WholeFaceGolden {
         golden: golden("*732", &[], "wf-7-3-2-010-14a.png"),
         marks: REGULAR,
+        multiple: 1,
         pictures: 1,
         arrangement: "14a",
     },
     WholeFaceGolden {
         golden: golden("*632", &[], "wf-6-3-2-010-12a.png"),
         marks: REGULAR,
+        multiple: 1,
         pictures: 1,
         arrangement: "12a",
     },
     WholeFaceGolden {
         golden: golden("*532", &[], "wf-5-3-2-010-10a.png"),
         marks: REGULAR,
+        multiple: 1,
         pictures: 1,
         arrangement: "10a",
     },
     WholeFaceGolden {
         golden: golden("*442", &[], "wf-4-4-2-010-16w.png"),
         marks: REGULAR,
+        multiple: 2,
         pictures: 2,
         arrangement: "16w",
     },
     WholeFaceGolden {
         golden: golden("*732", &[], "wf-7-3-2-100-18a.png"),
         marks: DUAL,
+        multiple: 3,
         pictures: 3,
         arrangement: "18a",
+    },
+    WholeFaceGolden {
+        golden: golden("*442", &[], "wf-4-4-2-111-8b.png"),
+        marks: [true, true, true],
+        multiple: 1,
+        pictures: 4,
+        arrangement: TRANSLATION_ID,
+    },
+    WholeFaceGolden {
+        golden: golden("*732", &[], "wf-7-3-2-011-42a.png"),
+        marks: [false, true, true],
+        multiple: 1,
+        pictures: 10,
+        arrangement: "42a",
+    },
+    WholeFaceGolden {
+        golden: golden("*432", &[], "wf-4-3-2-111-24a.png"),
+        marks: [true, true, true],
+        multiple: 1,
+        pictures: 13,
+        arrangement: "24a",
     },
 ];
 
 pub(crate) struct FaceMaskGolden {
     pub(crate) signature: &'static str,
     pub(crate) marks: [bool; 3],
+    pub(crate) multiple: u32,
     pub(crate) pictures: u32,
     pub(crate) arrangement: &'static str,
     pub(crate) picture: u32,
@@ -1615,16 +1647,18 @@ impl FaceMaskGolden {
     pub(crate) fn pixels(&self) -> Vec<u8> {
         let face = whole_face(&domain_with_settings(self.signature, &[]), self.marks);
         let arrangement =
-            find_colouring(&arrangements_with(&face, self.pictures), self.arrangement);
+            find_colouring(&arrangements_with(&face, self.multiple), self.arrangement);
+        assert!(self.picture < self.pictures, "{}", self.file);
         face.render_mask(&arrangement, self.picture, GOLDEN_SIZE, GOLDEN_SIZE)
             .unwrap_or_else(|error| panic!("the face mask {} is rejected: {error}", self.file))
     }
 }
 
-pub(crate) const FACE_MASK_GOLDEN_IMAGES: [FaceMaskGolden; 2] = [
+pub(crate) const FACE_MASK_GOLDEN_IMAGES: [FaceMaskGolden; 3] = [
     FaceMaskGolden {
         signature: "*732",
         marks: REGULAR,
+        multiple: 1,
         pictures: 1,
         arrangement: "14a",
         picture: 0,
@@ -1633,10 +1667,20 @@ pub(crate) const FACE_MASK_GOLDEN_IMAGES: [FaceMaskGolden; 2] = [
     FaceMaskGolden {
         signature: "*442",
         marks: REGULAR,
+        multiple: 2,
         pictures: 2,
         arrangement: "16w",
         picture: 1,
         file: "fmask-4-4-2-010-16w-1.png",
+    },
+    FaceMaskGolden {
+        signature: "*442",
+        marks: [true, true, true],
+        multiple: 1,
+        pictures: 4,
+        arrangement: TRANSLATION_ID,
+        picture: 3,
+        file: "fmask-4-4-2-111-8b-3.png",
     },
 ];
 
@@ -1691,3 +1735,315 @@ pub(crate) fn texel_index(coordinate: f64, size: u32) -> u32 {
         .find(|&index| f64::from(index) <= coordinate)
         .unwrap_or(0)
 }
+
+pub(crate) const SEVERAL_SET: [(&str, [bool; 3]); 16] = [
+    ("*442", [true, true, true]),
+    ("*632", [true, true, true]),
+    ("*632", [true, true, false]),
+    ("*632", [false, true, true]),
+    ("*632", [true, false, true]),
+    ("*333", [true, false, false]),
+    ("*333", [true, true, true]),
+    ("*732", [false, true, true]),
+    ("*732", [true, false, true]),
+    ("*433", [true, true, true]),
+    ("*332", [true, true, true]),
+    ("*432", [true, true, true]),
+    ("*532", [true, true, true]),
+    ("*522", [true, true, true]),
+    ("*522", [true, true, false]),
+    ("*222", [true, true, true]),
+];
+
+pub(crate) const SEVERAL_PICTURE_SET: [usize; 7] = [0, 1, 3, 7, 9, 10, 11];
+
+pub(crate) const SEVERAL_PICTURE_ARRANGEMENTS: usize = 8;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TypeRule {
+    pub(crate) corner: usize,
+    pub(crate) order: u32,
+    pub(crate) sides: u32,
+    pub(crate) centre: usize,
+    pub(crate) vertex: usize,
+}
+
+impl TypeRule {
+    pub(crate) fn both(self) -> bool {
+        self.sides == 2 * self.order
+    }
+
+    pub(crate) fn words(self) -> Vec<Word> {
+        stabilizer_words(self.centre, self.vertex, self.order).0
+    }
+}
+
+pub(crate) fn type_rules(orders: [u32; 3], marks: [bool; 3]) -> Vec<TypeRule> {
+    table_faces(orders, marks)
+        .into_iter()
+        .map(|(corner, sides)| {
+            let after = (corner + 1) % 3;
+            let order = orders[corner];
+            let (centre, vertex) = if sides == 2 * order || marks[(after + 1) % 3] {
+                (after, corner)
+            } else {
+                (corner, after)
+            };
+            TypeRule {
+                corner,
+                order,
+                sides,
+                centre,
+                vertex,
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn several_face(text: &str, marks: [bool; 3]) -> (FundamentalDomain, WholeFace) {
+    let domain = domain_with_settings(text, &[]);
+    let face = whole_face(&domain, marks);
+    (domain, face)
+}
+
+pub(crate) fn least_arrangements(face: &WholeFace) -> Vec<Colouring> {
+    let found = free_classes_of_index(
+        face.presentation(),
+        face.stabilizer(),
+        face.index(),
+        SearchBudget::DEFAULT,
+    )
+    .unwrap_or_else(|error| panic!("the search of the arrangements fails: {error}"));
+    assert!(
+        found.is_complete(),
+        "the search of the arrangements of index {} is not complete",
+        face.index()
+    );
+    found.list().to_vec()
+}
+
+pub(crate) fn several_firsts(face: &WholeFace, arrangement: &Colouring) -> Vec<usize> {
+    let index = u32::try_from(arrangement.table().index()).unwrap_or(u32::MAX);
+    let mut firsts = Vec::new();
+    let mut first = 0;
+    for kind in face.face_types() {
+        for _ in 0..index / (2 * kind.order()) {
+            firsts.push(first);
+            first += usize::try_from(kind.sides()).unwrap_or(usize::MAX);
+        }
+    }
+    firsts
+}
+
+pub(crate) const MIRRORED_BETWEEN_TYPES: [(Geometry, &str, [bool; 3], &str); 3] = [
+    (Geometry::Euclidean, "*442", [true, true, true], "8a"),
+    (Geometry::Hyperbolic, "*732", [false, true, true], "42b"),
+    (Geometry::Spherical, "*432", [true, true, true], "24a"),
+];
+
+pub(crate) fn several_picture_set() -> Vec<(&'static str, [bool; 3], Vec<Colouring>)> {
+    SEVERAL_PICTURE_SET
+        .iter()
+        .map(|&entry| {
+            let (text, marks) = SEVERAL_SET[entry];
+            let (_, face) = several_face(text, marks);
+            let listed = least_arrangements(&face);
+            let named: Vec<&str> = MIRRORED_BETWEEN_TYPES
+                .iter()
+                .filter(|named| named.1 == text && named.2 == marks)
+                .map(|named| named.3)
+                .collect();
+            let chosen: Vec<Colouring> = listed
+                .iter()
+                .enumerate()
+                .filter(|(position, arrangement)| {
+                    *position < SEVERAL_PICTURE_ARRANGEMENTS
+                        || named.contains(&arrangement.id().to_string().as_str())
+                })
+                .map(|(_, arrangement)| arrangement.clone())
+                .collect();
+            for id in named {
+                assert!(
+                    chosen
+                        .iter()
+                        .any(|arrangement| arrangement.id().to_string() == id),
+                    "{text} {}: the listing has no arrangement {id}",
+                    marks_text(marks)
+                );
+            }
+            (text, marks, chosen)
+        })
+        .collect()
+}
+
+pub(crate) struct ExactType {
+    pub(crate) rule: TypeRule,
+    pub(crate) words: Vec<Word>,
+    pub(crate) flats: Vec<reference::FlatMatrix>,
+    pub(crate) polygon: Vec<Flat>,
+    pub(crate) starts: Vec<(usize, usize)>,
+    pub(crate) region: Vec<Vector>,
+}
+
+fn nearest_middle(reference: &mut Reference, polygon: &[Flat], point: &Flat) -> usize {
+    let at = point.each_ref().map(|value| reference.approximate(value));
+    (0..polygon.len())
+        .map(|edge| {
+            let middle =
+                reference::edge_middle(polygon, edge).map(|value| reference.approximate(&value));
+            (edge, (middle[0] - at[0]).hypot(middle[1] - at[1]))
+        })
+        .min_by(|first, second| first.1.total_cmp(&second.1))
+        .map_or(0, |(edge, _)| edge)
+}
+
+impl ExactType {
+    pub(crate) fn new(
+        reference: &mut Reference,
+        domain: &FundamentalDomain,
+        exact: &ExactWythoff,
+        rule: TypeRule,
+    ) -> Self {
+        let measure = Measure::of(domain.geometry());
+        let after = (rule.corner + 1) % 3;
+        let foot = |side: usize| {
+            exact.feet[side]
+                .clone()
+                .unwrap_or_else(|| panic!("side {side} has no foot"))
+        };
+        let centre = exact.vertices[rule.corner].clone();
+        let generator = exact.generator.clone();
+        let region = if rule.both() {
+            vec![centre, foot(after), generator, foot(rule.corner)]
+        } else if rule.centre == after {
+            vec![centre, foot(after), generator]
+        } else {
+            vec![centre, generator, foot(rule.corner)]
+        };
+        let direction = reference::direction_toward(measure, &region[0], &foot(rule.centre));
+        let polygon = reference::region_face(reference, rule.sides, &direction);
+        let last = polygon.len() - 1;
+        let second = if rule.both() {
+            reference::edge_middle(&polygon, 1)
+        } else if rule.centre == after {
+            polygon[0].clone()
+        } else {
+            polygon[last].clone()
+        };
+        let [centre_flat, vertex_flat] = [reference::edge_middle(&polygon, 0), second]
+            .map(|through| reference::flat_reflection(&through));
+        let words = rule.words();
+        let flats: Vec<reference::FlatMatrix> = words
+            .iter()
+            .map(|word| {
+                word.letters()
+                    .iter()
+                    .fold(reference::flat_identity(), |total, letter| {
+                        let mirror = if usize::from(letter.index()) == rule.centre {
+                            &centre_flat
+                        } else {
+                            &vertex_flat
+                        };
+                        reference::flat_product(&total, mirror)
+                    })
+            })
+            .collect();
+        let domain_edges = if rule.both() { 2 } else { 1 };
+        let starts = (0..polygon.len())
+            .map(|edge| {
+                flats
+                    .iter()
+                    .enumerate()
+                    .find_map(|(word, flat)| {
+                        (0..domain_edges)
+                            .find(|&start| {
+                                let moved = reference::flat_apply(
+                                    flat,
+                                    &reference::edge_middle(&polygon, start),
+                                );
+                                nearest_middle(reference, &polygon, &moved) == edge
+                            })
+                            .map(|start| (word, start))
+                    })
+                    .unwrap_or_else(|| panic!("edge {edge} is reached by no word"))
+            })
+            .collect();
+        Self {
+            rule,
+            words,
+            flats,
+            polygon,
+            starts,
+            region,
+        }
+    }
+
+    pub(crate) fn edge_wall(&self, edge: usize) -> (Word, usize) {
+        let (word, start) = self.starts[edge];
+        let side = if start == 0 {
+            self.rule.centre
+        } else {
+            self.rule.vertex
+        };
+        (self.words[word].clone(), side)
+    }
+}
+
+pub(crate) struct TypeReading {
+    pub(crate) kinds: Vec<usize>,
+    pub(crate) bases: Vec<Word>,
+    pub(crate) elements: Vec<Vec<(usize, usize)>>,
+}
+
+pub(crate) fn read_types(rules: &[TypeRule], table: &CosetTable) -> TypeReading {
+    let visits = traversal(table);
+    let mut kinds = Vec::new();
+    let mut bases = Vec::new();
+    let mut elements = Vec::new();
+    for (kind, rule) in rules.iter().enumerate() {
+        let words = rule.words();
+        let mut held: Vec<Option<(usize, usize)>> = vec![None; table.index()];
+        for (coset, reach) in &visits {
+            if held[*coset].is_some() {
+                continue;
+            }
+            let picture = bases.len();
+            let base: Word = if reach.len() % 2 == 0 {
+                reach.clone()
+            } else {
+                reach
+                    .letters()
+                    .iter()
+                    .copied()
+                    .chain([letter(rule.centre)])
+                    .collect()
+            };
+            let start = trace_from(table, 0, &base);
+            for (position, word) in words.iter().enumerate() {
+                let to = trace_from(table, start, word);
+                assert!(
+                    held[to].is_none(),
+                    "coset {to} is held twice in type {kind}"
+                );
+                held[to] = Some((picture, position));
+            }
+            kinds.push(kind);
+            bases.push(base);
+        }
+        elements.push(
+            held.into_iter()
+                .map(|element| {
+                    element
+                        .unwrap_or_else(|| panic!("a coset of type {kind} is held by no picture"))
+                })
+                .collect(),
+        );
+    }
+    TypeReading {
+        kinds,
+        bases,
+        elements,
+    }
+}
+
+pub(crate) const TRANSLATION_ID: &str = "8b";

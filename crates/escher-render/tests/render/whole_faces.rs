@@ -8,17 +8,21 @@ use escher_render::{
 use escher_signature::Geometry;
 use glam::{DMat2, DMat3, DVec2, DVec3};
 
+use crate::common::viewing_matrix;
 use crate::golden_images::{
-    CHECKERBOARDS, DUAL, ExactPicture, FOUR_PICTURES, PictureTiling, REGULAR, SEVERAL_PICTURES,
-    arrangements, arrangements_with, bilinear, colourings_of, domain_with_settings, exact_face,
-    exact_pictures, face_corner, face_triangle_mask, gradient, image_of, letter, linear_table,
-    marks_text, meeting_ids, picture_arrangements, picture_count, picture_tilings, reference_walls,
-    renderer, stabilizer_words, whole_face, whole_face_fill, word_matrix,
+    CHECKERBOARDS, DUAL, ExactPicture, ExactType, FOUR_PICTURES, MIRRORED_BETWEEN_TYPES,
+    PictureTiling, REGULAR, SEVERAL_PICTURES, TRANSLATION_ID, TypeReading, TypeRule, arrangements,
+    arrangements_with, bilinear, colourings_of, domain_with_settings, exact_face, exact_pictures,
+    exact_wythoff, face_corner, face_triangle_mask, find_colouring, gradient, gradient_pixels,
+    image_of, least_arrangements, letter, linear_table, marks_text, meeting_ids,
+    picture_arrangements, picture_count, picture_tilings, read_types, reference_walls, renderer,
+    several_face, several_firsts, several_picture_set, signature_orders, stabilizer_words,
+    texel_index, trace_from, type_rules, whole_face, whole_face_fill, word_matrix,
 };
 use crate::image_fills::{exact_point, pixel_at, screen, screen_point, view_pixel};
 use crate::reference::{
-    ExactFace, ExactPlacement, Flat, FlatMatrix, ReferenceExt, Wall, centre_mirror, edge_side,
-    flat_apply, transpose_apply,
+    ExactFace, ExactPlacement, ExactWythoff, Flat, FlatMatrix, MaskRule, ReferenceExt, RegionShape,
+    Wall, centre_mirror, direction_toward, edge_side, flat_apply, region_face, transpose_apply,
 };
 use escher_reference::{
     Matrix, Reference, Vector, apply, difference, dot, int, largest_magnitude, num,
@@ -204,7 +208,7 @@ impl Tiling {
         let exact = exact_face(&mut reference, text, &domain, marks);
         let mask = face_triangle_mask(&mut reference, text, &domain, marks);
         let order = face.index() / 2;
-        let (stabilizer, reflections) = stabilizer_words(corner, order);
+        let (stabilizer, reflections) = stabilizer_words(centre_mirror(corner), 1, order);
         let walls = reference_walls(&domain);
         let vertices: Vec<Vector> = domain
             .vertices()
@@ -474,8 +478,12 @@ struct PictureFrame {
 }
 
 impl PictureFrame {
-    fn new(reference: &mut Reference, home: &[Flat], polygon: &[Flat]) -> Self {
-        let placement = ExactPlacement::new(polygon, PICTURE, PICTURE);
+    fn new(
+        reference: &mut Reference,
+        home: &[Flat],
+        polygon: &[Flat],
+        placement: &ExactPlacement,
+    ) -> Self {
         let [origin, across, down] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
             .map(|[x, y]| DVec2::from_array(placement.position(reference, &[num(x), num(y)])));
         let [home, there] = [&home[0], &polygon[0]].map(|vertex| {
@@ -500,6 +508,10 @@ impl PictureFrame {
     }
 
     fn marked_picture(&self, colours: [[u8; 3]; 3]) -> Vec<u8> {
+        self.marked_picture_at(colours, 1.0)
+    }
+
+    fn marked_picture_at(&self, colours: [[u8; 3]; 3], size: f64) -> Vec<u8> {
         let shade = |coordinate: u32| u8::try_from(96 + coordinate * 128 / PICTURE).unwrap_or(0);
         (0..PICTURE * PICTURE)
             .flat_map(|index| {
@@ -508,7 +520,9 @@ impl PictureFrame {
                 MARK_CENTRES
                     .iter()
                     .zip(colours)
-                    .find(|(centre, _)| point.distance(DVec2::from_array(**centre)) <= MARK_RADIUS)
+                    .find(|(centre, _)| {
+                        point.distance(size * DVec2::from_array(**centre)) <= size * MARK_RADIUS
+                    })
                     .map_or([shade(column), shade(row), 160], |(_, colour)| colour)
             })
             .collect()
@@ -625,10 +639,24 @@ impl Painting {
             tiling.marks,
             arrangement.table(),
         );
+        let placements = ExactPlacement::arrangement(
+            &pictures
+                .iter()
+                .map(|picture| picture.polygon.clone())
+                .collect::<Vec<_>>(),
+            PICTURE,
+            PICTURE,
+        );
         let frames: Vec<PictureFrame> = pictures
             .iter()
-            .map(|picture| {
-                PictureFrame::new(&mut reference, &tiling.exact.polygon, &picture.polygon)
+            .zip(&placements)
+            .map(|(picture, placement)| {
+                PictureFrame::new(
+                    &mut reference,
+                    &tiling.exact.polygon,
+                    &picture.polygon,
+                    placement,
+                )
             })
             .collect();
         let images = frames
@@ -1039,17 +1067,18 @@ fn default_view_position(reference: &mut Reference, geometry: Geometry, point: &
     DVec2::new(half + first / pixel, half - second / pixel)
 }
 
-fn upright_picture(centre: DVec2, [offset, radius]: [f64; 2]) -> Vec<u8> {
+fn upright_picture(centre: DVec2, features: [f64; 2]) -> Vec<u8> {
+    upright_picture_of(PICTURE, centre, features)
+}
+
+fn upright_picture_of(size: u32, centre: DVec2, [offset, radius]: [f64; 2]) -> Vec<u8> {
     let features = [
         (centre - DVec2::new(0.0, offset), MARK_COLOURS[0][0]),
         (centre + DVec2::new(offset, 0.0), MARK_COLOURS[0][2]),
     ];
-    (0..PICTURE * PICTURE)
+    (0..size * size)
         .flat_map(|index| {
-            let position = DVec2::new(
-                f64::from(index % PICTURE) + 0.5,
-                f64::from(index / PICTURE) + 0.5,
-            );
+            let position = DVec2::new(f64::from(index % size) + 0.5, f64::from(index / size) + 0.5);
             features
                 .iter()
                 .find(|(middle, _)| position.distance(*middle) <= radius)
@@ -1096,10 +1125,18 @@ fn upright_angles(
         .unwrap_or_else(|| panic!("{text} has no arrangement {id:?} with {pictures} pictures"));
     let name = format!("{text} {} {}", marks_text(marks), arrangement.id());
     let exact = exact_pictures(&mut reference, text, &domain, marks, arrangement.table());
+    let placements = ExactPlacement::arrangement(
+        &exact
+            .iter()
+            .map(|picture| picture.polygon.clone())
+            .collect::<Vec<_>>(),
+        PICTURE,
+        PICTURE,
+    );
     let paints = exact
         .iter()
-        .map(|picture| {
-            let placement = ExactPlacement::new(&picture.polygon, PICTURE, PICTURE);
+        .zip(&placements)
+        .map(|(picture, placement)| {
             let [centre, middle] = [[int(0), int(0)], flat_midpoint(&picture.polygon, 0)]
                 .map(|point| DVec2::from_array(placement.position(&mut reference, &point)));
             let inradius = centre.distance(middle);
@@ -1114,7 +1151,7 @@ fn upright_angles(
         .collect();
     let pixels = render_whole_face(&domain, &face, &arrangement, paints);
     let walls = reference_walls(&domain);
-    let (stabilizer, _) = stabilizer_words(corner, face.index() / 2);
+    let (stabilizer, _) = stabilizer_words(centre_mirror(corner), 1, face.index() / 2);
     let vertex = escher_reference::vector(domain.vertices()[corner].to_array());
     let edges: Vec<DVec3> = edge_walls(&walls, &stabilizer, corner, &vertex)
         .iter()
@@ -1450,14 +1487,14 @@ fn invalid(text: &str) -> (ErrorKind, String) {
 }
 
 #[test]
-fn whole_face_refuses_a_construction_that_is_not_a_regular_tiling_or_of_another_domain() {
+fn whole_face_refuses_a_construction_of_one_face_type_that_is_not_a_regular_tiling_or_of_another_domain()
+ {
     const NOT_REGULAR: &str = "cannot build whole face: the construction is not a regular tiling";
     for (text, marks) in [
-        ("*732", [true, true, true]),
-        ("*732", [false, false, true]),
-        ("*732", [true, true, false]),
         ("*522", REGULAR),
-        ("*333", DUAL),
+        ("*522", [false, false, true]),
+        ("*522", [false, true, true]),
+        ("*222", [true, true, false]),
     ] {
         let domain = domain_with_settings(text, &[]);
         let wythoff = Wythoff::new(&domain, marks)
@@ -1484,6 +1521,18 @@ fn whole_face_refuses_a_construction_that_is_not_a_regular_tiling_or_of_another_
     );
     let again = domain_with_settings("*732", &[]);
     assert!(WholeFace::new(&again, wythoff).is_ok());
+    for marks in [
+        [true, true, true],
+        [false, false, true],
+        [true, true, false],
+    ] {
+        let wythoff = Wythoff::new(&again, marks).unwrap_or_else(|error| panic!("{error}"));
+        assert!(
+            WholeFace::new(&again, wythoff).is_ok(),
+            "{}",
+            marks_text(marks)
+        );
+    }
 }
 
 #[test]
@@ -1636,7 +1685,7 @@ fn the_face_mask_refuses_a_size_outside_the_limits_and_the_fill_another_number_o
 }
 
 fn find_colouring_of(domain: &FundamentalDomain, colours: u32, id: &str) -> Colouring {
-    crate::golden_images::find_colouring(&colourings_of(domain, colours), id)
+    find_colouring(&colourings_of(domain, colours), id)
 }
 
 #[test]
@@ -1811,4 +1860,1574 @@ fn the_checkerboard_of_two_solid_pictures_on_the_squares_is_the_coset_fill_of_tw
             "{name}: {compared:?}"
         );
     }
+}
+
+const SEVERAL_MARK_MATCH: u8 = 20;
+
+const SEVERAL_EDGE_CLEARANCE: f64 = 1e-6;
+
+const CANDIDATE_FACES: usize = 8;
+
+const PLANE_UPRIGHT_SIZE: u32 = 2048;
+
+const UPRIGHT_PICTURE: u32 = 1024;
+
+const DISK_UPRIGHT_SIZE: u32 = 1024;
+
+struct TypedFace {
+    kind: usize,
+    matrix: Matrix,
+    inverse: Matrix,
+    centre: DVec3,
+}
+
+struct TypedPixel {
+    face: usize,
+    wedge: usize,
+    radius: f64,
+    picture: DVec2,
+}
+
+struct SeveralTiling {
+    oracles: Vec<TypeOracle>,
+    near_inverses: Vec<DMat3>,
+    probe: Vector,
+    probes: Vec<Vec<Vector>>,
+    steps: Vec<Vec<TypeStep>>,
+    inverses: Vec<Vec<Matrix>>,
+    name: String,
+    domain: FundamentalDomain,
+    face: WholeFace,
+    geometry: Geometry,
+    walls: Vec<Wall>,
+    exact: ExactWythoff,
+    rules: Vec<TypeRule>,
+    types: Vec<ExactType>,
+    faces: Vec<TypedFace>,
+    pixels: Vec<Option<TypedPixel>>,
+    view_turn: f64,
+}
+
+struct TypedPlaced {
+    picture: usize,
+    element: usize,
+    mirrored: bool,
+}
+
+fn word_of(parts: &[&Word]) -> Word {
+    parts
+        .iter()
+        .flat_map(|part| part.letters().iter().copied())
+        .collect()
+}
+
+fn reversed(word: &Word) -> Word {
+    word.letters().iter().rev().copied().collect()
+}
+
+fn across_step(rules: &[TypeRule], kind: usize, side: usize) -> (Option<usize>, Option<Word>) {
+    let rule = rules[kind];
+    let across = [(side + 2) % 3, side]
+        .into_iter()
+        .find(|&corner| corner != rule.corner)
+        .unwrap_or(rule.corner);
+    if let Some(other) = rules.iter().position(|rule| rule.corner == across) {
+        (Some(other), None)
+    } else {
+        let mirror = if side == across {
+            (across + 1) % 3
+        } else {
+            across
+        };
+        (None, Some(Word::from_iter([letter(mirror)])))
+    }
+}
+
+fn oriented_covector(reference: &mut Reference, covector: &Vector, inside: &Vector) -> Vector {
+    if reference.approximate(&dot(covector, inside)) > 0.0 {
+        escher_reference::scale(&int(1).neg(), covector)
+    } else {
+        covector.clone()
+    }
+}
+
+impl SeveralTiling {
+    fn new(text: &'static str, marks: [bool; 3]) -> Self {
+        Self::with_pixels(text, marks, true)
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the tiling builds the faces, the region maps, the steps, and the pixel oracle of every face type in one place"
+    )]
+    fn with_pixels(text: &'static str, marks: [bool; 3], with_pixels: bool) -> Self {
+        let mut reference = Reference::new();
+        let (domain, face) = several_face(text, marks);
+        let geometry = domain.geometry();
+        let walls = reference_walls(&domain);
+        let exact = exact_wythoff(&domain, marks);
+        let rules = type_rules(signature_orders(text), marks);
+        let types: Vec<ExactType> = rules
+            .iter()
+            .map(|&rule| ExactType::new(&mut reference, &domain, &exact, rule))
+            .collect();
+        let name = format!("{text} {}", marks_text(marks));
+        let faces = typed_faces(&mut reference, geometry, &walls, &exact, &rules, &types);
+        let oracles: Vec<TypeOracle> = rules
+            .iter()
+            .zip(&types)
+            .map(|(&rule, exact_type)| {
+                let sides = domain.sides();
+                let after = (rule.corner + 1) % 3;
+                let mut region_walls = vec![
+                    escher_reference::vector(sides[rule.corner].covector().to_array()),
+                    escher_reference::vector(sides[after].covector().to_array()),
+                ];
+                let cuts: Vec<usize> = if rule.both() {
+                    vec![after, rule.corner]
+                } else {
+                    vec![rule.centre]
+                };
+                for side in cuts {
+                    let wall = exact.perpendiculars[side]
+                        .clone()
+                        .unwrap_or_else(|| panic!("side {side} has no perpendicular"));
+                    region_walls.push(oriented_covector(
+                        &mut reference,
+                        &wall,
+                        &exact_type.region[0],
+                    ));
+                }
+                let backs: Vec<Matrix> = exact_type
+                    .words
+                    .iter()
+                    .map(|word| word_matrix(&walls, &reversed(word)))
+                    .collect();
+                TypeOracle {
+                    near_backs: backs
+                        .iter()
+                        .map(|back| approximate_matrix(&mut reference, back))
+                        .collect(),
+                    backs,
+                    walls: region_walls
+                        .iter()
+                        .map(|wall| approximate(&mut reference, wall))
+                        .collect(),
+                    mask: region_mask(&mut reference, &domain, &exact, rule, exact_type),
+                    flats: exact_type.flats.clone(),
+                }
+            })
+            .collect();
+        let near_inverses: Vec<DMat3> = faces
+            .iter()
+            .map(|face| approximate_matrix(&mut reference, &face.inverse))
+            .collect();
+        let pixels = if with_pixels {
+            (0..SIZE * SIZE)
+                .map(|index| {
+                    typed_pixel(
+                        &mut reference,
+                        geometry,
+                        &oracles,
+                        (&faces, &near_inverses),
+                        [index % SIZE, index / SIZE],
+                    )
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        let vertices: Vec<Vector> = exact.vertices.to_vec();
+        let view_turn = view_turn(
+            &mut reference,
+            geometry,
+            &vertices,
+            (SIZE / 2) * SIZE + SIZE / 2,
+        );
+        let probe = escher_reference::vector(domain.centre().to_array());
+        let probes = types
+            .iter()
+            .map(|exact_type| {
+                exact_type
+                    .words
+                    .iter()
+                    .map(|word| apply(&word_matrix(&walls, word), &probe))
+                    .collect()
+            })
+            .collect();
+        let inverses = types
+            .iter()
+            .map(|exact_type| {
+                exact_type
+                    .words
+                    .iter()
+                    .map(|word| word_matrix(&walls, &reversed(word)))
+                    .collect()
+            })
+            .collect();
+        let steps = types
+            .iter()
+            .enumerate()
+            .map(|(kind, exact_type)| {
+                (0..exact_type.starts.len())
+                    .map(|edge| {
+                        let (word, side) = exact_type.edge_wall(edge);
+                        let (other, beyond) = across_step(&rules, kind, side);
+                        let empty = Word::new();
+                        let full = word_of(&[&word, beyond.as_ref().unwrap_or(&empty)]);
+                        TypeStep {
+                            matrix: word_matrix(&walls, &full),
+                            word,
+                            other,
+                            beyond,
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
+        Self {
+            oracles,
+            near_inverses,
+            probe,
+            probes,
+            steps,
+            inverses,
+            name,
+            domain,
+            face,
+            geometry,
+            walls,
+            exact,
+            rules,
+            types,
+            faces,
+            pixels,
+            view_turn,
+        }
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the walk reads the meetings, places each face, and checks every face reached twice in one pass"
+    )]
+    fn walk(
+        &self,
+        arrangement: &Colouring,
+        name: &str,
+    ) -> (Vec<Option<TypedPlaced>>, Vec<[usize; 3]>) {
+        let mut reference = Reference::new();
+        let table = arrangement.table();
+        let reading = read_types(&self.rules, table);
+        let mut placed: Vec<Option<(usize, Matrix)>> = vec![None; self.faces.len()];
+        let mut queue = Vec::new();
+        for kind in 0..self.rules.len() {
+            let picture = reading
+                .kinds
+                .iter()
+                .position(|&found| found == kind)
+                .unwrap_or_else(|| panic!("{name}: type {kind} has no picture"));
+            let home = self
+                .faces
+                .iter()
+                .position(|face| face.kind == kind)
+                .unwrap_or_else(|| panic!("{name}: no face of type {kind}"));
+            placed[home] = Some((picture, identity()));
+            queue.push(home);
+        }
+        let (mut repeats, mut crossings) = (0, Vec::new());
+        while let Some(index) = queue.pop() {
+            let Some((picture, matrix)) = placed[index].clone() else {
+                continue;
+            };
+            let kind = reading.kinds[picture];
+            let base_coset = trace_from(table, 0, &reading.bases[picture]);
+            for (edge, step) in self.steps[kind].iter().enumerate() {
+                let coset = trace_from(table, base_coset, &step.word);
+                let (next_kind, (neighbour, element)) = match (step.other, &step.beyond) {
+                    (Some(other), _) => (other, reading.elements[other][coset]),
+                    (None, Some(mirror)) => (
+                        kind,
+                        reading.elements[kind][trace_from(table, coset, mirror)],
+                    ),
+                    (None, None) => panic!("{name}: an edge has no neighbour"),
+                };
+                let moved = escher_reference::product(
+                    &escher_reference::product(&matrix, &step.matrix),
+                    &self.inverses[next_kind][element],
+                );
+                let corner = &self.exact.vertices[self.rules[next_kind].corner];
+                let centre = approximate(&mut reference, &apply(&moved, corner));
+                if !kept(self.geometry, centre) {
+                    continue;
+                }
+                let Some(target) = self
+                    .faces
+                    .iter()
+                    .position(|face| face.kind == next_kind && same_centre(face.centre, centre))
+                else {
+                    continue;
+                };
+                crossings.push([index, edge, target]);
+                if let Some((earlier, earlier_matrix)) = &placed[target] {
+                    assert_eq!(
+                        *earlier, neighbour,
+                        "{name}: face {target} takes two pictures"
+                    );
+                    for probe in [&self.probe, corner] {
+                        let gap = relative_gap(
+                            &mut reference,
+                            &apply(earlier_matrix, probe),
+                            &apply(&moved, probe),
+                        );
+                        assert!(
+                            gap <= SAME_POINT,
+                            "{name}: face {target} takes two matrices, {gap:e} apart"
+                        );
+                    }
+                    repeats += 1;
+                } else {
+                    placed[target] = Some((neighbour, moved));
+                    queue.push(target);
+                }
+            }
+        }
+        assert!(
+            repeats >= self.faces.len() / 2,
+            "{name}: {repeats} faces reached twice"
+        );
+        let placed = placed
+            .iter()
+            .zip(&self.faces)
+            .map(|(placed, geometric)| {
+                let (picture, matrix) = placed.as_ref()?;
+                let relative = escher_reference::product(&geometric.inverse, matrix);
+                let moved = apply(&relative, &self.probe);
+                let element = self.probes[geometric.kind]
+                    .iter()
+                    .position(|image| relative_gap(&mut reference, image, &moved) <= SAME_POINT)
+                    .unwrap_or_else(|| {
+                        panic!("{name}: a face is placed by no element of its stabilizer")
+                    });
+                Some(TypedPlaced {
+                    picture: *picture,
+                    element,
+                    mirrored: determinant(&mut reference, matrix) < 0.0,
+                })
+            })
+            .collect();
+        (placed, crossings)
+    }
+}
+
+struct TypeStep {
+    word: Word,
+    matrix: Matrix,
+    other: Option<usize>,
+    beyond: Option<Word>,
+}
+
+fn same_centre(first: DVec3, second: DVec3) -> bool {
+    (first - second).abs().max_element() <= SAME_CENTRE * second.abs().max_element().max(1.0)
+}
+
+fn region_mask(
+    reference: &mut Reference,
+    domain: &FundamentalDomain,
+    exact: &ExactWythoff,
+    rule: TypeRule,
+    exact_type: &ExactType,
+) -> crate::reference::ExactMask {
+    let after = (rule.corner + 1) % 3;
+    let shape = if rule.both() {
+        RegionShape::BothOn
+    } else if rule.centre == after {
+        RegionShape::CentreAfter
+    } else {
+        RegionShape::CentreBefore
+    };
+    let vertices: Vec<[f64; 3]> = exact_type
+        .region
+        .iter()
+        .map(|point| approximate(reference, point).to_array())
+        .collect();
+    let sides = domain.sides();
+    let mut covectors = vec![
+        sides[rule.corner].covector().to_array(),
+        sides[after].covector().to_array(),
+    ];
+    let cuts: Vec<usize> = if rule.both() {
+        vec![after, rule.corner]
+    } else {
+        vec![rule.centre]
+    };
+    for side in cuts {
+        let wall = exact.perpendiculars[side]
+            .clone()
+            .unwrap_or_else(|| panic!("side {side} has no perpendicular"));
+        let oriented = oriented_covector(reference, &wall, &exact_type.region[0]);
+        covectors.push(approximate(reference, &oriented).to_array());
+    }
+    crate::reference::ExactMask::new(
+        reference,
+        crate::reference::Measure::of(domain.geometry()),
+        &vertices,
+        &covectors,
+        MaskRule::FaceRegion {
+            sides: rule.sides,
+            shape,
+        },
+    )
+}
+
+fn typed_faces(
+    reference: &mut Reference,
+    geometry: Geometry,
+    walls: &[Wall],
+    exact: &ExactWythoff,
+    rules: &[TypeRule],
+    types: &[ExactType],
+) -> Vec<TypedFace> {
+    let mut faces: Vec<TypedFace> = rules
+        .iter()
+        .enumerate()
+        .map(|(kind, rule)| TypedFace {
+            kind,
+            matrix: identity(),
+            inverse: identity(),
+            centre: approximate(reference, &exact.vertices[rule.corner]),
+        })
+        .collect();
+    let mut next = 0;
+    while next < faces.len() {
+        let kind = faces[next].kind;
+        for edge in 0..types[kind].starts.len() {
+            let (edge_word, side) = types[kind].edge_wall(edge);
+            let (other, beyond) = across_step(rules, kind, side);
+            let empty = Word::new();
+            let step = word_of(&[&edge_word, beyond.as_ref().unwrap_or(&empty)]);
+            let next_kind = other.unwrap_or(kind);
+            let matrix = escher_reference::product(&faces[next].matrix, &word_matrix(walls, &step));
+            let centre = approximate(
+                reference,
+                &apply(&matrix, &exact.vertices[rules[next_kind].corner]),
+            );
+            if !kept(geometry, centre)
+                || faces
+                    .iter()
+                    .any(|face| face.kind == next_kind && same_centre(face.centre, centre))
+            {
+                continue;
+            }
+            let inverse = escher_reference::product(
+                &word_matrix(walls, &reversed(&step)),
+                &faces[next].inverse,
+            );
+            faces.push(TypedFace {
+                kind: next_kind,
+                matrix,
+                inverse,
+                centre,
+            });
+        }
+        next += 1;
+    }
+    faces
+}
+
+struct TypeOracle {
+    backs: Vec<Matrix>,
+    near_backs: Vec<DMat3>,
+    walls: Vec<DVec3>,
+    mask: crate::reference::ExactMask,
+    flats: Vec<FlatMatrix>,
+}
+
+fn typed_pixel(
+    reference: &mut Reference,
+    geometry: Geometry,
+    oracles: &[TypeOracle],
+    (faces, near_inverses): (&[TypedFace], &[DMat3]),
+    [column, row]: [u32; 2],
+) -> Option<TypedPixel> {
+    let position = screen(geometry, [SIZE, SIZE], column, row);
+    if geometry != Geometry::Euclidean && position.length() > RADIUS {
+        return None;
+    }
+    let point = screen_point(geometry, position)?;
+    let mut order: Vec<(f64, usize)> = faces
+        .iter()
+        .enumerate()
+        .map(|(index, face)| (closeness(geometry, point, face.centre), index))
+        .collect();
+    let nearest = CANDIDATE_FACES.min(order.len());
+    if nearest < order.len() {
+        order.select_nth_unstable_by(nearest, |first, second| first.0.total_cmp(&second.0));
+    }
+    let mut order = order[..nearest].to_vec();
+    order.sort_by(|first, second| first.0.total_cmp(&second.0));
+    for &(_, index) in &order {
+        let face = &faces[index];
+        let oracle = &oracles[face.kind];
+        let local = near_inverses[index] * point;
+        let mut best: Option<(usize, f64)> = None;
+        let mut nearest_edge = f64::INFINITY;
+        for (element, back) in oracle.near_backs.iter().enumerate() {
+            let near = *back * local;
+            let values: Vec<f64> = oracle
+                .walls
+                .iter()
+                .map(|wall| -wall.dot(near) / (wall.length() * near.length()))
+                .collect();
+            for value in &values[2..] {
+                nearest_edge = nearest_edge.min(*value);
+            }
+            let margin = values.iter().copied().fold(f64::INFINITY, f64::min);
+            if best.is_none_or(|(_, least)| margin > least) {
+                best = Some((element, margin));
+            }
+        }
+        let (element, margin) = best?;
+        if margin < -IN_WEDGE {
+            continue;
+        }
+        if nearest_edge.abs() <= SEVERAL_EDGE_CLEARANCE {
+            return None;
+        }
+        let exact_position = exact_point(reference, geometry, position);
+        let in_region = apply(
+            &oracle.backs[element],
+            &apply(&face.inverse, &exact_position),
+        );
+        let flat = oracle.mask.map(reference, &in_region);
+        let picture = flat_apply(&oracle.flats[element], &flat);
+        return Some(TypedPixel {
+            face: index,
+            wedge: element,
+            radius: position.length(),
+            picture: DVec2::new(
+                reference.approximate(&picture[0]),
+                reference.approximate(&picture[1]),
+            ),
+        });
+    }
+    None
+}
+
+fn several_colours(picture: usize) -> [[u8; 3]; 3] {
+    let levels = [0, 64, 128, 192, 255];
+    let palette: Vec<[u8; 3]> = [0_u8, 255]
+        .into_iter()
+        .flat_map(|blue| {
+            levels
+                .into_iter()
+                .flat_map(move |red| levels.into_iter().map(move |green| [red, green, blue]))
+        })
+        .filter(|&[red, green, blue]| !(red == 0 && blue == 0 && green >= 128))
+        .collect();
+    [0, 1, 2].map(|mark| palette[3 * picture + mark])
+}
+
+fn typed_turn(
+    tiling: &SeveralTiling,
+    pixels: &[u8],
+    face: usize,
+    colours: &[[u8; 3]; 3],
+) -> Option<f64> {
+    let mut sums = [(DVec2::ZERO, 0_u32); 3];
+    for (index, pixel) in (0..).zip(&tiling.pixels) {
+        if pixel.as_ref().is_none_or(|pixel| pixel.face != face) {
+            continue;
+        }
+        let (column, row) = (index % SIZE, index / SIZE);
+        let found = pixel_at(pixels, SIZE, column, row);
+        if let Some(mark) = colours.iter().position(|colour| {
+            found
+                .iter()
+                .zip(colour)
+                .all(|(&found, &wanted)| found.abs_diff(wanted) <= SEVERAL_MARK_MATCH)
+        }) {
+            sums[mark].0 += screen(tiling.geometry, [SIZE, SIZE], column, row);
+            sums[mark].1 += 1;
+        }
+    }
+    sums.iter()
+        .all(|&(_, count)| count >= LEAST_MARK_PIXELS)
+        .then(|| turn_of(sums.map(|(sum, count)| sum / f64::from(count))))
+}
+
+fn several_marked_pictures(
+    tiling: &SeveralTiling,
+    reading: &TypeReading,
+    name: &str,
+) -> (Vec<PictureFrame>, Vec<Vec<u8>>) {
+    let mut reference = Reference::new();
+    let measure = crate::reference::Measure::of(tiling.geometry);
+    let polygons: Vec<Vec<Flat>> = (0..reading.kinds.len())
+        .map(|picture| {
+            let rule = tiling.rules[reading.kinds[picture]];
+            let carrying = word_matrix(&tiling.walls, &reading.bases[picture]);
+            let foot = tiling.exact.feet[rule.centre]
+                .clone()
+                .unwrap_or_else(|| panic!("{name}: no foot"));
+            let direction = direction_toward(
+                measure,
+                &apply(&carrying, &tiling.exact.vertices[rule.corner]),
+                &apply(&carrying, &foot),
+            );
+            region_face(&mut reference, rule.sides, &direction)
+        })
+        .collect();
+    let placements = ExactPlacement::arrangement(&polygons, PICTURE, PICTURE);
+    let frames: Vec<PictureFrame> = polygons
+        .iter()
+        .zip(&placements)
+        .zip(&reading.kinds)
+        .map(|((polygon, placement), &kind)| {
+            PictureFrame::new(
+                &mut reference,
+                &tiling.types[kind].polygon,
+                polygon,
+                placement,
+            )
+        })
+        .collect();
+    let images = frames
+        .iter()
+        .zip(&reading.kinds)
+        .enumerate()
+        .map(|(picture, (frame, &kind))| {
+            let sides = f64::from(tiling.rules[kind].sides);
+            let radius = 0.5 / (PI / sides).sin();
+            frame.marked_picture_at(several_colours(picture), radius)
+        })
+        .collect();
+    (frames, images)
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "the check compares every pixel and then the marks of every face and of every meeting between two types of one arrangement"
+)]
+fn assert_several_whole_picture(
+    tiling: &SeveralTiling,
+    arrangements: &[Colouring],
+    least: usize,
+    checked: [usize; 2],
+) {
+    let table = linear_table();
+    let bounds = rounding_bounds();
+    let mut reference = Reference::new();
+    let mut agreement = Agreement {
+        compared: 0,
+        off_by_one: 0,
+        widest_off: 0.0,
+    };
+    let mut kinds_checked = [0; 2];
+    let mut arrangement_kinds = Vec::new();
+    assert!(!arrangements.is_empty(), "{}", tiling.name);
+    for arrangement in arrangements {
+        let name = format!("{} {}", tiling.name, arrangement.id());
+        let reading = read_types(&tiling.rules, arrangement.table());
+        let (frames, images) = several_marked_pictures(tiling, &reading, &name);
+        let paints = images
+            .iter()
+            .map(|pixels| Paint::Image(image_of(PICTURE, PICTURE, pixels)))
+            .collect();
+        let rendered = render_whole_face(&tiling.domain, &tiling.face, arrangement, paints);
+        let (placed, crossings) = tiling.walk(arrangement, &name);
+        let firsts: Vec<usize> = reading
+            .kinds
+            .iter()
+            .scan(0, |first, &kind| {
+                let start = *first;
+                *first += tiling.types[kind].starts.len();
+                Some(start)
+            })
+            .collect();
+        let turns: Vec<Vec<DMat2>> = tiling
+            .types
+            .iter()
+            .map(|exact_type| {
+                exact_type
+                    .flats
+                    .iter()
+                    .map(|flat| {
+                        DMat2::from_cols_array(&[
+                            reference.approximate(&flat[0][0]),
+                            reference.approximate(&flat[0][1]),
+                            reference.approximate(&flat[1][0]),
+                            reference.approximate(&flat[1][1]),
+                        ])
+                    })
+                    .collect()
+            })
+            .collect();
+        let before = agreement.compared;
+        let mut by_orientation = [0; 2];
+        for (index, pixel) in (0..).zip(&tiling.pixels) {
+            let Some(pixel) = pixel else {
+                continue;
+            };
+            let face = placed[pixel.face]
+                .as_ref()
+                .unwrap_or_else(|| panic!("{name}: face {} is not reached", pixel.face));
+            by_orientation[usize::from(face.mirrored)] += 1;
+            let kind = tiling.faces[pixel.face].kind;
+            let position = frames[face.picture].image(turns[kind][face.element] * pixel.picture);
+            let expected = bilinear(&images[face.picture], PICTURE, PICTURE, position, &table);
+            let (column, row) = (index % SIZE, index / SIZE);
+            let found = pixel_at(&rendered, SIZE, column, row);
+            agreement.check(
+                &format!("{name}: column {column} row {row}"),
+                found,
+                expected,
+                [&table, &bounds],
+            );
+        }
+        let compared = agreement.compared - before;
+        assert!(compared >= least, "{name}: {compared} pixels compared");
+        let edges = tiling
+            .face
+            .edges(arrangement)
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+        let within = edges.iter().enumerate().any(|(position, meeting)| {
+            let picture = firsts
+                .iter()
+                .rposition(|&first| first <= position)
+                .unwrap_or(0);
+            let other = usize::try_from(meeting.picture()).unwrap_or(usize::MAX);
+            meeting.mirrored() && reading.kinds[picture] == reading.kinds[other]
+        });
+        if within {
+            assert!(
+                by_orientation[1] > 0,
+                "{name}: no compared pixel lies in a mirrored face"
+            );
+        }
+        let unmirrored = turn_of(MARK_CENTRES.map(DVec2::from_array)) * tiling.view_turn;
+        let shown: Vec<Option<f64>> = placed
+            .iter()
+            .enumerate()
+            .map(|(index, face)| {
+                let face = face.as_ref()?;
+                typed_turn(tiling, &rendered, index, &several_colours(face.picture))
+            })
+            .collect();
+        assert!(
+            shown.iter().any(Option::is_some),
+            "{name}: no face shows its three marks"
+        );
+        for (index, (face, turn)) in placed.iter().zip(&shown).enumerate() {
+            let (Some(face), Some(turn)) = (face, turn) else {
+                continue;
+            };
+            let wanted = if face.mirrored {
+                -unmirrored
+            } else {
+                unmirrored
+            };
+            assert_eq!(
+                *turn, wanted,
+                "{name}: face {index} of picture {} shows its marks the other way",
+                face.picture
+            );
+        }
+        for (picture, base) in reading.bases.iter().enumerate() {
+            let kind = reading.kinds[picture];
+            let centre = approximate(
+                &mut reference,
+                &apply(
+                    &word_matrix(&tiling.walls, base),
+                    &tiling.exact.vertices[tiling.rules[kind].corner],
+                ),
+            );
+            let home = tiling
+                .faces
+                .iter()
+                .position(|face| face.kind == kind && same_centre(face.centre, centre));
+            let turn = home.and_then(|home| shown[home]);
+            if let Some(turn) = turn {
+                assert_eq!(
+                    turn, unmirrored,
+                    "{name}: the reference face of picture {picture} is mirrored"
+                );
+            }
+        }
+        for &[from, edge, to] in &crossings {
+            let (Some(face), Some(turn), Some(other_turn)) =
+                (placed[from].as_ref(), shown[from], shown[to])
+            else {
+                continue;
+            };
+            if tiling.faces[from].kind == tiling.faces[to].kind {
+                continue;
+            }
+            let mirrored = edges[firsts[face.picture] + edge].mirrored();
+            let wanted = if mirrored { -turn } else { turn };
+            assert_eq!(
+                other_turn, wanted,
+                "{name}: the face across edge {edge} of face {from}, mirrored {mirrored}, shows its marks the other way"
+            );
+            kinds_checked[usize::from(mirrored)] += 1;
+        }
+        let between = |mirrored: bool| {
+            edges.iter().enumerate().any(|(position, meeting)| {
+                let picture = firsts
+                    .iter()
+                    .rposition(|&first| first <= position)
+                    .unwrap_or(0);
+                let other = usize::try_from(meeting.picture()).unwrap_or(usize::MAX);
+                meeting.mirrored() == mirrored && reading.kinds[picture] != reading.kinds[other]
+            })
+        };
+        arrangement_kinds.push([between(false), between(true)]);
+    }
+    println!(
+        "{}: {} arrangements, {} pixels compared, {} of them one step off at most {:e} of a step from a rounding bound, view turn {}, turned and mirrored meetings between two types checked {kinds_checked:?}",
+        tiling.name,
+        arrangements.len(),
+        agreement.compared,
+        agreement.off_by_one,
+        agreement.widest_off,
+        tiling.view_turn
+    );
+    assert!(agreement.off_by_one * OFF_BY_ONE_SHARE <= agreement.compared);
+    for (kind, mirrored) in [false, true].into_iter().enumerate() {
+        assert!(
+            kinds_checked[kind] > 0
+                || checked[kind] == 0
+                || arrangement_kinds.iter().all(|kinds| !kinds[kind]),
+            "{}: no meeting between two types with mirrored {mirrored} shows readable marks on both faces",
+            tiling.name
+        );
+    }
+    assert_eq!(kinds_checked, checked, "{}", tiling.name);
+}
+
+fn assert_several_types(
+    (text, marks): (&'static str, [bool; 3]),
+    part: [usize; 2],
+    least: usize,
+    checked: [usize; 2],
+) {
+    let tiling = SeveralTiling::new(text, marks);
+    let (_, _, chosen) = several_picture_set()
+        .into_iter()
+        .find(|(found, found_marks, _)| *found == text && *found_marks == marks)
+        .unwrap_or_else(|| panic!("{text} is not in the picture set of several types"));
+    let [from, until] = part.map(|end| end.min(chosen.len()));
+    assert_several_whole_picture(&tiling, &chosen[from..until], least, checked);
+}
+
+const EVERY: [usize; 2] = [0, usize::MAX];
+
+#[test]
+fn every_octagon_and_square_shows_the_picture_of_its_orbit_once() {
+    assert_several_types(("*442", [true; 3]), EVERY, 20_000, [190, 104]);
+}
+
+#[test]
+fn every_dodecagon_hexagon_and_square_shows_the_picture_of_its_orbit_once() {
+    assert_several_types(("*632", [true; 3]), EVERY, 20_000, [0, 0]);
+}
+
+#[test]
+fn every_dodecagon_and_triangle_shows_the_picture_of_its_orbit_once() {
+    assert_several_types(("*632", [false, true, true]), EVERY, 20_000, [0, 0]);
+}
+
+#[test]
+fn every_tetradecagon_and_triangle_in_the_disk_shows_the_picture_of_its_orbit_once_in_the_first_arrangements()
+ {
+    assert_several_types(("*732", [false, true, true]), [0, 3], 10_000, [0, 0]);
+}
+
+#[test]
+fn every_tetradecagon_and_triangle_in_the_disk_shows_the_picture_of_its_orbit_once_in_the_middle_arrangements()
+ {
+    assert_several_types(("*732", [false, true, true]), [3, 6], 10_000, [0, 0]);
+}
+
+#[test]
+fn every_tetradecagon_and_triangle_in_the_disk_shows_the_picture_of_its_orbit_once_in_the_last_arrangements()
+ {
+    assert_several_types(
+        ("*732", [false, true, true]),
+        [6, usize::MAX],
+        10_000,
+        [0, 0],
+    );
+}
+
+#[test]
+fn every_octagon_and_hexagon_in_the_disk_shows_the_picture_of_its_orbit_once_in_the_first_arrangements()
+ {
+    assert_several_types(("*433", [true; 3]), [0, 3], 10_000, [110, 40]);
+}
+
+#[test]
+fn every_octagon_and_hexagon_in_the_disk_shows_the_picture_of_its_orbit_once_in_the_last_arrangements()
+ {
+    assert_several_types(("*433", [true; 3]), [3, usize::MAX], 10_000, [94, 28]);
+}
+
+#[test]
+fn every_face_of_the_truncated_cuboctahedron_shows_the_picture_of_its_orbit_once() {
+    assert_several_types(("*432", [true; 3]), EVERY, 10_000, [16, 0]);
+}
+
+const MEETING_BALL_SIZE: u32 = 512;
+
+const MEETING_DISK_SIZE: u32 = 3072;
+
+const LEAST_MEETING_MARK_PIXELS: u32 = 30;
+
+fn projected(geometry: Geometry, viewing: DMat3, point: DVec3) -> DVec2 {
+    match geometry {
+        Geometry::Hyperbolic => point.truncate() / (1.0 + point.z),
+        Geometry::Euclidean => point.truncate() / point.z,
+        Geometry::Spherical => (viewing * point).truncate(),
+    }
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "the check chooses the meeting, turns the view onto it, renders the rows that hold it, and reads the marks of its two faces in one place"
+)]
+fn assert_mirrored_meeting_between_types(geometry: Geometry, size: u32) {
+    let &(_, text, marks, id) = MIRRORED_BETWEEN_TYPES
+        .iter()
+        .find(|named| named.0 == geometry)
+        .unwrap_or_else(|| panic!("no arrangement is named for {geometry:?}"));
+    let tiling = SeveralTiling::with_pixels(text, marks, false);
+    let name = format!("{} {id}", tiling.name);
+    let arrangement = least_arrangements(&tiling.face)
+        .into_iter()
+        .find(|arrangement| arrangement.id().to_string() == id)
+        .unwrap_or_else(|| panic!("{name}: the listing has no such arrangement"));
+    let reading = read_types(&tiling.rules, arrangement.table());
+    let (placed, crossings) = tiling.walk(&arrangement, &name);
+    let edges = tiling
+        .face
+        .edges(&arrangement)
+        .unwrap_or_else(|error| panic!("{name}: {error}"));
+    let firsts: Vec<usize> = reading
+        .kinds
+        .iter()
+        .scan(0, |first, &kind| {
+            let start = *first;
+            *first += tiling.types[kind].starts.len();
+            Some(start)
+        })
+        .collect();
+    let front = DVec3::Z;
+    let reach = |[from, _, to]: [usize; 3]| {
+        closeness(geometry, front, tiling.faces[from].centre).max(closeness(
+            geometry,
+            front,
+            tiling.faces[to].centre,
+        ))
+    };
+    let [from, edge, to] = crossings
+        .iter()
+        .copied()
+        .filter(|&[from, edge, to]| {
+            tiling.faces[from].kind != tiling.faces[to].kind
+                && placed[from]
+                    .as_ref()
+                    .is_some_and(|face| edges[firsts[face.picture] + edge].mirrored())
+        })
+        .min_by(|first, second| reach(*first).total_cmp(&reach(*second)))
+        .unwrap_or_else(|| panic!("{name}: no meeting between two types is mirrored"));
+    let [yaw, pitch] = if geometry == Geometry::Spherical {
+        let target = (tiling.faces[from].centre + tiling.faces[to].centre).normalize();
+        let yaw = (-target.x).atan2(target.z);
+        let turned = escher_geometry::spherical::boost(yaw) * target;
+        [yaw, (-turned.y).atan2(turned.z)]
+    } else {
+        [0.0, 0.0]
+    };
+    let viewing = viewing_matrix([yaw.to_degrees(), pitch.to_degrees(), 0.0]);
+    let pixel = view_pixel(geometry, size, size);
+    let half = f64::from(size) / 2.0;
+    let [first_centre, second_centre] = [from, to].map(|face| {
+        let position = projected(geometry, viewing, tiling.faces[face].centre);
+        DVec2::new(half + position.x / pixel, half - position.y / pixel)
+    });
+    let middle = (first_centre + second_centre) / 2.0;
+    let span = 2.0 * first_centre.distance(second_centre);
+    let [low, high] = [-span, span].map(|offset| {
+        (middle + DVec2::splat(offset)).clamp(DVec2::ZERO, DVec2::splat(f64::from(size) - 1.0))
+    });
+    let [first_column, first_row] = [low.x, low.y].map(|coordinate| texel_index(coordinate, size));
+    let [last_column, last_row] = [high.x, high.y].map(|coordinate| texel_index(coordinate, size));
+    let (_, images) = several_marked_pictures(&tiling, &reading, &name);
+    let paints = images
+        .iter()
+        .map(|pixels| Paint::Image(image_of(PICTURE, PICTURE, pixels)))
+        .collect();
+    let fill = whole_face_fill(tiling.face.clone(), arrangement.clone(), paints);
+    let [red, green, blue] = BACKGROUND;
+    let options = RenderOptions::builder(Fill::WholeFace(fill))
+        .size(size, size)
+        .samples(1)
+        .border_width(0.0)
+        .shading(Shading::Flat)
+        .rotation(yaw, pitch, 0.0)
+        .background(Colour::from_srgb8(red, green, blue))
+        .build()
+        .unwrap_or_else(|error| panic!("{name}: {error}"));
+    let row_bytes = 3 * usize::try_from(size).expect("a row of the image fits in memory");
+    let mut pixels = vec![0; row_bytes * usize::try_from(size).expect("the image fits in memory")];
+    let [offset, end] = [first_row, last_row + 1]
+        .map(|row| row_bytes * usize::try_from(row).expect("a row index fits in memory"));
+    renderer(&tiling.domain, options)
+        .render_rows(first_row, &mut pixels[offset..end])
+        .unwrap_or_else(|error| panic!("{name}: {error}"));
+    let unmirrored = turn_of(MARK_CENTRES.map(DVec2::from_array)) * tiling.view_turn;
+    let turns = [from, to].map(|face| {
+        let shown = placed[face]
+            .as_ref()
+            .unwrap_or_else(|| panic!("{name}: face {face} is not reached"));
+        let colours = several_colours(shown.picture);
+        let mut sums = [(DVec2::ZERO, 0_u32); 3];
+        for row in first_row..=last_row {
+            for column in first_column..=last_column {
+                let position = screen(geometry, [size, size], column, row);
+                let inside = screen_point(geometry, position)
+                    .is_some_and(|point| tiling.holds(face, viewing.transpose() * point));
+                if !inside {
+                    continue;
+                }
+                let found = pixel_at(&pixels, size, column, row);
+                if let Some(mark) = colours.iter().position(|colour| {
+                    found
+                        .iter()
+                        .zip(colour)
+                        .all(|(&found, &wanted)| found.abs_diff(wanted) <= SEVERAL_MARK_MATCH)
+                }) {
+                    sums[mark].0 += position;
+                    sums[mark].1 += 1;
+                }
+            }
+        }
+        let counts = sums.map(|(_, count)| count);
+        println!(
+            "{name}: face {face} of picture {} shows marks of {counts:?} pixels",
+            shown.picture
+        );
+        assert!(
+            counts
+                .iter()
+                .all(|&count| count >= LEAST_MEETING_MARK_PIXELS),
+            "{name}: face {face} shows marks of {counts:?} pixels"
+        );
+        let turn = turn_of(sums.map(|(sum, count)| sum / f64::from(count)));
+        let wanted = if shown.mirrored {
+            -unmirrored
+        } else {
+            unmirrored
+        };
+        assert_eq!(
+            turn, wanted,
+            "{name}: face {face} of picture {} shows its marks the other way",
+            shown.picture
+        );
+        turn
+    });
+    println!("{name}: across edge {edge} of face {from}, rows {first_row} to {last_row} of {size}");
+    assert_eq!(
+        turns[1], -turns[0],
+        "{name}: the faces {from} and {to} of a mirrored meeting show their marks the same way"
+    );
+}
+
+#[test]
+fn the_two_faces_of_a_mirrored_meeting_between_types_on_the_ball_show_their_marks_opposite() {
+    assert_mirrored_meeting_between_types(Geometry::Spherical, MEETING_BALL_SIZE);
+}
+
+#[test]
+fn the_two_faces_of_a_mirrored_meeting_between_types_in_the_disk_show_their_marks_opposite() {
+    assert_mirrored_meeting_between_types(Geometry::Hyperbolic, MEETING_DISK_SIZE);
+}
+
+#[test]
+fn the_picture_set_of_several_types_has_no_arrangement_only_on_the_truncated_octahedron() {
+    let empty: Vec<String> = several_picture_set()
+        .into_iter()
+        .filter(|(_, _, chosen)| chosen.is_empty())
+        .map(|(text, marks, _)| format!("{text} {}", marks_text(marks)))
+        .collect();
+    assert_eq!(empty, ["*332 111"]);
+}
+
+fn assert_several_wedge_continuity(
+    (text, marks): (&'static str, [bool; 3]),
+    radius: f64,
+    least: usize,
+) {
+    let bound = WEDGE_STEP;
+    let tiling = SeveralTiling::new(text, marks);
+    let arrangement = least_arrangements(&tiling.face)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("{} has no arrangement", tiling.name));
+    let pictures = several_firsts(&tiling.face, &arrangement).len();
+    let paints = (0..pictures)
+        .map(|picture| Paint::Image(gradient(picture, PICTURE)))
+        .collect();
+    let pixels = render_whole_face(&tiling.domain, &tiling.face, &arrangement, paints);
+    let size = usize::try_from(SIZE).unwrap_or(usize::MAX);
+    let (mut across, mut within, mut largest, mut largest_within) = (0, 0, 0_u8, 0_u8);
+    for index in 0..tiling.pixels.len() {
+        let Some(first) = &tiling.pixels[index] else {
+            continue;
+        };
+        let neighbours = [
+            (index % size + 1 < size).then_some(index + 1),
+            (index + size < tiling.pixels.len()).then_some(index + size),
+        ];
+        for other in neighbours.into_iter().flatten() {
+            let Some(second) = &tiling.pixels[other] else {
+                continue;
+            };
+            if first.face != second.face
+                || (tiling.geometry != Geometry::Euclidean
+                    && first.radius.max(second.radius) > radius)
+            {
+                continue;
+            }
+            let step = pixels[3 * index..3 * index + 3]
+                .iter()
+                .zip(&pixels[3 * other..3 * other + 3])
+                .map(|(first, second)| first.abs_diff(*second))
+                .max()
+                .unwrap_or(0);
+            if first.wedge == second.wedge {
+                within += 1;
+                largest_within = largest_within.max(step);
+            } else {
+                across += 1;
+                largest = largest.max(step);
+                assert!(
+                    step <= bound,
+                    "{}: pixels {index} and {other} differ by {step} across a line between wedges",
+                    tiling.name
+                );
+            }
+        }
+    }
+    println!(
+        "{} {}: {across} pixel pairs across the lines between wedges differ by at most {largest}, allowed {bound}, {within} pairs inside a wedge by at most {largest_within}",
+        tiling.name,
+        arrangement.id()
+    );
+    assert!(across >= least, "{}: {across} pairs", tiling.name);
+}
+
+#[test]
+fn a_smooth_picture_runs_on_across_the_wedges_of_each_dodecagon_hexagon_and_square() {
+    assert_several_wedge_continuity(("*632", [true; 3]), 1.0, 3000);
+}
+
+#[test]
+fn a_smooth_picture_runs_on_across_the_wedges_of_each_tetradecagon_and_triangle() {
+    assert_several_wedge_continuity(("*732", [false, true, true]), 0.6, 500);
+}
+
+#[test]
+fn a_smooth_picture_runs_on_across_the_wedges_of_each_face_of_the_truncated_cuboctahedron() {
+    assert_several_wedge_continuity(("*432", [true; 3]), 0.7, 500);
+}
+
+impl SeveralTiling {
+    fn holds(&self, face: usize, point: DVec3) -> bool {
+        let oracle = &self.oracles[self.faces[face].kind];
+        let local = self.near_inverses[face] * point;
+        oracle.near_backs.iter().any(|back| {
+            let near = *back * local;
+            oracle
+                .walls
+                .iter()
+                .all(|wall| wall.dot(near) / (wall.length() * near.length()) <= IN_WEDGE)
+        })
+    }
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "the check paints, renders, and measures the two features of every picture of one arrangement"
+)]
+fn several_upright(
+    (text, marks): (&'static str, [bool; 3]),
+    size: u32,
+    least: u32,
+) -> Vec<(usize, [f64; 2])> {
+    let mut reference = Reference::new();
+    let tiling = SeveralTiling::with_pixels(text, marks, false);
+    let geometry = tiling.geometry;
+    let measure = crate::reference::Measure::of(geometry);
+    let arrangement = least_arrangements(&tiling.face)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("{} has no arrangement", tiling.name));
+    let name = format!("{} {}", tiling.name, arrangement.id());
+    let reading = read_types(&tiling.rules, arrangement.table());
+    let carryings: Vec<Matrix> = reading
+        .bases
+        .iter()
+        .map(|base| word_matrix(&tiling.walls, base))
+        .collect();
+    let polygons: Vec<Vec<Flat>> = (0..reading.kinds.len())
+        .map(|picture| {
+            let rule = tiling.rules[reading.kinds[picture]];
+            let foot = tiling.exact.feet[rule.centre]
+                .clone()
+                .unwrap_or_else(|| panic!("{name}: no foot"));
+            let direction = direction_toward(
+                measure,
+                &apply(&carryings[picture], &tiling.exact.vertices[rule.corner]),
+                &apply(&carryings[picture], &foot),
+            );
+            region_face(&mut reference, rule.sides, &direction)
+        })
+        .collect();
+    let placements = ExactPlacement::arrangement(&polygons, UPRIGHT_PICTURE, UPRIGHT_PICTURE);
+    let paints = polygons
+        .iter()
+        .zip(&placements)
+        .map(|(polygon, placement)| {
+            let [centre, middle] = [[int(0), int(0)], flat_midpoint(polygon, 0)]
+                .map(|point| DVec2::from_array(placement.position(&mut reference, &point)));
+            let inradius = centre.distance(middle);
+            Paint::Image(image_of(
+                UPRIGHT_PICTURE,
+                UPRIGHT_PICTURE,
+                &upright_picture_of(
+                    UPRIGHT_PICTURE,
+                    centre,
+                    [INRADIUS_OFFSET * inradius, INRADIUS_RADIUS * inradius],
+                ),
+            ))
+        })
+        .collect();
+    let fill = whole_face_fill(tiling.face.clone(), arrangement.clone(), paints);
+    let [red, green, blue] = BACKGROUND;
+    let options = RenderOptions::builder(Fill::WholeFace(fill))
+        .size(size, size)
+        .samples(1)
+        .border_width(0.0)
+        .shading(Shading::Flat)
+        .background(Colour::from_srgb8(red, green, blue))
+        .build()
+        .unwrap_or_else(|error| panic!("{name}: {error}"));
+    let view = |reference: &mut Reference, point: &Vector| {
+        let divisor = match geometry {
+            Geometry::Hyperbolic => escher_reference::add(&int(1), &point[2]),
+            Geometry::Euclidean | Geometry::Spherical => point[2].clone(),
+        };
+        let [first, second] = [0, 1]
+            .map(|axis| reference.approximate(&escher_reference::div(&point[axis], &divisor)));
+        let pixel = view_pixel(geometry, size, size);
+        let half = f64::from(size) / 2.0;
+        DVec2::new(half + first / pixel, half - second / pixel)
+    };
+    let mut rows = Vec::new();
+    for (carrying, &kind) in carryings.iter().zip(&reading.kinds) {
+        for word in &tiling.types[kind].words {
+            let corner = apply(&word_matrix(&tiling.walls, word), &tiling.exact.generator);
+            rows.push(view(&mut reference, &apply(carrying, &corner)).y);
+        }
+    }
+    let reach = rows.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let start = rows.iter().copied().fold(f64::INFINITY, f64::min);
+    let margin = f64::from(size) / 64.0;
+    let first_row = texel_index((start - margin).max(0.0), size);
+    let last_row = texel_index((reach + margin).min(f64::from(size) - 1.0), size);
+    let band = renderer(&tiling.domain, options);
+    let row_bytes = 3 * usize::try_from(size).unwrap_or(usize::MAX);
+    let mut pixels = vec![0; row_bytes * usize::try_from(size).unwrap_or(usize::MAX)];
+    let offset = row_bytes * usize::try_from(first_row).unwrap_or(usize::MAX);
+    let end = row_bytes * usize::try_from(last_row + 1).unwrap_or(usize::MAX);
+    band.render_rows(first_row, &mut pixels[offset..end])
+        .unwrap_or_else(|error| panic!("{name}: {error}"));
+    let mut found = Vec::new();
+    for (picture, carrying) in carryings.iter().enumerate() {
+        let kind = reading.kinds[picture];
+        let centre = apply(carrying, &tiling.exact.vertices[tiling.rules[kind].corner]);
+        let near_centre = approximate(&mut reference, &centre);
+        let face = tiling
+            .faces
+            .iter()
+            .position(|face| face.kind == kind && same_centre(face.centre, near_centre))
+            .unwrap_or_else(|| {
+                panic!("{name}: the reference face of picture {picture} is not a face")
+            });
+        let mut sums = [(DVec2::ZERO, 0_u32); 2];
+        for row in first_row..=last_row {
+            for column in 0..size {
+                let feature = match mark_of(pixel_at(&pixels, size, column, row), &MARK_COLOURS[0])
+                {
+                    Some(0) => 0,
+                    Some(2) => 1,
+                    _ => continue,
+                };
+                let inside = screen_point(geometry, screen(geometry, [size, size], column, row))
+                    .is_some_and(|point| tiling.holds(face, point));
+                if inside {
+                    sums[feature].0 += DVec2::new(f64::from(column) + 0.5, f64::from(row) + 0.5);
+                    sums[feature].1 += 1;
+                }
+            }
+        }
+        let home = view(&mut reference, &centre);
+        let angles = [(DVec2::NEG_Y, sums[0]), (DVec2::X, sums[1])].map(|(wanted, (sum, count))| {
+            assert!(
+                count >= least,
+                "{name}: a feature has {count} pixels in the reference face of picture {picture}"
+            );
+            signed_angle(wanted, sum / f64::from(count) - home)
+        });
+        println!(
+            "{name} picture {picture}: the features lie {:.4} and {:.4} degrees from straight up and straight right, with {:?} pixels",
+            angles[0].to_degrees(),
+            angles[1].to_degrees(),
+            sums.map(|(_, count)| count)
+        );
+        found.push((picture, angles));
+    }
+    found
+}
+
+fn assert_several_upright(
+    (text, marks): (&'static str, [bool; 3]),
+    size: u32,
+    allowed: f64,
+    pictures: usize,
+) {
+    let found = several_upright((text, marks), size, LEAST_PICTURE_FEATURE_PIXELS);
+    assert_eq!(found.len(), pictures, "{text}");
+    for (picture, angles) in found {
+        assert_angles(
+            &format!("{text} {} picture {picture}", marks_text(marks)),
+            angles,
+            allowed,
+        );
+    }
+}
+
+#[test]
+fn every_picture_of_the_octagons_and_squares_appears_upright_and_unturned_on_its_reference_face() {
+    assert_several_upright(("*442", [true; 3]), PLANE_UPRIGHT_SIZE, PLANE_ANGLE, 4);
+}
+
+#[test]
+fn every_picture_of_the_dodecagons_hexagons_and_squares_appears_upright_and_unturned_on_its_reference_face()
+ {
+    assert_several_upright(("*632", [true; 3]), PLANE_UPRIGHT_SIZE, PLANE_ANGLE, 6);
+}
+
+#[test]
+fn every_picture_of_the_tetradecagons_and_triangles_appears_upright_on_its_reference_face() {
+    assert_several_upright(
+        ("*732", [false, true, true]),
+        DISK_UPRIGHT_SIZE,
+        PICTURE_UPRIGHT_ANGLE,
+        10,
+    );
+}
+
+#[test]
+fn every_picture_of_the_octagons_and_hexagons_in_the_disk_appears_upright_on_its_reference_face() {
+    assert_several_upright(
+        ("*433", [true; 3]),
+        DISK_UPRIGHT_SIZE,
+        PICTURE_UPRIGHT_ANGLE,
+        11,
+    );
+}
+
+const TRANSLATION_WORDS: usize = 6;
+
+fn lattice_translations(reference: &mut Reference, walls: &[Wall]) -> Vec<DVec2> {
+    let mut words: Vec<Vec<usize>> = vec![Vec::new()];
+    let mut translations: Vec<DVec2> = Vec::new();
+    for _ in 0..TRANSLATION_WORDS {
+        let longer: Vec<Vec<usize>> = words
+            .iter()
+            .flat_map(|word| {
+                (0..walls.len()).map(move |side| word.iter().copied().chain([side]).collect())
+            })
+            .collect();
+        for word in &longer {
+            let matrix = word.iter().fold(identity(), |total, &side| {
+                escher_reference::product(&total, &walls[side].pairing)
+            });
+            let linear = [[0, 0], [0, 1], [1, 0], [1, 1]]
+                .map(|[row, column]| reference.approximate(&matrix[row][column]));
+            if (linear[0] - 1.0).abs() > SAME_POINT
+                || linear[1].abs() > SAME_POINT
+                || linear[2].abs() > SAME_POINT
+                || (linear[3] - 1.0).abs() > SAME_POINT
+            {
+                continue;
+            }
+            let shift = DVec2::new(
+                reference.approximate(&matrix[0][2]),
+                reference.approximate(&matrix[1][2]),
+            );
+            if shift.length() > SAME_POINT
+                && translations
+                    .iter()
+                    .all(|seen| seen.distance(shift) > SAME_POINT)
+            {
+                translations.push(shift);
+            }
+        }
+        words = longer;
+    }
+    translations
+}
+
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the test builds the lattice, the faces, and the placements, and compares every pixel in one pass"
+)]
+fn the_translations_of_the_octagons_and_squares_repeat_one_picture_on_each_kind_of_face() {
+    let mut reference = Reference::new();
+    let (domain, face) = several_face("*442", [true; 3]);
+    let walls = reference_walls(&domain);
+    let exact = exact_wythoff(&domain, [true; 3]);
+    let arrangement = find_colouring(&least_arrangements(&face), TRANSLATION_ID);
+    let translations = lattice_translations(&mut reference, &walls);
+    let shortest = translations
+        .iter()
+        .copied()
+        .min_by(|first, second| first.length().total_cmp(&second.length()))
+        .unwrap_or_else(|| panic!("no translation among the products of the side reflections"));
+    let across = translations
+        .iter()
+        .copied()
+        .filter(|shift| shortest.perp_dot(*shift).abs() > SAME_POINT)
+        .min_by(|first, second| first.length().total_cmp(&second.length()))
+        .unwrap_or_else(|| panic!("the translations lie on one line"));
+    let reflected = |point: &Vector| apply(&walls[1].pairing, point);
+    let references: [(Vector, Vector, u32); 4] = [
+        (exact.vertices[0].clone(), exact.generator.clone(), 8),
+        (exact.vertices[1].clone(), exact.generator.clone(), 8),
+        (exact.vertices[2].clone(), exact.generator.clone(), 4),
+        (
+            reflected(&exact.vertices[2]),
+            reflected(&exact.generator),
+            4,
+        ),
+    ];
+    let shapes: Vec<(DVec2, DVec2, u32)> = references
+        .iter()
+        .map(|(centre, vertex, sides)| {
+            let [centre, vertex] =
+                [centre, vertex].map(|point| approximate(&mut reference, point).truncate());
+            (centre, vertex - centre, *sides)
+        })
+        .collect();
+    let polygons: Vec<Vec<Flat>> = shapes
+        .iter()
+        .map(|&(_, spoke, sides)| {
+            let radius = 0.5 / (PI / f64::from(sides)).sin() / spoke.length();
+            (0..sides)
+                .map(|vertex| {
+                    let turned = DVec2::from_angle(2.0 * PI * f64::from(vertex) / f64::from(sides))
+                        .rotate(spoke)
+                        * radius;
+                    [num(turned.x), num(turned.y)]
+                })
+                .collect()
+        })
+        .collect();
+    let placements = ExactPlacement::arrangement(&polygons, PICTURE, PICTURE);
+    let images: Vec<Vec<u8>> = (0..polygons.len())
+        .map(|picture| gradient_pixels(picture, PICTURE))
+        .collect();
+    let paints = images
+        .iter()
+        .map(|pixels| Paint::Image(image_of(PICTURE, PICTURE, pixels)))
+        .collect();
+    let rendered = render_whole_face(&domain, &face, &arrangement, paints);
+    let table = linear_table();
+    let bounds = rounding_bounds();
+    let mut agreement = Agreement {
+        compared: 0,
+        off_by_one: 0,
+        widest_off: 0.0,
+    };
+    let mut by_picture = [0; 4];
+    for row in 0..SIZE {
+        for column in 0..SIZE {
+            let z = screen(Geometry::Euclidean, [SIZE, SIZE], column, row);
+            let mut holder = None;
+            for (picture, &(centre, spoke, sides)) in shapes.iter().enumerate() {
+                let basis = DMat2::from_cols(shortest, across);
+                let near = basis.inverse() * (z - centre);
+                for first in [-1.0, 0.0, 1.0].map(|step| near.x.round() + step) {
+                    for second in [-1.0, 0.0, 1.0].map(|step| near.y.round() + step) {
+                        let moved = centre + first * shortest + second * across;
+                        let offset = z - moved;
+                        let margin = (0..sides)
+                            .map(|edge| {
+                                let start = DVec2::from_angle(
+                                    2.0 * PI * f64::from(edge) / f64::from(sides),
+                                )
+                                .rotate(spoke);
+                                let end = DVec2::from_angle(
+                                    2.0 * PI * f64::from(edge + 1) / f64::from(sides),
+                                )
+                                .rotate(spoke);
+                                let run = end - start;
+                                run.perp_dot(offset - start) / run.length()
+                                    * if run.perp_dot(-start) > 0.0 {
+                                        1.0
+                                    } else {
+                                        -1.0
+                                    }
+                            })
+                            .fold(f64::INFINITY, f64::min);
+                        if margin > -SEVERAL_EDGE_CLEARANCE {
+                            holder = Some((picture, offset, spoke.length(), margin));
+                        }
+                    }
+                }
+            }
+            let Some((picture, offset, radius, margin)) = holder else {
+                continue;
+            };
+            if margin <= SEVERAL_EDGE_CLEARANCE {
+                continue;
+            }
+            let sides = shapes[picture].2;
+            let scale = 0.5 / (PI / f64::from(sides)).sin() / radius;
+            let point = offset * scale;
+            let position = DVec2::from_array(
+                placements[picture].position(&mut reference, &[num(point.x), num(point.y)]),
+            );
+            let expected = bilinear(&images[picture], PICTURE, PICTURE, position, &table);
+            agreement.check(
+                &format!("column {column} row {row}"),
+                pixel_at(&rendered, SIZE, column, row),
+                expected,
+                [&table, &bounds],
+            );
+            by_picture[picture] += 1;
+        }
+    }
+    println!(
+        "{} pixels compared, {by_picture:?} by picture, {} one step off, lattice {shortest} and {across}",
+        agreement.compared, agreement.off_by_one
+    );
+    assert!(
+        by_picture.iter().all(|&count| count >= 1000),
+        "{by_picture:?}"
+    );
+    assert!(agreement.off_by_one * OFF_BY_ONE_SHARE <= agreement.compared);
 }

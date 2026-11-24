@@ -164,6 +164,7 @@ impl Masks {
     fn mask(&self, colour: usize, width: u32, height: u32, grid: u32) -> Vec<u8> {
         draw_mask(
             &self.polygon,
+            Placement::new(&self.polygon, width, height),
             self.edge_styles_of(colour),
             Tick::Absent,
             width,
@@ -175,13 +176,13 @@ impl Masks {
 
 pub(crate) fn draw_mask(
     polygon: &[DVec2],
+    placement: Placement,
     styles: &[EdgeStyle],
     tick: Tick,
     width: u32,
     height: u32,
     grid: u32,
 ) -> Vec<u8> {
-    let placement = Placement::new(polygon, width, height);
     let edges: Vec<Edge> = styles
         .iter()
         .enumerate()
@@ -465,20 +466,36 @@ impl MaskMap {
         Self::with_polygon(domain, |_| Some(polygon))
     }
 
+    pub(crate) fn region(
+        geometry: Geometry,
+        vertices: Vec<DVec3>,
+        covectors: Vec<DVec3>,
+        polygon: Vec<DVec2>,
+    ) -> Option<Self> {
+        let centre = vertex_centre(geometry, &vertices)?;
+        Self::build(geometry, vertices, covectors, centre, polygon)
+    }
+
     fn with_polygon(
         domain: &FundamentalDomain,
         polygon_of: impl FnOnce(DVec3) -> Option<Vec<DVec2>>,
     ) -> Option<Self> {
         let geometry = domain.geometry();
         let vertices = domain.vertices().to_vec();
-        let count = vertices.len();
-        let sum: DVec3 = vertices.iter().sum();
-        let centre = match geometry {
-            Geometry::Hyperbolic => hyperbolic::normalize_point(sum).ok()?,
-            Geometry::Spherical => spherical::normalize_point(sum).ok()?,
-            Geometry::Euclidean => sum / to_f64(count),
-        };
+        let centre = vertex_centre(geometry, &vertices)?;
         let polygon = polygon_of(centre)?;
+        let covectors = domain.sides().iter().map(|side| side.covector()).collect();
+        Self::build(geometry, vertices, covectors, centre, polygon)
+    }
+
+    fn build(
+        geometry: Geometry,
+        vertices: Vec<DVec3>,
+        covectors: Vec<DVec3>,
+        centre: DVec3,
+        polygon: Vec<DVec2>,
+    ) -> Option<Self> {
+        let count = vertices.len();
         let flat_centre = polygon.iter().sum::<DVec2>() / to_f64(count);
         let lengths = (0..count)
             .map(|side| {
@@ -493,7 +510,7 @@ impl MaskMap {
             geometry,
             centre,
             chart_centre: DVec3::ZERO,
-            covectors: domain.sides().iter().map(|side| side.covector()).collect(),
+            covectors,
             vertices,
             charts: Vec::new(),
             lengths,
@@ -565,6 +582,15 @@ impl MaskMap {
         let flat =
             self.polygon[previous] + fraction * (self.polygon[side] - self.polygon[previous]);
         Some(self.flat_centre + (flat - self.flat_centre) / parameter)
+    }
+}
+
+fn vertex_centre(geometry: Geometry, vertices: &[DVec3]) -> Option<DVec3> {
+    let sum: DVec3 = vertices.iter().sum();
+    match geometry {
+        Geometry::Hyperbolic => hyperbolic::normalize_point(sum).ok(),
+        Geometry::Spherical => spherical::normalize_point(sum).ok(),
+        Geometry::Euclidean => Some(sum / to_f64(vertices.len())),
     }
 }
 
@@ -664,16 +690,20 @@ mod tests {
     };
     use crate::colour::{Colour, CosetFill, Fill, Paint, decode_table};
     use crate::fold::fold;
+    use crate::golden_images::SEVERAL_SET;
     use crate::golden_images::{
         GOLDEN_SIZE, MASK_GOLDEN_IMAGES, arrangements, arrangements_with, colouring,
         domain_with_settings, exact_face, exact_mask, exact_pictures, face_triangle_mask,
-        golden_colouring, gradient, marks_text, mask_domains, mask_rule, picture_arrangements,
-        picture_tilings, renderer, texel_index, whole_face,
+        golden_colouring, gradient, least_arrangements, marks_text, mask_domains, mask_rule,
+        picture_arrangements, picture_tilings, renderer, several_face, several_firsts,
+        signature_orders, texel_index, type_rules, whole_face,
     };
     use crate::image::{Image, Placement, sample};
     use crate::options::RenderOptions;
-    use crate::reference::{ExactMask, ExactPlacement, Flat, MaskRule};
-    use crate::whole_face::{EdgeMeeting, PICTURE_COUNTS, WHOLE_FACE_SET, face_mask_styles};
+    use crate::reference::{ExactMask, ExactPlacement, Flat, MaskRule, RegionShape};
+    use crate::whole_face::{
+        EdgeMeeting, PICTURE_COUNTS, WHOLE_FACE_SET, face_mask_styles, uniform_firsts,
+    };
     use escher_reference::{Reference, num, vector};
 
     static DOMAINS: LazyLock<Vec<(String, FundamentalDomain)>> = LazyLock::new(mask_domains);
@@ -806,7 +836,9 @@ mod tests {
                 (3, orders, [polygon[0], polygon[2], polygon[3]])
             }
             MaskRule::Klein | MaskRule::Plane => return 2,
-            MaskRule::FaceTriangle { .. } => panic!("{name}: a domain has no face triangle rule"),
+            MaskRule::FaceTriangle { .. } | MaskRule::FaceRegion { .. } => {
+                panic!("{name}: a domain has no face triangle or face region rule")
+            }
         };
         for (vertex, expected) in table_angles(orders).into_iter().enumerate() {
             let angle = corner_angle(
@@ -1124,6 +1156,152 @@ mod tests {
         assert_eq!(compared, 15 * WHOLE_FACE_SET.len());
     }
 
+    struct FaceRegion {
+        name: String,
+        map: MaskMap,
+        sides: u32,
+        shape: RegionShape,
+    }
+
+    static FACE_REGIONS: LazyLock<Vec<FaceRegion>> = LazyLock::new(|| {
+        SEVERAL_SET
+            .iter()
+            .flat_map(|&(text, marks)| {
+                let (_, face) = several_face(text, marks);
+                type_rules(signature_orders(text), marks)
+                    .into_iter()
+                    .enumerate()
+                    .map(|(kind, rule)| {
+                        let name = format!("{text} {} type {}", marks_text(marks), rule.corner);
+                        let map = face
+                            .type_map(kind)
+                            .cloned()
+                            .unwrap_or_else(|| panic!("{name} has no region map"));
+                        let shape = if rule.both() {
+                            RegionShape::BothOn
+                        } else if rule.centre == (rule.corner + 1) % 3 {
+                            RegionShape::CentreAfter
+                        } else {
+                            RegionShape::CentreBefore
+                        };
+                        FaceRegion {
+                            name,
+                            map,
+                            sides: rule.sides,
+                            shape,
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    });
+
+    impl FaceRegion {
+        fn exact(&self, reference: &mut Reference) -> ExactMask {
+            let vertices: Vec<[f64; 3]> = self.map.vertices.iter().map(DVec3::to_array).collect();
+            let covectors: Vec<[f64; 3]> = self.map.covectors.iter().map(DVec3::to_array).collect();
+            ExactMask::new(
+                reference,
+                crate::reference::Measure::of(self.map.geometry),
+                &vertices,
+                &covectors,
+                MaskRule::FaceRegion {
+                    sides: self.sides,
+                    shape: self.shape,
+                },
+            )
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(512))]
+        #[test]
+        fn region_map_carries_a_point_of_the_region_into_the_flat_region_and_back(
+            index in any::<prop::sample::Index>(),
+            weights in prop::collection::vec(1e-3..1.0_f64, 4),
+        ) {
+            let region = index.get(&FACE_REGIONS);
+            let point = chart_point(&region.map, &weights);
+            let mut reference = Reference::new();
+            let exact = region.exact(&mut reference);
+            let (outside, error) = round_trip_error(&mut reference, &exact, &region.map, point)
+                .unwrap_or_else(|failure| panic!("{}: {failure}", region.name));
+            prop_assert!(outside <= OUTSIDE_TOLERANCE, "{}: {} lies {:e} outside", region.name, point, outside);
+            prop_assert!(error <= ROUND_TRIP_TOLERANCE, "{}: {} returns {:e} away", region.name, point, error);
+        }
+    }
+
+    #[test]
+    fn region_map_carries_the_vertices_and_the_centre_to_their_flat_points_and_back() {
+        let mut reference = Reference::new();
+        let mut worst = Worst::default();
+        for region in FACE_REGIONS.iter() {
+            let exact = region.exact(&mut reference);
+            vertex_round_trips(
+                &mut reference,
+                &region.name,
+                &region.map,
+                &exact,
+                &mut worst,
+            );
+        }
+        report_vertex_round_trips(&worst);
+        assert_eq!(worst.compared, REGION_VERTICES);
+    }
+
+    #[test]
+    fn region_map_sends_each_side_to_its_edge_in_proportion_to_distance_along_the_side() {
+        let mut reference = Reference::new();
+        let (mut worst, mut compared) = (0.0_f64, 0);
+        for region in FACE_REGIONS.iter() {
+            let exact = region.exact(&mut reference);
+            compared += edge_fraction_gaps(
+                &mut reference,
+                &region.name,
+                &region.map,
+                &exact,
+                &mut worst,
+            );
+        }
+        println!(
+            "{compared} points of the sides: {worst:e} from their edges, allowed {EDGE_FRACTION_TOLERANCE:e}"
+        );
+        assert_eq!(compared, 5 * REGION_VERTICES);
+    }
+
+    #[test]
+    fn each_region_is_convex_counterclockwise_and_holds_its_centre_inside_every_side() {
+        let mut reference = Reference::new();
+        let mut sides = 0;
+        for region in FACE_REGIONS.iter() {
+            let exact = region.exact(&mut reference);
+            let charts: Vec<escher_reference::Vector> = exact
+                .vertices
+                .iter()
+                .map(|vertex| exact.chart(vertex))
+                .collect();
+            let centre = exact.chart(&exact.centre);
+            let count = charts.len();
+            for side in 0..count {
+                let [start, end, next] =
+                    [side, side + 1, side + 2].map(|index| &charts[index % count]);
+                let run = escher_reference::difference(end, start);
+                let turn = exact.turn(&run, &escher_reference::difference(next, end));
+                let inside = exact.turn(&run, &escher_reference::difference(&centre, start));
+                assert!(
+                    turn.is_positive() && inside.is_positive(),
+                    "{}: side {side} turns {turn} and holds the centre at {inside}",
+                    region.name
+                );
+                sides += 1;
+            }
+        }
+        println!("{sides} sides");
+        assert_eq!(sides, REGION_VERTICES);
+    }
+
+    const REGION_VERTICES: usize = 159;
+
     #[test]
     fn mask_map_of_a_euclidean_domain_is_the_identity_of_the_plane() {
         const TOLERANCE: f64 = 8e-15;
@@ -1248,7 +1426,10 @@ mod tests {
                     let name = format!("{name} {} colour {colour}", colouring.id());
                     check_mask_content(
                         &name,
-                        &masks.polygon,
+                        (
+                            &masks.polygon,
+                            Placement::new(&masks.polygon, width, height),
+                        ),
                         masks.edge_styles_of(colour),
                         Tick::Absent,
                         &pixels,
@@ -1299,7 +1480,7 @@ mod tests {
 
     fn check_mask_content(
         name: &str,
-        polygon: &[DVec2],
+        (polygon, placement): (&[DVec2], Placement),
         styles: &[EdgeStyle],
         tick: Tick,
         pixels: &[u8],
@@ -1307,7 +1488,6 @@ mod tests {
         content: &mut Content,
     ) {
         let count = polygon.len();
-        let placement = Placement::new(polygon, width, height);
         let pixel_size = 1.0 / placement.scale();
         let border = f64::from(width.min(height)) / 64.0 * pixel_size;
         for row in 0..height {
@@ -1370,6 +1550,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the test checks the styles, the content, and the tick of the face mask of every arrangement of the whole-face set"
+    )]
     fn face_mask_shows_the_flat_face_with_one_code_colour_for_each_pair_of_edges_and_its_marks() {
         let mut content = Content::default();
         let mut reference = Reference::new();
@@ -1383,7 +1567,8 @@ mod tests {
                 let edges = face
                     .edges(&arrangement)
                     .unwrap_or_else(|error| panic!("{name}: {error}"));
-                let styles = face_mask_styles(&edges, face.polygon().len());
+                let styles =
+                    face_mask_styles(&edges, &uniform_firsts(edges.len(), face.polygon().len()));
                 let total = styles
                     .iter()
                     .map(|style| style.class)
@@ -1426,6 +1611,7 @@ mod tests {
                 for size in MASK_SIZES {
                     let pixels = draw_mask(
                         face.polygon(),
+                        Placement::new(face.polygon(), size[0], size[1]),
                         &styles,
                         Tick::OnEdgeZero,
                         size[0],
@@ -1434,7 +1620,10 @@ mod tests {
                     );
                     check_mask_content(
                         &name,
-                        face.polygon(),
+                        (
+                            face.polygon(),
+                            Placement::new(face.polygon(), size[0], size[1]),
+                        ),
                         &styles,
                         Tick::OnEdgeZero,
                         &pixels,
@@ -1444,13 +1633,21 @@ mod tests {
                 }
                 let pixels = draw_mask(
                     face.polygon(),
+                    Placement::new(face.polygon(), TICK_SIZE, TICK_SIZE),
                     &styles,
                     Tick::OnEdgeZero,
                     TICK_SIZE,
                     TICK_SIZE,
                     1,
                 );
-                check_tick(&mut reference, &name, &exact.polygon, &styles, &pixels);
+                let placement = ExactPlacement::new(&exact.polygon, TICK_SIZE, TICK_SIZE);
+                check_tick(
+                    &mut reference,
+                    &name,
+                    (&exact.polygon, &placement),
+                    &styles,
+                    &pixels,
+                );
                 masks += 1;
             }
         }
@@ -1471,8 +1668,9 @@ mod tests {
         name: &str,
         edges: &[EdgeMeeting],
         styles: &[EdgeStyle],
-        order: usize,
+        firsts: &[usize],
     ) -> [usize; 3] {
+        let picture_of = |edge: usize| firsts.iter().rposition(|&first| first <= edge).unwrap_or(0);
         let total = styles
             .iter()
             .map(|style| style.class)
@@ -1481,10 +1679,14 @@ mod tests {
         let mut next_class = 0;
         let mut kinds = [0; 3];
         for (edge, meeting) in edges.iter().enumerate() {
-            let other = usize::try_from(meeting.picture()).unwrap_or(usize::MAX) * order
+            let other = firsts[usize::try_from(meeting.picture()).unwrap_or(usize::MAX)]
                 + usize::try_from(meeting.partner()).unwrap_or(usize::MAX);
             let style = styles[edge];
-            let label = format!("{name}: edge {} of picture {}", edge % order, edge / order);
+            let picture = picture_of(edge);
+            let label = format!(
+                "{name}: edge {} of picture {picture}",
+                edge - firsts[picture]
+            );
             assert_eq!(style.code, code_colour(style.class, total), "{label}");
             assert_eq!(styles[other].class, style.class, "{label}");
             if style.class == next_class {
@@ -1512,7 +1714,7 @@ mod tests {
                     [!turned, turned]
                 };
                 assert_eq!(style.marks, wanted, "{label}");
-                kinds[1 + usize::from(other / order != edge / order)] += 1;
+                kinds[1 + usize::from(picture_of(other) != picture)] += 1;
             }
         }
         kinds
@@ -1531,8 +1733,9 @@ mod tests {
                     let edges = face
                         .edges(&arrangement)
                         .unwrap_or_else(|error| panic!("{name}: {error}"));
-                    let styles = face_mask_styles(&edges, order);
-                    let found = assert_picture_styles(&name, &edges, &styles, order);
+                    let firsts = uniform_firsts(edges.len(), order);
+                    let styles = face_mask_styles(&edges, &firsts);
+                    let found = assert_picture_styles(&name, &edges, &styles, &firsts);
                     kinds = [0, 1, 2].map(|kind| kinds[kind] + found[kind]);
                     let refused = face
                         .render_mask(&arrangement, pictures, 8, 8)
@@ -1559,6 +1762,42 @@ mod tests {
     }
 
     #[test]
+    fn face_masks_of_several_face_types_share_one_code_colour_for_each_meeting_and_mark_its_ends() {
+        let mut kinds = [0; 3];
+        let mut arrangements = 0;
+        for &(text, marks) in &SEVERAL_SET {
+            let (_, face) = several_face(text, marks);
+            for arrangement in least_arrangements(&face) {
+                let name = format!("{text} {} {}", marks_text(marks), arrangement.id());
+                let edges = face
+                    .edges(&arrangement)
+                    .unwrap_or_else(|error| panic!("{name}: {error}"));
+                let firsts = several_firsts(&face, &arrangement);
+                let styles = face_mask_styles(&edges, &firsts);
+                let found = assert_picture_styles(&name, &edges, &styles, &firsts);
+                kinds = [0, 1, 2].map(|kind| kinds[kind] + found[kind]);
+                let pictures = u32::try_from(firsts.len()).unwrap_or(u32::MAX);
+                let refused = face
+                    .render_mask(&arrangement, pictures, 8, 8)
+                    .err()
+                    .map(|error| error.to_string());
+                assert_eq!(
+                    refused,
+                    Some(format!(
+                        "cannot render face mask: the picture {pictures} is not below the {pictures} pictures of the arrangement"
+                    )),
+                    "{name}"
+                );
+                arrangements += 1;
+            }
+        }
+        println!(
+            "{arrangements} arrangements, edges (paired with themselves, paired in one picture, paired across two pictures): {kinds:?}"
+        );
+        assert_eq!((arrangements, kinds), (64, [100, 82, 2818]));
+    }
+
+    #[test]
     fn face_mask_of_each_picture_shows_its_turned_face_with_its_borders_marks_and_tick() {
         let mut content = Content::default();
         let mut reference = Reference::new();
@@ -1572,7 +1811,7 @@ mod tests {
                 let edges = face
                     .edges(&arrangement)
                     .unwrap_or_else(|error| panic!("{name}: {error}"));
-                let styles = face_mask_styles(&edges, order);
+                let styles = face_mask_styles(&edges, &uniform_firsts(edges.len(), order));
                 let exact = exact_pictures(
                     &mut reference,
                     tiling.signature,
@@ -1582,15 +1821,30 @@ mod tests {
                 );
                 let polygons = face.picture_polygons(&arrangement);
                 assert_eq!(polygons.len(), exact.len(), "{name}");
+                let exact_polygons: Vec<Vec<Flat>> = exact
+                    .iter()
+                    .map(|picture| picture.polygon.clone())
+                    .collect();
+                let exact_placements =
+                    ExactPlacement::arrangement(&exact_polygons, TICK_SIZE, TICK_SIZE);
                 for (picture, (polygon, exact)) in polygons.iter().zip(&exact).enumerate() {
                     let name = format!("{name} picture {picture}");
                     let styles = &styles[picture * order..(picture + 1) * order];
                     for size in MASK_SIZES {
-                        let pixels =
-                            draw_mask(polygon, styles, Tick::OnEdgeZero, size[0], size[1], 1);
+                        let placement =
+                            Placement::arrangement(&polygons, size[0], size[1])[picture];
+                        let pixels = draw_mask(
+                            polygon,
+                            placement,
+                            styles,
+                            Tick::OnEdgeZero,
+                            size[0],
+                            size[1],
+                            1,
+                        );
                         check_mask_content(
                             &name,
-                            polygon,
+                            (polygon, placement),
                             styles,
                             Tick::OnEdgeZero,
                             &pixels,
@@ -1598,9 +1852,22 @@ mod tests {
                             &mut content,
                         );
                     }
-                    let pixels =
-                        draw_mask(polygon, styles, Tick::OnEdgeZero, TICK_SIZE, TICK_SIZE, 1);
-                    check_tick(&mut reference, &name, &exact.polygon, styles, &pixels);
+                    let pixels = draw_mask(
+                        polygon,
+                        Placement::arrangement(&polygons, TICK_SIZE, TICK_SIZE)[picture],
+                        styles,
+                        Tick::OnEdgeZero,
+                        TICK_SIZE,
+                        TICK_SIZE,
+                        1,
+                    );
+                    check_tick(
+                        &mut reference,
+                        &name,
+                        (&exact.polygon, &exact_placements[picture]),
+                        styles,
+                        &pixels,
+                    );
                     masks += 1;
                 }
             }
@@ -1619,11 +1886,10 @@ mod tests {
     fn check_tick(
         reference: &mut Reference,
         name: &str,
-        polygon: &[Flat],
+        (polygon, placement): (&[Flat], &ExactPlacement),
         styles: &[EdgeStyle],
         pixels: &[u8],
     ) {
-        let placement = ExactPlacement::new(polygon, TICK_SIZE, TICK_SIZE);
         let border = f64::from(TICK_SIZE) / 64.0;
         let count = polygon.len();
         for (edge, style) in styles.iter().enumerate() {

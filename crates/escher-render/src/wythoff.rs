@@ -60,15 +60,15 @@ pub struct Wythoff {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct Face {
-    corner: usize,
-    cuts: Vec<Cut>,
+pub(crate) struct Face {
+    pub(crate) corner: usize,
+    pub(crate) cuts: Vec<Cut>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Cut {
-    side: usize,
-    sign: f64,
+pub(crate) struct Cut {
+    pub(crate) side: usize,
+    pub(crate) sign: f64,
 }
 
 struct Plane {
@@ -268,6 +268,26 @@ impl Wythoff {
         let order = self.orders[face.corner];
         (face.cuts.len() == 1 && self.orders[2] == 2 && order >= 3 && self.orders[other] >= 3)
             .then_some((face.corner, order))
+    }
+
+    pub(crate) fn faces(&self) -> &[Face] {
+        &self.faces
+    }
+
+    pub(crate) fn orders(&self) -> [u32; 3] {
+        self.orders
+    }
+
+    pub(crate) fn generator(&self) -> DVec3 {
+        self.generator
+    }
+
+    pub(crate) fn perpendicular(&self, side: usize) -> Option<DVec3> {
+        self.perpendiculars[side]
+    }
+
+    pub(crate) fn foot(&self, side: usize) -> Option<DVec3> {
+        self.feet[side]
     }
 
     pub(crate) fn perpendiculars_of(&self, face: usize) -> impl Iterator<Item = DVec3> + '_ {

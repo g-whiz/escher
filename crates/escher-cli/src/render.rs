@@ -431,8 +431,15 @@ fn whole_face_painting(
 pub(crate) fn whole_face(
     domain: &FundamentalDomain,
     marks: [bool; 3],
-) -> escher_render::Result<WholeFace> {
-    WholeFace::new(domain, Wythoff::new(domain, marks)?)
+) -> anyhow::Result<WholeFace> {
+    let face = WholeFace::new(domain, Wythoff::new(domain, marks)?)?;
+    if face.face_types().len() == 1 {
+        Ok(face)
+    } else {
+        Err(anyhow::anyhow!(
+            "cannot build whole face: the construction is not a regular tiling"
+        ))
+    }
 }
 
 pub(crate) fn refuse_index_above_limit(task: Task<'_>, id: ColouringId) -> anyhow::Result<()> {

@@ -406,6 +406,23 @@ pub(crate) enum MaskRule {
     Klein,
     Double([u32; 3]),
     FaceTriangle { corner: usize, order: u32 },
+    FaceRegion { sides: u32, shape: RegionShape },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RegionShape {
+    CentreAfter,
+    CentreBefore,
+    BothOn,
+}
+
+impl RegionShape {
+    pub(crate) const fn foot(self) -> usize {
+        match self {
+            Self::CentreAfter | Self::BothOn => 1,
+            Self::CentreBefore => 2,
+        }
+    }
 }
 
 pub(crate) type Flat = [BigFloat; 2];
@@ -441,7 +458,10 @@ fn recentre(centre: &Vector) -> Matrix {
 }
 
 pub(crate) fn face_direction(measure: Measure, vertices: &[Vector], corner: usize) -> Flat {
-    let (centre, foot) = (&vertices[corner], &vertices[2]);
+    direction_toward(measure, &vertices[corner], &vertices[2])
+}
+
+pub(crate) fn direction_toward(measure: Measure, centre: &Vector, foot: &Vector) -> Flat {
     let toward = match measure {
         Measure::Euclidean => {
             let [centre, foot] = [centre, foot].map(|point| scale(&div(&int(1), &point[2]), point));
@@ -477,11 +497,11 @@ fn flat_sub(left: &Flat, right: &Flat) -> Flat {
     [sub(&left[0], &right[0]), sub(&left[1], &right[1])]
 }
 
-fn flat_add(left: &Flat, right: &Flat) -> Flat {
+pub(crate) fn flat_add(left: &Flat, right: &Flat) -> Flat {
     [add(&left[0], &right[0]), add(&left[1], &right[1])]
 }
 
-fn flat_scale(factor: &BigFloat, value: &Flat) -> Flat {
+pub(crate) fn flat_scale(factor: &BigFloat, value: &Flat) -> Flat {
     [mul(factor, &value[0]), mul(factor, &value[1])]
 }
 
@@ -572,6 +592,10 @@ impl ExactMask {
                 let direction = face_direction(measure, &vertices, corner);
                 face_triangle(reference, corner, order, &direction).to_vec()
             }
+            MaskRule::FaceRegion { sides, shape } => {
+                let direction = direction_toward(measure, &vertices[0], &vertices[shape.foot()]);
+                face_region(reference, sides, shape, &direction)
+            }
         };
         assert_eq!(polygon.len(), vertices.len(), "{rule:?}");
         let flat_sum = polygon
@@ -617,7 +641,7 @@ impl ExactMask {
         scale(&div(&int(1), &divisor), point)
     }
 
-    fn turn(&self, first: &Vector, second: &Vector) -> BigFloat {
+    pub(crate) fn turn(&self, first: &Vector, second: &Vector) -> BigFloat {
         match self.measure {
             Measure::Hyperbolic | Measure::Euclidean => {
                 sub(&mul(&first[0], &second[1]), &mul(&first[1], &second[0]))
@@ -805,6 +829,29 @@ impl ExactPlacement {
         }
     }
 
+    pub(crate) fn arrangement(polygons: &[Vec<Flat>], width: u32, height: u32) -> Vec<Self> {
+        let alone: Vec<Self> = polygons
+            .iter()
+            .map(|polygon| Self::new(polygon, width, height))
+            .collect();
+        let least = alone
+            .iter()
+            .map(|placement| placement.factor.clone())
+            .reduce(|least, factor| min(&least, &factor))
+            .unwrap_or_else(|| panic!("an arrangement has a picture"));
+        alone
+            .into_iter()
+            .map(|placement| Self {
+                factor: least.clone(),
+                ..placement
+            })
+            .collect()
+    }
+
+    pub(crate) fn factor(&self, reference: &mut Reference) -> f64 {
+        reference.approximate(&self.factor)
+    }
+
     pub(crate) fn position(&self, reference: &mut Reference, point: &Flat) -> [f64; 2] {
         let across = add(
             &self.half[0],
@@ -868,7 +915,7 @@ pub(crate) fn flat_determinant(matrix: &FlatMatrix) -> BigFloat {
     )
 }
 
-fn flat_reflection(through: &Flat) -> FlatMatrix {
+pub(crate) fn flat_reflection(through: &Flat) -> FlatMatrix {
     let squared = flat_dot(through, through);
     let entry =
         |first: &BigFloat, second: &BigFloat| div(&mul(&int(2), &mul(first, second)), &squared);
@@ -914,6 +961,46 @@ pub(crate) fn face_triangle(
         face[0].clone()
     };
     triangle
+}
+
+pub(crate) fn circumradius(reference: &mut Reference, sides: u32) -> BigFloat {
+    let pi = reference.pi();
+    div(
+        &int(1),
+        &mul(&int(2), &reference.sin(&div(&pi, &int(sides)))),
+    )
+}
+
+pub(crate) fn region_face(reference: &mut Reference, sides: u32, direction: &Flat) -> Vec<Flat> {
+    let radius = circumradius(reference, sides);
+    flat_face(reference, sides, direction)
+        .iter()
+        .map(|vertex| flat_scale(&radius, vertex))
+        .collect()
+}
+
+pub(crate) fn edge_middle(polygon: &[Flat], edge: usize) -> Flat {
+    let count = polygon.len();
+    flat_scale(
+        &div(&int(1), &int(2)),
+        &flat_add(&polygon[(edge + count - 1) % count], &polygon[edge]),
+    )
+}
+
+pub(crate) fn face_region(
+    reference: &mut Reference,
+    sides: u32,
+    shape: RegionShape,
+    direction: &Flat,
+) -> Vec<Flat> {
+    let face = region_face(reference, sides, direction);
+    let middle = |edge: usize| edge_middle(&face, edge);
+    let origin = [int(0), int(0)];
+    match shape {
+        RegionShape::CentreAfter => vec![origin, middle(0), face[0].clone()],
+        RegionShape::CentreBefore => vec![origin, face[face.len() - 1].clone(), middle(0)],
+        RegionShape::BothOn => vec![origin, middle(0), face[0].clone(), middle(1)],
+    }
 }
 
 pub(crate) fn centre_mirror(corner: usize) -> usize {

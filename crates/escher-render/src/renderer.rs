@@ -348,7 +348,7 @@ impl Renderer {
                 None => self.options.border_colour,
             },
             Fill::WholeFace(fill) => match self.face(fill.wythoff(), result.point(), tangents) {
-                Some(_) => fill.value(sides, result.point(), self.options.background),
+                Some(face) => fill.value(face, sides, result.point(), self.options.background),
                 None => self.options.border_colour,
             },
             Fill::One(_) | Fill::Parity(_) | Fill::Cosets(_)
@@ -2060,7 +2060,7 @@ mod tests {
                 let Fill::WholeFace(fill) = &renderer.options.fill else {
                     panic!("the fill is not a whole-face fill");
                 };
-                fill.value(sides, point, renderer.options.background)
+                fill.value(0, sides, point, renderer.options.background)
                     .linear()
             },
         );
