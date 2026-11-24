@@ -1,3 +1,4 @@
+use core::fmt::Display;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -8,9 +9,9 @@ use escher_signature::Signature;
 
 use crate::args::MasksArgs;
 use crate::render::{
-    ARRANGEMENT_NEEDS_WYTHOFF, Task, arrangement, build_domain, cannot_render, chosen_colouring,
-    coset_colouring, parse_signature, pictures, refuse_colouring, refuse_index_above_limit,
-    whole_face,
+    ARRANGEMENT_NEEDS_WYTHOFF, Pictures, Task, arrangement, build_domain, cannot_render,
+    chosen_colouring, coset_colouring, parse_signature, refuse_colouring, refuse_index_above_limit,
+    search_index, whole_face,
 };
 
 const NO_FILE: &str = "the output path names no file";
@@ -62,9 +63,9 @@ fn render_face_mask(
         .arrangement
         .ok_or_else(|| cannot_render(task, "--wythoff needs --arrangement"))?;
     let face = whole_face(&domain, marks).with_context(|| task.failed())?;
-    refuse_index_above_limit(task, id)?;
-    let count = pictures(&face, id);
-    let names = if count == 1 {
+    refuse_index_above_limit(task, &face, id)?;
+    let pictures = Pictures::new(&face, search_index(&face, id));
+    let names = if pictures.count() == 1 {
         None
     } else {
         Some(MaskNames::new(&args.output).ok_or_else(|| cannot_render(task, NO_FILE))?)
@@ -72,19 +73,22 @@ fn render_face_mask(
     let (width, height) = (args.tiling.size.width, args.tiling.size.height);
     check_size(task, width, height)?;
     let arrangement = arrangement(&face, task, id, SearchBudget::DEFAULT)?;
-    for picture in 0..count {
+    for (picture, name) in (0..).zip(pictures.names()) {
         let pixels = face
             .render_mask(&arrangement, picture, width, height)
             .with_context(|| task.failed())?;
         let png = encode_png(width, height, &pixels).with_context(|| task.failed())?;
         match names {
             None => std::fs::write(&args.output, png).context("cannot write the face mask")?,
-            Some(names) => std::fs::write(names.name(picture), png).with_context(|| {
-                format!(
-                    "cannot write the face mask of picture {}",
-                    crate::picture_letter(picture)
-                )
-            })?,
+            Some(names) => {
+                let file = if pictures.is_several() {
+                    names.name(&name)
+                } else {
+                    names.name(picture)
+                };
+                std::fs::write(file, png)
+                    .with_context(|| format!("cannot write the face mask of picture {name}"))?;
+            }
         }
     }
     Ok(())
@@ -114,10 +118,10 @@ impl<'a> MaskNames<'a> {
         })
     }
 
-    fn name(self, colour: u32) -> PathBuf {
+    fn name(self, suffix: impl Display) -> PathBuf {
         let mut file = self.stem.to_os_string();
         file.push("-");
-        file.push(colour.to_string());
+        file.push(suffix.to_string());
         if let Some(extension) = self.extension {
             file.push(".");
             file.push(extension);

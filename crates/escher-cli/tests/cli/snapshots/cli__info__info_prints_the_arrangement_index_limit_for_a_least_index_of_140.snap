@@ -1,0 +1,25 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*752\", \"--wythoff\", \"111\"])"
+---
+status: Success
+--- stdout
+Signature: *752
+Geometry: hyperbolic
+Euler characteristic: -11/140
+Compact: yes
+Area: 11pi/70
+Deformation dimension: 0
+Regular tiling: {7,5}, dual {5,7}
+Domain: 3 mirror sides
+Corner angles in degrees: 25.714286, 36.000000, 90.000000
+Side lengths: 1.234992, 1.711186, 0.991218
+Domain area: 0.493679
+Colourings: 5, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 7 colours: 2
+Colourings with 8 colours: 1
+Colourings with 10 colours: 1
+Arrangements: none, cannot search subgroups: the arrangement index 140 is not between 1 and 84
+--- stderr
+--- end

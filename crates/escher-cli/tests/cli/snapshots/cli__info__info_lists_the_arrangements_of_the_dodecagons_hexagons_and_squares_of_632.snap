@@ -1,0 +1,35 @@
+---
+source: crates/escher-cli/tests/cli/info.rs
+expression: "snapshot(&[\"info\", \"*632\", \"--wythoff\", \"111\"])"
+---
+status: Success
+--- stdout
+Signature: *632
+Geometry: Euclidean
+Euler characteristic: 0
+Compact: yes
+Regular tiling: {6,3}, dual {3,6}
+Domain: 3 mirror sides
+Corner angles in degrees: 30.000000, 60.000000, 90.000000
+Side lengths: 1.000000, 1.154701, 0.577350
+Domain area: 0.288675
+Colourings: 39, complete to 12 colours
+Colourings with 2 colours: 1
+Colourings with 3 colours: 1
+Colourings with 4 colours: 1
+Colourings with 6 colours: 10
+Colourings with 8 colours: 3
+Colourings with 9 colours: 3
+Colourings with 12 colours: 20
+Arrangements: 3
+Arrangement: 12a, 6 pictures, 0A of 12 sides, 1A to 1B of 6 sides, 2A to 2C of 4 sides, with mirrored neighbours, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1A5 mirrored, 0A3 and 2A2 mirrored, 0A4 and 1A3 turned, 0A5 and 2B2 turned, 0A6 and 1B5 turned, 0A7 and 2C2 mirrored, 0A8 and 1B3 mirrored, 0A9 and 2C0 turned, 0A10 and 1B1 turned, 0A11 and 2B0 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2A3 mirrored, 1B0 and 2B1 turned, 1B2 and 2C3 turned, 1B4 and 2C1 mirrored
+Arrangement: 12b, 6 pictures, 0A of 12 sides, 1A to 1B of 6 sides, 2A to 2C of 4 sides, with mirrored neighbours, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1B5 turned, 0A3 and 2B2 mirrored, 0A4 and 1A3 mirrored, 0A5 and 2C2 mirrored, 0A6 and 1B1 turned, 0A7 and 2A2 turned, 0A8 and 1A5 turned, 0A9 and 2C0 turned, 0A10 and 1B3 mirrored, 0A11 and 2B0 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2C1 turned, 1B0 and 2A3 turned, 1B2 and 2C3 mirrored, 1B4 and 2B1 mirrored
+Arrangement: 12c, 6 pictures, 0A of 12 sides, 1A to 1B of 6 sides, 2A to 2C of 4 sides, turned only, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1B5 turned, 0A3 and 2C0 turned, 0A4 and 1A3 turned, 0A5 and 2B2 turned, 0A6 and 1B1 turned, 0A7 and 2A2 turned, 0A8 and 1A5 turned, 0A9 and 2C2 turned, 0A10 and 1B3 turned, 0A11 and 2B0 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2C3 turned, 1B0 and 2A3 turned, 1B2 and 2B1 turned, 1B4 and 2C1 turned
+Arrangements with 12 pictures: 5
+Arrangement: 24a, 12 pictures, 0A to 0B of 12 sides, 1A to 1D of 6 sides, 2A to 2F of 4 sides, with mirrored neighbours, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1A5 mirrored, 0A3 and 2A2 mirrored, 0A4 and 1A3 turned, 0A5 and 2B2 turned, 0A6 and 1B5 turned, 0A7 and 2D0 turned, 0A8 and 1C1 turned, 0A9 and 2C0 turned, 0A10 and 1B1 turned, 0A11 and 2B0 turned, 0B0 and 1B3 turned, 0B1 and 2C2 turned, 0B2 and 1C5 turned, 0B3 and 2E0 turned, 0B4 and 1D5 turned, 0B5 and 2F0 turned, 0B6 and 1D3 mirrored, 0B7 and 2F2 mirrored, 0B8 and 1D1 turned, 0B9 and 2E2 turned, 0B10 and 1C3 turned, 0B11 and 2D2 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2A3 mirrored, 1B0 and 2B1 turned, 1B2 and 2C3 turned, 1B4 and 2D1 turned, 1C0 and 2C1 turned, 1C2 and 2D3 turned, 1C4 and 2E1 turned, 1D0 and 2E3 turned, 1D2 and 2F3 mirrored, 1D4 and 2F1 turned
+Arrangement: 24b, 12 pictures, 0A to 0B of 12 sides, 1A to 1D of 6 sides, 2A to 2F of 4 sides, with mirrored neighbours, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1B5 turned, 0A3 and 2B2 mirrored, 0A4 and 1A3 mirrored, 0A5 and 2C2 mirrored, 0A6 and 1C1 mirrored, 0A7 and 2F0 turned, 0A8 and 1D5 mirrored, 0A9 and 2D2 mirrored, 0A10 and 1B3 mirrored, 0A11 and 2B0 turned, 0B0 and 1A5 turned, 0B1 and 2C0 turned, 0B2 and 1C5 turned, 0B3 and 2E0 turned, 0B4 and 1D3 mirrored, 0B5 and 2F2 turned, 0B6 and 1C3 mirrored, 0B7 and 2E2 mirrored, 0B8 and 1D1 turned, 0B9 and 2D0 turned, 0B10 and 1B1 turned, 0B11 and 2A2 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2C1 turned, 1B0 and 2A3 turned, 1B2 and 2D3 turned, 1B4 and 2B1 mirrored, 1C0 and 2C3 turned, 1C2 and 2F1 mirrored, 1C4 and 2E1 turned, 1D0 and 2D1 turned, 1D2 and 2E3 mirrored, 1D4 and 2F3 mirrored
+Arrangement: 24c, 12 pictures, 0A to 0B of 12 sides, 1A to 1D of 6 sides, 2A to 2F of 4 sides, turned only, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1B5 turned, 0A3 and 2C0 turned, 0A4 and 1C5 turned, 0A5 and 2E0 turned, 0A6 and 1D3 turned, 0A7 and 2F0 turned, 0A8 and 1C1 turned, 0A9 and 2C2 turned, 0A10 and 1B3 turned, 0A11 and 2B0 turned, 0B0 and 1A5 turned, 0B1 and 2D0 turned, 0B2 and 1D5 turned, 0B3 and 2E2 turned, 0B4 and 1C3 turned, 0B5 and 2F2 turned, 0B6 and 1D1 turned, 0B7 and 2D2 turned, 0B8 and 1A3 turned, 0B9 and 2B2 turned, 0B10 and 1B1 turned, 0B11 and 2A2 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2D1 turned, 1B0 and 2A3 turned, 1B2 and 2B1 turned, 1B4 and 2C1 turned, 1C0 and 2C3 turned, 1C2 and 2F3 turned, 1C4 and 2E1 turned, 1D0 and 2D3 turned, 1D2 and 2F1 turned, 1D4 and 2E3 turned
+Arrangement: 24d, 12 pictures, 0A to 0B of 12 sides, 1A to 1D of 6 sides, 2A to 2F of 4 sides, with mirrored neighbours, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1B5 turned, 0A3 and 2C0 turned, 0A4 and 1C5 turned, 0A5 and 2E0 turned, 0A6 and 1D3 mirrored, 0A7 and 2F2 mirrored, 0A8 and 1C1 turned, 0A9 and 2C2 turned, 0A10 and 1B3 turned, 0A11 and 2B0 turned, 0B0 and 1A5 turned, 0B1 and 2D0 turned, 0B2 and 1D5 turned, 0B3 and 2F0 turned, 0B4 and 1C3 mirrored, 0B5 and 2E2 mirrored, 0B6 and 1D1 turned, 0B7 and 2D2 turned, 0B8 and 1A3 turned, 0B9 and 2B2 turned, 0B10 and 1B1 turned, 0B11 and 2A2 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2D1 turned, 1B0 and 2A3 turned, 1B2 and 2B1 turned, 1B4 and 2C1 turned, 1C0 and 2C3 turned, 1C2 and 2F3 mirrored, 1C4 and 2E1 turned, 1D0 and 2D3 turned, 1D2 and 2E3 mirrored, 1D4 and 2F1 turned
+Arrangement: 24e, 12 pictures, 0A to 0B of 12 sides, 1A to 1D of 6 sides, 2A to 2F of 4 sides, with mirrored neighbours, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1B5 turned, 0A3 and 2C0 turned, 0A4 and 1C5 mirrored, 0A5 and 2B2 mirrored, 0A6 and 1A3 mirrored, 0A7 and 2D2 mirrored, 0A8 and 1D1 mirrored, 0A9 and 2F0 turned, 0A10 and 1C1 turned, 0A11 and 2B0 turned, 0B0 and 1A5 turned, 0B1 and 2D0 turned, 0B2 and 1D5 turned, 0B3 and 2E2 mirrored, 0B4 and 1B3 mirrored, 0B5 and 2C2 mirrored, 0B6 and 1C3 turned, 0B7 and 2F2 turned, 0B8 and 1D3 mirrored, 0B9 and 2E0 turned, 0B10 and 1B1 turned, 0B11 and 2A2 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2D1 turned, 1B0 and 2A3 turned, 1B2 and 2E3 turned, 1B4 and 2C1 turned, 1C0 and 2B1 turned, 1C2 and 2F3 turned, 1C4 and 2C3 mirrored, 1D0 and 2D3 turned, 1D2 and 2F1 mirrored, 1D4 and 2E1 mirrored
+--- stderr
+--- end

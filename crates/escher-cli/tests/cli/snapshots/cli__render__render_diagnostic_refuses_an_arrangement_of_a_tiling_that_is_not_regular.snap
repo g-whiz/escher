@@ -1,10 +1,10 @@
 ---
 source: crates/escher-cli/tests/cli/render.rs
-expression: "arrangement_snapshot(\"arrangement_not_regular\",\n&[\"*732\", \"--wythoff\", \"111\", \"--arrangement\", \"14a\"])"
+expression: "arrangement_snapshot(\"arrangement_not_regular\",\n&[\"*522\", \"--wythoff\", \"010\", \"--arrangement\", \"10a\"])"
 ---
 status: Failure
 --- stdout
 --- stderr
-error: cannot render *732
+error: cannot render *522
   caused by: cannot build whole face: the construction is not a regular tiling
 --- end

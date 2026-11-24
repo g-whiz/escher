@@ -263,11 +263,20 @@ fn count_of(count: u64, noun: &str) -> String {
 
 #[expect(
     clippy::expect_used,
-    reason = "an arrangement has at most 10 pictures, because its index is at most 64 and is twice the number of sides of a face, at least 3, times the number of pictures, so the letter of a picture is an ASCII letter"
+    reason = "a face type of an arrangement has at most 21 pictures, because the index of an arrangement is at most 84 and is the order of the stabilizer of a face, at least 4, times the number of pictures of its type, so the letter of a picture is an ASCII letter"
 )]
 fn picture_letter(picture: u32) -> char {
     char::from_u32(u32::from('A') + picture)
         .expect("internal error: the letter of a picture is a character")
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "every caller passes an image side, which the renderer limits to 16384, or a picture or edge number of an arrangement, which is below the number of edges of the arrangement, and both fit every usize of a supported platform"
+)]
+fn usize_from(value: u32) -> usize {
+    usize::try_from(value)
+        .expect("internal error: an image side or an arrangement number fits a usize")
 }
 
 #[cfg(test)]

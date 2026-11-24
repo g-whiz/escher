@@ -12,9 +12,10 @@ use escher_signature::Signature;
 
 use crate::common::{
     Outcome, assert_png_bytes, failure_with_no_file_change, failure_with_no_mask_change,
-    output_path, path_text, regular_arrangement, run_args, snapshot,
+    failure_with_no_named_mask_change, output_path, path_text, run_args, snapshot,
+    whole_face_arrangement,
 };
-use crate::info::{CHECKERBOARD, THREE_TRIANGLES};
+use crate::info::{CHECKERBOARD, THREE_TRIANGLES, TRANSLATIONS_ID, TRANSLATIONS_LINE};
 
 fn mask_path(test: &str) -> PathBuf {
     output_path(test).with_file_name("mask.png")
@@ -440,8 +441,8 @@ fn render_masks_refuses_a_face_mask_with_the_diagnostic_of_render_and_changes_no
         ),
         (
             "masks_face_not_regular",
-            &["*732", "--wythoff", "111", "--arrangement", "14a"],
-            "error: cannot render the masks of *732\n  caused by: cannot build whole face: the construction is not a regular tiling\n",
+            &["*522", "--wythoff", "010", "--arrangement", "10a"],
+            "error: cannot render the masks of *522\n  caused by: cannot build whole face: the construction is not a regular tiling\n",
         ),
         (
             "masks_face_without_arrangement",
@@ -485,7 +486,7 @@ fn render_masks_refuses_a_face_mask_with_the_diagnostic_of_render_and_changes_no
 
 impl Tiling {
     fn arrangement(&self, id: &str) -> (FundamentalDomain, WholeFace, escher_group::Colouring) {
-        regular_arrangement(self.signature, self.marks, id)
+        whole_face_arrangement(self.signature, self.marks, id)
     }
 }
 
@@ -666,6 +667,8 @@ struct SeveralPictures {
     id: &'static str,
     pictures: u32,
     listed: &'static str,
+    masks: &'static [&'static str],
+    swapped: (usize, usize),
 }
 
 const SQUARES_TWO: SeveralPictures = SeveralPictures {
@@ -676,6 +679,8 @@ const SQUARES_TWO: SeveralPictures = SeveralPictures {
     id: "16ab",
     pictures: 2,
     listed: CHECKERBOARD,
+    masks: &["0", "1"],
+    swapped: (0, 1),
 };
 
 const TRIANGLES_THREE: SeveralPictures = SeveralPictures {
@@ -686,9 +691,23 @@ const TRIANGLES_THREE: SeveralPictures = SeveralPictures {
     id: "18a",
     pictures: 3,
     listed: THREE_TRIANGLES,
+    masks: &["0", "1", "2"],
+    swapped: (0, 1),
 };
 
-const PICTURE_BLUES: [u8; 3] = [0x80, 0x10, 0xf0];
+const TRANSLATIONS_OF_KINDS: SeveralPictures = SeveralPictures {
+    test: "masks_translations_of_kinds",
+    signature: "*442",
+    marks: [true, true, true],
+    marks_text: "111",
+    id: TRANSLATIONS_ID,
+    pictures: 4,
+    listed: TRANSLATIONS_LINE,
+    masks: &["0A", "1A", "2A", "2B"],
+    swapped: (1, 2),
+};
+
+const PICTURE_BLUES: [u8; 4] = [0x80, 0x10, 0xf0, 0x40];
 
 fn usize_of(value: u32) -> usize {
     usize::try_from(value).expect("a number of pictures fits a usize")
@@ -708,7 +727,8 @@ impl SeveralPictures {
     }
 
     fn mask_names(&self, stem: &str) -> Vec<String> {
-        (0..self.pictures)
+        self.masks
+            .iter()
             .map(|picture| format!("{stem}-{picture}.png"))
             .collect()
     }
@@ -743,7 +763,7 @@ fn assert_flow_of_several_pictures(case: &SeveralPictures) {
         file_names(directory(&mask)),
         mask_names.iter().cloned().collect()
     );
-    let (domain, face, arrangement) = regular_arrangement(case.signature, case.marks, case.id);
+    let (domain, face, arrangement) = whole_face_arrangement(case.signature, case.marks, case.id);
     let mut items = Vec::new();
     let mut images = Vec::new();
     for (picture, name) in (0..case.pictures).zip(&mask_names) {
@@ -786,7 +806,7 @@ fn assert_flow_of_several_pictures(case: &SeveralPictures) {
         "{}",
         case.id
     );
-    items.swap(0, 1);
+    items.swap(case.swapped.0, case.swapped.1);
     let swapped = items.join(",");
     let mut extra = vec!["--colours", &swapped];
     extra.extend_from_slice(&options);
@@ -806,6 +826,11 @@ fn the_flow_of_two_pictures_on_the_checkerboard_of_the_squares_draws_each_painte
 #[test]
 fn the_flow_of_three_pictures_on_the_triangles_of_732_draws_each_painted_mask() {
     assert_flow_of_several_pictures(&TRIANGLES_THREE);
+}
+
+#[test]
+fn the_flow_of_the_four_pictures_of_the_translations_of_442_with_111_draws_each_painted_mask() {
+    assert_flow_of_several_pictures(&TRANSLATIONS_OF_KINDS);
 }
 
 fn assert_refusals_of_several_pictures(case: &SeveralPictures, missing: &str, count: &str) {
@@ -950,7 +975,7 @@ fn render_masks_writes_the_masks_before_the_picture_that_cannot_be_written_and_n
         outcome.stderr,
         "error: cannot write the face mask of picture B\n  caused by: Is a directory (os error 21)\n"
     );
-    let (_, face, arrangement) = regular_arrangement("*732", [true, false, false], "18a");
+    let (_, face, arrangement) = whole_face_arrangement("*732", [true, false, false], "18a");
     let pixels = face
         .render_mask(&arrangement, 0, 16, 16)
         .expect("the face mask is rendered");
@@ -989,14 +1014,14 @@ fn render_masks_refuses_an_output_path_without_a_file_stem_before_a_bad_size() {
 #[test]
 fn render_masks_refuses_a_tiling_that_is_not_regular_before_a_path_without_a_file_stem() {
     let outcome = render_masks(
-        &["*732", "--wythoff", "111", "--arrangement", "18a"],
+        &["*522", "--wythoff", "010", "--arrangement", "20a"],
         Path::new("/"),
     );
     assert_eq!(outcome.status, Status::Failure);
     assert_eq!(outcome.stdout, "");
     assert_eq!(
         outcome.stderr,
-        "error: cannot render the masks of *732\n  caused by: cannot build whole face: the construction is not a regular tiling\n"
+        "error: cannot render the masks of *522\n  caused by: cannot build whole face: the construction is not a regular tiling\n"
     );
 }
 
@@ -1073,4 +1098,146 @@ fn an_arrangement_with_one_picture_writes_one_mask_at_the_output_and_renders_wit
             "{id}"
         );
     }
+}
+
+#[test]
+fn render_masks_of_several_face_types_writes_the_masks_before_picture_1b_that_cannot_be_written() {
+    let output = mask_path("masks_kinds_directory").with_file_name("face.png");
+    std::fs::create_dir(output.with_file_name("face-1B.png")).expect("the directory is created");
+    let outcome = render_masks(
+        &[
+            "*632",
+            "--wythoff",
+            "111",
+            "--arrangement",
+            "12a",
+            "--size",
+            "16x16",
+        ],
+        &output,
+    );
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(outcome.stdout, "");
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot write the face mask of picture 1B\n  caused by: Is a directory (os error 21)\n"
+    );
+    let (_, face, arrangement) = whole_face_arrangement("*632", [true, true, true], "12a");
+    for (picture, name) in [(0, "face-0A.png"), (1, "face-1A.png")] {
+        let pixels = face
+            .render_mask(&arrangement, picture, 16, 16)
+            .expect("the face mask is rendered");
+        assert_eq!(
+            std::fs::read(output.with_file_name(name)).expect("the mask is written"),
+            encode_png(16, 16, &pixels).expect("the face mask is encoded"),
+            "{name}"
+        );
+    }
+    assert_eq!(
+        file_names(directory(&output)),
+        names(&["face-0A.png", "face-1A.png", "face-1B.png"])
+    );
+}
+
+#[test]
+fn render_masks_of_several_face_types_refuses_an_output_path_without_a_file_stem() {
+    let case = &TRANSLATIONS_OF_KINDS;
+    let no_file = "error: cannot render the masks of *442: the output path names no file\n";
+    assert_eq!(
+        stemless_refusal(case, "masks_kinds_stemless_existing", &case.mask_names("")),
+        no_file
+    );
+    assert_eq!(
+        stemless_refusal(case, "masks_kinds_stemless_missing", &[]),
+        no_file
+    );
+}
+
+#[test]
+fn render_masks_of_several_face_types_refuses_an_id_off_the_least_index_without_a_file_change() {
+    assert_eq!(
+        failure_with_no_named_mask_change(
+            "render-masks",
+            "masks_kinds_off_least_index",
+            &["*442", "--wythoff", "111", "--arrangement", "12a"],
+            TRANSLATIONS_OF_KINDS.masks
+        ),
+        "error: cannot render the masks of *442: the arrangement 12a does not exist, because the tiling has 3 arrangements with 4 pictures\n"
+    );
+}
+
+fn polygon_area(pixels: &[u8], size: u32) -> f64 {
+    let row = usize_of(size);
+    let mut points: Vec<(f64, f64)> = pixels
+        .as_chunks::<3>()
+        .0
+        .iter()
+        .enumerate()
+        .filter(|(_, pixel)| pixel.iter().any(|&channel| channel > 0x40))
+        .map(|(index, _)| {
+            let column = u32::try_from(index % row).expect("a column fits a u32");
+            let line = u32::try_from(index / row).expect("a row fits a u32");
+            (f64::from(column), f64::from(line))
+        })
+        .collect();
+    points.sort_by(|a, b| a.partial_cmp(b).expect("pixel positions are finite"));
+    let cross = |o: (f64, f64), a: (f64, f64), b: (f64, f64)| {
+        (a.0 - o.0) * (b.1 - o.1) - (a.1 - o.1) * (b.0 - o.0)
+    };
+    let mut hull: Vec<(f64, f64)> = Vec::new();
+    for pass in [points.clone(), points.into_iter().rev().collect()] {
+        let start = hull.len();
+        for point in pass {
+            while hull.len() >= start + 2
+                && cross(hull[hull.len() - 2], hull[hull.len() - 1], point) <= 0.0
+            {
+                hull.pop();
+            }
+            hull.push(point);
+        }
+        hull.pop();
+    }
+    let twice: f64 = (0..hull.len())
+        .map(|index| {
+            let (a, b) = (hull[index], hull[(index + 1) % hull.len()]);
+            a.0 * b.1 - b.0 * a.1
+        })
+        .sum();
+    twice.abs() / 2.0
+}
+
+#[test]
+fn the_masks_of_several_face_types_share_one_scale() {
+    let size = 256;
+    let output = mask_path("masks_kinds_scale").with_file_name("face.png");
+    let size_text = format!("{size}x{size}");
+    let outcome = render_masks(
+        &TRANSLATIONS_OF_KINDS.tiling_args(&["--size", &size_text]),
+        &output,
+    );
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    let (_, face, arrangement) = whole_face_arrangement("*442", [true, true, true], "8b");
+    let areas: Vec<f64> = (0..4)
+        .map(|picture| {
+            let pixels = face
+                .render_mask(&arrangement, picture, size, size)
+                .expect("the face mask is rendered");
+            let name = format!(
+                "face-{}.png",
+                TRANSLATIONS_OF_KINDS.masks[usize_of(picture)]
+            );
+            assert_eq!(
+                std::fs::read(output.with_file_name(&name)).expect("the mask is written"),
+                encode_png(size, size, &pixels).expect("the face mask is encoded"),
+                "{name}"
+            );
+            polygon_area(&pixels, size)
+        })
+        .collect();
+    let octagon_over_square = 2.0 * (1.0 + core::f64::consts::SQRT_2);
+    let close = |measured: f64, expected: f64| (measured / expected - 1.0).abs() < 0.02;
+    assert!(close(areas[0] / areas[1], 1.0), "{areas:?}");
+    assert!(close(areas[2] / areas[3], 1.0), "{areas:?}");
+    assert!(close(areas[0] / areas[2], octagon_over_square), "{areas:?}");
+    assert!(areas[0] > f64::from(size * size) / 4.0, "{areas:?}");
 }

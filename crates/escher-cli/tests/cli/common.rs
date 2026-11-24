@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::fmt::Display;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
@@ -109,11 +110,22 @@ pub(crate) fn failure_with_no_mask_change(
     args: &[&str],
     masks: u32,
 ) -> String {
+    let pictures: Vec<u32> = (0..masks).collect();
+    failure_with_no_named_mask_change(command, test, args, &pictures)
+}
+
+pub(crate) fn failure_with_no_named_mask_change(
+    command: &str,
+    test: &str,
+    args: &[&str],
+    pictures: &[impl Display],
+) -> String {
     let existing = output_path(test);
     let missing = existing.with_file_name("missing.png");
     let mask_names = |stem: &str| -> Vec<PathBuf> {
-        (0..masks)
-            .map(|mask| existing.with_file_name(format!("{stem}-{mask}.png")))
+        pictures
+            .iter()
+            .map(|picture| existing.with_file_name(format!("{stem}-{picture}.png")))
             .collect()
     };
     let existing_files: Vec<PathBuf> = [existing.clone()]
@@ -127,6 +139,16 @@ pub(crate) fn failure_with_no_mask_change(
     for file in &existing_files {
         std::fs::write(file, b"old").expect("the existing file is written");
     }
+    let directory = existing.parent().expect("the output path has a directory");
+    let listing = || -> Vec<PathBuf> {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(directory)
+            .expect("the directory of the test is read")
+            .map(|entry| entry.expect("the directory entry is read").path())
+            .collect();
+        entries.sort();
+        entries
+    };
+    let before = listing();
     let diagnostics: Vec<String> = [&existing, &missing]
         .into_iter()
         .map(|output| {
@@ -150,11 +172,12 @@ pub(crate) fn failure_with_no_mask_change(
     for file in &missing_files {
         assert!(!file.exists(), "{args:?} {}", file.display());
     }
+    assert_eq!(listing(), before, "{args:?}");
     assert_eq!(diagnostics[0], diagnostics[1], "{args:?}");
     diagnostics[0].clone()
 }
 
-pub(crate) fn regular_arrangement(
+pub(crate) fn whole_face_arrangement(
     signature: &str,
     marks: [bool; 3],
     id: &str,
@@ -165,7 +188,7 @@ pub(crate) fn regular_arrangement(
         &domain,
         Wythoff::new(&domain, marks).expect("the construction is built"),
     )
-    .expect("the tiling is regular");
+    .expect("the whole face is built");
     let id: escher_group::ColouringId = id.parse().expect("the id is valid");
     let arrangement = free_classes_of_index(
         face.presentation(),

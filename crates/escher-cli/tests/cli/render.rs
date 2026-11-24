@@ -12,8 +12,8 @@ use escher_signature::Signature;
 
 use crate::common::{
     FailingWriter, NEVER_WRITTEN, PNG_SIGNATURE, assert_png_bytes, failure_with_no_file_change,
-    failure_with_no_mask_change, output_path, path_text, regular_arrangement, run_args, snapshot,
-    write_image,
+    failure_with_no_mask_change, failure_with_no_named_mask_change, output_path, path_text,
+    run_args, snapshot, whole_face_arrangement, write_image,
 };
 
 fn render_snapshot(test: &str, args: &[&str]) -> String {
@@ -1958,7 +1958,7 @@ fn render_diagnostic_says_an_arrangement_needs_wythoff() {
 fn render_diagnostic_refuses_an_arrangement_of_a_tiling_that_is_not_regular() {
     insta::assert_snapshot!(arrangement_snapshot(
         "arrangement_not_regular",
-        &["*732", "--wythoff", "111", "--arrangement", "14a"]
+        &["*522", "--wythoff", "010", "--arrangement", "10a"]
     ));
 }
 
@@ -2098,7 +2098,7 @@ fn render_with_an_arrangement_that_fails_gives_its_diagnostic_and_changes_no_fil
 type Adjust = fn(RenderOptionsBuilder) -> RenderOptionsBuilder;
 
 fn library_heptagons_png(width: u32, height: u32, adjust: Adjust) -> Vec<u8> {
-    let (domain, face, arrangement) = regular_arrangement("*732", [false, true, false], "14a");
+    let (domain, face, arrangement) = whole_face_arrangement("*732", [false, true, false], "14a");
     let paint = Paint::Solid(Colour::from_srgb8(0xe9, 0xc4, 0x6a));
     let fill = WholeFaceFill::new(face, arrangement, vec![paint]).expect("the fill is valid");
     let options = adjust(
@@ -2214,5 +2214,261 @@ fn an_arrangement_id_above_the_index_limit_on_a_regular_tiling_fails_before_its_
                 );
             }
         }
+    }
+}
+
+#[test]
+fn render_diagnostic_gives_the_usage_error_of_an_arrangement_id_whose_number_has_three_digits() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_three_digits",
+        &["*752", "--wythoff", "111", "--arrangement", "140a"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_asks_for_the_41_colours_of_an_arrangement_of_732_with_111() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_41_pictures",
+        &["*732", "--wythoff", "111", "--arrangement", "84a"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_an_arrangement_of_442_with_111_needs_4_colours() {
+    insta::assert_snapshot!(arrangement_snapshot(
+        "arrangement_4_pictures_1_colour",
+        &[
+            "*442",
+            "--wythoff",
+            "111",
+            "--arrangement",
+            "8a",
+            "--colours",
+            "#000"
+        ]
+    ));
+}
+
+const KIND_PAINTS: [[u8; 3]; 4] = [
+    [0xdc, 0x14, 0x3c],
+    [0xff, 0xd7, 0x00],
+    [0x00, 0x00, 0x80],
+    [0x22, 0x8b, 0x22],
+];
+
+const KIND_SIZE: u32 = 96;
+
+fn kind_pixels(centre: u32) -> Vec<u8> {
+    let colours: Vec<String> = KIND_PAINTS
+        .iter()
+        .map(|[red, green, blue]| format!("#{red:02x}{green:02x}{blue:02x}"))
+        .collect();
+    let colours = colours.join(",");
+    let centre_text = centre.to_string();
+    let size_text = format!("{KIND_SIZE}x{KIND_SIZE}");
+    let output = output_path(&format!("arrangement_kinds_{centre}"));
+    let outcome = run_args(&[
+        "render",
+        "*442",
+        "--wythoff",
+        "111",
+        "--arrangement",
+        "8b",
+        "--colours",
+        &colours,
+        "--centre",
+        &centre_text,
+        "--size",
+        &size_text,
+        "--samples",
+        "1",
+        "--border-width",
+        "0",
+        "-o",
+        path_text(&output),
+    ]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    let (domain, face, arrangement) = whole_face_arrangement("*442", [true, true, true], "8b");
+    let paints = KIND_PAINTS
+        .iter()
+        .map(|&[red, green, blue]| Paint::Solid(Colour::from_srgb8(red, green, blue)))
+        .collect();
+    let fill = WholeFaceFill::new(face, arrangement, paints).expect("the fill is valid");
+    let options = RenderOptions::builder(Fill::WholeFace(fill))
+        .size(KIND_SIZE, KIND_SIZE)
+        .samples(1)
+        .border_width(0.0)
+        .centre(centre)
+        .build()
+        .expect("the options are valid");
+    let (pixels, _) = Renderer::new(&domain, options)
+        .expect("the renderer is built")
+        .render();
+    assert_eq!(
+        std::fs::read(&output).expect("the tiling is written"),
+        encode_png(KIND_SIZE, KIND_SIZE, &pixels).expect("the tiling is encoded"),
+        "{centre}"
+    );
+    pixels
+}
+
+fn paint_at(pixels: &[u8], x: f64, y: f64) -> Option<usize> {
+    let size = f64::from(KIND_SIZE);
+    if !(0.0..size).contains(&x) || !(0.0..size).contains(&y) {
+        return None;
+    }
+    let column = usize_from_f64(x);
+    let row = usize_from_f64(y);
+    let start = 3 * (row * usize_from_f64(size) + column);
+    let pixel = pixels.get(start..start + 3)?;
+    KIND_PAINTS.iter().position(|paint| paint == pixel)
+}
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the value is a pixel coordinate from 0 to the image size, checked by the caller"
+)]
+fn usize_from_f64(value: f64) -> usize {
+    value as usize
+}
+
+#[test]
+fn render_puts_the_item_of_each_picture_of_442_with_111_on_the_polygons_of_that_picture() {
+    let middle = f64::from(KIND_SIZE) / 2.0;
+    for centre in 0..3 {
+        let pixels = kind_pixels(centre);
+        assert_eq!(
+            paint_at(&pixels, middle, middle),
+            Some(usize::try_from(centre).expect("the corner fits a usize")),
+            "{centre}"
+        );
+    }
+    let pixels = kind_pixels(0);
+    let inradius = (0..KIND_SIZE / 2)
+        .map(f64::from)
+        .find(|&step| paint_at(&pixels, middle + step, middle) != Some(0))
+        .expect("the octagon ends inside the image");
+    let ring = inradius * core::f64::consts::SQRT_2;
+    let mut sequence: Vec<usize> = Vec::new();
+    for step in 0..720 {
+        let angle = f64::from(step) * core::f64::consts::PI / 360.0;
+        let paint = paint_at(
+            &pixels,
+            middle + ring * angle.cos(),
+            middle + ring * angle.sin(),
+        )
+        .expect("the ring lies on painted polygons");
+        if sequence.last() != Some(&paint) {
+            sequence.push(paint);
+        }
+    }
+    if sequence.len() > 1 && sequence.first() == sequence.last() {
+        sequence.pop();
+    }
+    let start = sequence
+        .iter()
+        .position(|&paint| paint == 2)
+        .expect("a square of picture 2A meets the octagon");
+    sequence.rotate_left(start);
+    assert_eq!(sequence, [2, 1, 3, 1, 2, 1, 3, 1]);
+}
+
+#[test]
+fn several_face_types_are_refused_without_a_file_change() {
+    let four = vec!["0A", "1A", "2A", "2B"];
+    let fifty_nine = vec!["#000"; 59].join(",");
+    for (name, command, args, pictures, expected) in [
+        (
+            "missing",
+            "render",
+            vec!["*442", "--wythoff", "111", "--arrangement", "8d"],
+            four.clone(),
+            "error: cannot render *442: the arrangement 8d does not exist, because the tiling has 3 arrangements with 4 pictures\n",
+        ),
+        (
+            "masks_missing",
+            "render-masks",
+            vec!["*442", "--wythoff", "111", "--arrangement", "8d"],
+            four.clone(),
+            "error: cannot render the masks of *442: the arrangement 8d does not exist, because the tiling has 3 arrangements with 4 pictures\n",
+        ),
+        (
+            "fewer",
+            "render",
+            vec![
+                "*442",
+                "--wythoff",
+                "111",
+                "--arrangement",
+                "8b",
+                "--colours",
+                "#000,#111,#222",
+            ],
+            four.clone(),
+            "error: cannot render *442: the arrangement 8b needs 4 colours, and 3 were given\n",
+        ),
+        (
+            "more",
+            "render",
+            vec![
+                "*442",
+                "--wythoff",
+                "111",
+                "--arrangement",
+                "8b",
+                "--colours",
+                "#000,#111,#222,#333,#444",
+            ],
+            four,
+            "error: cannot render *442: the arrangement 8b needs 4 colours, and 5 were given\n",
+        ),
+        (
+            "default_colours",
+            "render",
+            vec!["*732", "--wythoff", "111", "--arrangement", "84a"],
+            Vec::new(),
+            "error: cannot render *732: the arrangement 84a needs 41 colours, more than the 12 default colours, so give 41 colours with --colours\n",
+        ),
+        (
+            "none",
+            "render",
+            vec!["*332", "--wythoff", "111", "--arrangement", "12a"],
+            Vec::new(),
+            "error: cannot render *332: the tiling has no arrangement with 7 pictures\n",
+        ),
+        (
+            "above_84",
+            "render",
+            vec![
+                "*752",
+                "--wythoff",
+                "111",
+                "--arrangement",
+                "84a",
+                "--colours",
+                &fifty_nine,
+            ],
+            Vec::new(),
+            "error: cannot render *752\n  caused by: cannot search subgroups: the arrangement index 140 is not between 1 and 84\n",
+        ),
+        (
+            "masks_above_84",
+            "render-masks",
+            vec!["*752", "--wythoff", "111", "--arrangement", "84a"],
+            Vec::new(),
+            "error: cannot render the masks of *752\n  caused by: cannot search subgroups: the arrangement index 140 is not between 1 and 84\n",
+        ),
+    ] {
+        assert_eq!(
+            failure_with_no_named_mask_change(
+                command,
+                &format!("arrangement_kinds_{name}"),
+                &args,
+                &pictures
+            ),
+            expected,
+            "{name}"
+        );
     }
 }

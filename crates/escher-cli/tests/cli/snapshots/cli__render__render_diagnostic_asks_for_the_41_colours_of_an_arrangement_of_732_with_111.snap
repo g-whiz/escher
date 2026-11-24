@@ -1,0 +1,9 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "arrangement_snapshot(\"arrangement_41_pictures\",\n&[\"*732\", \"--wythoff\", \"111\", \"--arrangement\", \"84a\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732: the arrangement 84a needs 41 colours, more than the 12 default colours, so give 41 colours with --colours
+--- end

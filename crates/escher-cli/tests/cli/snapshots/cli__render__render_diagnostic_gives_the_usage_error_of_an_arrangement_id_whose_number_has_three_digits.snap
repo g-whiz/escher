@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "arrangement_snapshot(\"arrangement_three_digits\",\n&[\"*752\", \"--wythoff\", \"111\", \"--arrangement\", \"140a\"])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value '140a' for '--arrangement <ID>': expected an arrangement id such as 12a
+
+For more information, try '--help'.
+--- end

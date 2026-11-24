@@ -1,24 +1,23 @@
 ---
 source: crates/escher-cli/tests/cli/info.rs
-expression: "snapshot(&[\"info\", \"*732\", \"--wythoff\", \"111\"])"
+expression: "snapshot(&[\"info\", \"*522\", \"--wythoff\", \"010\"])"
 ---
 status: Success
 --- stdout
-Signature: *732
-Geometry: hyperbolic
-Euler characteristic: -1/84
+Signature: *522
+Geometry: spherical
+Euler characteristic: 1/10
 Compact: yes
-Area: pi/42
-Deformation dimension: 0
-Regular tiling: {7,3}, dual {3,7}
+Group order: 20
+Area: pi/5
 Domain: 3 mirror sides
-Corner angles in degrees: 25.714286, 60.000000, 90.000000
-Side lengths: 0.545275, 0.620672, 0.283128
-Domain area: 0.074800
-Colourings: 3, complete to 12 colours
+Corner angles in degrees: 36.000000, 90.000000, 90.000000
+Side lengths: 1.570796, 1.570796, 0.628319
+Domain area: 0.628319
+Colourings: 4, complete to 12 colours
 Colourings with 2 colours: 1
-Colourings with 8 colours: 1
-Colourings with 9 colours: 1
+Colourings with 4 colours: 1
+Colourings with 10 colours: 2
 Arrangements: none, cannot build whole face: the construction is not a regular tiling
 --- stderr
 --- end

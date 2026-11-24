@@ -258,6 +258,41 @@ escher render '*442' --wythoff 010 --arrangement 16ab --colours 'image:square-0.
 
 ![A grid of white squares whose coloured borders meet across every edge, with ticks on both sides of each red edge.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/squares.png)
 
+On a tiling with several kinds of polygon, such as the octagons and squares of `*442` with `111`, one arrangement puts pictures on the polygons of every kind, and every edge matches. The pictures of each kind are named by the position of their corner, in the order that `escher info` prints, followed by a letter, such as `2B`. To use them, list the arrangements with `escher info` and `--wythoff`, write the masks of one arrangement with `escher render-masks`, paint a picture over each mask, and pass the painted files to `escher render` with one `--colours` item for each picture, in the order of the picture names. This command lists the arrangements of the octagons and squares of `*442`:
+
+```sh
+escher info '*442' --wythoff 111
+```
+
+Among the lines that it prints are the count of the arrangements with the fewest pictures and the line of `8b`, in which no neighbour is mirrored. The octagons at corners 0 and 1 have the pictures `0A` and `1A`, and the squares at corner 2 have `2A` and `2B`. Each edge is written after its picture name, so `0A1 and 2A0 turned` means that edge 1 of `0A` meets edge 0 of `2A`:
+
+```text
+Arrangements: 3
+Arrangement: 8b, 4 pictures, 0A of 8 sides, 1A of 8 sides, 2A to 2B of 4 sides, turned only, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1A3 turned, 0A3 and 2B2 turned, 0A4 and 1A5 turned, 0A5 and 2A2 turned, 0A6 and 1A7 turned, 0A7 and 2B0 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2A3 turned, 1A6 and 2B1 turned
+```
+
+`escher render-masks` names each mask by its picture name, and draws every mask of the arrangement at one scale, so the edges of the octagons and of the squares have the same length in pixels. This command writes `tile-0A.png`, `tile-1A.png`, `tile-2A.png`, and `tile-2B.png`:
+
+```sh
+escher render-masks '*442' --wythoff 111 --arrangement 8b -o tile.png
+```
+
+![A white octagon on black, with a coloured border on each edge and a short black tick across the middle of the red edge at the upper left.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/tile-0A.png)
+
+![A second white octagon with other border colours and the tick across the middle of the blue edge at the bottom.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/tile-1A.png)
+
+![A smaller white square in the middle of the black image, with a coloured border on each edge and the tick across the middle of the orange edge at the right.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/tile-2A.png)
+
+![The same smaller square with other border colours and the tick across the middle of the blue edge at the bottom.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/tile-2B.png)
+
+This command passes the four unpainted masks in the order of the picture names, so the borders show how the octagons and squares meet:
+
+```sh
+escher render '*442' --wythoff 111 --arrangement 8b --colours 'image:tile-0A.png,image:tile-1A.png,image:tile-2A.png,image:tile-2B.png' -o tiles.png
+```
+
+![White octagons and squares tile the plane, with coloured borders that meet across every edge.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/tiles.png)
+
 `escher info` prints one `Parameter` line for each shape parameter of a signature. For `*2222`, the line is:
 
 ```text

@@ -19,8 +19,8 @@ use rayon::iter::{IndexedParallelIterator as _, ParallelIterator as _};
 use rayon::slice::ParallelSliceMut as _;
 
 use crate::args::{Colouring, RenderArgs, Setting, ShadingChoice};
-use crate::count_of;
 use crate::diagnostic::{SignatureError, echoed};
+use crate::{count_of, usize_from};
 
 const MAX_THREADS: usize = 256;
 
@@ -249,14 +249,6 @@ fn render_bands(
     Ok((pixels, stats))
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "the renderer limits the width and the height to 16384, which fits every usize of a supported platform"
-)]
-fn usize_from(value: u32) -> usize {
-    usize::try_from(value).expect("internal error: an image side fits a usize")
-}
-
 fn default_threads() -> usize {
     std::thread::available_parallelism()
         .map_or(1, NonZeroUsize::get)
@@ -418,7 +410,7 @@ fn whole_face_painting(
 ) -> anyhow::Result<Painting> {
     refuse_colouring(task, args.tiling.colouring)?;
     let face = Box::new(whole_face(domain, marks).with_context(|| task.failed())?);
-    refuse_index_above_limit(task, id)?;
+    refuse_index_above_limit(task, &face, id)?;
     let items = picture_items(id, pictures(&face, id), args.colours.as_deref())
         .map_err(|detail| cannot_render(task, detail))?;
     let paints = match read_paints(task, items)? {
@@ -432,36 +424,110 @@ pub(crate) fn whole_face(
     domain: &FundamentalDomain,
     marks: [bool; 3],
 ) -> anyhow::Result<WholeFace> {
-    let face = WholeFace::new(domain, Wythoff::new(domain, marks)?)?;
-    if face.face_types().len() == 1 {
-        Ok(face)
-    } else {
-        Err(anyhow::anyhow!(
-            "cannot build whole face: the construction is not a regular tiling"
-        ))
-    }
+    Ok(WholeFace::new(domain, Wythoff::new(domain, marks)?)?)
 }
 
-pub(crate) fn refuse_index_above_limit(task: Task<'_>, id: ColouringId) -> anyhow::Result<()> {
-    IndexLimit::new(id.colours()).with_context(|| task.failed())?;
+pub(crate) fn is_regular(face: &WholeFace) -> bool {
+    face.face_types().len() == 1
+}
+
+pub(crate) fn refuse_index_above_limit(
+    task: Task<'_>,
+    face: &WholeFace,
+    id: ColouringId,
+) -> anyhow::Result<()> {
+    if is_regular(face) {
+        IndexLimit::new(id.colours()).with_context(|| task.failed())?;
+    }
     Ok(())
 }
 
-pub(crate) fn pictures(face: &WholeFace, id: ColouringId) -> u32 {
+pub(crate) fn search_index(face: &WholeFace, id: ColouringId) -> u32 {
     if id.colours().is_multiple_of(face.index()) {
-        id.colours() / face.index()
+        id.colours()
     } else {
-        1
+        face.index()
+    }
+}
+
+pub(crate) fn pictures(face: &WholeFace, id: ColouringId) -> u32 {
+    Pictures::new(face, search_index(face, id)).count()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PictureKind {
+    pub(crate) corner: u32,
+    pub(crate) sides: u32,
+    pub(crate) count: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Pictures {
+    kinds: Vec<PictureKind>,
+}
+
+impl Pictures {
+    pub(crate) fn new(face: &WholeFace, index: u32) -> Self {
+        Self {
+            kinds: face
+                .face_types()
+                .iter()
+                .map(|kind| PictureKind {
+                    corner: kind.corner(),
+                    sides: kind.sides(),
+                    count: index / (2 * kind.order()),
+                })
+                .collect(),
+        }
+    }
+
+    pub(crate) fn kinds(&self) -> &[PictureKind] {
+        &self.kinds
+    }
+
+    pub(crate) fn is_several(&self) -> bool {
+        self.kinds.len() > 1
+    }
+
+    pub(crate) fn count(&self) -> u32 {
+        self.kinds.iter().map(|kind| kind.count).sum()
+    }
+
+    pub(crate) fn sides(&self) -> Vec<u32> {
+        self.kinds
+            .iter()
+            .flat_map(|kind| (0..kind.count).map(|_| kind.sides))
+            .collect()
+    }
+
+    pub(crate) fn names(&self) -> Vec<String> {
+        self.kinds
+            .iter()
+            .flat_map(|kind| (0..kind.count).map(|letter| self.name(kind.corner, letter)))
+            .collect()
+    }
+
+    pub(crate) fn name(&self, corner: u32, letter: u32) -> String {
+        let letter = crate::picture_letter(letter);
+        if self.is_several() {
+            format!("{corner}{letter}")
+        } else {
+            letter.to_string()
+        }
     }
 }
 
 pub(crate) fn arrangements(
     face: &WholeFace,
-    pictures: u32,
+    index: u32,
     budget: SearchBudget,
 ) -> escher_group::Result<ColouringsOfIndex> {
-    let index = IndexLimit::new(face.index() * pictures)?;
-    free_classes_of_index(face.presentation(), face.stabilizer(), index.get(), budget)
+    let index = if is_regular(face) {
+        IndexLimit::new(index)?.get()
+    } else {
+        index
+    };
+    free_classes_of_index(face.presentation(), face.stabilizer(), index, budget)
 }
 
 pub(crate) fn arrangement(
@@ -470,8 +536,9 @@ pub(crate) fn arrangement(
     id: ColouringId,
     budget: SearchBudget,
 ) -> anyhow::Result<escher_group::Colouring> {
-    let pictures = pictures(face, id);
-    let found = arrangements(face, pictures, budget).with_context(|| task.failed())?;
+    let index = search_index(face, id);
+    let pictures = Pictures::new(face, index).count();
+    let found = arrangements(face, index, budget).with_context(|| task.failed())?;
     found_arrangement(&found, id, pictures).map_err(|detail| cannot_render(task, detail))
 }
 
@@ -689,16 +756,27 @@ enum Item<'a> {
 }
 
 fn fill_items(colouring: Colouring, colours: Option<&str>) -> Result<Vec<Item<'_>>, String> {
-    let needed = colouring.colours();
+    items_or_defaults(
+        colouring.colours(),
+        colours,
+        format_args!("the colouring {colouring}"),
+    )
+}
+
+fn items_or_defaults(
+    needed: u32,
+    colours: Option<&str>,
+    subject: impl Display,
+) -> Result<Vec<Item<'_>>, String> {
     let Some(text) = colours else {
         return default_items(needed).ok_or_else(|| {
             format!(
-                "the colouring {colouring} needs {needed} colours, more than the {} default colours, so give {needed} colours with --colours",
+                "{subject} needs {needed} colours, more than the {} default colours, so give {needed} colours with --colours",
                 DEFAULT_COLOURS.len()
             )
         });
     };
-    read_items(text, needed, format_args!("the colouring {colouring}"))
+    read_items(text, needed, subject)
 }
 
 #[expect(
@@ -724,21 +802,12 @@ fn face_colours(face_types: u32, colours: Option<&str>) -> Result<Vec<Colour>, S
         .collect()
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "an arrangement has at most 10 pictures, because its index is at most 64 and is twice the number of sides of a face, at least 3, times the number of pictures, so it has fewer pictures than the 12 default colours"
-)]
 fn picture_items(
     id: ColouringId,
     pictures: u32,
     colours: Option<&str>,
 ) -> Result<Vec<Item<'_>>, String> {
-    let Some(text) = colours else {
-        return Ok(default_items(pictures).expect(
-            "internal error: an arrangement has no more pictures than there are default colours",
-        ));
-    };
-    read_items(text, pictures, format_args!("the arrangement {id}"))
+    items_or_defaults(pictures, colours, format_args!("the arrangement {id}"))
 }
 
 fn default_items(needed: u32) -> Option<Vec<Item<'static>>> {
@@ -945,8 +1014,9 @@ mod tests {
     use super::{
         DEFAULT_COLOURS, Item, Paints, Parity, Task, arrangement, arrangements, chosen_colouring,
         coset_colouring, coset_fill, decode_image, face_colours, fill, fill_item, fill_items,
-        found_arrangement, missing_text, parse_colour, picture_items, pictures, resolve,
-        setting_text, shape_parameters, statistics_text, thread_pool_error, whole_face,
+        found_arrangement, missing_text, parse_colour, picture_items, pictures,
+        refuse_index_above_limit, resolve, setting_text, shape_parameters, statistics_text,
+        thread_pool_error, whole_face,
     };
     use crate::Status;
     use crate::args::{Colouring, Setting};
@@ -1682,7 +1752,8 @@ mod tests {
             found_arrangement(&found, colouring_id("24a"), 2).map(|found| found.id().to_string()),
             Err("the tiling has no arrangement with 2 pictures".to_owned())
         );
-        let complete = arrangements(&face, 1, SearchBudget::DEFAULT).expect("the search runs");
+        let complete =
+            arrangements(&face, face.index(), SearchBudget::DEFAULT).expect("the search runs");
         assert_eq!(complete.list().len(), 7);
     }
 
@@ -1748,5 +1819,87 @@ mod tests {
             picture_items(id, 2, Some("#123,red")),
             Err("colour 2 of --colours is not of the form #rgb, #rrggbb, or image:FILE".to_owned())
         );
+    }
+
+    const ALL_MIRRORS: [bool; 3] = [true, true, true];
+
+    fn arrangement_id(text: &str) -> escher_group::ColouringId {
+        escher_group::ColouringId::parse_arrangement(text).expect("the id is valid")
+    }
+
+    #[test]
+    fn the_pictures_of_several_face_types_are_named_by_corner_and_then_by_letter() {
+        let face = whole_face(&domain("*442"), ALL_MIRRORS).expect("the whole face is built");
+        assert_eq!(
+            super::Pictures::new(&face, 8).names(),
+            ["0A", "1A", "2A", "2B"]
+        );
+        assert_eq!(
+            super::Pictures::new(&face, 16).names(),
+            ["0A", "0B", "1A", "1B", "2A", "2B", "2C", "2D"]
+        );
+        assert_eq!(
+            super::Pictures::new(&face, 16).sides(),
+            [8, 8, 8, 8, 4, 4, 4, 4]
+        );
+        assert_eq!(
+            super::Pictures::new(&regular_face("*632"), 24).names(),
+            ["A", "B"]
+        );
+    }
+
+    #[test]
+    fn an_id_of_442_with_111_whose_number_is_not_a_multiple_of_8_needs_the_4_items_of_the_least_index()
+     {
+        let face = whole_face(&domain("*442"), ALL_MIRRORS).expect("the whole face is built");
+        let id = arrangement_id("12a");
+        assert_eq!(pictures(&face, id), 4);
+        assert_eq!(
+            picture_items(id, pictures(&face, id), Some("#000")),
+            Err("the arrangement 12a needs 4 colours, and 1 was given".to_owned())
+        );
+        let signature: Signature = "*442".parse().expect("the signature is valid");
+        assert_eq!(
+            arrangement(&face, Task::Render(&signature), id, SearchBudget::DEFAULT)
+                .map(|found| found.id().to_string())
+                .map_err(|error| error.to_string()),
+            Err(
+                "cannot render *442: the arrangement 12a does not exist, because the tiling has 3 arrangements with 4 pictures"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn an_arrangement_of_more_than_12_pictures_needs_colours() {
+        assert_eq!(
+            picture_items(arrangement_id("84a"), 41, None),
+            Err(
+                "the arrangement 84a needs 41 colours, more than the 12 default colours, so give 41 colours with --colours"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            picture_items(arrangement_id("24a"), 12, None).map(|items| items.len()),
+            Ok(12)
+        );
+    }
+
+    #[test]
+    fn an_id_from_65_to_84_is_refused_on_a_regular_construction_only() {
+        let signature: Signature = "*732".parse().expect("the signature is valid");
+        let task = Task::Render(&signature);
+        let several = whole_face(&domain("*732"), ALL_MIRRORS).expect("the whole face is built");
+        assert!(refuse_index_above_limit(task, &several, arrangement_id("84a")).is_ok());
+        let regular = regular_face("*732");
+        assert_eq!(
+            refuse_index_above_limit(task, &regular, arrangement_id("70a"))
+                .map_err(|error| format!("{error:#}")),
+            Err(
+                "cannot render *732: cannot search subgroups: the index limit 70 is not between 1 and 64"
+                    .to_owned()
+            )
+        );
+        assert!(refuse_index_above_limit(task, &regular, arrangement_id("64a")).is_ok());
     }
 }

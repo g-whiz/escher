@@ -2,7 +2,7 @@ use std::io;
 
 use escher_cli::{Status, run};
 use escher_domain::{Check, FundamentalDomain};
-use escher_group::{SearchBudget, free_classes_of_index};
+use escher_group::{Letter, SearchBudget, free_classes_of_index};
 use escher_render::{EdgeMeeting, WholeFace, Wythoff};
 use escher_signature::Signature;
 
@@ -866,7 +866,32 @@ fn info_prints_no_arrangement_for_the_squares_of_542() {
 
 #[test]
 fn info_prints_the_refusal_of_arrangements_on_a_tiling_that_is_not_regular() {
+    insta::assert_snapshot!(snapshot(&["info", "*522", "--wythoff", "010"]));
+}
+
+#[test]
+fn info_lists_the_arrangements_of_the_14_gons_hexagons_and_squares_of_732_at_the_index_84() {
     insta::assert_snapshot!(snapshot(&["info", "*732", "--wythoff", "111"]));
+}
+
+#[test]
+fn info_lists_the_arrangements_of_the_octagons_and_squares_of_442() {
+    insta::assert_snapshot!(snapshot(&["info", "*442", "--wythoff", "111"]));
+}
+
+#[test]
+fn info_lists_the_arrangements_of_the_dodecagons_hexagons_and_squares_of_632() {
+    insta::assert_snapshot!(snapshot(&["info", "*632", "--wythoff", "111"]));
+}
+
+#[test]
+fn info_lists_the_arrangements_of_the_14_gons_and_triangles_of_732() {
+    insta::assert_snapshot!(snapshot(&["info", "*732", "--wythoff", "011"]));
+}
+
+#[test]
+fn info_prints_the_arrangement_index_limit_for_a_least_index_of_140() {
+    insta::assert_snapshot!(snapshot(&["info", "*752", "--wythoff", "111"]));
 }
 
 #[test]
@@ -1069,30 +1094,97 @@ const SEVERAL_PICTURES_SET: [(&str, [bool; 3]); 10] = [
 
 type Meetings = Vec<(u32, u32, bool)>;
 
-fn edge_position(name: &str, pictures: u32, sides: u32) -> u32 {
-    let (picture, edge) = if pictures == 1 {
-        (0, name)
-    } else {
-        let letter = name.chars().next().expect("the edge has a letter");
-        assert!(letter.is_ascii_uppercase(), "{name}");
-        (u32::from(letter) - u32::from('A'), &name[1..])
-    };
-    assert!(picture < pictures, "{name}");
-    let edge: u32 = edge.parse().expect("the edge has a number");
-    assert!(edge < sides, "{name}");
-    picture * sides + edge
+#[derive(Debug)]
+struct Kind {
+    corner: Option<u32>,
+    sides: u32,
+    pictures: u32,
 }
 
-fn parsed_arrangement(line: &str, pictures: u32, sides: u32) -> (String, bool, Meetings) {
+fn regular_kind(pictures: u32, sides: u32) -> [Kind; 1] {
+    [Kind {
+        corner: None,
+        sides,
+        pictures,
+    }]
+}
+
+fn letter(position: u32) -> char {
+    char::from_u32(u32::from('A') + position).expect("the letter is a character")
+}
+
+fn picture_name(kind: &Kind, position: u32) -> String {
+    match kind.corner {
+        Some(corner) => format!("{corner}{}", letter(position)),
+        None => letter(position).to_string(),
+    }
+}
+
+fn picture_names(kinds: &[Kind]) -> Vec<(String, u32)> {
+    if let [
+        Kind {
+            corner: None,
+            sides,
+            pictures: 1,
+        },
+    ] = kinds
+    {
+        return vec![(String::new(), *sides)];
+    }
+    kinds
+        .iter()
+        .flat_map(|kind| {
+            (0..kind.pictures).map(move |position| (picture_name(kind, position), kind.sides))
+        })
+        .collect()
+}
+
+fn header(kinds: &[Kind]) -> Option<String> {
+    let total: u32 = kinds.iter().map(|kind| kind.pictures).sum();
+    if let [Kind { corner: None, .. }] = kinds {
+        return (total > 1).then(|| format!("{total} pictures"));
+    }
+    let mut parts = vec![format!("{total} pictures")];
+    for kind in kinds {
+        let first = picture_name(kind, 0);
+        let range = if kind.pictures == 1 {
+            first
+        } else {
+            format!("{first} to {}", picture_name(kind, kind.pictures - 1))
+        };
+        parts.push(format!("{range} of {} sides", kind.sides));
+    }
+    Some(parts.join(", "))
+}
+
+fn edge_of(name: &str, pictures: &[(String, u32)]) -> (u32, u32) {
+    let found: Vec<(u32, u32)> = pictures
+        .iter()
+        .zip(0..)
+        .filter_map(|((picture, sides), number)| {
+            let edge = name.strip_prefix(picture.as_str())?;
+            if edge.is_empty() || !edge.bytes().all(|byte| byte.is_ascii_digit()) {
+                return None;
+            }
+            let edge: u32 = edge.parse().expect("the edge has a number");
+            assert!(edge < *sides, "{name}");
+            Some((number, edge))
+        })
+        .collect();
+    assert_eq!(found.len(), 1, "{name}");
+    found[0]
+}
+
+fn parsed_arrangement(line: &str, kinds: &[Kind]) -> (String, bool, Meetings) {
     let value = line
         .strip_prefix("Arrangement: ")
         .expect("the line is an arrangement line");
     let (id, rest) = value.split_once(", ").expect("the line has an id");
-    let rest = if pictures == 1 {
-        rest
-    } else {
-        rest.strip_prefix(&format!("{pictures} pictures, "))
-            .expect("the line gives its number of pictures")
+    let rest = match header(kinds) {
+        Some(header) => rest
+            .strip_prefix(&format!("{header}, "))
+            .expect("the line names its pictures"),
+        None => rest,
     };
     let (turned_only, pairs) = if let Some(pairs) = rest.strip_prefix("turned only, edges ") {
         (true, pairs)
@@ -1102,8 +1194,19 @@ fn parsed_arrangement(line: &str, pictures: u32, sides: u32) -> (String, bool, M
             .expect("the line says whether a neighbour is mirrored");
         (false, pairs)
     };
-    let index = |edge: u32| usize::try_from(edge).expect("an edge number fits a usize");
-    let mut meetings: Vec<Option<(u32, u32, bool)>> = vec![None; index(pictures * sides)];
+    let pictures = picture_names(kinds);
+    let index = |value: u32| usize::try_from(value).expect("an edge number fits a usize");
+    let firsts: Vec<u32> = pictures
+        .iter()
+        .scan(0, |first, (_, sides)| {
+            let start = *first;
+            *first += sides;
+            Some(start)
+        })
+        .collect();
+    let slot = |(picture, edge): (u32, u32)| firsts[index(picture)] + edge;
+    let total: u32 = pictures.iter().map(|(_, sides)| sides).sum();
+    let mut meetings: Vec<Option<(u32, u32, bool)>> = vec![None; index(total)];
     let mut lower_edges = Vec::new();
     for pair in pairs.split(", ") {
         let (edges, kind) = pair.rsplit_once(' ').expect("the pair has a kind");
@@ -1113,19 +1216,19 @@ fn parsed_arrangement(line: &str, pictures: u32, sides: u32) -> (String, bool, M
             _ => panic!("unknown kind in {line}"),
         };
         let (first, second) = edges.split_once(" and ").unwrap_or((edges, edges));
-        let first = edge_position(first, pictures, sides);
-        let second = edge_position(second, pictures, sides);
-        assert!(first <= second, "{line}");
-        lower_edges.push(first);
+        let first = edge_of(first, &pictures);
+        let second = edge_of(second, &pictures);
+        assert!(slot(first) <= slot(second), "{line}");
+        lower_edges.push(slot(first));
         let ends = if first == second {
             vec![(first, first)]
         } else {
             vec![(first, second), (second, first)]
         };
         for (edge, partner) in ends {
-            let slot = &mut meetings[index(edge)];
-            assert_eq!(*slot, None, "{line}");
-            *slot = Some((partner / sides, partner % sides, mirrored));
+            let entry = &mut meetings[index(slot(edge))];
+            assert_eq!(*entry, None, "{line}");
+            *entry = Some((partner.0, partner.1, mirrored));
         }
     }
     assert!(lower_edges.is_sorted_by(|a, b| a < b), "{line}");
@@ -1185,7 +1288,7 @@ fn info_lists_exactly_the_arrangements_of_each_number_of_pictures_of_escher_grou
                     .collect();
                 let line = lines.next().expect("the arrangement is listed");
                 assert_eq!(
-                    parsed_arrangement(line, pictures, sides),
+                    parsed_arrangement(line, &regular_kind(pictures, sides)),
                     (
                         arrangement.id().to_string(),
                         !edges.iter().any(|meeting| meeting.mirrored()),
@@ -1255,5 +1358,146 @@ fn info_max_colours_bounds_the_number_of_pictures_of_the_listing() {
         Some(
             "Arrangement: 16ac, 2 pictures, with mirrored neighbours, edges A0 and B0 turned, A1 and B2 mirrored, A2 and B1 mirrored, A3 and B3 turned"
         )
+    );
+}
+
+const ALL_MIRRORS: [bool; 3] = [true, true, true];
+
+fn kinds_at(face: &WholeFace, index: u32) -> Vec<Kind> {
+    face.face_types()
+        .iter()
+        .map(|kind| Kind {
+            corner: Some(kind.corner()),
+            sides: kind.sides(),
+            pictures: index / (2 * kind.order()),
+        })
+        .collect()
+}
+
+fn several_face(signature: &str, marks: [bool; 3]) -> WholeFace {
+    let signature: Signature = signature.parse().expect("the signature is valid");
+    let domain = FundamentalDomain::build(&signature).expect("the domain is built");
+    let wythoff = Wythoff::new(&domain, marks).expect("the construction is built");
+    let face = WholeFace::new(&domain, wythoff).expect("the whole face is built");
+    assert!(face.face_types().len() > 1);
+    face
+}
+
+#[test]
+fn info_lists_exactly_the_arrangements_of_several_face_types_of_escher_group() {
+    for (text, marks, indices) in [
+        ("*442", ALL_MIRRORS, &[8, 16, 24][..]),
+        ("*632", ALL_MIRRORS, &[12, 24][..]),
+        ("*732", [false, true, true], &[42][..]),
+    ] {
+        let face = several_face(text, marks);
+        let lines = default_listing(text, marks);
+        let mut lines = lines.iter();
+        for (position, &index) in indices.iter().enumerate() {
+            let kinds = kinds_at(&face, index);
+            let found = free_classes_of_index(
+                face.presentation(),
+                face.stabilizer(),
+                index,
+                SearchBudget::DEFAULT,
+            )
+            .expect("the search runs");
+            assert!(found.is_complete(), "{text} {index}");
+            let count = if position == 0 {
+                format!("Arrangements: {}", found.list().len())
+            } else {
+                let pictures: u32 = kinds.iter().map(|kind| kind.pictures).sum();
+                format!(
+                    "Arrangements with {pictures} pictures: {}",
+                    found.list().len()
+                )
+            };
+            assert_eq!(lines.next(), Some(&count), "{text}");
+            for arrangement in found.list() {
+                let edges = face.edges(arrangement).expect("the edges are read");
+                let expected: Meetings = edges
+                    .iter()
+                    .map(|meeting| (meeting.picture(), meeting.partner(), meeting.mirrored()))
+                    .collect();
+                let line = lines.next().expect("the arrangement is listed");
+                assert_eq!(
+                    parsed_arrangement(line, &kinds),
+                    (
+                        arrangement.id().to_string(),
+                        !edges.iter().any(|meeting| meeting.mirrored()),
+                        expected
+                    ),
+                    "{text}"
+                );
+            }
+        }
+        assert_eq!(lines.next(), None, "{text}");
+    }
+}
+
+#[test]
+fn info_with_a_colour_limit_of_one_lists_the_least_index_of_several_face_types_only() {
+    let outcome = run_args(&["info", "*632", "--max-colours", "1", "--wythoff", "111"]);
+    assert_eq!(outcome.status, Status::Success, "{}", outcome.stderr);
+    let counts: Vec<&str> = outcome
+        .stdout
+        .lines()
+        .filter(|line| line.starts_with("Arrangements"))
+        .collect();
+    assert_eq!(counts, ["Arrangements: 3"]);
+    assert_eq!(
+        outcome
+            .stdout
+            .lines()
+            .filter(|line| line.starts_with("Arrangement: 12"))
+            .count(),
+        3
+    );
+}
+
+const TRANSLATIONS: [[u32; 3]; 8] = [
+    [1, 2, 3],
+    [0, 4, 5],
+    [6, 0, 4],
+    [5, 6, 0],
+    [7, 1, 2],
+    [3, 7, 1],
+    [2, 3, 7],
+    [4, 5, 6],
+];
+
+pub(crate) const TRANSLATIONS_ID: &str = "8b";
+
+pub(crate) const TRANSLATIONS_LINE: &str = "Arrangement: 8b, 4 pictures, 0A of 8 sides, 1A of 8 sides, 2A to 2B of 4 sides, turned only, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1A3 turned, 0A3 and 2B2 turned, 0A4 and 1A5 turned, 0A5 and 2A2 turned, 0A6 and 1A7 turned, 0A7 and 2B0 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2A3 turned, 1A6 and 2B1 turned";
+
+#[test]
+fn the_translations_of_442_with_111_are_listed_with_the_meetings_worked_by_hand() {
+    let face = several_face("*442", ALL_MIRRORS);
+    let found = free_classes_of_index(
+        face.presentation(),
+        face.stabilizer(),
+        8,
+        SearchBudget::DEFAULT,
+    )
+    .expect("the search runs");
+    assert!(found.is_complete());
+    let translations: Vec<String> = found
+        .list()
+        .iter()
+        .filter(|arrangement| {
+            (0..3).all(|side| {
+                let column: Vec<u32> = TRANSLATIONS
+                    .iter()
+                    .map(|row| row[usize::from(side)])
+                    .collect();
+                arrangement.table().permutation(Letter::generator(side)) == Some(column)
+            })
+        })
+        .map(|arrangement| arrangement.id().to_string())
+        .collect();
+    assert_eq!(translations, [TRANSLATIONS_ID]);
+    assert!(
+        default_listing("*442", ALL_MIRRORS).contains(&TRANSLATIONS_LINE.to_owned()),
+        "{TRANSLATIONS_LINE}"
     );
 }

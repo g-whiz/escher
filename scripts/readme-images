@@ -8,9 +8,10 @@ usage: readme-images
 Builds escher in release mode, then runs each escher render and escher
 render-masks command that the README shows, with the options it shows, inside
 docs/images/, so that each image there is the file that its command writes.
-Three of the renders read masks that it wrote as image fills: the polygon
-masks, the face mask of one picture, and the face masks of two pictures. It
-then removes the masks that the README does not show.
+Four of the renders read masks that it wrote as image fills: the polygon
+masks, the face mask of one picture, the face masks of two pictures, and the
+face masks of the four pictures of the octagons and squares of *442. It then
+removes the masks that the README does not show.
 EOF
 }
 
@@ -49,6 +50,8 @@ escher render-masks '*732' --wythoff 010 --arrangement 14a -o heptagon.png
 escher render '*732' --wythoff 010 --arrangement 14a --colours 'image:heptagon.png' -o heptagon-tiling.png
 escher render-masks '*442' --wythoff 010 --arrangement 16ab -o square.png
 escher render '*442' --wythoff 010 --arrangement 16ab --colours 'image:square-0.png,image:square-1.png' -o squares.png
+escher render-masks '*442' --wythoff 111 --arrangement 8b -o tile.png
+escher render '*442' --wythoff 111 --arrangement 8b --colours 'image:tile-0A.png,image:tile-1A.png,image:tile-2A.png,image:tile-2B.png' -o tiles.png
 escher render '*2222' --set aspect=1.618 -o rectangles.png
 escher render '*3333' --set slice1.length=2.5 -o polygon.png
 escher render '*532' --rotation 20,35,0 -o ball.png

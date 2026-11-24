@@ -11,8 +11,9 @@ use escher_group::{
 use escher_render::{EdgeMeeting, WholeFace};
 use escher_signature::{Geometry, Rational, Signature};
 
-use crate::count_of;
 use crate::diagnostic::SignatureError;
+use crate::render::{Pictures, is_regular};
+use crate::{count_of, usize_from};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Verify {
@@ -333,30 +334,41 @@ fn push_colourings(lines: &mut Lines, found: Result<Found, String>) {
     }
 }
 
+const ARRANGEMENT_INDEX_LIMIT: u32 = 84;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Arrangements {
     Stopped,
     Listed {
-        sides: u32,
+        pictures: Pictures,
         list: Vec<(ColouringId, Vec<EdgeMeeting>)>,
     },
 }
+
+type Searched = (u32, Result<Arrangements, String>);
 
 fn find_arrangements(
     domain: &FundamentalDomain,
     marks: [bool; 3],
     max_pictures: IndexLimit,
     budget: SearchBudget,
-) -> Vec<Result<Arrangements, String>> {
+) -> Vec<Searched> {
     let face = match crate::render::whole_face(domain, marks) {
         Ok(face) => face,
-        Err(error) => return vec![Err(error.to_string())],
+        Err(error) => return vec![(1, Err(error.to_string()))],
+    };
+    let indices = if is_regular(&face) {
+        (1..=largest_pictures(max_pictures, face.index()))
+            .map(|pictures| face.index() * pictures)
+            .collect()
+    } else {
+        several_indices(&face, max_pictures)
     };
     let mut found = Vec::new();
-    for pictures in 1..=largest_pictures(max_pictures, face.index()) {
-        let listed = arrangements_of(&face, pictures, budget);
+    for index in indices {
+        let listed = arrangements_of(&face, index, budget);
         let complete = matches!(listed, Ok(Arrangements::Listed { .. }));
-        found.push(listed);
+        found.push((Pictures::new(&face, index).count(), listed));
         if !complete {
             break;
         }
@@ -368,13 +380,24 @@ fn largest_pictures(max_pictures: IndexLimit, index: u32) -> u32 {
     max_pictures.get().min(IndexLimit::MAX.get() / index).max(1)
 }
 
+fn several_indices(face: &WholeFace, max_pictures: IndexLimit) -> Vec<u32> {
+    let least = face.index();
+    core::iter::once(least)
+        .chain(
+            (2..=ARRANGEMENT_INDEX_LIMIT / least)
+                .map(|multiple| multiple * least)
+                .take_while(|&index| Pictures::new(face, index).count() <= max_pictures.get()),
+        )
+        .collect()
+}
+
 fn arrangements_of(
     face: &WholeFace,
-    pictures: u32,
+    index: u32,
     budget: SearchBudget,
 ) -> Result<Arrangements, String> {
     let found =
-        crate::render::arrangements(face, pictures, budget).map_err(|error| error.to_string())?;
+        crate::render::arrangements(face, index, budget).map_err(|error| error.to_string())?;
     if !found.is_complete() {
         return Ok(Arrangements::Stopped);
     }
@@ -387,14 +410,14 @@ fn arrangements_of(
         })
         .collect::<Result<_, String>>()?;
     Ok(Arrangements::Listed {
-        sides: face.index() / 2,
+        pictures: Pictures::new(face, index),
         list,
     })
 }
 
-fn push_arrangements(lines: &mut Lines, found: &[Result<Arrangements, String>]) {
-    for (pictures, found) in (1..).zip(found) {
-        let label: Cow<'static, str> = if pictures == 1 {
+fn push_arrangements(lines: &mut Lines, found: &[Searched]) {
+    for (position, (pictures, found)) in found.iter().enumerate() {
+        let label: Cow<'static, str> = if position == 0 {
             "Arrangements".into()
         } else {
             format!("Arrangements with {pictures} pictures").into()
@@ -404,12 +427,12 @@ fn push_arrangements(lines: &mut Lines, found: &[Result<Arrangements, String>]) 
             Ok(Arrangements::Stopped) => {
                 lines.push((label, "none, the search stopped at a limit".to_owned()));
             }
-            Ok(Arrangements::Listed { sides, list }) => {
+            Ok(Arrangements::Listed { pictures, list }) => {
                 lines.push((label, list.len().to_string()));
                 for (id, meetings) in list {
                     lines.push((
                         "Arrangement".into(),
-                        arrangement_text(*id, pictures, *sides, meetings),
+                        arrangement_text(*id, pictures, meetings),
                     ));
                 }
             }
@@ -417,19 +440,20 @@ fn push_arrangements(lines: &mut Lines, found: &[Result<Arrangements, String>]) 
     }
 }
 
-fn arrangement_text(
-    id: ColouringId,
-    pictures: u32,
-    sides: u32,
-    meetings: &[EdgeMeeting],
-) -> String {
-    let name = |picture: u32, edge: u32| {
-        if pictures == 1 {
-            edge.to_string()
-        } else {
-            format!("{}{edge}", crate::picture_letter(picture))
-        }
-    };
+fn arrangement_text(id: ColouringId, pictures: &Pictures, meetings: &[EdgeMeeting]) -> String {
+    let single = pictures.count() == 1;
+    let mut firsts = Vec::new();
+    let mut edges = Vec::new();
+    for (name, sides) in pictures.names().into_iter().zip(pictures.sides()) {
+        firsts.push(edges.len());
+        edges.extend((0..sides).map(|edge| {
+            if single {
+                edge.to_string()
+            } else {
+                format!("{name}{edge}")
+            }
+        }));
+    }
     let kind = |meeting: &EdgeMeeting| {
         if meeting.mirrored() {
             "mirrored"
@@ -442,27 +466,49 @@ fn arrangement_text(
     } else {
         "turned only"
     };
-    let pairs: Vec<String> = (0..)
-        .zip(meetings)
+    let pairs: Vec<String> = meetings
+        .iter()
+        .enumerate()
         .filter_map(|(position, meeting)| {
-            let own = name(position / sides, position % sides);
-            match (meeting.picture() * sides + meeting.partner()).cmp(&position) {
+            let partner = firsts[usize_from(meeting.picture())] + usize_from(meeting.partner());
+            match partner.cmp(&position) {
                 Ordering::Less => None,
-                Ordering::Equal => Some(format!("{own} {}", kind(meeting))),
+                Ordering::Equal => Some(format!("{} {}", edges[position], kind(meeting))),
                 Ordering::Greater => Some(format!(
-                    "{own} and {} {}",
-                    name(meeting.picture(), meeting.partner()),
+                    "{} and {} {}",
+                    edges[position],
+                    edges[partner],
                     kind(meeting)
                 )),
             }
         })
         .collect();
-    let count = if pictures == 1 {
+    let count = if single {
         String::new()
     } else {
-        format!("{pictures} pictures, ")
+        format!("{} pictures, {}", pictures.count(), kinds_text(pictures))
     };
     format!("{id}, {count}{neighbours}, edges {}", pairs.join(", "))
+}
+
+fn kinds_text(pictures: &Pictures) -> String {
+    if !pictures.is_several() {
+        return String::new();
+    }
+    let kinds: Vec<String> = pictures
+        .kinds()
+        .iter()
+        .map(|kind| {
+            let first = pictures.name(kind.corner, 0);
+            let range = if kind.count == 1 {
+                first
+            } else {
+                format!("{first} to {}", pictures.name(kind.corner, kind.count - 1))
+            };
+            format!("{range} of {} sides", kind.sides)
+        })
+        .collect();
+    format!("{}, ", kinds.join(", "))
 }
 
 fn summary_text(total: u64, complete_to: u32, requested: u32) -> String {
@@ -870,16 +916,18 @@ mod tests {
     use core::num::NonZeroU64;
 
     use escher_domain::{FundamentalDomain, PairingKind};
-    use escher_group::{CosetLimit, IndexLimit, SearchBudget, conway_presentation};
+    use escher_group::{ColouringId, CosetLimit, IndexLimit, SearchBudget, conway_presentation};
     use escher_signature::Signature;
+
+    use crate::render::Pictures;
 
     use super::{
         Alias, CONWAY, CheckRow, Fault, Listing, Outcome, SIDE, Verdict, alias_of,
         arrangement_text, check_text, count_label, enumerate_order, failed_checks,
         find_arrangements, index_list, joined, kind_name, largest_pictures, listed_text,
         order_mismatch, order_text, push_arrangements, push_colourings, push_order,
-        push_verification, reported, search_colourings, signature_lines, size_text, summary_text,
-        write_text,
+        push_verification, reported, search_colourings, several_indices, signature_lines,
+        size_text, summary_text, write_text,
     };
     use crate::Status;
     use crate::diagnostic::report;
@@ -1405,14 +1453,14 @@ mod tests {
         let signature: Signature = signature.parse().expect("the signature is valid");
         let domain = FundamentalDomain::build(&signature).expect("the signature has a domain");
         let face = crate::render::whole_face(&domain, marks).expect("the face exists");
-        let id = crate::colouring_id(id);
-        let pictures = crate::render::pictures(&face, id);
-        let found = crate::render::arrangements(&face, pictures, SearchBudget::DEFAULT)
+        let id = ColouringId::parse_arrangement(id).expect("the id is valid");
+        let index = crate::render::search_index(&face, id);
+        let found = crate::render::arrangements(&face, index, SearchBudget::DEFAULT)
             .expect("the search runs");
         assert!(found.is_complete(), "{id}");
         let arrangement = found.find(id).expect("the arrangement exists");
         let edges = face.edges(arrangement).expect("the arrangement has edges");
-        arrangement_text(id, pictures, face.index() / 2, &edges)
+        arrangement_text(id, &Pictures::new(&face, index), &edges)
     }
 
     const SQUARES: [bool; 3] = [false, true, false];
@@ -1459,6 +1507,70 @@ mod tests {
         assert_eq!(
             listed_arrangement("*732", TRIANGLES, "18a"),
             "18a, 3 pictures, turned only, edges A0 and A1 turned, A2 and B0 turned, B1 and C0 turned, B2 turned, C1 and C2 turned"
+        );
+    }
+
+    const ALL_MIRRORS: [bool; 3] = [true, true, true];
+
+    const STOPS_AT_16: u64 = 100_000;
+
+    #[test]
+    fn an_arrangement_of_several_face_types_writes_each_edge_after_its_picture_name() {
+        assert_eq!(
+            listed_arrangement("*442", ALL_MIRRORS, "8b"),
+            "8b, 4 pictures, 0A of 8 sides, 1A of 8 sides, 2A to 2B of 4 sides, turned only, edges 0A0 and 1A1 turned, 0A1 and 2A0 turned, 0A2 and 1A3 turned, 0A3 and 2B2 turned, 0A4 and 1A5 turned, 0A5 and 2A2 turned, 0A6 and 1A7 turned, 0A7 and 2B0 turned, 1A0 and 2A1 turned, 1A2 and 2B3 turned, 1A4 and 2A3 turned, 1A6 and 2B1 turned"
+        );
+        let line = listed_arrangement("*442", ALL_MIRRORS, "16a");
+        assert!(
+            line.starts_with(
+                "16a, 8 pictures, 0A to 0B of 8 sides, 1A to 1B of 8 sides, 2A to 2D of 4 sides, with mirrored neighbours, edges 0A0 and "
+            ),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn the_listing_of_several_face_types_searches_the_least_index_and_its_multiples_within_both_limits()
+     {
+        let indices = |signature: &str, max_pictures: u32| {
+            let signature: Signature = signature.parse().expect("the signature is valid");
+            let domain = FundamentalDomain::build(&signature).expect("the signature has a domain");
+            let face =
+                crate::render::whole_face(&domain, ALL_MIRRORS).expect("the whole face is built");
+            several_indices(
+                &face,
+                IndexLimit::new(max_pictures).expect("the limit is valid"),
+            )
+        };
+        assert_eq!(indices("*442", 12), [8, 16, 24]);
+        assert_eq!(indices("*442", 11), [8, 16]);
+        assert_eq!(indices("*442", 1), [8]);
+        assert_eq!(indices("*442", 64), [8, 16, 24, 32, 40, 48, 56, 64, 72, 80]);
+        assert_eq!(indices("*732", 64), [84]);
+        assert_eq!(indices("*752", 64), [140]);
+    }
+
+    #[test]
+    fn a_search_of_several_face_types_stopped_at_a_further_index_ends_the_listing() {
+        let complete = arrangement_lines("*442", ALL_MIRRORS, 4, SearchBudget::DEFAULT.get());
+        assert_eq!(complete.lines().count(), 4);
+        assert_eq!(
+            arrangement_lines("*442", ALL_MIRRORS, 12, STOPS_AT_16),
+            format!(
+                "{complete}Arrangements with 8 pictures: none, the search stopped at a limit\n"
+            )
+        );
+        assert_eq!(
+            arrangement_lines("*442", ALL_MIRRORS, 12, 1),
+            "Arrangements: none, the search stopped at a limit\n"
+        );
+    }
+
+    #[test]
+    fn a_least_index_above_the_arrangement_index_limit_prints_its_error_only() {
+        assert_eq!(
+            arrangement_lines("*752", ALL_MIRRORS, 12, SearchBudget::DEFAULT.get()),
+            "Arrangements: none, cannot search subgroups: the arrangement index 140 is not between 1 and 84\n"
         );
     }
 }
