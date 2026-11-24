@@ -26,13 +26,13 @@ The primary readers are the coding agents that plan and implement a milestone. T
 
 ### 1.4. Scope
 
-This document covers the workflow of a milestone, the owner's staging, the research prerequisites, the milestones `M1` to `M13` and `M19` to `M26`, the documentation obligations of each milestone, and the unverified statements that the milestones rely on. The milestones `M14` to `M18`, which the owner moved to the roadmap (`DEC-64`), keep their labels and a subsection each that points to the roadmap.
+This document covers the workflow of a milestone, the owner's staging, the research prerequisites, the milestones `M1` to `M13` and `M19` to `M27`, the documentation obligations of each milestone, and the unverified statements that the milestones rely on. The milestones `M14` to `M18`, which the owner moved to the roadmap (`DEC-64`), keep their labels and a subsection each that points to the roadmap.
 
 ### 1.5. Non-Goals
 
 Each fact has one owner, and this document cites the owner instead of restating the fact:
 
-- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-128`.
+- `docs/design/architecture.md` owns the crates, the data flow, the conventions that cross crates, the testing strategy with the definition of a golden image, performance, numerical robustness, and the decisions. Section 10.1 of it records the owner's decisions, and Section 10.2 the labelled defaults `DEC-1` to `DEC-136`.
 - `docs/design/roadmap.md` owns the phases after the proof of concept, the milestones `M14` to `M18` that the owner moved there, the work that closes requested sources, and the Lean workstream.
 - The subject-matter references under `docs/research/` own the mathematics.
 - `AGENTS.md` owns the hard rules, the development workflow, and Project Status.
@@ -49,7 +49,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 This document uses the terms that Section 2.2 of `docs/writing-documentation.md` defines, and calls that document the writing guide. It calls `docs/rust-coding-standards.md` the coding standard and `docs/design/tooling.md` the tooling design. It adds these terms:
 
-- milestone: A unit of the plan with one goal, labelled `M1` to `M26`, delivered by one design branch and a few code branches. The labels `M14` to `M18` name work that the owner moved to the roadmap. The planning documents of Section 3.3 carry the label `M0` and are not delivered this way.
+- milestone: A unit of the plan with one goal, labelled `M1` to `M27`, delivered by one design branch and a few code branches. The labels `M14` to `M18` name work that the owner moved to the roadmap. The planning documents of Section 3.3 carry the label `M0` and are not delivered this way.
 - design branch: A branch named `feature/<name>-design` that changes only documents. It writes or extends the design documents of a milestone, and the research documents where a research prerequisite applies.
 - code branch: A branch in its own worktree that changes code together with its tests and the document updates that Hard Rule 1 of `AGENTS.md` requires.
 - research prerequisite: A design branch, labelled `RP-1` to `RP-8`, that adds to a research document what a milestone needs before its code can start (Section 4).
@@ -109,7 +109,7 @@ Every other valid signature has no domain in the proof of concept. These are the
 | 2 | All 17 Euclidean and all 14 spherical groups | M10, completed by M11 |
 | 3 | General hyperbolic signatures, including handles and crosscaps, by porting the SymmHub pipeline, which is under the MIT licence | None. The owner moved it to the roadmap with M15 to M17 (Section 4.1 of `docs/design/roadmap.md`) |
 
-The other milestones carry the owner's decisions on colourings (M7, M8, M20), models (M12), borders (M13), Schlafli symbols (M21), polygon masks and image fills (M22), Wythoff constructions (M23), and whole-face image fills (M24, M25, and M26). The parser accepts signatures with infinite orders from M1, and rendering the friezes and the triangle groups with ideal corners is the roadmap item M18. M19 checks that every signature of the set renders.
+The other milestones carry the owner's decisions on colourings (M7, M8, M20), models (M12), borders (M13), Schlafli symbols (M21), polygon masks and image fills (M22), Wythoff constructions (M23), whole-face image fills (M24, M25, and M26), and renders centred on a corner (M27). The parser accepts signatures with infinite orders from M1, and rendering the friezes and the triangle groups with ideal corners is the roadmap item M18. M19 checks that every signature of the set renders.
 
 ### 3.3. Planning Documents
 
@@ -117,7 +117,7 @@ The planning documents, labelled M0, are the precondition of M1 and have no code
 
 ### 3.4. Milestone Overview
 
-The owner set the order of the remaining work on 2026-11-22 and placed M23 and M24 in it on 2026-11-23 (`DEC-63`). A cleanup comes first and is not a milestone. Then come M20, M12 and M13, M21, M22, M23, and M24, then M25 and M26, which the owner made the last milestones before the audit on 2026-11-23 (`DEC-114`), and the completion audit M19 comes last. The order of M22 and M23 may still change, and the owner sets it. The split of the work after M24 into M25 and M26, and their order, are a proposal (`DEC-121`). The table lists the milestones in the planned order. The column "Depends on" names the milestones and research prerequisites whose results a milestone uses, as Section 5 gives them. The milestones M14 to M18 are not in the table, because the owner moved them to the roadmap (Section 3.2).
+The owner set the order of the remaining work on 2026-11-22 and placed M23 and M24 in it on 2026-11-23 (`DEC-63`). A cleanup comes first and is not a milestone. Then come M20, M12 and M13, M21, M22, M23, and M24, then M25 and M26, which the owner made the last milestones before the audit on 2026-11-23 (`DEC-114`), and the completion audit M19 comes last. The order of M22 and M23 may still change, and the owner sets it. The split of the work after M24 into M25 and M26, and their order, are a proposal (`DEC-121`). On 2026-11-24 the owner added M27, a small milestone whose design follows the design of M25 and whose code is built alongside the code of M25, independent of it and of M26 (`DEC-133`). The table lists the milestones in the planned order. The column "Depends on" names the milestones and research prerequisites whose results a milestone uses, as Section 5 gives them. The milestones M14 to M18 are not in the table, because the owner moved them to the roadmap (Section 3.2).
 
 | Label | Name | New command-line capability | Crates touched | Depends on |
 | --- | --- | --- | --- | --- |
@@ -140,8 +140,9 @@ The owner set the order of the remaining work on 2026-11-22 and placed M23 and M
 | M23 | Wythoff constructions | `--wythoff` of `render`: the Wythoff tilings of every reflection triangle from on or off marks on its mirrors, with one colour for each face type | `escher-geometry`, `escher-render`, `escher-cli` | M2, M4, M5, M22, RP-6 |
 | M24 | Whole-face image fills | `info --wythoff` lists the arrangements of a regular tiling, `render-masks --wythoff --arrangement` writes its face mask, and `render --wythoff --arrangement` puts one picture on every polygon, turned or mirrored | `escher-group`, `escher-render`, `escher-cli` | M8, M20, M22, M23, RP-7 |
 | M25 | Whole-face fills with several pictures of one polygon | `info --wythoff` also lists the arrangements with several pictures, `render-masks --arrangement` writes one face mask for each picture, and `render --arrangement` takes one colour or image for each picture, such as for squares five to a vertex. No new option | `escher-render`, `escher-cli` | M24 |
+| M27 | Renders centred on a corner | `--centre` of `render`: the picture centred on a corner of the domain, given by its position in the order in which `info` prints the corners | `escher-render`, `escher-cli` | M11, M12, M22, M23, M24 |
 | M26 | Whole-face fills of tilings with several kinds of polygon | One or more pictures for each kind of polygon of a Wythoff construction with more than one face type. The design decides the options | `escher-group`, `escher-render`, `escher-cli`, as its design decides | M24, M25, RP-8 |
-| M19 | Completion audit | None | All six crates of the proof of concept | M11, M12, M13, M20, M21, M22, M23, M24, M25, M26 |
+| M19 | Completion audit | None | All six crates of the proof of concept | M11, M12, M13, M20, M21, M22, M23, M24, M25, M26, M27 |
 
 ## 4. Research Prerequisites
 
@@ -630,6 +631,50 @@ The design branch settled the rest as proposals, and the owner has decided none 
 **Risks.** No source may state the stabilizers of the faces, so the milestone may rest on unverified statements only. The index of such an arrangement grows with the number of face types and the orders of their stabilizers, and may exceed the index limit of `escher-group`.
 
 **Split.** Left open for the design branch.
+
+### 5.27. M27: Renders Centred on a Corner
+
+**Goal.** The user renders a tiling with a corner of the fundamental domain at the centre of the picture, in place of the centre of the domain, such as the heptagons of `{7,3}` with a heptagon or a vertex of the tiling at the centre. The owner asked for this on 2026-11-24 as an option of `render` and decided its main points (`DEC-130` to `DEC-133`).
+
+**Command line.** These commands illustrate the milestone. The first prints the line `Corner angles in degrees: 25.714286, 60.000000, 90.000000`, whose positions 0, 1, and 2 are the corners of orders 7, 3, and 2. The second draws the heptagons of `{7,3}` with a heptagon at the centre, and the third with a vertex at the centre, where three heptagons meet:
+
+```sh
+escher info '*732'
+escher render '*732' --wythoff 010 --centre 0 -o heptagon.png
+escher render '*732' --wythoff 010 --centre 1 -o vertex.png
+```
+
+**Scope.** The owner decided these details on 2026-11-24:
+
+- An option `--centre` of `render` puts a corner of the domain at the centre of the picture, as a change of the view only, and without the option every picture stays as it is (`DEC-130`).
+- The option names a corner by its position in the order in which `info` prints the corners, and not by its order, because two corners can have the same order, as in `*333`. The help text documents this clearly (`DEC-131`).
+- The face masks do not follow `--centre`, so the upright rule of `DEC-122` keeps using the default view (`DEC-132`).
+- The work is a milestone of its own, designed after the design of M25 and built alongside the code of M25 (`DEC-133`).
+
+The design branch settles the rest as proposals, and the owner has decided none of them:
+
+- The value is a decimal integer, the position of a vertex of the domain counted from 0 in the order of the angles of the line `Corner angles in degrees` of `info`. Every vertex is a position, a flat vertex of 180 degrees included. A position at or above the number of vertices is refused, and so is every position on the domain of `1`, which has no vertex (`DEC-134`, Section 5.34 of `docs/design/render.md`, Section 4.6 of `docs/design/cli.md`).
+- The view applies the translation of `escher-geometry` that maps the origin to the corner to the point of each sample just before the fold, after the map of the hyperbolic model, and on the ball after the transpose of the viewing matrix, so that `--rotation` turns the centred ball. No further turn is added, and the domain stays centred at the origin for the fold (`DEC-135`, Section 5.34 of `docs/design/render.md`).
+- The option combines with every option of `render` and changes only the view, `render-masks` has no such option, and a position that the domain does not have stops `render` at step 5, before the searches of step 6 (`DEC-136`, Sections 4.5, 4.6, and 6.8 of `docs/design/cli.md`).
+
+The milestone adds no limit. A free shift, a zoom, and a turn about the corner stay in the roadmap (Section 4 of `docs/design/roadmap.md`), and a centre at a point other than a vertex of the domain, such as the centre of a face of a Wythoff construction that lies at no corner, is not part of it.
+
+**Design documents.** Section 5.34 of `render.md` with its other sections that the centred view touches, Sections 4.2, 4.5, 4.6, 6.8, 8.1, and 11 of `cli.md`, the data flow of Section 4.1 of `docs/design/architecture.md` with the labels `DEC-130` to `DEC-136`, and the row of view control in Section 4 of `docs/design/roadmap.md`.
+
+**Sources.** No research document is needed. The view composes isometries that `escher-geometry` already has, `hyperbolic::translation`, `euclidean::translation`, and `spherical::translation`, each of which maps the origin to its target (Sections 6.4, 6.6, and 6.7 of `docs/design/geometry.md`). No source states the matrices of the hyperbolic and the spherical translation, and reference tests of the geometry design check them (Section 13.1 of `docs/design/geometry.md`). The vertices of each domain and their order come from the domain design (Sections 6.3 and 6.8 of `docs/design/domain.md`).
+
+**Unverified statements relied on.** No new row of Section 7. The fold rests on `UNV-1` and `UNV-2` as without the option, each fill on the statements of its milestone, and the translations on the assumptions of Section 13.1 of `docs/design/geometry.md`. That the corner shows at the centre of the image, that the centre of the domain shows on the side of the centre of the image away from the direction of the corner, and that the centred view draws the same tiling are statements of the render design, which its tests check (Section 10 of `docs/design/render.md`).
+
+**Tests and acceptance.** The tests of the layer "Centred views" of Section 8.1 of `docs/design/render.md`: "Corner at the centre", which checks in the reference arithmetic, in the disk, the half-plane, the band, the Klein model, the plane, and the ball, that the point of the centre of the image is the corner, for each position of `*732`, `*632`, `*532`, and `732`, "Rotation after centring", "Centre direction", "Border at the corner", "Same tiling", which runs the whole-image border oracle on centred images, "Positions differ", "No centre", and the refusals of `Renderer::new` with their texts. The snapshots and plain tests of `--centre` in Section 8.1 of `docs/design/cli.md`: the help of `render` in both layouts, the usage errors of `render` and `render-masks`, the diagnostics of a position that the domain does not have and of the domain of `1`, each with exit status 1 and no file written, and the combinations with `--model`, `--rotation`, `--wythoff`, and `--arrangement`. Every committed golden image and snapshot stays byte for byte as it was, except the two help snapshots of `render`.
+
+**Dependencies and `deny.toml` work.** None new.
+
+**Risks.** Small. The translation adds one rounded matrix product to each sample, and with a corner far from the centre of the domain, samples near the rim of the disk lie farther from the domain than in the canonical view, where the fold is less accurate (Section 6.13 of `docs/design/render.md`). A user may expect positions from 1, or a corner named by its order, which the help text addresses. A rotation signature has several vertices for one cone point, such as positions 1 and 3 of `732`, which give two pictures of the same kind of centre.
+
+**Split.** Two branches, in this order:
+
+1. Design: the design documents above.
+2. Library and command line: the option `centre` of `RenderOptionsBuilder`, the placement of the centred view, and the refusal of `Renderer::new` in `escher-render`, with their tests, and `--centre` of `render` in `escher-cli` with its long and short help, the renderer built at step 5, its snapshots and plain tests, one example in `README.md` of the heptagon tiling of `*732` with `--wythoff 010 --centre 0`, centred on a heptagon, with its image written by `just readme-images` through `scripts/readme-images`, and Project Status in `AGENTS.md`. The library and the command line share one branch, because the option has no use in the library without the command line, and each half is small.
 
 ## 6. Documentation Obligations
 
