@@ -1588,7 +1588,7 @@ CLI-19. `info --check` MUST return `Failure` when a check fails and when the sig
 
 ### 8.1. Tests
 
-The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, `render`, `masks`, `process`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. It declares `common`, `info`, `render`, `masks`, and `process` under `#[cfg(test)]`, because their helpers call `expect`, which the Clippy option `allow-expect-in-tests` accepts only in code compiled for tests. Every test outside `main.rs` and `process` calls `run` with `Vec<u8>` streams, or with a test writer that fails. The two tests in `main.rs` test `Status` alone. The one test in `process` starts the binary.
+The tests live in one integration-test binary, `crates/escher-cli/tests/cli/main.rs`, with the modules `info`, `diagnostics`, `usage`, `render`, `masks`, `properties`, `process`, and `common`, and the snapshots under `crates/escher-cli/tests/cli/snapshots/` (rule TEST-10 of `docs/rust-coding-standards.md`). `main.rs` has a `//!` line, which the lint `missing_docs` requires. It declares `common`, `info`, `render`, `masks`, `properties`, and `process` under `#[cfg(test)]`, because their helpers call `expect`, which the Clippy option `allow-expect-in-tests` accepts only in code compiled for tests. Every test outside `main.rs` and `process` calls `run` with `Vec<u8>` streams, or with a test writer that fails. The two tests in `main.rs` test `Status` alone. The one test in `process` starts the binary.
 
 A test that can write the output file gets a path from a helper in `common`, in a directory of its own, `CARGO_TARGET_TMPDIR/escher-cli/<test>`. The helper empties that directory first, so a file from an earlier run cannot satisfy a test. The render usage snapshots and the render status tests fail before any file access and pass the fixed path `CARGO_TARGET_TMPDIR/escher-cli/never-written.png`, which a constant in `common` holds and no test creates.
 
@@ -1599,6 +1599,7 @@ The tests have these layers:
 | Snapshot tests | `insta` tests in the modules `info`, `diagnostics`, `usage`, `render`, and `masks` that call `run` with in-memory streams and compare its status and both streams with a committed snapshot | Any change to the information text, the help, version, and usage text, a diagnostic, or the statistics lines, for each kind of domain and each form of each line of Sections 4.7 and 5 |
 | Plain tests | Tests that call `run` and assert the status, the start or the end of a stream, and the files that `render` and `render-masks` write | A wrong status, a failed write with a writer that fails, a PNG header with the wrong size or chunks, read by hand, a file that depends on the number of threads (CLI-23), the aliases of CLI-48, the default colouring of CLI-34, an existing output file that a failure changes (CLI-21), and a use of the global pool of `rayon` (CLI-22), which relies on nextest running each test in a process of its own |
 | Unit tests | Tests in `args.rs`, `info.rs`, `render.rs`, and `masks.rs` of the private parsers, formatters, and functions | A parser of an option value that accepts or rejects the wrong text, a formatter of a line that writes the wrong form, a wrong default colour, and the paths that no known input reaches, such as a failed check, a different index, an internal error of a presentation, and a search that stops at a limit |
+| Property test | The test of Section 8.3 in `properties`, which runs `render` on generated valid signatures and a fixed list, and compares each outcome with an oracle of its own | A signature of the set of Section 3.2 of `docs/design/poc-plan.md` that `render` refuses, a signature outside it that `render` draws, a refusal with the wrong cause, and a limit off by one |
 | Smoke test | The one test in `process`, which starts the binary that Cargo names in `CARGO_BIN_EXE_escher` | A binary that does not call `run` or does not turn its status into the exit status |
 | Doctests | The crate-level examples | An example that no longer compiles or runs |
 
@@ -1754,6 +1755,102 @@ These environment variables of `insta` matter here:
 
 CLI-12. An agent MUST NOT set `INSTA_FORCE_PASS` in a recipe, a hook, or a workflow, because it turns a failing snapshot test into a pass, and a changed text then reaches `main` unreviewed.
 
+### 8.3. Coverage of the Supported Set
+
+Section 3.2 of `docs/design/poc-plan.md` states the set of signatures that the proof of concept renders, and Section 4 of `docs/design/domain.md` specifies it with its limits. Two tests check the commands against that set. The property test runs `render` over generated valid signatures and over a fixed list of signatures at the limits on their orders. The snapshot corpus of `info` holds one snapshot for each class of signature of the set and for each class of refusal.
+
+#### 8.3.1. Generator
+
+The property test is the module `properties` of the integration-test binary, in `crates/escher-cli/tests/cli/properties.rs`, which `main.rs` declares under `#[cfg(test)]` with the other modules. It calls `run` with `Vec<u8>` streams and an output path from the helper of `common`, as the plain tests do.
+
+Its strategies are `order` and `structured_text` of the test support crate `escher-reference`, which also holds the helper `order_text` that they use. The property tests of `escher-domain` draw from the same strategies, so a change to a bound reaches both tests. An integration-test binary cannot import the test code of another crate, and TEST-15 of `docs/rust-coding-standards.md` puts the test helpers that several crates share into that one crate. `structured_text` writes up to 1 handle, up to 4 cone points, up to 2 boundaries of up to 4 corners each, and up to 1 crosscap, in that order. `order` draws an order from 2 to 9 with weight 4, from 10 to 110 with weight 2, and `(inf)` with weight 1. A generated text is a valid signature when the parser of `escher-signature` accepts it. The test runs nothing for a text that the parser refuses, because CLI-11 and the diagnostic snapshots of Section 6.4 cover the signature errors.
+
+The `proptest!` block runs with the default configuration of `proptest`, as the property tests of the other crates do, and the crate commits the regression file that `proptest` writes for it (TEST-9 of `docs/rust-coding-standards.md`). Each case renders an image of 8 by 8 pixels with one sample per pixel, the smallest render of the plain tests, and a refused signature stops at step 3 of Section 4.5, before any search or rendering.
+
+#### 8.3.2. Oracle
+
+The test decides the expected outcome of each valid signature with an oracle of its own, in test code. The oracle reads the parts of the parsed `Signature`, which are `handles`, `crosscaps`, `cone_orders`, and `boundaries` with their `corner_orders`, and its `geometry` and `is_compact`, which the tests of `escher-signature` check. It calls no function of `escher-domain`, so a wrong decision of `build_with` does not become the expectation of the test. It implements Section 4 of `docs/design/domain.md` in these steps:
+
+1. A spherical signature is supported, because every valid spherical signature is. A Euclidean signature is supported when it is compact, because the compact Euclidean signatures are the 17 groups, each of which `escher-domain` builds. A hyperbolic signature is supported when it is compact, has no handle and no crosscap, and has either one boundary and no cone point or no boundary, with at least 3 orders. Every other valid signature is unsupported.
+2. A supported signature with more than 8 orders is over a limit (DOM-38 of `docs/design/domain.md`).
+3. A supported signature with one cone point of order 2, one boundary with one corner of order $n$, and $n > 50$ is over a limit (DOM-63).
+4. Any other supported signature with an order above 100 is over a limit (DOM-3).
+5. Every other supported signature is in the set.
+
+The steps follow the order in which `escher-domain` checks, which puts support before the limits (DOM-3), so a signature that is unsupported and over a limit is unsupported. Every general non-compact signature is hyperbolic and not compact, so step 1 makes it unsupported.
+
+#### 8.3.3. Assertions
+
+CLI-77. For each valid signature that the generator or the fixed list gives, the property test MUST run `escher render <signature> --size 8x8 --samples 1 -o <path>` and MUST assert the outcome that the oracle gives:
+
+- In the set: the status `Success`, nothing on standard output or standard error, and a PNG file at the path whose header, read by hand, gives 8 by 8 pixels.
+- Unsupported: the status `Failure`, nothing on standard output, no file at the path, and a standard error of exactly two lines, `error: cannot render <canonical>: rendering this signature is not supported` and `  caused by: cannot build fundamental domain: the signature <canonical> is not supported`, where `<canonical>` is the `Display` text of the parsed `Signature`.
+- Over a limit: the status `Failure`, nothing on standard output, no file at the path, a first line of standard error that is exactly `error: cannot render <canonical>`, and a second line that starts with `  caused by: cannot build fundamental domain: `.
+
+The assertions follow the two rows of Section 6.8 for a refused domain, so the test fails when `render` refuses a signature of the set, draws a signature outside it, or reports a limit as a lack of support. Without them, a signature of the set that `render` refuses, which is the defect that this test exists to find, would pass unnoticed. The test also asserts that the oracle gives "unsupported" for every valid signature whose `is_general_non_compact` is true, which meets Section 5.8 of `docs/design/architecture.md` for those signatures.
+
+The test does not pin the text after `caused by: ` for a limit, because Section 10.2 of `docs/design/domain.md` owns it and the snapshots of Section 8.1 cover each form. The code branch changes neither the oracle nor the fixed list to make the test pass. A failure is a defect of the code or of Section 4 of `docs/design/domain.md`, and a fix that would change which signatures the proof of concept renders, or add a limit, goes to the owner, who set the set (`DEC-64`).
+
+#### 8.3.4. Fixed List
+
+The generator rarely draws an order near 100 and never draws more than 4 orders of one kind, so a fixed list of signatures at the limits on their orders runs beside it. Each entry carries its outcome, and the test asserts that the oracle gives that outcome before it runs `render`, so an error in the oracle fails the test on the list. Every signature of the list is written as the input text:
+
+| Outcome | Signatures |
+| --- | --- |
+| In the set, hyperbolic | `*732`, `*(100)32`, `*(100)(100)(100)`, `732`, `(100)(100)(100)`, `*2223`, `*(100)(100)(100)(100)`, `*22222222`, `*(100)(100)(100)(100)(100)(100)(100)(100)`, `2223`, `22222222`, and `(100)(100)(100)(100)(100)(100)(100)(100)` |
+| In the set, Euclidean | `o`, `2222`, `333`, `442`, `632`, `*2222`, `*333`, `*442`, `*632`, `2*22`, `3*3`, `4*2`, `22*`, `**`, `*x`, `22x`, and `xx` |
+| In the set, spherical | `*332`, `*432`, `*532`, `332`, `432`, `532`, `3*2`, `*222`, `*(100)22`, `222`, `(100)22`, `*22`, `*(100)(100)`, `22`, `(100)(100)`, `2*2`, `2*(50)`, `2*`, `(100)*`, `2x`, `(100)x`, `*`, `x`, and `1` |
+| Unsupported | `4*3`, `o2`, `xxx`, `***`, `*(inf)32`, `(inf)32`, the 7 friezes `(inf)(inf)`, `(inf)*`, `(inf)x`, `*(inf)(inf)`, `22(inf)`, `2*(inf)`, and `*22(inf)`, and the general non-compact signatures `*(inf)222`, `(inf)222`, `3*(inf)`, and `(inf)(inf)(inf)(inf)` |
+| Over a limit | `*(101)32`, `(101)32`, `*(101)222`, `(101)222`, `*(101)22`, `(101)22`, `*(101)(101)`, `(101)(101)`, `(101)*`, `(101)x`, `2*(51)`, `*222222222`, and `222222222` |
+
+#### 8.3.5. What the Property Test Catches
+
+The test catches a signature of the set that `build_with` refuses or that `render` fails on with the default options, a signature outside the set that `render` draws, a refusal that names the wrong cause, a limit off by one at 100 and 101, at 50 and 51 for `2*n`, and at 8 and 9 orders, and a panic of `run` on any valid signature that it generates (CLI-2).
+
+It cannot show that an image is right, which the golden images and the oracles of Section 8.1 of `docs/design/render.md` check. It runs only the default options, so it says nothing about `--set`, `--model`, `--wythoff`, or a colouring id. The generator draws at most one handle and one crosscap, at most 4 orders of one kind, and no order above 110, so the polygons with 5 to 8 corners and the refusals of 9 orders are covered only by the fixed list. The oracle and `escher-domain` implement the same section of `docs/design/domain.md` and read the same accessors of `escher-signature`, so an error in that section or in the classification of `escher-signature` passes both.
+
+#### 8.3.6. Snapshot Corpus of `info`
+
+CLI-78. The snapshots of `info` MUST hold, for each class of the tables below, a snapshot of `escher info` on the signature that the table names, because a class without a snapshot can change its information text or its `Domain` line with no test failing (CLI-7). A snapshot that this requirement adds runs `escher info <signature>` with no option other than the `--max-colours` that CLI-50, CLI-52, or CLI-54 requires for its kind of domain.
+
+The classes of the set:
+
+| Class | Signature |
+| --- | --- |
+| Hyperbolic reflection triangle | `*732` |
+| Hyperbolic reflection polygon | `*3333` |
+| Hyperbolic rotation triangle | `732` |
+| Hyperbolic rotation polygon | `3333` |
+| Each of the 17 Euclidean groups | `o`, `2222`, `333`, `442`, `632`, `*2222`, `*333`, `*442`, `*632`, `2*22`, `3*3`, `4*2`, `22*`, `**`, `*x`, `22x`, and `xx` |
+| `*332`, `*432`, `*532` | `*332`, `*432`, `*532` |
+| `332`, `432`, `532` | `332`, `432`, `532` |
+| `*n22` | `*722` |
+| `*nn` | `*55` |
+| `n22` | `(12)22` |
+| `nn` | `55` |
+| `3*2` | `3*2` |
+| `2*n` | `2*3` |
+| `n*` | `3*` |
+| `nx` | `5x` |
+| `*`, `x`, `1` | `*`, `x`, `1` |
+
+The classes of refusal:
+
+| Class | Signature |
+| --- | --- |
+| Cone points and a boundary | `4*3` |
+| A handle | `o2` |
+| Crosscaps | `ox`, which prints as `xxx` |
+| Two or more boundaries | `***` |
+| A frieze | `*22(inf)`, which prints as `*(inf)22` |
+| A triangle with an ideal corner | `*(inf)32` |
+| The rotation signature of a triangle with an ideal corner | `(inf)32` |
+| A general non-compact signature | `3*(inf)` |
+| An order above 100 | `*(101)32` |
+| An order of `2*n` above 50 | `2*(51)` |
+| More than 8 orders | `*222222222`, with `--max-colours 4` |
+| A bad orbifold | `23`, a snapshot of the module `diagnostics` |
+
 ## 9. Dependencies
 
 ### 9.1. Workspace Dependencies
@@ -1773,9 +1870,11 @@ clap = { version = "4.6", default-features = false, features = [
 ] }
 escher-domain = { version = "0.1.0", path = "crates/escher-domain" }
 escher-group = { version = "0.1.0", path = "crates/escher-group" }
+escher-reference = { version = "0.1.0", path = "crates/escher-reference" }
 escher-render = { version = "0.1.0", path = "crates/escher-render" }
 escher-signature = { version = "0.1.0", path = "crates/escher-signature" }
 insta = { version = "1.49", default-features = false }
+proptest = { version = "1.12.0", default-features = false, features = ["std"] }
 rayon = "1.12.0"
 ```
 
@@ -1789,6 +1888,8 @@ rayon = "1.12.0"
 | `clap` | Normal | The list above, without `color`, `env`, and `wrap_help` | The derive API (Section 3.1 of `docs/design/architecture.md`). Without `color`, `anstream` and its dependencies are not built (Section 9.2) |
 | `anyhow` | Normal | Default | The chain of errors that Section 5.8 of `docs/design/architecture.md` requires. Version 1.0.103 fixes RUSTSEC-2026-0190 (Section 10 of `docs/research/rust-ecosystem.md`) |
 | `insta` | Dev | None, so without `colors` | Snapshot tests (rule TEST-2). Without `colors`, `console` is not built (Section 9.2) |
+| `proptest` | Dev | `std`, without the default features, from the one entry of the workspace that the other crates use | The property test of Section 8.3 (rule TEST-9) |
+| `escher-reference` | Dev | None | The signature strategies of the property test (Section 8.3.1, rule TEST-15). The path dependency carries a version (TOOL-25) |
 
 The crate declares neither `escher-geometry` nor `glam`. The measurements of the domain are methods of `FundamentalDomain` that return plain `f64` values, so this crate names no `glam` type (Section 15.2 of `docs/design/domain.md`). `render` passes the domain to `escher-render` unchanged and reads only integers from the statistics, so it names no `glam` type either. `escher-domain` brings `escher-geometry`, `glam`, and `thiserror` into the build of the binary, and `escher-render` brings `png` and its dependencies. `escher-group` depends on `escher-signature` and `thiserror` only (Section 12 of `docs/design/group.md`), so it adds no external crate to the build.
 
@@ -1816,37 +1917,57 @@ Section 10.1 of `docs/design/architecture.md` records, under `DEC-21`, that Miri
 
 This section lists the unverified statements of Section 7 of `docs/design/poc-plan.md` that this crate relies on, as PLAN-3 of that document requires. The crate relies on `UNV-20` and `UNV-21` through `escher-signature`, on `UNV-6`, `UNV-7`, `UNV-10`, `UNV-11`, `UNV-22`, `UNV-26`, `UNV-27`, `UNV-28`, `UNV-29`, `UNV-30`, `UNV-31`, `UNV-32`, `UNV-33`, and `UNV-34` through `escher-domain`, on `UNV-17`, `UNV-19`, `UNV-22`, `UNV-35`, and `UNV-36` through `escher-group`, on `UNV-37` and `UNV-38` directly, on `UNV-13` and `UNV-14` through `escher-geometry`, and on `UNV-1`, `UNV-2`, `UNV-3`, `UNV-4`, `UNV-13`, `UNV-14`, `UNV-15`, `UNV-16`, `UNV-17`, `UNV-18`, `UNV-38`, `UNV-39`, `UNV-40`, and `UNV-41` to `UNV-56` through `escher-render`, whose design states how it relies on each.
 
-| Id | How this crate relies on it |
-| --- | --- |
-| `UNV-20` | `info` prints the canonical signature, with parentheses for orders of 10 or more and `(inf)` for an infinite order, and accepts both spellings of infinity and `1` as the trivial signature, whose domain has no side (CLI-53) |
-| `UNV-21` | `info` prints the geometry and the area of a non-compact signature whose Euler characteristic is not 0, and prints no deformation dimension for a non-compact signature |
-| `UNV-26` | `info --check` reports the checks of the walls of the domain, which `escher-domain` builds through the formula of the wall through two points that `UNV-26` covers. The walls, relators, and angles checks test the result (Section 14 of `docs/design/domain.md`). The domain summary does not depend on the walls, because `escher-domain` measures it from the vertices |
-| `UNV-10` | `info` prints one `Parameter` line for each parameter that `escher-domain` specifies, such as one for `*2222` and two, `aspect` and `skew`, for `o` and `2222`. No source states whether the published parameter count of `*2222` includes the scale, so the lines list the parameters of the construction and claim no count |
-| `UNV-11`, `UNV-33` | `info` prints the summary of a wallpaper domain, and `render` draws it as a fundamental domain of the group of its signature, which rests on constructions and pairings that no source states. `build_with` returns only a wallpaper domain that passes `verify()` (DOM-54 of `docs/design/domain.md`), and `info --check` reports the checks |
-| `UNV-11`, `UNV-34` | `info` prints the summary of a spherical group domain, with the word `rotary reflection`, and `render` draws it as a fundamental domain of the group of its signature, which rests on domains and pairings that no source states. `build_with` returns every such domain except that of `*` only when it passes `verify()` (DOM-60 of `docs/design/domain.md`), the certificate of DOM-64 of that document checks each group, and `info --check` reports the checks. The order lines of `--presentation` compare the order of the side presentation with the group order, which cannot tell these groups from others of the same order (DOM-64 of `docs/design/domain.md`) |
-| `UNV-28` | `info` prints the summary of a Euclidean triangle, and `render` draws it, from the vertex coordinates that `escher-domain` builds, whose checks and tests its design states |
-| `UNV-29` | `info` prints the summary of a lune, and `render` draws it as a fundamental domain, which no source states. `info --check` reports the checks that test it |
-| `UNV-6`, `UNV-7`, `UNV-27` | `info` prints the parameters and the summary of a reflection polygon, and `render` draws it, from the construction of SymmHub's cuts, the default shape, and the ranges that `escher-domain` builds on them. `build_with` returns only a polygon or a double that passes `verify()` (DOM-44 of `docs/design/domain.md`), and `info --check` reports the checks |
-| `UNV-22`, `UNV-30`, `UNV-31` | `info` prints the summary of a rotation domain, and `render` draws it as a fundamental domain of the rotation subgroup, which rests on the signature of that subgroup, on the lune double, and on the convexity and the vertex cycles of the double. `info --check` reports the checks that test each build |
-| `UNV-19` | The order lines of `--presentation` come from the coset enumeration of `escher-group`, and the colouring lines and the colourings of `render` from its low-index search, whose reliance on `UNV-19` Section 13 of `docs/design/group.md` states. A run that reaches the limit prints `not found` and claims nothing about the index (Section 5.7), and a search that stops at a limit claims nothing beyond its last complete colour count (CLI-47) |
-| `UNV-17` | `info` lists the colourings as the colourings of the tiling, and `render` draws one by its coset fill, which rests on the coset colour of Section 5.12 of `docs/design/render.md`. `info` claims nothing about which colourings are perfect, and prints only the subgroups that the search finds. The code colours of the borders of the masks of `render-masks`, which group the edges that can meet, rest on the same reading and on the closure of the coset table that Section 5.19 of `docs/design/render.md` states and its Section 10 lists as unverified |
-| `UNV-22` | `--presentation` prints the Conway presentation of a boundary without corners, such as that of `*`, in the reading that Section 5.2 of `docs/design/group.md` records (GRP-7) |
-| `UNV-32` | `--presentation` prints the side presentation of a rotation domain, whose cycle relators as words are the reading of `docs/design/domain.md` (Section 5.4 of that document). The side order line compares the order that they present with the group order |
-| `UNV-1` | `render` relies on the fold to stop for the samples of an image of a reflection triangle, polygon, rectangle, or lune. `Unconverged samples` counts the samples for which it does not stop within the fold cap, which on the sphere can happen near a vertex of very high order |
-| `UNV-2` | `render` relies on the fold to stop for the samples of an image of a rotation domain, a wallpaper domain, whose pairings include translations and glide reflections, or a spherical group domain, whose pairings include rotary reflections. `Unconverged samples` counts the samples for which it does not stop within the fold cap |
-| `UNV-16` | The ball that `render` draws comes from the lift onto the ball and the Phong reflection model, whose primary paper is unread |
-| `UNV-13` | The image of `--model band` comes from the map from the band to the disk that only the code of SymmHub states (Section 7.6 of `docs/design/geometry.md`) |
-| `UNV-3` | A sample on or next to a wall can take either neighbouring tile, which is why CLI-28 masks the fold counts |
-| `UNV-4` | The default fold cap of `DEC-7` rests on fold counts measured on a prototype, and no source bounds them |
-| `UNV-15` | The border that `render` draws comes from the gradient form of the border estimate (`DEC-28`) |
-| `UNV-14` | The border that `render --border-unit intrinsic` draws on a hyperbolic or spherical signature comes from the distance to a wall of Section 5.6 of `docs/design/geometry.md`, whose forms on the hyperboloid and on the sphere no source states as the code evaluates them |
-| `UNV-18` | The colouring `parity` of an all-reversing domain, which includes a domain whose sides are paired by glide reflections or rotary reflections, colours the tiles by the parity of the fold with `Fill::Parity`, and gives the bytes of the coset fill of `2a` (CLI-48) |
-| `UNV-35` | `info` counts and lists, and `render` resolves, only the colourings that `escher-group` finds valid by the condition on the side generators of GRP-42 of `docs/design/group.md`, so a colouring in which two tiles that share a side have the same colour reaches the user only if that condition is wrong |
-| `UNV-36` | The alias `parity` names `2a`, as the only valid colouring with 2 colours. If a domain had two, `parity` would name the first of them, and the second would keep its own id |
-| `UNV-37` | `info` prints the regular tiling line for `*pq2` and `pq2` with $p \ge q \ge 3$, as the Schlafli symbol `{p,q}` and that of its dual, `{q,p}`, which rests on these signatures naming the symmetry group and the rotation group of $\{p, q\}$ (Section 5.9). The line is computed from the signature alone, so no check of the domain tests it, and its tests pin only which signature gets which symbols. The help of `--wythoff` and Section 4.6 tell the user that `010` draws the first of the two symbols and `100` the second |
-| `UNV-47` to `UNV-50`, `UNV-54` to `UNV-56` | With several face types, `info --wythoff` lists, and `render --arrangement` resolves, the arrangements that `escher-group` finds with the union of the stabilizer words of every type, prints the number of pictures of each type as the index divided by twice the order of its corner, and prints the meetings between the types that `escher-render` reads from each table, and `render` draws the picture of each face that `escher-render` computes. No source states these statements, and the tests of the layer "Several face types" of Section 8.1 of `docs/design/render.md` check them |
-| `UNV-41` to `UNV-46`, `UNV-51` to `UNV-53` | `info --wythoff` lists, and `render --arrangement` resolves, the arrangements that `escher-group` finds with the stabilizer words of `escher-render`, as the subgroups that put one picture on every face of each of their orbits, prints the number of pictures as the index divided by twice the number of sides, and prints the edge pairing, within one picture and between pictures, that `escher-render` reads from each table. `render` draws the picture of each face that `escher-render` computes. These rest on statements that no source makes for subgroups with orientation-reversing elements, or at all for coset tables, which the tests of Section 8.1 of `docs/design/render.md` check, and the plain tests of Section 8.1 compare the counts with the Euclidean catalogue and with Yuncken's theorem |
-| `UNV-38`, `UNV-39`, `UNV-40` | `render --wythoff` draws the faces of the face rule, with the generator point and the face of each sample that `escher-render` computes. On a Euclidean or hyperbolic triangle these rest on statements that the sources make for the sphere only, or that only two shaders make, which the tests of Section 8.1 of `docs/design/render.md` check numerically. The table of the markings of `*732` in Section 4.6 takes its vertex configurations from Wikipedia |
+| Label | How this crate relies on it | Relied on in |
+| --- | --- | --- |
+| `UNV-1` | `render` relies on the fold to stop for the samples of an image of a reflection triangle, polygon, rectangle, or lune. `Unconverged samples` counts the samples for which it does not stop within the fold cap, which on the sphere can happen near a vertex of very high order | 4.5, 4.7 |
+| `UNV-2` | `render` relies on the fold to stop for the samples of an image of a rotation domain, a wallpaper domain, whose pairings include translations and glide reflections, or a spherical group domain, whose pairings include rotary reflections. `Unconverged samples` counts the samples for which it does not stop within the fold cap | 4.5, 4.7 |
+| `UNV-3` | A sample on or next to a wall can take either neighbouring tile, which is why CLI-28 masks the fold counts | 8.1 |
+| `UNV-4` | The default fold cap of `DEC-7` rests on fold counts that no source bounds | 4.6 |
+| `UNV-6` | `info` prints the parameters and the summary of a reflection polygon, and `render` draws it, from the construction of SymmHub's cuts that `escher-domain` builds. `build_with` returns only a polygon or a double that passes `verify()` (DOM-44 of `docs/design/domain.md`), and `info --check` reports the checks | 4.5, 5.1, 5.5 |
+| `UNV-7` | As for `UNV-6`, for the order of the cuts, which fixes what each parameter of a reflection polygon means | 4.5, 5.1, 5.5 |
+| `UNV-10` | `info` prints one `Parameter` line for each parameter that `escher-domain` specifies, such as one for `*2222` and two, `aspect` and `skew`, for `o` and `2222`. No source states whether the published parameter count of `*2222` includes the scale, so the lines list the parameters of the construction and claim no count | 5.1 |
+| `UNV-11` | `info` prints the summary of a wallpaper domain and of a spherical group domain, and `render` draws each, from constructions that no source states, as the rows of `UNV-33` and `UNV-34` describe | 4.5, 5.5 |
+| `UNV-13` | The image of `--model band` comes from the map from the band to the disk that only the code of SymmHub states (Section 7.6 of `docs/design/geometry.md`) | 4.6 |
+| `UNV-14` | The border that `render --border-unit intrinsic` draws on a hyperbolic or spherical signature comes from the distance to a wall of Section 5.6 of `docs/design/geometry.md`, whose forms on the hyperboloid and on the sphere no source states as the code evaluates them | 4.6 |
+| `UNV-15` | The border that `render` draws comes from the gradient form of the border estimate (`DEC-28`) | 4.5 |
+| `UNV-16` | The ball that `render` draws comes from the lift onto the ball and the Phong reflection model, whose primary paper is unread | 4.6 |
+| `UNV-17` | `info` lists the colourings as the colourings of the tiling, and `render` draws one by its coset fill, which rests on the coset colour of Section 5.12 of `docs/design/render.md`. `info` claims nothing about which colourings are perfect, and prints only the subgroups that the search finds. The code colours of the borders of the masks of `render-masks`, which group the edges that can meet, rest on the same reading and on the closure of the coset table that Section 5.19 of `docs/design/render.md` states and its Section 10 lists as unverified | 4.6, 4.8, 5.8 |
+| `UNV-18` | The colouring `parity` of an all-reversing domain, which includes a domain whose sides are paired by glide reflections or rotary reflections, colours the tiles by the parity of the fold with `Fill::Parity`, and gives the bytes of the coset fill of `2a` (CLI-48) | 4.6 |
+| `UNV-19` | The order lines of `--presentation` come from the coset enumeration of `escher-group`, and the colouring lines and the colourings of `render` from its low-index search, whose reliance on `UNV-19` Section 13 of `docs/design/group.md` states. A run that reaches the limit prints `not found` and claims nothing about the index (Section 5.7), and a search that stops at a limit claims nothing beyond its last complete colour count (CLI-47) | 4.6, 5.7, 5.8 |
+| `UNV-20` | `info` prints the canonical signature, with parentheses for orders of 10 or more and `(inf)` for an infinite order, and accepts both spellings of infinity and `1` as the trivial signature, whose domain has no side (CLI-53) | 5.1, 5.5 |
+| `UNV-21` | `info` prints the geometry and the area of a non-compact signature whose Euler characteristic is not 0, and prints no deformation dimension for a non-compact signature | 5.1 |
+| `UNV-22` | `info` prints the summary of a rotation domain, and `render` draws it as a fundamental domain of the rotation subgroup, which rests on the signature of that subgroup. `--presentation` prints the Conway presentation of a boundary without corners, such as that of `*`, in the reading that Section 5.2 of `docs/design/group.md` records (GRP-7) | 4.5, 5.5, 5.7 |
+| `UNV-26` | `info --check` reports the checks of the walls of the domain, which `escher-domain` builds through the formula of the wall through two points that `UNV-26` covers. The walls, relators, and angles checks test the result (Section 14 of `docs/design/domain.md`). The domain summary does not depend on the walls, because `escher-domain` measures it from the vertices | 5.6 |
+| `UNV-27` | As for `UNV-6`, for the default shape and the ranges of the parameters of a reflection polygon | 4.5, 5.1, 5.5 |
+| `UNV-28` | `info` prints the summary of a Euclidean triangle, and `render` draws it, from the vertex coordinates that `escher-domain` builds, whose checks and tests its design states | 4.5, 5.5 |
+| `UNV-29` | `info` prints the summary of a lune, and `render` draws it as a fundamental domain, which no source states. `info --check` reports the checks that test it | 4.5, 5.5 |
+| `UNV-30` | `info` prints the summary of a rotation domain built as the double of a lune, and `render` draws it as a fundamental domain of the rotation subgroup. `info --check` reports the checks that test each build | 4.5, 5.5 |
+| `UNV-31` | As for `UNV-30`, for the convexity and the vertex cycles of the double of a reflection polygon | 4.5, 5.5 |
+| `UNV-32` | `--presentation` prints the side presentation of a rotation domain, whose cycle relators as words are the reading of `docs/design/domain.md` (Section 5.4 of that document). The side order line compares the order that they present with the group order | 5.7 |
+| `UNV-33` | `info` prints the summary of a wallpaper domain, and `render` draws it as a fundamental domain of the group of its signature, which rests on constructions and pairings that no source states. `build_with` returns only a wallpaper domain that passes `verify()` (DOM-54 of `docs/design/domain.md`), and `info --check` reports the checks | 4.5, 5.5 |
+| `UNV-34` | `info` prints the summary of a spherical group domain, with the word `rotary reflection`, and `render` draws it as a fundamental domain of the group of its signature, which rests on domains and pairings that no source states. `build_with` returns every such domain except that of `*` only when it passes `verify()` (DOM-60 of `docs/design/domain.md`), the certificate of DOM-64 of that document checks each group, and `info --check` reports the checks. The order lines of `--presentation` compare the order of the side presentation with the group order, which cannot tell these groups from others of the same order (DOM-64 of `docs/design/domain.md`) | 4.5, 5.5, 5.7 |
+| `UNV-35` | `info` counts and lists, and `render` resolves, only the colourings that `escher-group` finds valid by the condition on the side generators of GRP-42 of `docs/design/group.md`, so a colouring in which two tiles that share a side have the same colour reaches the user only if that condition is wrong | 4.6, 5.8 |
+| `UNV-36` | The alias `parity` names `2a`, as the only valid colouring with 2 colours. If a domain had two, `parity` would name the first of them, and the second would keep its own id | 4.6 |
+| `UNV-37` | `info` prints the regular tiling line for `*pq2` and `pq2` with $p \ge q \ge 3$, as the Schlafli symbol `{p,q}` and that of its dual, `{q,p}`, which rests on these signatures naming the symmetry group and the rotation group of $\{p, q\}$ (Section 5.9). The line is computed from the signature alone, so no check of the domain tests it, and its tests pin only which signature gets which symbols. The help of `--wythoff` and Section 4.6 tell the user that `010` draws the first of the two symbols and `100` the second | 4.6, 5.9 |
+| `UNV-38` | `render --wythoff` draws the faces of the face rule, with the generator point and the face of each sample that `escher-render` computes. On a Euclidean or hyperbolic triangle these rest on statements that the sources make for the sphere only, or that only two shaders make, which the tests of Section 8.1 of `docs/design/render.md` check numerically. The table of the markings of `*732` in Section 4.6 takes its vertex configurations from Wikipedia | 4.6 |
+| `UNV-39` | As for `UNV-38`, for the face of each sample | 4.6 |
+| `UNV-40` | As for `UNV-38`, for the generator point | 4.6 |
+| `UNV-41` | `info --wythoff` lists, and `render --arrangement` resolves, the arrangements that `escher-group` finds with the stabilizer words of `escher-render`, as the subgroups that put one picture on every face of each of their orbits, prints the number of pictures as the index divided by twice the number of sides, and prints the edge pairing, within one picture and between pictures, that `escher-render` reads from each table. `render` draws the picture of each face that `escher-render` computes. These rest on statements that no source makes for subgroups with orientation-reversing elements, or at all for coset tables, which the tests of Section 8.1 of `docs/design/render.md` check, and the plain tests of Section 8.1 compare the counts with the Euclidean catalogue and with Yuncken's theorem | 4.6, 4.8, 5.10, 8.1 |
+| `UNV-42` | As for `UNV-41` | 4.6, 4.8, 5.10, 8.1 |
+| `UNV-43` | As for `UNV-41`, for the number of pictures | 4.6, 4.8, 5.10, 8.1 |
+| `UNV-44` | As for `UNV-41`, for the stabilizer words of a regular tiling | 4.6, 4.8, 5.10 |
+| `UNV-45` | As for `UNV-41`, for the edge pairing of one picture | 4.6, 4.8, 5.10 |
+| `UNV-46` | As for `UNV-41`, for the picture of each face | 4.6 |
+| `UNV-47` | With several face types, `info --wythoff` lists, and `render --arrangement` resolves, the arrangements that `escher-group` finds with the union of the stabilizer words of every type, prints the number of pictures of each type as the index divided by twice the order of its corner, and prints the meetings between the types that `escher-render` reads from each table, and `render` draws the picture of each face that `escher-render` computes. No source states these statements, and the tests of the layer "Several face types" of Section 8.1 of `docs/design/render.md` check them | 4.6, 4.8, 5.10 |
+| `UNV-48` | As for `UNV-47`, for the face of each type | 4.6, 4.8 |
+| `UNV-49` | As for `UNV-47`, for the arrangements that the union of the stabilizer words finds | 4.6, 5.10 |
+| `UNV-50` | As for `UNV-47`, for the number of pictures of each type | 4.6, 5.10 |
+| `UNV-51` | As for `UNV-41`, for the pictures of an arrangement with several pictures | 4.6, 4.8, 5.10, 8.1 |
+| `UNV-52` | As for `UNV-41`, for the meetings between pictures | 4.6, 4.8, 5.10 |
+| `UNV-53` | As for `UNV-41`, for the picture of each face with several pictures | 4.6 |
+| `UNV-54` | As for `UNV-47`, for the pictures of each type | 4.6, 4.8, 5.10 |
+| `UNV-55` | As for `UNV-47`, for the meetings between types | 4.6, 4.8, 5.10 |
+| `UNV-56` | As for `UNV-47`, for the picture of each face | 4.6 |
 
 ## 11. Assumptions, Choices, and Open Questions
 
@@ -1992,7 +2113,7 @@ The remaining topics of Section 3.2 of `docs/writing-documentation.md` apply as 
 - Files: `render` reads the file of each image item, at the path as given, with the permissions of the user, and nothing else (CLI-60). `info` reads and writes no file. `render` writes one file, the output file, with the permissions of the user, and only after rendering and encoding succeed (CLI-21). `render-masks` writes the mask files of CLI-58, or the face masks of CLI-69, CLI-71, and CLI-76, and no other file, in the directory of `--output`, only after every check has passed (CLI-59). Both replace an existing file without asking (`DEC-30`), follow a symbolic link at the path (Section 11.1), and create no directory. A caller who passes a path from an untrusted party therefore lets that party choose which file of the user `render` reads or overwrites, or which files `render-masks` overwrites, and checking the path is the caller's task.
 - Threads: `render` starts at most 256 threads, in a pool that ends with the call (CLI-22).
 - Build scripts: the crate has none.
-- Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under Section 8 of `docs/design/tooling.md`, for the dev-dependencies as well as the normal ones (Section 9.3). Only `insta` is a dev-dependency, and it never reaches the binary.
+- Dependencies: `Cargo.lock` fixes every version, and cargo-deny checks licences, advisories, duplicates, and sources under Section 8 of `docs/design/tooling.md`, for the dev-dependencies as well as the normal ones (Section 9.3). The dev-dependencies `insta`, `proptest`, and `escher-reference` never reach the binary.
 
 Attacks on the repository, the build machine, or the terminal itself are out of scope, because this document governs the crate and not access control or the terminal.
 
@@ -2145,3 +2266,5 @@ This table lists every labelled requirement of this document with a one-line sum
 | CLI-74 | 5.10 | With several face types, `info` searches the least index and each further multiple within 84 whose total of pictures is within the colour limit, stops after the first call that fails or is not complete, prints rows 36 to 38 in their forms, and leaves every regular listing as it was. |
 | CLI-75 | 4.6 | With several face types, `render` and `render-masks` resolve the id at its index or at the least index, read one item for each picture in the order of the picture names, write the masks by CLI-76, and refuse more than 12 pictures without `--colours`. A regular construction keeps every listing and diagnostic, every mask and image that RND-87 of `docs/design/render.md` keeps, and the limit of 64, except that an id whose number is from 65 to 84 is refused at step 4 with the error of `IndexLimit::new`. |
 | CLI-76 | 4.8 | With several face types, `render-masks` names the mask of each picture by the stem of `--output`, `-`, the picture name, and the extension, and writes the masks in the order of the picture names after every check, stopping at the first write that fails. |
+| CLI-77 | 8.3.3 | The property test renders every valid signature that it generates or lists, asserts success with a PNG file of 8 by 8 pixels for the set, and the diagnostic of an unsupported signature or of a limit, with no file, for every other one, as its own oracle decides. |
+| CLI-78 | 8.3.6 | The snapshots of `info` hold one snapshot for each class of the set and of refusal that Section 8.3.6 names. |

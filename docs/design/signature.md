@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Living document |
-| Date | 2026-11-22 |
+| Date | 2026-11-24 |
 | Applies to | `crates/escher-signature` |
 
 ## Abstract
@@ -642,13 +642,13 @@ These facts were verified on 2026-11-16 with `cargo deny check` and `just check`
 
 ## 14. Unverified Statements
 
-PLAN-3 of the plan requires this list. Each row names an unverified statement of Section 7 of the plan that the code relies on, and what the code does about it:
+PLAN-3 of the plan requires this list. Each row names an unverified statement of Section 7 of the plan that the code relies on, the sections of this document that rely on it, and what the code does about it:
 
-| Label | What the code relies on | What the code does |
-| --- | --- | --- |
-| `UNV-20` | The canonical string, parentheses for orders of 10 or more, the spellings `(inf)` and U+221E for an infinite order, and `1` on its own as the trivial signature | Implements the conventions of Sections 4 and 7 as project conventions. The tests check their internal consistency, which is idempotence, the round trip, and invariance, because no source exists to compare them with |
-| `UNV-21` | The geometry of a signature with an infinite order and $\chi \neq 0$ | Classifies it by the sign of $\chi$ when $\chi < 0$ (`DEC-10`), rejects it when $\chi > 0$ (Section 6), returns its area (Section 9.4), and returns no deformation dimension (Section 9.5) |
-| `UNV-10` | The deformation counts of Euclidean signatures | Avoids them. `deformation_dimension()` returns `None` for a Euclidean signature |
+| Label | What the code relies on | Relied on in | What the code does |
+| --- | --- | --- | --- |
+| `UNV-20` | The canonical string, parentheses for orders of 10 or more, the spellings `(inf)` and U+221E for an infinite order, and `1` on its own as the trivial signature | 4, 7, 7.4 | Implements the conventions of Sections 4 and 7 as project conventions. The tests check their internal consistency, which is idempotence, the round trip, and invariance, because no source exists to compare them with |
+| `UNV-21` | The geometry of a signature with an infinite order and $\chi \neq 0$ | 6, 9.1, 9.4, 9.5 | Classifies it by the sign of $\chi$ when $\chi < 0$ (`DEC-10`), rejects it when $\chi > 0$ (Section 6), returns its area (Section 9.4), and returns no deformation dimension (Section 9.5) |
+| `UNV-10` | The deformation counts of Euclidean signatures | 9.5 | Avoids them. `deformation_dimension()` returns `None` for a Euclidean signature |
 
 ## 15. Assumptions, Choices, and Points for the Owner
 

@@ -142,7 +142,7 @@ The owner set the order of the remaining work on 2026-11-22 and placed M23 and M
 | M25 | Whole-face fills with several pictures of one polygon | `info --wythoff` also lists the arrangements with several pictures, `render-masks --arrangement` writes one face mask for each picture, and `render --arrangement` takes one colour or image for each picture, such as for squares five to a vertex. No new option | `escher-render`, `escher-cli` | M24 |
 | M27 | Renders centred on a corner | `--centre` of `render`: the picture centred on a corner of the domain, given by its position in the order in which `info` prints the corners | `escher-render`, `escher-cli` | M11, M12, M22, M23, M24 |
 | M26 | Whole-face fills of tilings with several kinds of polygon | `info --wythoff`, `render-masks --arrangement`, and `render --arrangement` also on a Wythoff construction with two or three face types, with one arrangement for every kind and one or more pictures of each kind. No new option | `escher-group`, `escher-render`, `escher-cli` | M24, M25, RP-8 |
-| M19 | Completion audit | None | All six crates of the proof of concept | M11, M12, M13, M20, M21, M22, M23, M24, M25, M26, M27 |
+| M19 | Completion audit | None | `escher-cli`, `escher-group`, and `escher-render`, and the design documents of all six crates of the proof of concept | M11, M12, M13, M20, M21, M22, M23, M24, M25, M26, M27 |
 
 ## 4. Research Prerequisites
 
@@ -317,21 +317,46 @@ The owner moved this milestone to the roadmap (`DEC-64`). Section 4.1 of `docs/d
 
 **Goal.** Every signature of the set of Section 3.2 renders, and `escher render` refuses every other valid signature with a diagnostic.
 
-**Command line.** No new capability.
+**Command line.** No new capability. The property test runs commands of this form on each signature that it generates or lists:
 
-**Scope.** A property test that generates valid signatures up to a size bound. It renders each signature of the set of Section 3.2 at a small size without error. It checks that `render` refuses every other valid signature with a diagnostic and exit status 1, and a general non-compact signature as Section 5.8 of `docs/design/architecture.md` states. The snapshot corpus of `info`. The reconciled list of unverified statements across the design documents, without the statements that only the roadmap items M14 to M18 rely on. The final usage in `README.md`, and Project Status in `AGENTS.md`.
+```sh
+escher render '*(100)(100)(100)' --size 8x8 --samples 1 -o /tmp/audit/tiling.png
+```
 
-**Design documents.** Every crate design document, for the reconciled list of unverified statements.
+**Scope.** A property test in `escher-cli` that generates valid signatures with the signature strategies that it shares with the domain tests through `escher-reference`, decides the expected outcome of each with an oracle of its own that implements Section 4 of `docs/design/domain.md`, and runs `render` at 8 by 8 pixels. It asserts a PNG file for each signature of the set of Section 3.2, and for every other valid signature the diagnostic of an unsupported signature or of a limit with exit status 1 and no file, which covers the general non-compact signatures as Section 5.8 of `docs/design/architecture.md` states. A fixed list of signatures at the limits on their orders runs beside the generated ones. Section 8.3 of `docs/design/cli.md` states the generator, the oracle, the assertions (CLI-77), and the list.
+
+The snapshot corpus of `info`: one snapshot for each class of signature of the set and for each class of refusal, as CLI-78 of `docs/design/cli.md` names them. The code branch adds a snapshot for each class that has none.
+
+The reconciled list of unverified statements: each crate design document lists, one row per label, every row of Section 7 that its code relies on, with the sections that rely on it, and holds no evidence and no label that only the roadmap items M14 to M18 rely on (PLAN-3). The design branch makes this reconciliation.
+
+A finding of a review is in the scope of this milestone when it breaks a rule of the coding standard, of `AGENTS.md`, or of the writing guide, and the code branch fixes it. Every other finding stays outside the proof of concept, in the row of code cleanups of Section 4 of `docs/design/roadmap.md`. These findings break a rule:
+
+- A conversion of the form `try_from(..).unwrap_or(..)` outside test code whose failure an input, a caller, or the environment can cause. The fallback value turns that failure into a wrong result with no error, and ERR-5 of the coding standard requires an error for such a failure. Each such conversion returns the error of its crate instead. A conversion of this form whose failure no input, caller, or environment can cause breaks no rule. ERR-6 gives the accepted form of an `expect` at a site that cannot fail, but no rule requires that form in place of a fallback value, so such a conversion stays in the roadmap row.
+- CLI-68, CLI-74, and CLI-75 of `docs/design/cli.md`, with their rows of its Appendix A, and the row of RND-50 in Appendix A of `docs/design/render.md`, state their contracts by comparison with earlier milestones, such as "as `M24` printed them" and "as before the option", which Section 3.6 of the writing guide forbids. Each states its contract in terms of the current text and forms.
+- The sentence of the section Supported Signatures of `README.md` on rotation signatures of polygons with 8 orders that Escher refuses, which Table 1 of `docs/writing-readmes.md` does not allow in that section, so it breaks Hard Rule 2 of `AGENTS.md`. The code branch deletes it, because Section 4 of `docs/design/domain.md` holds the fact.
+
+The code branch also makes a documentation pass over three findings that break Section 3.6 of the writing guide, which keeps progress records, figures from prototypes, and measured values out of a design document. PLAN-3 states where such evidence belongs: in Section 7 of this plan, the research documents, and the tests. The pass covers these findings:
+
+- The prose of `docs/design/cli.md` outside its requirements that describes the design by its milestones or by what an earlier form did. Each such passage states the current design, with no milestone, step, or earlier form. The history of the repository holds what each milestone added.
+- The reasons of CLI-52 and CLI-54 of `docs/design/cli.md`, which quote timings from a prototype and from one debug run of `just test`. The timings go, and each requirement keeps its text with the reason in words: the search of the side presentation of these domains to 12 colours is fast in a debug build. The tests are the evidence, because nextest reports the time of each snapshot test on every run.
+- The list in Section 14 of `docs/design/domain.md` of the statements that rest on measurements of prototypes outside the repository. It records what was tried, with figures from prototypes in some items, and it sits in the list of unverified statements, which PLAN-3 keeps free of evidence for a statement. The list and the sentence that introduces it go, and nothing replaces them. The sentence states that each item supports only the choice that it names, so no item is a statement that the code relies on, and each choice stays as the section that the item cites states it. No row of Section 7, label, or range of labels changes.
+
+**Design documents.** Section 8.3, the module list and the layer table of Section 8.1, Sections 9.1, 10, and 12, and Appendix A of `cli.md`. The lists of unverified statements of `signature.md`, `geometry.md`, `domain.md`, `render.md`, and `cli.md`, and Sections 12.1 and 13 of `domain.md`. Sections 3.1 and 7.1 of `architecture.md`. The last sentence of GRP-47 of `group.md`. The row of code cleanups of Section 4 of `docs/design/roadmap.md`.
 
 **Sources.** None.
 
 **Unverified statements relied on.** None.
 
-**Tests and acceptance.** The property test of the scope passes, and every crate design document meets PLAN-3.
+**Tests and acceptance.** The property test of Section 8.3 of `docs/design/cli.md` passes with its fixed list (CLI-77), the snapshots of CLI-78 exist and pass, and every crate design document meets PLAN-3. Every other snapshot and golden image stays as it was.
 
-**Dependencies and `deny.toml` work.** None.
+**Dependencies and `deny.toml` work.** `proptest` and `escher-reference` as dev-dependencies of `escher-cli`, and `proptest` as a dependency of `escher-reference`, each from its existing entry of the workspace, so no crate enters `Cargo.lock`. `just check-deny` and `just check-unused-deps` confirm it.
 
-**Risks.** The audit exposes signatures of the set that the corpus missed, such as signatures at the limits on their orders.
+**Risks.** The audit exposes signatures of the set that the tests missed, such as signatures at the limits on their orders, among them the polygons with 7 or 8 corners of order 100 (item 41 of Section 15.3 of `docs/design/domain.md`). A fix that changes the set or adds a limit goes to the owner (`DEC-64`). Section 8.3.5 of `docs/design/cli.md` states which errors pass both the oracle and `escher-domain`.
+
+**Split.** Two branches, in this order:
+
+1. Design: the design documents above, with the reconciled lists of unverified statements.
+2. Code: the strategies `order` and `structured_text` and the helper `order_text`, moved from the integration-test binary of `escher-domain` into `escher-reference` with their bounds unchanged, and the property tests of `escher-domain` changed to use them from there, with the description in the manifest of `escher-reference` and its row in the crate table of `README.md` naming the strategies. The property test with its dev-dependencies and its regression file, the snapshots of CLI-78 that do not exist yet, the fixes of the findings of the scope, the documentation pass, the final usage in `README.md`, and Project Status in `AGENTS.md`.
 
 ### 5.20. M20: Valid Colourings
 
