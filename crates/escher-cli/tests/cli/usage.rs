@@ -526,6 +526,38 @@ fn render_unknown_border_unit_is_a_usage_error() {
 }
 
 #[test]
+fn render_centre_that_is_not_a_number_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render",
+        "*732",
+        "--centre",
+        "x",
+        "-o",
+        NEVER_WRITTEN
+    ]));
+}
+
+#[test]
+fn render_masks_centre_is_a_usage_error() {
+    insta::assert_snapshot!(snapshot(&[
+        "render-masks",
+        "*732",
+        "--centre",
+        "0",
+        "-o",
+        NEVER_WRITTEN
+    ]));
+}
+
+#[test]
+fn info_centre_returns_usage() {
+    assert_eq!(
+        run_args(&["info", "*732", "--centre", "0"]).status,
+        Status::Usage
+    );
+}
+
+#[test]
 fn render_repeated_rotation_option_is_a_usage_error() {
     insta::assert_snapshot!(snapshot(&[
         "render",

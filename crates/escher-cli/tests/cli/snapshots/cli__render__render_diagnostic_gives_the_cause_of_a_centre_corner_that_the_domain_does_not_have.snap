@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "refused_snapshot(\"centre_outside\", &[\"*732\", \"--centre\", \"3\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render *732
+  caused by: cannot build renderer: the corner 3 is not below the 3 corners of the domain
+--- end

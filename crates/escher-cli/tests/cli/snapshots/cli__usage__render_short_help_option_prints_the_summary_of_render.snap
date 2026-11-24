@@ -27,6 +27,7 @@ Options:
       --threads <N>                The number of threads, from 1 to 256. The default is the available parallelism, at most 256
       --stats                      Print statistics of the rendering to standard output
       --set <NAME=VALUE>           Set a shape parameter of the tiles, as NAME=VALUE, such as aspect=1.5, once for each parameter. --help lists the parameters, and info <SIGNATURE> prints those of a signature
+      --centre <N>                 Centre the picture on corner N of the fundamental domain, counted from 0 in the order of the angles on the line "Corner angles in degrees" that info prints, such as 0 for the corner of order 7 of *732. Without it, the picture is centred on the domain. --help gives an example
       --model <MODEL>              The model in which a hyperbolic tiling is drawn: the Poincare disk, the upper half-plane, the band, or the Klein disk [default: disk] [possible values: disk, half-plane, band, klein]
       --rotation <YAW,PITCH,ROLL>  The rotation of the ball of a spherical tiling, as three angles in degrees. YAW turns the front of the ball to the right, PITCH turns it up, and ROLL turns the image counterclockwise, in this order [default: 0,0,0]
       --light <X,Y,Z>              The direction from the ball of a spherical tiling to the light, as X,Y,Z, with X to the right, Y up, and Z toward the viewer. The length is ignored [default: -1,1,2]

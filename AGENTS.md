@@ -82,10 +82,10 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Project Status
 
-As of 2026-11-23, the tool `escher` has three commands:
+As of 2026-11-24, the tool `escher` has three commands:
 
 - `escher info` reports on a signature: its canonical form, geometry, Euler characteristic, classification, the Schlafli symbols of its regular tiling and of the dual where the signature has one, and, for a signature with a fundamental domain, its shape parameters, a summary of the domain, and the count of its valid colourings, those in which no two tiles that share a side have the same colour, with one for each conjugacy class. `--colourings` lists them by id, `--presentation` prints the group presentations, `--check` prints the verification of the domain, and `--wythoff` lists the arrangements of a regular tiling.
-- `escher render` writes the tiling of a domain to a PNG file: a hyperbolic domain in the Poincare disk, a Euclidean domain in the plane, and a spherical domain as a lit ball. `--model` draws a hyperbolic domain in the half-plane, the band, or the Klein disk instead, and `--border-unit intrinsic` measures the border width in the geometry of the tiling instead of in pixels. By default it draws the valid colouring with 2 colours where the domain has one, and one colour otherwise. It can instead draw a colouring given by its id, in default or user-given colours, and `--set` sets the shape parameters. `--colours` also accepts `image:FILE` items, which fill the tiles of their colour with a PNG image, such as a painted mask of that colour. On a reflection triangle, `--wythoff` draws the faces of the Wythoff construction that three digits select, one for each corner, with the borders on the edges of the faces and one colour for each face type. With `--arrangement`, it puts one whole picture on every polygon of a regular tiling, turned or mirrored as the arrangement says.
+- `escher render` writes the tiling of a domain to a PNG file: a hyperbolic domain in the Poincare disk, a Euclidean domain in the plane, and a spherical domain as a lit ball. `--model` draws a hyperbolic domain in the half-plane, the band, or the Klein disk instead, and `--border-unit intrinsic` measures the border width in the geometry of the tiling instead of in pixels. By default it draws the valid colouring with 2 colours where the domain has one, and one colour otherwise. It can instead draw a colouring given by its id, in default or user-given colours, and `--set` sets the shape parameters. `--colours` also accepts `image:FILE` items, which fill the tiles of their colour with a PNG image, such as a painted mask of that colour. On a reflection triangle, `--wythoff` draws the faces of the Wythoff construction that three digits select, one for each corner, with the borders on the edges of the faces and one colour for each face type. With `--arrangement`, it puts one whole picture on every polygon of a regular tiling, turned or mirrored as the arrangement says. `--centre N` centres the picture on corner N of the domain, counting from 0 in the order of the corner angles that `info` prints.
 - `escher render-masks` writes, for a signature and a colouring, one PNG mask for each colour: a flat polygon that stands for the tile, with a coloured border on each edge that shows which edges can meet. With `--wythoff` and `--arrangement`, it instead writes one mask: the polygon of a regular tiling, with borders that show how its edges meet in that arrangement.
 
 `info` and `render` support these signatures, with corner orders up to 100:
@@ -108,7 +108,7 @@ As of 2026-11-23, the tool `escher` has three commands:
 | `escher-render` | Renders the tiling of a domain per pixel and encodes it as PNG | `docs/design/render.md` |
 | `escher-reference` | Test support: the shared reference arithmetic of the accuracy tests | `docs/design/architecture.md` |
 
-Milestones `M1` to `M13` and `M20` to `M24` of `docs/design/poc-plan.md` are complete, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
+Milestones `M1` to `M13`, `M20` to `M24`, and `M27` of `docs/design/poc-plan.md` are complete, `M25` is in progress in the branches of Section 5.25 of that document, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
 
 What does not exist yet:
 

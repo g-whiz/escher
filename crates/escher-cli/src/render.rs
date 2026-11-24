@@ -97,7 +97,8 @@ pub(crate) fn render(args: &RenderArgs, stdout: &mut dyn Write) -> anyhow::Resul
     };
     let options_with =
         |fill| render_options(args, fill, border_colour, background).with_context(|| task.failed());
-    options_with(Fill::One(border_colour))?;
+    Renderer::new(&domain, options_with(Fill::One(border_colour))?)
+        .with_context(|| task.failed())?;
     let fill = match painting {
         Painting::Tiles {
             colouring,
@@ -191,7 +192,7 @@ fn render_options(
     background: Colour,
 ) -> escher_render::Result<RenderOptions> {
     let [yaw, pitch, roll] = args.rotation;
-    RenderOptions::builder(fill)
+    let builder = RenderOptions::builder(fill)
         .size(args.tiling.size.width, args.tiling.size.height)
         .samples(args.samples)
         .border_width(
@@ -208,8 +209,12 @@ fn render_options(
             ShadingChoice::Phong => Shading::Phong,
             ShadingChoice::Flat => Shading::Flat,
         })
-        .model(args.model.model())
-        .build()
+        .model(args.model.model());
+    match args.centre {
+        Some(corner) => builder.centre(corner),
+        None => builder,
+    }
+    .build()
 }
 
 fn shape_parameters(settings: &[Setting]) -> Result<ShapeParameters, String> {

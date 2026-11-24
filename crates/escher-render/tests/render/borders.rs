@@ -25,6 +25,8 @@ const EUCLIDEAN_SIZE: u32 = 193;
 
 const GRID_SIZE: u32 = 512;
 
+const CENTRED_SIZE: u32 = 193;
+
 const GRID_ASPECTS: [f64; 6] = [1.0, 4.0, 1.618, 0.125, 8.0, 0.3];
 
 const GRID_HALF_WIDTHS: [f64; 3] = [0.5, 0.75, 1.5];
@@ -707,4 +709,102 @@ fn intrinsic_border_of_each_pixel_of_a_euclidean_tiling_follows_the_reference_di
 #[test]
 fn intrinsic_border_of_each_pixel_of_a_ball_follows_the_reference_distance() {
     assert_intrinsic_border_at_each_pixel("*532", Picture::Ball);
+}
+
+fn centred_border_mask(
+    domain: &escher_domain::FundamentalDomain,
+    size: u32,
+    model: HyperbolicModel,
+    corner: u32,
+) -> Vec<bool> {
+    let options = options(
+        RenderOptions::builder(Fill::One(Colour::from_srgb8(70, 130, 180)))
+            .size(size, size)
+            .samples(1)
+            .model(model)
+            .shading(Shading::Flat)
+            .centre(corner),
+    );
+    let (pixels, _) = renderer(domain, options).render();
+    pixels
+        .as_chunks::<3>()
+        .0
+        .iter()
+        .map(|pixel| *pixel == Colour::BLACK.to_srgb8())
+        .collect()
+}
+
+fn assert_centred_borders_where_the_tile_changes(text: &str, model: HyperbolicModel, corner: u32) {
+    let domain = domain_with_settings(text, &[]);
+    let vertex =
+        domain.vertices()[usize::try_from(corner).expect("a u32 corner position fits in usize")];
+    let geometry = domain.geometry();
+    let size = CENTRED_SIZE;
+    let border = centred_border_mask(&domain, size, model, corner);
+    let map = MODEL_MAPS.iter().find(|map| map.model == model);
+    let mut tiles: Vec<Option<DVec3>> = Vec::new();
+    for row in 0..size {
+        for column in 0..size {
+            let tile = match geometry {
+                escher_signature::Geometry::Hyperbolic => map
+                    .map_or(Some(pixel_position(size, column, row)), |map| {
+                        (map.to_disk)(map.position(size, size, column, row)).map(|(disk, _)| disk)
+                    })
+                    .filter(|disk| disk.length() <= RADIUS)
+                    .and_then(from_disk)
+                    .and_then(|point| {
+                        tile_of(
+                            &domain,
+                            escher_geometry::hyperbolic::translation(vertex) * point,
+                            inverse,
+                        )
+                    }),
+                escher_signature::Geometry::Euclidean => {
+                    let position = plane_position(size, column, row);
+                    let point = DVec3::new(position.x, position.y, 1.0);
+                    tile_of(&domain, euclidean::translation(vertex) * point, |pairing| {
+                        pairing.inverse()
+                    })
+                }
+                escher_signature::Geometry::Spherical => {
+                    let position = pixel_position(size, column, row);
+                    (position.length() <= RADIUS)
+                        .then(|| {
+                            let height = (1.0 - position.length_squared()).sqrt();
+                            spherical::translation(vertex)
+                                * DVec3::new(position.x, position.y, height)
+                        })
+                        .and_then(|point| tile_of(&domain, point, spherical::inverse))
+                }
+            };
+            tiles.push(tile);
+        }
+    }
+    let name = format!("{text} in the {model:?} model centred on corner {corner}");
+    let pixels = usize::try_from(size).expect("an image side of 193 pixels fits in usize");
+    let (changes, borders) = compare_with_tiles(&name, &border, &tiles, pixels, |here, there| {
+        let measure = match geometry {
+            escher_signature::Geometry::Hyperbolic => distance,
+            escher_signature::Geometry::Euclidean => euclidean::distance,
+            escher_signature::Geometry::Spherical => spherical::distance,
+        };
+        measure(here, there) >= SAME_TILE
+    });
+    println!("{name}: {changes} pixels where the tile changes and {borders} border pixels");
+}
+
+#[test]
+fn centred_border_pixels_lie_where_the_tile_of_a_sample_changes() {
+    let cases = [
+        ("*732", HyperbolicModel::Disk, 0),
+        ("*732", HyperbolicModel::Disk, 1),
+        ("*732", HyperbolicModel::Disk, 2),
+        ("*732", HyperbolicModel::Klein, 1),
+        ("732", HyperbolicModel::Disk, 1),
+        ("*632", HyperbolicModel::Disk, 0),
+        ("*532", HyperbolicModel::Disk, 2),
+    ];
+    for (text, model, corner) in cases {
+        assert_centred_borders_where_the_tile_changes(text, model, corner);
+    }
 }

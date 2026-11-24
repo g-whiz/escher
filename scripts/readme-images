@@ -43,6 +43,7 @@ escher render-masks '*642' --colouring 4a -o mask.png
 escher render '*642' --colouring 4a --colours 'image:mask-0.png,image:mask-1.png,image:mask-2.png,image:mask-3.png' -o masked.png
 rm mask-1.png mask-2.png mask-3.png
 escher render '*732' --wythoff 010 -o heptagons.png
+escher render '*732' --wythoff 010 --centre 0 -o centred.png
 escher render '*632' --wythoff 111 -o dodecagons.png
 escher render-masks '*732' --wythoff 010 --arrangement 14a -o heptagon.png
 escher render '*732' --wythoff 010 --arrangement 14a --colours 'image:heptagon.png' -o heptagon-tiling.png

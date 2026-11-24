@@ -1,0 +1,11 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render\", \"*732\", \"--centre\", \"x\", \"-o\", NEVER_WRITTEN])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: invalid value 'x' for '--centre <N>': invalid digit found in string
+
+For more information, try '--help'.
+--- end

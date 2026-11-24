@@ -1496,6 +1496,101 @@ fn render_with_the_intrinsic_border_unit_and_no_width_draws_the_width_0_05() {
     assert_eq!(default, given);
 }
 
+#[test]
+fn render_diagnostic_gives_the_cause_of_a_centre_corner_that_the_domain_does_not_have() {
+    insta::assert_snapshot!(refused_snapshot(
+        "centre_outside",
+        &["*732", "--centre", "3"]
+    ));
+}
+
+#[test]
+fn render_diagnostic_says_the_domain_of_1_has_no_corner() {
+    insta::assert_snapshot!(refused_snapshot(
+        "centre_no_corner",
+        &["1", "--centre", "0"]
+    ));
+}
+
+#[test]
+fn render_centred_on_each_corner_writes_another_image_of_the_requested_size() {
+    let images: Vec<Vec<u8>> = [None, Some("0"), Some("1"), Some("2")]
+        .into_iter()
+        .map(|corner| {
+            let mut args = vec!["*732"];
+            args.extend(
+                corner
+                    .map(|corner| ["--centre", corner])
+                    .into_iter()
+                    .flatten(),
+            );
+            small_png(&format!("centre_each_{}", corner.unwrap_or("none")), &args)
+        })
+        .collect();
+    for (index, first) in images.iter().enumerate() {
+        for (other, second) in images.iter().enumerate().skip(index + 1) {
+            assert_ne!(first, second, "{index} {other}");
+        }
+    }
+}
+
+#[test]
+fn render_centred_writes_a_rotation_domain_a_euclidean_tiling_and_a_turned_ball() {
+    for (test, args) in [
+        ("centre_rotation", &["732", "--centre", "1"][..]),
+        ("centre_euclidean", &["*632", "--centre", "0"][..]),
+        (
+            "centre_ball",
+            &["*532", "--centre", "2", "--rotation", "20,35,0"][..],
+        ),
+    ] {
+        small_png(test, args);
+    }
+}
+
+#[test]
+fn render_centred_combines_with_a_model_wythoff_and_an_arrangement() {
+    let image = image_item("centre_arrangement", [0x20, 0x40, 0x80]);
+    for (test, args) in [
+        ("centre_band", vec!["--model", "band"]),
+        ("centre_wythoff", vec!["--wythoff", "010"]),
+        (
+            "centre_arrangement",
+            vec![
+                "--wythoff",
+                "010",
+                "--arrangement",
+                "14a",
+                "--colours",
+                &image,
+            ],
+        ),
+    ] {
+        let mut all = vec!["*732", "--centre", "0"];
+        all.extend(args);
+        small_png(test, &all);
+    }
+}
+
+#[test]
+fn render_with_a_colouring_id_reports_a_centre_corner_before_the_search() {
+    let outcome = run_args(&[
+        "render",
+        "*(12)(12)6",
+        "--colouring",
+        "12a",
+        "--centre",
+        "3",
+        "-o",
+        NEVER_WRITTEN,
+    ]);
+    assert_eq!(outcome.status, Status::Failure);
+    assert_eq!(
+        outcome.stderr,
+        "error: cannot render *(12)(12)6\n  caused by: cannot build renderer: the corner 3 is not below the 3 corners of the domain\n"
+    );
+}
+
 fn image_file(test: &str, name: &str) -> (PathBuf, String) {
     let output = output_path(test);
     let image = output.with_file_name(name);

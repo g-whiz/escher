@@ -54,6 +54,21 @@ Give the option once for each parameter, as in:
   escher render o --set aspect=2 --set skew=0.25 -o /tmp/torus.png
   escher render '*3333' --set slice1.length=2 -o /tmp/square.png";
 
+const CENTRE_HELP: &str = "Centre the picture on corner N of the fundamental domain, counted from 0 in the order of the angles on the line \"Corner angles in degrees\" that info prints, such as 0 for the corner of order 7 of *732. Without it, the picture is centred on the domain. --help gives an example";
+
+const CENTRE_LONG_HELP: &str = "Centre the picture on corner N of the fundamental domain. Without --centre, the picture is centred on the domain.
+
+The corners are numbered from 0, in the order of the angles that escher info <SIGNATURE> prints on its line \"Corner angles in degrees\", one number for each angle. For example, escher info '*732' prints
+
+Corner angles in degrees: 25.714286, 60.000000, 90.000000
+
+so 0 is the corner of order 7, whose angle is 180/7 degrees, 1 is the corner of order 3, and 2 is the corner of order 2. With --wythoff 010, which draws the heptagons of {7,3}, --centre 0 puts a heptagon at the centre, and --centre 1 a vertex where three heptagons meet:
+
+escher render '*732' --wythoff 010 --centre 0 -o /tmp/heptagon.png
+escher render '*732' --wythoff 010 --centre 1 -o /tmp/vertex.png
+
+Two corners can have the same order, as all three of *333 do, so the number names a corner, and not its order. A domain can have more corners than its signature has orders, such as the four corners of 732, and info prints an angle for each. A number at or above the number of angles is refused, and so is every number for 1, whose domain has no corner. Only the view moves: the tiling, its colours, and its borders stay the same.";
+
 #[derive(Debug, Parser)]
 #[command(
     bin_name = "escher",
@@ -248,8 +263,16 @@ pub(crate) struct RenderArgs {
     pub(crate) stats: bool,
     #[arg(
         long,
-        value_enum,
+        value_name = "N",
         display_order = SET_DISPLAY_ORDER + 1,
+        help = CENTRE_HELP,
+        long_help = CENTRE_LONG_HELP
+    )]
+    pub(crate) centre: Option<u32>,
+    #[arg(
+        long,
+        value_enum,
+        display_order = SET_DISPLAY_ORDER + 2,
         default_value_t = ModelChoice::Disk,
         help = "The model in which a hyperbolic tiling is drawn: the Poincare disk, the upper half-plane, the band, or the Klein disk"
     )]
@@ -257,7 +280,7 @@ pub(crate) struct RenderArgs {
     #[arg(
         long,
         value_name = "YAW,PITCH,ROLL",
-        display_order = SET_DISPLAY_ORDER + 2,
+        display_order = SET_DISPLAY_ORDER + 3,
         default_value = "0,0,0",
         value_parser = parse_triple,
         allow_hyphen_values = true,
@@ -267,7 +290,7 @@ pub(crate) struct RenderArgs {
     #[arg(
         long,
         value_name = "X,Y,Z",
-        display_order = SET_DISPLAY_ORDER + 3,
+        display_order = SET_DISPLAY_ORDER + 4,
         default_value = "-1,1,2",
         value_parser = parse_triple,
         allow_hyphen_values = true,
@@ -278,7 +301,7 @@ pub(crate) struct RenderArgs {
         long,
         value_enum,
         default_value_t = ShadingChoice::Phong,
-        display_order = SET_DISPLAY_ORDER + 4,
+        display_order = SET_DISPLAY_ORDER + 5,
         help = "Phong shading of the ball of a spherical tiling, or none"
     )]
     pub(crate) shading: ShadingChoice,
@@ -467,8 +490,9 @@ mod tests {
     use escher_render::{BorderUnit, HyperbolicModel};
 
     use super::{
-        BorderUnitChoice, Colouring, ModelChoice, SET_LONG_HELP, Setting, parse_arrangement,
-        parse_colouring, parse_max_colours, parse_setting, parse_triple, parse_wythoff,
+        BorderUnitChoice, CENTRE_LONG_HELP, Colouring, ModelChoice, SET_LONG_HELP, Setting,
+        parse_arrangement, parse_colouring, parse_max_colours, parse_setting, parse_triple,
+        parse_wythoff,
     };
 
     #[test]
@@ -605,6 +629,25 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn centre_long_help_quotes_the_corner_angles_that_info_prints_for_732() {
+        const LABEL: &str = "Corner angles in degrees: ";
+        let quoted: Vec<&str> = CENTRE_LONG_HELP
+            .lines()
+            .filter(|line| line.starts_with(LABEL))
+            .collect();
+        let mut stdout = Vec::new();
+        let status = crate::run(["escher", "info", "*732"], &mut stdout, &mut Vec::new());
+        assert_eq!(status, crate::Status::Success);
+        let printed = String::from_utf8(stdout).expect("the output of info is UTF-8");
+        let printed: Vec<&str> = printed
+            .lines()
+            .filter(|line| line.starts_with(LABEL))
+            .collect();
+        assert_eq!(printed.len(), 1);
+        assert_eq!(quoted, printed);
     }
 
     fn id(text: &str) -> Colouring {

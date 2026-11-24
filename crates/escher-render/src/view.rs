@@ -1,7 +1,7 @@
 use escher_geometry::hyperbolic::{
     disk_from_band, disk_from_half_plane, disk_from_klein, from_disk,
 };
-use escher_geometry::spherical;
+use escher_geometry::{euclidean, hyperbolic, spherical};
 use escher_signature::Geometry;
 use glam::{DMat2, DMat3, DVec2, DVec3};
 
@@ -20,6 +20,7 @@ enum Model {
     },
     Plane {
         pixel: f64,
+        placement: Option<DMat3>,
     },
     Ball {
         pixel: f64,
@@ -59,6 +60,7 @@ impl View {
             },
             Geometry::Euclidean => Model::Plane {
                 pixel: PLANE_SPAN / shorter,
+                placement: None,
             },
             Geometry::Spherical => Model::Ball {
                 pixel: disk,
@@ -77,9 +79,20 @@ impl View {
         }
     }
 
+    pub(crate) fn centred(mut self, corner: DVec3) -> Self {
+        match &mut self.model {
+            Model::Disk { placement, .. } => *placement = Some(hyperbolic::translation(corner)),
+            Model::Plane { placement, .. } => *placement = Some(euclidean::translation(corner)),
+            Model::Ball { turn, .. } => *turn = spherical::translation(corner) * *turn,
+        }
+        self
+    }
+
     pub(crate) fn position(&self, column: u32, row: u32, across: u32, down: u32) -> DVec2 {
         let pixel = match self.model {
-            Model::Disk { pixel, .. } | Model::Plane { pixel } | Model::Ball { pixel, .. } => pixel,
+            Model::Disk { pixel, .. } | Model::Plane { pixel, .. } | Model::Ball { pixel, .. } => {
+                pixel
+            }
         };
         let first = f64::from(column) + (f64::from(across) + 0.5) / self.grid;
         let second = f64::from(row) + (f64::from(down) + 0.5) / self.grid;
@@ -104,24 +117,23 @@ impl View {
                     HyperbolicModel::Band => through_model(disk_from_band(position)?, pixel)?,
                     HyperbolicModel::Klein => through_model(disk_from_klein(position)?, pixel)?,
                 };
-                let (point, tangents) = match placement {
-                    None => (point, carried),
-                    Some(placement) => (
-                        placement * point,
-                        carried.map(|tangent| placement * tangent),
-                    ),
-                };
+                let (point, tangents) = placed(placement, point, carried);
                 Some(Lift {
                     point,
                     tangents,
                     normal: None,
                 })
             }
-            Model::Plane { pixel } => Some(Lift {
-                point: DVec3::new(position.x, position.y, 1.0),
-                tangents: [DVec3::new(pixel, 0.0, 0.0), DVec3::new(0.0, pixel, 0.0)],
-                normal: None,
-            }),
+            Model::Plane { pixel, placement } => {
+                let point = DVec3::new(position.x, position.y, 1.0);
+                let carried = [DVec3::new(pixel, 0.0, 0.0), DVec3::new(0.0, pixel, 0.0)];
+                let (point, tangents) = placed(placement, point, carried);
+                Some(Lift {
+                    point,
+                    tangents,
+                    normal: None,
+                })
+            }
             Model::Ball { pixel, turn } => {
                 let (screen, carried) = lift(position, pixel)?;
                 Some(Lift {
@@ -131,6 +143,16 @@ impl View {
                 })
             }
         }
+    }
+}
+
+fn placed(placement: Option<DMat3>, point: DVec3, tangents: [DVec3; 2]) -> (DVec3, [DVec3; 2]) {
+    match placement {
+        None => (point, tangents),
+        Some(placement) => (
+            placement * point,
+            tangents.map(|tangent| placement * tangent),
+        ),
     }
 }
 
@@ -190,7 +212,9 @@ pub(crate) fn tangents(position: DVec2, pixel: f64) -> [DVec3; 2] {
 impl View {
     pub(crate) fn pixel(&self) -> f64 {
         match self.model {
-            Model::Disk { pixel, .. } | Model::Plane { pixel } | Model::Ball { pixel, .. } => pixel,
+            Model::Disk { pixel, .. } | Model::Plane { pixel, .. } | Model::Ball { pixel, .. } => {
+                pixel
+            }
         }
     }
 
@@ -219,7 +243,13 @@ impl View {
     }
 
     pub(crate) fn periodic(options: &RenderOptions, pixel: f64) -> Self {
-        Self::with_model(options, Model::Plane { pixel })
+        Self::with_model(
+            options,
+            Model::Plane {
+                pixel,
+                placement: None,
+            },
+        )
     }
 }
 
@@ -234,14 +264,15 @@ mod tests {
     use super::{Model, View, from_disk, lift, tangents, through_model, viewing_matrix};
     use crate::colour::{Colour, Fill};
     use crate::golden_images::{
-        ALLOWED_PIXELS, GOLDEN_GRID, GOLDEN_SIZE, MODEL_MAPS, PLAN_TRIPLES, TRANSLATION_TOLERANCE,
-        compare, domain_with_aspect, linear_table, renderer, shifted_pairs, translation,
+        ALLOWED_PIXELS, GOLDEN_COSET_FILL, GOLDEN_GRID, GOLDEN_SIZE, MODEL_MAPS, PLAN_TRIPLES,
+        TRANSLATION_TOLERANCE, compare, domain_with_aspect, linear_table, renderer, shifted_pairs,
+        translation, wythoff, wythoff_fill,
     };
     use crate::options::HyperbolicModel;
     use crate::options::RenderOptions;
     use crate::options::Shading;
-    use crate::reference::ReferenceExt;
-    use escher_reference::{Reference, Worst, difference, int, largest_magnitude, vector};
+    use crate::reference::{Measure, ReferenceExt};
+    use escher_reference::{Reference, Worst, apply, difference, int, largest_magnitude, vector};
 
     fn domain(text: &str) -> FundamentalDomain {
         let signature: Signature = match text.parse() {
@@ -397,7 +428,13 @@ mod tests {
             }
         );
         let plane = View::canonical(&options, Geometry::Euclidean);
-        assert_eq!(plane.model, Model::Plane { pixel: 8.0 / 256.0 });
+        assert_eq!(
+            plane.model,
+            Model::Plane {
+                pixel: 8.0 / 256.0,
+                placement: None
+            }
+        );
         let ball = View::canonical(&options, Geometry::Spherical);
         assert_eq!(
             ball.model,
@@ -1118,5 +1155,306 @@ mod tests {
                 );
             }
         }
+    }
+
+    const CENTRE_SIZE: u32 = 65;
+
+    const CENTRE_ROTATIONS: [[f64; 3]; 4] = [
+        [20.0, 35.0, 0.0],
+        [-50.0, 10.0, 30.0],
+        [70.0, -40.0, 200.0],
+        [0.0, 0.0, 90.0],
+    ];
+
+    const CORNER_BOUND: f64 = 1e-14;
+
+    const BETWEEN_BOUND: f64 = 1e-14;
+
+    const BETWEEN_FRACTIONS: [f64; 3] = [0.25, 0.5, 0.75];
+
+    fn centred_renderer(
+        domain: &FundamentalDomain,
+        corner: Option<usize>,
+        builder: crate::options::RenderOptionsBuilder,
+    ) -> crate::Renderer {
+        let builder = builder.size(CENTRE_SIZE, CENTRE_SIZE).samples(1);
+        renderer(
+            domain,
+            options(match corner {
+                None => builder,
+                Some(corner) => builder.centre(
+                    u32::try_from(corner).expect("a domain has fewer corners than u32 can count"),
+                ),
+            }),
+        )
+    }
+
+    fn corners(domain: &FundamentalDomain) -> std::ops::Range<usize> {
+        0..domain.vertices().len()
+    }
+
+    fn vertex(domain: &FundamentalDomain, corner: usize) -> DVec3 {
+        domain.vertices()[corner]
+    }
+
+    fn placed_point(view: &View, position: DVec2) -> DVec3 {
+        match view.point(position) {
+            Some(lift) => lift.point,
+            None => panic!("the position {position} lies outside the view"),
+        }
+    }
+
+    fn reference_distance(
+        reference: &mut Reference,
+        geometry: Geometry,
+        first: DVec3,
+        second: DVec3,
+    ) -> f64 {
+        let distance = Measure::of(geometry).distance(
+            reference,
+            &vector(first.to_array()),
+            &vector(second.to_array()),
+        );
+        reference.approximate(&distance)
+    }
+
+    fn centre_cases() -> Vec<(&'static str, HyperbolicModel)> {
+        let mut cases = Vec::new();
+        for text in ["*732", "732"] {
+            for model in [
+                HyperbolicModel::Disk,
+                HyperbolicModel::HalfPlane,
+                HyperbolicModel::Band,
+                HyperbolicModel::Klein,
+            ] {
+                cases.push((text, model));
+            }
+        }
+        cases.push(("*632", HyperbolicModel::Disk));
+        cases.push(("*532", HyperbolicModel::Disk));
+        cases
+    }
+
+    #[test]
+    fn centred_view_maps_the_centre_of_the_image_to_the_corner_of_each_position() {
+        let mut reference = Reference::new();
+        let mut largest: f64 = 0.0;
+        let mut checked = 0;
+        for (text, model) in centre_cases() {
+            let domain = domain(text);
+            for corner in corners(&domain) {
+                let renderer = centred_renderer(
+                    &domain,
+                    Some(corner),
+                    RenderOptions::builder(Fill::One(Colour::WHITE)).model(model),
+                );
+                let view = renderer.view();
+                let centre = CENTRE_SIZE / 2;
+                let position = view.position(centre, centre, 0, 0);
+                let found = placed_point(view, position);
+                let point = match MODEL_MAPS.iter().find(|map| map.model == model) {
+                    None => {
+                        assert_eq!(position, DVec2::ZERO, "{text} {model:?} {corner}");
+                        found
+                    }
+                    Some(map) => {
+                        let model_position = map.position(CENTRE_SIZE, CENTRE_SIZE, centre, centre);
+                        let Some(canonical) =
+                            (map.to_disk)(model_position).and_then(|(disk, _)| from_disk(disk))
+                        else {
+                            panic!("{text} {model:?}: {model_position:?} has no point");
+                        };
+                        let Model::Disk {
+                            placement: Some(placement),
+                            ..
+                        } = view.model
+                        else {
+                            panic!("{text} {model:?} {corner}: the view has no placement");
+                        };
+                        let expected = placement * canonical;
+                        assert_eq!(
+                            found, expected,
+                            "{text} {model:?} {corner}: the centre pixel at the model position {model_position:?}"
+                        );
+                        expected
+                    }
+                };
+                let distance = reference_distance(
+                    &mut reference,
+                    domain.geometry(),
+                    point,
+                    vertex(&domain, corner),
+                );
+                println!("{text} in the {model:?} model, corner {corner}: distance {distance:e}");
+                assert!(distance < CORNER_BOUND, "{text} {model:?} {corner}");
+                largest = largest.max(distance);
+                checked += 1;
+            }
+        }
+        println!("largest distance {largest:e} of {checked} corners, bound {CORNER_BOUND:e}");
+        assert_eq!(checked, (3 + 4) * 4 + 3 + 3);
+    }
+
+    #[test]
+    fn rotation_after_centring_turns_the_corner_to_where_the_canonical_view_shows_the_centre() {
+        let domain = domain("*532");
+        let mut reference = Reference::new();
+        let mut largest: f64 = 0.0;
+        for degrees in CENTRE_ROTATIONS {
+            let angles = radians(degrees);
+            let viewing = reference.viewing(angles);
+            let screen = apply(&viewing, &vector(domain.centre().to_array()));
+            assert!(screen[2].is_positive(), "{degrees:?}");
+            let position = DVec2::new(
+                reference.approximate(&screen[0]),
+                reference.approximate(&screen[1]),
+            );
+            for corner in corners(&domain) {
+                let [yaw, pitch, roll] = angles;
+                let renderer = centred_renderer(
+                    &domain,
+                    Some(corner),
+                    RenderOptions::builder(Fill::One(Colour::WHITE)).rotation(yaw, pitch, roll),
+                );
+                let point = placed_point(renderer.view(), position);
+                let distance = reference_distance(
+                    &mut reference,
+                    Geometry::Spherical,
+                    point,
+                    vertex(&domain, corner),
+                );
+                println!("*532 with rotation {degrees:?}, corner {corner}: angle {distance:e}");
+                assert!(distance < CORNER_BOUND, "{degrees:?} {corner}");
+                largest = largest.max(distance);
+            }
+        }
+        println!("largest angle {largest:e}, bound {CORNER_BOUND:e}");
+    }
+
+    #[test]
+    fn centred_view_shows_the_centre_of_the_domain_opposite_the_direction_of_the_corner() {
+        let mut reference = Reference::new();
+        let mut largest: f64 = 0.0;
+        for text in ["*732", "*632", "*532"] {
+            let domain = domain(text);
+            let geometry = domain.geometry();
+            let centre = domain.centre();
+            for corner in corners(&domain) {
+                let target = vertex(&domain, corner);
+                let offset = match geometry {
+                    Geometry::Hyperbolic => escher_geometry::hyperbolic::to_disk(target),
+                    Geometry::Euclidean => target.truncate(),
+                    Geometry::Spherical => target.truncate() / target.length(),
+                };
+                let renderer = centred_renderer(
+                    &domain,
+                    Some(corner),
+                    RenderOptions::builder(Fill::One(Colour::WHITE)),
+                );
+                for fraction in BETWEEN_FRACTIONS {
+                    let position = -fraction * offset;
+                    let point = placed_point(renderer.view(), position);
+                    let mut distance =
+                        |first, second| reference_distance(&mut reference, geometry, first, second);
+                    let to_corner = distance(target, point);
+                    let excess = to_corner + distance(point, centre) - distance(target, centre);
+                    println!(
+                        "{text}, corner {corner}, fraction {fraction}: excess {excess:e}, distance to the corner {to_corner}"
+                    );
+                    assert!(to_corner > 0.0, "{text} {corner} {fraction}");
+                    assert!(excess.abs() < BETWEEN_BOUND, "{text} {corner} {fraction}");
+                    largest = largest.max(excess.abs());
+                }
+            }
+        }
+        println!("largest excess {largest:e}, bound {BETWEEN_BOUND:e}");
+    }
+
+    #[test]
+    fn centre_pixel_of_a_centred_image_shows_the_border_of_the_corner() {
+        for text in ["*732", "732", "*632", "*532"] {
+            let domain = domain(text);
+            for corner in corners(&domain) {
+                let renderer = centred_renderer(
+                    &domain,
+                    Some(corner),
+                    RenderOptions::builder(Fill::One(Colour::WHITE)).shading(Shading::Flat),
+                );
+                let (pixels, _) = renderer.render();
+                let centre = usize::try_from(CENTRE_SIZE * (CENTRE_SIZE / 2) + CENTRE_SIZE / 2)
+                    .expect("the index of the centre pixel of a 65 by 65 image fits in usize");
+                assert_eq!(
+                    pixels.as_chunks::<3>().0[centre],
+                    Colour::BLACK.to_srgb8(),
+                    "{text} {corner}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn images_centred_on_each_corner_and_on_the_domain_differ_pairwise() {
+        let domain = domain("*732");
+        let images: Vec<Vec<u8>> = [None, Some(0), Some(1), Some(2)]
+            .into_iter()
+            .map(|corner| {
+                centred_renderer(
+                    &domain,
+                    corner,
+                    RenderOptions::builder(Fill::Parity([Colour::WHITE, Colour::BLACK])),
+                )
+                .render()
+                .0
+            })
+            .collect();
+        for (index, first) in images.iter().enumerate() {
+            for (other, second) in images.iter().enumerate().skip(index + 1) {
+                assert_ne!(first, second, "{index} {other}");
+            }
+        }
+    }
+
+    fn refusal(text: &str, corner: u32, fill: Fill) -> String {
+        let options = options(RenderOptions::builder(fill).centre(corner));
+        match crate::Renderer::new(&domain(text), options) {
+            Ok(_) => panic!("{text} accepts the corner {corner}"),
+            Err(error) => {
+                assert_eq!(error.kind(), crate::ErrorKind::InvalidOption);
+                error.to_string()
+            }
+        }
+    }
+
+    #[test]
+    fn renderer_refuses_a_corner_that_the_domain_does_not_have() {
+        let one = || Fill::One(Colour::WHITE);
+        assert_eq!(
+            refusal("*732", 3, one()),
+            "cannot build renderer: the corner 3 is not below the 3 corners of the domain"
+        );
+        assert_eq!(
+            refusal("*732", u32::MAX, one()),
+            "cannot build renderer: the corner 4294967295 is not below the 3 corners of the domain"
+        );
+        assert_eq!(
+            refusal("732", 4, one()),
+            "cannot build renderer: the corner 4 is not below the 4 corners of the domain"
+        );
+        for corner in [0, u32::MAX] {
+            assert_eq!(
+                refusal("1", corner, one()),
+                "cannot build renderer: the domain has no corner"
+            );
+        }
+        let other = Fill::Wythoff(wythoff_fill(
+            wythoff(&domain("*632"), [false, true, false]),
+            &GOLDEN_COSET_FILL,
+        ));
+        assert_eq!(
+            refusal("*732", 3, other),
+            "cannot build renderer: the corner 3 is not below the 3 corners of the domain"
+        );
+        let last = options(RenderOptions::builder(one()).centre(3));
+        assert!(crate::Renderer::new(&domain("732"), last).is_ok());
     }
 }

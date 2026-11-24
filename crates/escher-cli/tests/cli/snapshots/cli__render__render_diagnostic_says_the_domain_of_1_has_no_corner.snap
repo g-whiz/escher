@@ -1,0 +1,10 @@
+---
+source: crates/escher-cli/tests/cli/render.rs
+expression: "refused_snapshot(\"centre_no_corner\", &[\"1\", \"--centre\", \"0\"])"
+---
+status: Failure
+--- stdout
+--- stderr
+error: cannot render 1
+  caused by: cannot build renderer: the domain has no corner
+--- end

@@ -180,6 +180,14 @@ escher render '*732' --wythoff 010 -o heptagons.png
 
 ![Sand heptagons with black borders fill the Poincare disk, three at each vertex, and shrink toward its boundary circle.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/heptagons.png)
 
+Without `--centre`, the picture is centred on the fundamental domain. `--centre N` centres it on corner N of the domain instead. The corners are numbered from 0, in the order of the angles that `escher info` prints on its line `Corner angles in degrees`. For `*732`, corners 0, 1, and 2 have the orders 7, 3, and 2, so with `--wythoff 010`, `--centre 0` puts a heptagon at the centre, `--centre 1` a vertex where three heptagons meet, and `--centre 2` the middle of an edge. This command draws the heptagons above with one of them at the centre:
+
+```sh
+escher render '*732' --wythoff 010 --centre 0 -o centred.png
+```
+
+![Sand heptagons with black borders fill the Poincare disk, with one heptagon at its centre.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/centred.png)
+
 With more mirrors on, the tiling can have more than one face type. `--colours` gives one colour for each face type, in the order of the corners that have a face. This command turns on all three mirrors of `*632`:
 
 ```sh
@@ -211,7 +219,7 @@ escher render-masks '*732' --wythoff 010 --arrangement 14a -o heptagon.png
 
 ![A white heptagon on black, with a coloured border on each edge and a short black tick across the middle of the red edge at the left.](https://raw.githubusercontent.com/g-whiz/escher/main/docs/images/heptagon.png)
 
-Paint any picture over the mask in an image editor. Nothing inside the polygon has to be symmetric. Then pass the painted file to `escher render` as one `image:FILE` item. In an image drawn without `--model` or `--rotation`, the picture is the same way up as you painted it at the centre of one polygon, and the other polygons show it turned or mirrored as the arrangement says. This command passes the unpainted mask instead, so the borders and the tick show how the heptagons meet:
+Paint any picture over the mask in an image editor. Nothing inside the polygon has to be symmetric. Then pass the painted file to `escher render` as one `image:FILE` item. In an image drawn without `--model`, `--rotation`, or `--centre`, the picture is the same way up as you painted it at the centre of one polygon, and the other polygons show it turned or mirrored as the arrangement says. This command passes the unpainted mask instead, so the borders and the tick show how the heptagons meet:
 
 ```sh
 escher render '*732' --wythoff 010 --arrangement 14a --colours 'image:heptagon.png' -o heptagon-tiling.png

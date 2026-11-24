@@ -1,0 +1,15 @@
+---
+source: crates/escher-cli/tests/cli/usage.rs
+expression: "snapshot(&[\"render-masks\", \"*732\", \"--centre\", \"0\", \"-o\", NEVER_WRITTEN])"
+---
+status: Usage
+--- stdout
+--- stderr
+error: unexpected argument '--centre' found
+
+  tip: to pass '--centre' as a value, use '-- --centre'
+
+Usage: escher render-masks --output <FILE> <SIGNATURE>
+
+For more information, try '--help'.
+--- end

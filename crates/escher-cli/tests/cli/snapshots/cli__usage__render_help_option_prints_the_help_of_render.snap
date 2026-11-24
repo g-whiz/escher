@@ -1,6 +1,6 @@
 ---
 source: crates/escher-cli/tests/cli/usage.rs
-expression: trimmed
+expression: "long_help_snapshot(\"render\")"
 ---
 status: Success
 --- stdout
@@ -96,6 +96,20 @@ Options:
 
             escher render o --set aspect=2 --set skew=0.25 -o /tmp/torus.png
             escher render '*3333' --set slice1.length=2 -o /tmp/square.png
+
+      --centre <N>
+          Centre the picture on corner N of the fundamental domain. Without --centre, the picture is centred on the domain.
+
+          The corners are numbered from 0, in the order of the angles that escher info <SIGNATURE> prints on its line "Corner angles in degrees", one number for each angle. For example, escher info '*732' prints
+
+          Corner angles in degrees: 25.714286, 60.000000, 90.000000
+
+          so 0 is the corner of order 7, whose angle is 180/7 degrees, 1 is the corner of order 3, and 2 is the corner of order 2. With --wythoff 010, which draws the heptagons of {7,3}, --centre 0 puts a heptagon at the centre, and --centre 1 a vertex where three heptagons meet:
+
+          escher render '*732' --wythoff 010 --centre 0 -o /tmp/heptagon.png
+          escher render '*732' --wythoff 010 --centre 1 -o /tmp/vertex.png
+
+          Two corners can have the same order, as all three of *333 do, so the number names a corner, and not its order. A domain can have more corners than its signature has orders, such as the four corners of 732, and info prints an angle for each. A number at or above the number of angles is refused, and so is every number for 1, whose domain has no corner. Only the view moves: the tiling, its colours, and its borders stay the same.
 
       --model <MODEL>
           The model in which a hyperbolic tiling is drawn: the Poincare disk, the upper half-plane, the band, or the Klein disk

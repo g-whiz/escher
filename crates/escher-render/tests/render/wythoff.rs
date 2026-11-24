@@ -150,6 +150,7 @@ struct Scene {
     star_segments: Vec<((DVec3, DVec3), Option<DVec3>)>,
     altitudes: [f64; 3],
     covectors: [DVec3; 3],
+    centre: Option<(u32, DMat3)>,
 }
 
 fn approximate(reference: &mut Reference, value: &escher_reference::Vector) -> DVec3 {
@@ -215,7 +216,23 @@ impl Scene {
             star_segments,
             altitudes,
             covectors,
+            centre: None,
         })
+    }
+
+    fn centred(self, corner: u32) -> Self {
+        let vertex = self.domain.vertices()
+            [usize::try_from(corner).expect("a u32 corner position fits in usize")];
+        let placement = match self.space {
+            Space::Hyperbolic => hyperbolic::translation(vertex),
+            Space::Euclidean => euclidean::translation(vertex),
+            Space::Spherical => spherical::translation(vertex),
+        };
+        Self {
+            name: format!("{} centred on corner {corner}", self.name),
+            centre: Some((corner, placement)),
+            ..self
+        }
     }
 
     fn all(geometry: Geometry) -> Vec<Self> {
@@ -234,14 +251,16 @@ impl Scene {
     }
 
     fn render(&self, border: BorderUnit, width: f64) -> Vec<[u8; 3]> {
-        let options = options(
-            RenderOptions::builder(self.fill())
-                .size(SIZE, SIZE)
-                .samples(1)
-                .border_unit(border)
-                .border_width(width)
-                .shading(Shading::Flat),
-        );
+        let builder = RenderOptions::builder(self.fill())
+            .size(SIZE, SIZE)
+            .samples(1)
+            .border_unit(border)
+            .border_width(width)
+            .shading(Shading::Flat);
+        let options = options(match self.centre {
+            None => builder,
+            Some((corner, _)) => builder.centre(corner),
+        });
         let (pixels, _) = renderer(&self.domain, options).render();
         pixels.as_chunks::<3>().0.to_vec()
     }
@@ -258,6 +277,14 @@ impl Scene {
     }
 
     fn point(&self, position: DVec2) -> Option<DVec3> {
+        let point = self.screen_point(position)?;
+        Some(match self.centre {
+            None => point,
+            Some((_, placement)) => placement * point,
+        })
+    }
+
+    fn screen_point(&self, position: DVec2) -> Option<DVec3> {
         match self.space {
             Space::Euclidean => Some(position.extend(1.0)),
             Space::Hyperbolic => (position.length() <= RADIUS)
@@ -394,64 +421,73 @@ fn colour_of(face: usize) -> [u8; 3] {
 }
 
 fn assert_face_oracle(geometry: Geometry) {
-    let mut total = 0;
-    for scene in Scene::all(geometry) {
-        let samples = scene.samples();
-        let pixels = scene.render(BorderUnit::Pixels, 0.0);
-        let colours: Vec<[u8; 3]> = (0..scene.corners.len()).map(colour_of).collect();
-        let mut compared = 0;
-        for (sample, pixel) in samples.iter().zip(&pixels) {
-            let Some(sample) = sample else {
-                continue;
-            };
-            assert!(
-                colours.contains(pixel),
-                "{}: the colour {pixel:?}",
-                scene.name
-            );
-            if scene.far(sample) {
-                let Some(face) = sample.face else {
-                    panic!("{}: no face at {:?}", scene.name, sample.folded);
-                };
-                assert_eq!(
-                    *pixel,
-                    colour_of(face),
-                    "{}: at {:?}",
-                    scene.name,
-                    sample.folded
-                );
-                compared += 1;
-            }
-        }
-        let mut changes = 0;
-        for (first, second) in neighbours() {
-            let (Some(Some(here)), Some(Some(there))) = (samples.get(first), samples.get(second))
-            else {
-                continue;
-            };
-            if pixels[first] != pixels[second] {
-                changes += 1;
-                assert!(
-                    !(scene.far(here) && scene.far(there)),
-                    "{}: the colour changes between pixels {first} and {second}, farther than a pixel from every edge",
-                    scene.name
-                );
-            }
-        }
-        println!(
-            "{}: {compared} pixels farther than a pixel from every edge show the colour of their face, {changes} changes of colour lie within a pixel of an edge",
+    let total: usize = Scene::all(geometry).iter().map(assert_face_oracle_of).sum();
+    println!("{total} pixels compared with the face of the reference");
+}
+
+fn assert_face_oracle_of(scene: &Scene) -> usize {
+    let samples = scene.samples();
+    let pixels = scene.render(BorderUnit::Pixels, 0.0);
+    let colours: Vec<[u8; 3]> = (0..scene.corners.len()).map(colour_of).collect();
+    let mut compared = 0;
+    for (sample, pixel) in samples.iter().zip(&pixels) {
+        let Some(sample) = sample else {
+            continue;
+        };
+        assert!(
+            colours.contains(pixel),
+            "{}: the colour {pixel:?}",
             scene.name
         );
-        assert!(compared >= LEAST_COMPARED, "{}: {compared}", scene.name);
-        assert_eq!(changes > 0, scene.corners.len() > 1, "{}", scene.name);
-        total += compared;
+        if scene.far(sample) {
+            let Some(face) = sample.face else {
+                panic!("{}: no face at {:?}", scene.name, sample.folded);
+            };
+            assert_eq!(
+                *pixel,
+                colour_of(face),
+                "{}: at {:?}",
+                scene.name,
+                sample.folded
+            );
+            compared += 1;
+        }
     }
-    println!("{total} pixels compared with the face of the reference");
+    let mut changes = 0;
+    for (first, second) in neighbours() {
+        let (Some(Some(here)), Some(Some(there))) = (samples.get(first), samples.get(second))
+        else {
+            continue;
+        };
+        if pixels[first] != pixels[second] {
+            changes += 1;
+            assert!(
+                !(scene.far(here) && scene.far(there)),
+                "{}: the colour changes between pixels {first} and {second}, farther than a pixel from every edge",
+                scene.name
+            );
+        }
+    }
+    println!(
+        "{}: {compared} pixels farther than a pixel from every edge show the colour of their face, {changes} changes of colour lie within a pixel of an edge",
+        scene.name
+    );
+    assert!(compared >= LEAST_COMPARED, "{}: {compared}", scene.name);
+    assert_eq!(changes > 0, scene.corners.len() > 1, "{}", scene.name);
+    compared
 }
 
 #[test]
 fn face_oracle_on_hyperbolic_triangles() {
     assert_face_oracle(Geometry::Hyperbolic);
+}
+
+#[test]
+fn face_oracle_holds_on_the_heptagons_centred_on_a_heptagon() {
+    let Some(scene) = Scene::new("*732", [false, true, false]) else {
+        panic!("the heptagons of *732 have a face");
+    };
+    assert_face_oracle_of(&scene.centred(0));
 }
 
 #[test]

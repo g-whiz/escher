@@ -119,6 +119,20 @@ impl Error {
         }
     }
 
+    pub(crate) fn corner_outside(corner: u32, corners: usize) -> Self {
+        Self {
+            operation: RENDERER,
+            detail: Detail::CornerOutside { corner, corners },
+        }
+    }
+
+    pub(crate) fn no_corner() -> Self {
+        Self {
+            operation: RENDERER,
+            detail: Detail::NoCorner,
+        }
+    }
+
     pub(crate) fn no_mask_polygon() -> Self {
         Self {
             operation: RENDERER,
@@ -301,6 +315,8 @@ impl Error {
             | Detail::BrokenRelator(_)
             | Detail::ColourCount { .. }
             | Detail::OtherPresentation
+            | Detail::CornerOutside { .. }
+            | Detail::NoCorner
             | Detail::NoMaskPolygon
             | Detail::MaskColour { .. }
             | Detail::NotTriangle
@@ -358,6 +374,8 @@ impl core::error::Error for Error {
             | Detail::BrokenRelator(_)
             | Detail::ColourCount { .. }
             | Detail::OtherPresentation
+            | Detail::CornerOutside { .. }
+            | Detail::NoCorner
             | Detail::NoMaskPolygon
             | Detail::PartialRows { .. }
             | Detail::RowsOutside { .. }
@@ -397,8 +415,9 @@ pub enum ErrorKind {
     /// An option has a value that means nothing, such as an empty image, an
     /// empty sample grid, a negative or non-finite border width, a rotation
     /// angle that is not finite, a light direction that is zero or not
-    /// finite, a coset fill or polygon masks whose colouring does not fit the
-    /// domain, a coset fill whose paints do not fit the colouring, a coset
+    /// finite, a centre corner that the domain does not have, a coset fill or
+    /// polygon masks whose colouring does not fit the domain, a coset fill
+    /// whose paints do not fit the colouring, a coset
     /// fill used with a domain of another side presentation, polygon masks or
     /// an image fill for a domain without a mask polygon, a mask of a colour
     /// that the colouring does not have, a Wythoff construction on a domain
@@ -473,6 +492,13 @@ enum Detail {
     BrokenRelator(usize),
     #[error("the coset fill was built for a domain with another side presentation")]
     OtherPresentation,
+    #[error(
+        "the corner {corner} is not below the {} of the domain",
+        counted(*corners, "corner", "corners")
+    )]
+    CornerOutside { corner: u32, corners: usize },
+    #[error("the domain has no corner")]
+    NoCorner,
     #[error("the domain has no mask polygon")]
     NoMaskPolygon,
     #[error("the buffer of {length} bytes does not hold whole rows of {row} bytes")]
@@ -551,6 +577,7 @@ mod tests {
 
     fn errors() -> Vec<(Error, ErrorKind, &'static str)> {
         let mut errors = option_errors();
+        errors.extend(centre_errors());
         errors.extend(coset_errors());
         errors.extend(buffer_errors());
         errors.extend(mask_errors());
@@ -842,6 +869,26 @@ mod tests {
                 Error::light_direction(),
                 ErrorKind::InvalidOption,
                 "cannot build render options: the light direction is zero or not finite",
+            ),
+        ]
+    }
+
+    fn centre_errors() -> Vec<(Error, ErrorKind, &'static str)> {
+        vec![
+            (
+                Error::corner_outside(3, 3),
+                ErrorKind::InvalidOption,
+                "cannot build renderer: the corner 3 is not below the 3 corners of the domain",
+            ),
+            (
+                Error::corner_outside(4_294_967_295, 1),
+                ErrorKind::InvalidOption,
+                "cannot build renderer: the corner 4294967295 is not below the 1 corner of the domain",
+            ),
+            (
+                Error::no_corner(),
+                ErrorKind::InvalidOption,
+                "cannot build renderer: the domain has no corner",
             ),
         ]
     }

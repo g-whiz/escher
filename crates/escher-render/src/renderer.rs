@@ -135,6 +135,18 @@ impl Border {
     }
 }
 
+fn centre_corner(domain: &FundamentalDomain, position: u32) -> Result<DVec3> {
+    let vertices = domain.vertices();
+    if vertices.is_empty() {
+        return Err(Error::no_corner());
+    }
+    usize::try_from(position)
+        .ok()
+        .and_then(|index| vertices.get(index))
+        .copied()
+        .ok_or_else(|| Error::corner_outside(position, vertices.len()))
+}
+
 const fn wall_distance(geometry: Geometry) -> fn(DVec3, DVec3) -> f64 {
     match geometry {
         Geometry::Hyperbolic => hyperbolic::wall_distance,
@@ -170,7 +182,15 @@ impl Renderer {
     /// [`Fill::Wythoff`] or a [`Fill::WholeFace`] whose construction was
     /// built for a domain with other walls than this one. Every other fill
     /// gives no error.
+    ///
+    /// Before it checks the fill, it returns the same kind when the options
+    /// name a centre corner at or above the number of vertices of the domain,
+    /// and for every centre corner on a domain without a vertex.
     pub fn new(domain: &FundamentalDomain, options: RenderOptions) -> Result<Self> {
+        let corner = options
+            .centre
+            .map(|position| centre_corner(domain, position))
+            .transpose()?;
         if let Fill::Cosets(fill) = &options.fill
             && domain.side_presentation().ok().as_ref() != Some(fill.presentation())
         {
@@ -191,9 +211,14 @@ impl Renderer {
             Fill::One(_) | Fill::Parity(_) | Fill::Wythoff(_) | Fill::WholeFace(_) => None,
         };
         let walls = domain.sides().iter().map(|&side| Wall::new(side)).collect();
+        let renderer = Self::with_walls(walls, domain.geometry(), options);
         Ok(Self {
             textures,
-            ..Self::with_walls(walls, domain.geometry(), options)
+            view: match corner {
+                None => renderer.view,
+                Some(corner) => renderer.view.centred(corner),
+            },
+            ..renderer
         })
     }
 
@@ -553,6 +578,10 @@ impl Renderer {
     pub(crate) fn with_view(mut self, view: View) -> Self {
         self.view = view;
         self
+    }
+
+    pub(crate) fn view(&self) -> &View {
+        &self.view
     }
 }
 

@@ -144,6 +144,7 @@ pub struct RenderOptions {
     pub(crate) light: DVec3,
     pub(crate) shading: Shading,
     pub(crate) model: HyperbolicModel,
+    pub(crate) centre: Option<u32>,
     pub(crate) fill: Fill,
 }
 
@@ -155,7 +156,7 @@ impl RenderOptions {
     /// samples in each pixel, a border 1 wide in [`BorderUnit::Pixels`] in
     /// [`Colour::BLACK`], a [`Colour::WHITE`] background, a fold cap of 1500
     /// steps, no viewing rotation, a light in the direction `(-1, 1, 2)`,
-    /// [`Shading::Phong`], and [`HyperbolicModel::Disk`].
+    /// [`Shading::Phong`], [`HyperbolicModel::Disk`], and no centre corner.
     pub fn builder(fill: Fill) -> RenderOptionsBuilder {
         RenderOptionsBuilder {
             options: Self {
@@ -171,6 +172,7 @@ impl RenderOptions {
                 light: DEFAULT_LIGHT,
                 shading: Shading::Phong,
                 model: HyperbolicModel::Disk,
+                centre: None,
                 fill,
             },
         }
@@ -345,6 +347,26 @@ impl RenderOptionsBuilder {
         self
     }
 
+    /// Sets the centre corner, a vertex of the domain that the image shows at
+    /// its centre in place of the centre of the domain.
+    ///
+    /// The corner is the entry at position `corner`, counted from 0, of the
+    /// vertices of the domain, which is also the position of its angle among
+    /// the corner angles of the domain. The view moves the tiling so that the
+    /// corner shows where the view without a centre corner shows the centre of
+    /// the domain: at the centre of the image in every geometry and hyperbolic
+    /// model, and on the ball the viewing rotation then turns the centred ball.
+    /// The view adds no turn about the corner, and the tiling, its fill, and
+    /// its borders stay the same.
+    ///
+    /// Every position is accepted here, because the builder has no domain.
+    /// [`Renderer::new`](crate::Renderer::new) refuses a position that the
+    /// domain does not have.
+    pub fn centre(mut self, corner: u32) -> Self {
+        self.options.centre = Some(corner);
+        self
+    }
+
     /// Checks the options and returns them.
     ///
     /// The options are checked in the order size, sample grid, border width,
@@ -454,6 +476,7 @@ mod tests {
         assert_eq!(options.light, DVec3::new(-0.5, 0.5, 1.0) / length);
         assert_eq!(options.shading, Shading::Phong);
         assert_eq!(options.model, HyperbolicModel::Disk);
+        assert_eq!(options.centre, None);
         assert_eq!(options.fill, Fill::One(Colour::WHITE));
     }
 
@@ -563,6 +586,13 @@ mod tests {
             HyperbolicModel::Klein,
         ] {
             assert_eq!(accepted(builder().model(model)).model, model);
+        }
+    }
+
+    #[test]
+    fn centre_is_kept_for_every_position() {
+        for corner in [0, 1, 3, u32::MAX] {
+            assert_eq!(accepted(builder().centre(corner)).centre, Some(corner));
         }
     }
 
