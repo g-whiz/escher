@@ -2,7 +2,7 @@ use std::io;
 
 use escher_cli::{Status, run};
 use escher_domain::{Check, FundamentalDomain};
-use escher_group::{IndexLimit, SearchBudget, free_classes_of_index};
+use escher_group::{SearchBudget, free_classes_of_index};
 use escher_render::{EdgeMeeting, WholeFace, Wythoff};
 use escher_signature::Signature;
 
@@ -954,7 +954,7 @@ fn info_lists_exactly_the_arrangements_of_escher_group_with_the_edges_of_escher_
         let found = free_classes_of_index(
             face.presentation(),
             face.stabilizer(),
-            IndexLimit::new(face.index()).expect("the index is within the limit"),
+            face.index(),
             SearchBudget::DEFAULT,
         )
         .expect("the search runs");
@@ -1163,7 +1163,7 @@ fn info_lists_exactly_the_arrangements_of_each_number_of_pictures_of_escher_grou
             let found = free_classes_of_index(
                 face.presentation(),
                 face.stabilizer(),
-                IndexLimit::new(face.index() * pictures).expect("the index is within the limit"),
+                face.index() * pictures,
                 SearchBudget::DEFAULT,
             )
             .expect("the search runs");

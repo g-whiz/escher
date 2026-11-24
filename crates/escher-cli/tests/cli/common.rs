@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use escher_cli::{Status, run};
 use escher_domain::FundamentalDomain;
-use escher_group::{Colouring, IndexLimit, SearchBudget, free_classes_of_index};
+use escher_group::{Colouring, SearchBudget, free_classes_of_index};
 use escher_render::{WholeFace, Wythoff};
 use escher_signature::Signature;
 
@@ -170,7 +170,7 @@ pub(crate) fn regular_arrangement(
     let arrangement = free_classes_of_index(
         face.presentation(),
         face.stabilizer(),
-        IndexLimit::new(id.colours()).expect("the index is within the limit"),
+        id.colours(),
         SearchBudget::DEFAULT,
     )
     .expect("the search runs")

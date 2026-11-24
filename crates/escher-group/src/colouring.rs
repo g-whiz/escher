@@ -2,7 +2,7 @@ use core::fmt;
 use core::str::FromStr;
 
 use crate::error::{Detail, Error, Result};
-use crate::search::MAX_INDEX;
+use crate::search::{MAX_ARRANGEMENT_INDEX, MAX_INDEX};
 use crate::table::{CosetTable, index};
 use crate::word::Letter;
 
@@ -49,7 +49,8 @@ impl ColouringId {
         Self { colours, ordinal }
     }
 
-    /// Returns the colour count of the id, from 1 to 64.
+    /// Returns the colour count of the id, from 1 to 64 for a colouring id
+    /// and from 1 to 84 for an arrangement id.
     #[must_use]
     pub fn colours(self) -> u32 {
         self.colours
@@ -62,7 +63,40 @@ impl ColouringId {
         self.ordinal
     }
 
-    fn parse(text: &[u8]) -> Option<Self> {
+    /// Reads an arrangement id: an index from 1 to 84 in decimal without a
+    /// leading zero, followed by 1 to 4 lower-case letters and nothing else.
+    ///
+    /// An arrangement id names a colouring that
+    /// [`free_classes_of_index`](crate::free_classes_of_index) returns, whose
+    /// index can be above the largest colour count of a colouring id. The
+    /// [`FromStr`] implementation reads a colouring id, with a colour count
+    /// from 1 to 64.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use escher_group::ColouringId;
+    ///
+    /// let id = ColouringId::parse_arrangement("84b")?;
+    /// assert_eq!((id.colours(), id.ordinal()), (84, 2));
+    /// assert!(ColouringId::parse_arrangement("85a").is_err());
+    /// assert!("84b".parse::<ColouringId>().is_err());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] of kind
+    /// [`ErrorKind::InvalidColouringId`](crate::ErrorKind::InvalidColouringId)
+    /// for every other text, such as `0a`, `084a`, `85a`, `3A`, or `3a`
+    /// followed by a space. The error text holds none of the text that it
+    /// rejects.
+    pub fn parse_arrangement(text: &str) -> Result<Self> {
+        Self::parse(text.as_bytes(), MAX_ARRANGEMENT_INDEX)
+            .ok_or_else(|| Error::read_id(Detail::InvalidArrangementId))
+    }
+
+    fn parse(text: &[u8], max_colours: u32) -> Option<Self> {
         let digits = text.iter().take_while(|byte| byte.is_ascii_digit()).count();
         let (count, letters) = text.split_at(digits);
         let colours = match *count {
@@ -72,7 +106,7 @@ impl ColouringId {
             }
             _ => return None,
         };
-        if colours > MAX_INDEX
+        if colours > max_colours
             || !(1..=MAX_LETTERS).contains(&letters.len())
             || !letters.iter().all(u8::is_ascii_lowercase)
         {
@@ -122,7 +156,8 @@ impl FromStr for ColouringId {
     /// `3aaaaa`, or `3a` followed by a space. The error text holds none of
     /// the text that it rejects.
     fn from_str(text: &str) -> Result<Self> {
-        Self::parse(text.as_bytes()).ok_or_else(|| Error::read_id(Detail::InvalidColouringId))
+        Self::parse(text.as_bytes(), MAX_INDEX)
+            .ok_or_else(|| Error::read_id(Detail::InvalidColouringId))
     }
 }
 
@@ -586,6 +621,34 @@ mod tests {
         ] {
             let error = text.parse::<ColouringId>().expect_err(text);
             assert_eq!(error.kind(), ErrorKind::InvalidColouringId, "{text:?}");
+            assert_eq!(
+                error.to_string(),
+                "cannot read colouring id: the colouring id is not a colour count from 1 to 64 followed by 1 to 4 lower-case letters"
+            );
+        }
+    }
+
+    #[test]
+    fn arrangement_ids_reach_the_arrangement_index_limit() {
+        for (text, colours, ordinal) in [("1a", 1, 1), ("84a", 84, 1), ("84zzzz", 84, 475_254)] {
+            let id = ColouringId::parse_arrangement(text).expect(text);
+            assert_eq!((id.colours(), id.ordinal()), (colours, ordinal), "{text}");
+            assert_eq!(id.to_string(), text);
+        }
+        for text in ["0a", "084a", "85a", "3A", "3a "] {
+            let error = ColouringId::parse_arrangement(text).expect_err(text);
+            assert_eq!(
+                (error.kind(), error.to_string()),
+                (
+                    ErrorKind::InvalidColouringId,
+                    "cannot read colouring id: the arrangement id is not an index from 1 to 84 followed by 1 to 4 lower-case letters"
+                        .to_owned()
+                ),
+                "{text:?}"
+            );
+        }
+        for text in ["65a", "84a"] {
+            let error = text.parse::<ColouringId>().expect_err(text);
             assert_eq!(
                 error.to_string(),
                 "cannot read colouring id: the colouring id is not a colour count from 1 to 64 followed by 1 to 4 lower-case letters"

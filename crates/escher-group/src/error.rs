@@ -81,7 +81,9 @@ impl Error {
             Detail::LimitExceeded(_) => ErrorKind::LimitExceeded,
             Detail::CosetLimitReached(_) => ErrorKind::CosetLimitReached,
             Detail::UnsupportedSignature(_) => ErrorKind::UnsupportedSignature,
-            Detail::InvalidColouringId => ErrorKind::InvalidColouringId,
+            Detail::InvalidColouringId | Detail::InvalidArrangementId => {
+                ErrorKind::InvalidColouringId
+            }
         }
     }
 }
@@ -120,8 +122,10 @@ pub enum ErrorKind {
     /// their exponents, and 16777216 table entries, which is the coset limit
     /// times twice the number of generators. A coset limit is between 1 and
     /// [`CosetLimit::MAX`](crate::CosetLimit::MAX), an index limit between 1
-    /// and [`IndexLimit::MAX`](crate::IndexLimit::MAX), and a search budget
-    /// between 1 and [`SearchBudget::MAX`](crate::SearchBudget::MAX).
+    /// and [`IndexLimit::MAX`](crate::IndexLimit::MAX), the index of
+    /// [`free_classes_of_index`](crate::free_classes_of_index) between 1 and
+    /// 84, and a search budget between 1 and
+    /// [`SearchBudget::MAX`](crate::SearchBudget::MAX).
     LimitExceeded,
     /// The enumeration defined as many cosets as its limit allows and needed
     /// another.
@@ -132,7 +136,8 @@ pub enum ErrorKind {
     /// which the crate builds no presentation.
     UnsupportedSignature,
     /// A text is not a colouring id: a colour count from 1 to 64 in decimal
-    /// without a leading zero, followed by 1 to 4 lower-case letters.
+    /// without a leading zero, followed by 1 to 4 lower-case letters, or not
+    /// an arrangement id, the same text with an index from 1 to 84.
     InvalidColouringId,
 }
 
@@ -162,6 +167,10 @@ pub(crate) enum Detail {
         "the colouring id is not a colour count from 1 to 64 followed by 1 to 4 lower-case letters"
     )]
     InvalidColouringId,
+    #[error(
+        "the arrangement id is not an index from 1 to 84 followed by 1 to 4 lower-case letters"
+    )]
+    InvalidArrangementId,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -177,6 +186,7 @@ pub(crate) enum Limit {
     Cosets(u32),
     TableEntries { limit: u32, columns: usize },
     Index(u32),
+    ArrangementIndex(u32),
     Budget(u64),
 }
 
@@ -184,7 +194,7 @@ impl fmt::Display for Limit {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         use crate::enumerate::{MAX_EXPANDED, MAX_SUBGROUP_GENERATORS, MAX_TABLE_ENTRIES};
         use crate::presentation::{MAX_BASE, MAX_GENERATORS, MAX_RELATORS};
-        use crate::search::{MAX_INDEX, MAX_STEPS};
+        use crate::search::{MAX_ARRANGEMENT_INDEX, MAX_INDEX, MAX_STEPS};
         use crate::table::MAX_COSETS;
         match *self {
             Self::BaseLetters => write!(
@@ -234,6 +244,10 @@ impl fmt::Display for Limit {
             Self::Index(index) => write!(
                 formatter,
                 "the index limit {index} is not between 1 and {MAX_INDEX}"
+            ),
+            Self::ArrangementIndex(index) => write!(
+                formatter,
+                "the arrangement index {index} is not between 1 and {MAX_ARRANGEMENT_INDEX}"
             ),
             Self::Budget(steps) => write!(
                 formatter,
@@ -376,6 +390,16 @@ mod tests {
                 Error::read_id(Detail::InvalidColouringId),
                 ErrorKind::InvalidColouringId,
                 "cannot read colouring id: the colouring id is not a colour count from 1 to 64 followed by 1 to 4 lower-case letters",
+            ),
+            (
+                Error::search(Detail::LimitExceeded(Limit::ArrangementIndex(85))),
+                ErrorKind::LimitExceeded,
+                "cannot search subgroups: the arrangement index 85 is not between 1 and 84",
+            ),
+            (
+                Error::read_id(Detail::InvalidArrangementId),
+                ErrorKind::InvalidColouringId,
+                "cannot read colouring id: the arrangement id is not an index from 1 to 84 followed by 1 to 4 lower-case letters",
             ),
         ]
     }

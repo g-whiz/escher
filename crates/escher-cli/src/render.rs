@@ -418,6 +418,7 @@ fn whole_face_painting(
 ) -> anyhow::Result<Painting> {
     refuse_colouring(task, args.tiling.colouring)?;
     let face = Box::new(whole_face(domain, marks).with_context(|| task.failed())?);
+    refuse_index_above_limit(task, id)?;
     let items = picture_items(id, pictures(&face, id), args.colours.as_deref())
         .map_err(|detail| cannot_render(task, detail))?;
     let paints = match read_paints(task, items)? {
@@ -434,6 +435,11 @@ pub(crate) fn whole_face(
     WholeFace::new(domain, Wythoff::new(domain, marks)?)
 }
 
+pub(crate) fn refuse_index_above_limit(task: Task<'_>, id: ColouringId) -> anyhow::Result<()> {
+    IndexLimit::new(id.colours()).with_context(|| task.failed())?;
+    Ok(())
+}
+
 pub(crate) fn pictures(face: &WholeFace, id: ColouringId) -> u32 {
     if id.colours().is_multiple_of(face.index()) {
         id.colours() / face.index()
@@ -448,7 +454,7 @@ pub(crate) fn arrangements(
     budget: SearchBudget,
 ) -> escher_group::Result<ColouringsOfIndex> {
     let index = IndexLimit::new(face.index() * pictures)?;
-    free_classes_of_index(face.presentation(), face.stabilizer(), index, budget)
+    free_classes_of_index(face.presentation(), face.stabilizer(), index.get(), budget)
 }
 
 pub(crate) fn arrangement(
@@ -1656,7 +1662,7 @@ mod tests {
         let found = escher_group::free_classes_of_index(
             face.presentation(),
             &[identity],
-            escher_group::IndexLimit::new(face.index()).expect("the index is within the limit"),
+            face.index(),
             SearchBudget::DEFAULT,
         )
         .expect("the search runs");

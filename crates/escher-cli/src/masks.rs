@@ -9,7 +9,8 @@ use escher_signature::Signature;
 use crate::args::MasksArgs;
 use crate::render::{
     ARRANGEMENT_NEEDS_WYTHOFF, Task, arrangement, build_domain, cannot_render, chosen_colouring,
-    coset_colouring, parse_signature, pictures, refuse_colouring, whole_face,
+    coset_colouring, parse_signature, pictures, refuse_colouring, refuse_index_above_limit,
+    whole_face,
 };
 
 const NO_FILE: &str = "the output path names no file";
@@ -61,6 +62,7 @@ fn render_face_mask(
         .arrangement
         .ok_or_else(|| cannot_render(task, "--wythoff needs --arrangement"))?;
     let face = whole_face(&domain, marks).with_context(|| task.failed())?;
+    refuse_index_above_limit(task, id)?;
     let count = pictures(&face, id);
     let names = if count == 1 {
         None

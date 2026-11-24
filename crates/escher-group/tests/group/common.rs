@@ -101,16 +101,37 @@ pub(crate) fn coxeter(p: u32, q: u32, r: u32) -> Presentation {
 }
 
 pub(crate) fn corner_stabilizer(order: u32) -> Vec<Word> {
-    let [s0, s1] = [0, 1].map(Letter::generator);
-    let rotation = |turns: u32| (0..turns).flat_map(move |_| [s0, s1]);
+    dihedral_stabilizer(0, 1, order)
+}
+
+pub(crate) fn dihedral_stabilizer(centre: u8, vertex: u8, order: u32) -> Vec<Word> {
+    let [centre, vertex] = [centre, vertex].map(Letter::generator);
+    let rotation = |turns: u32| (0..turns).flat_map(move |_| [centre, vertex]);
     (0..order)
         .flat_map(|turns| {
             [
                 rotation(turns).collect::<Word>(),
-                rotation(turns).chain([s0]).collect(),
+                rotation(turns).chain([centre]).collect(),
             ]
         })
         .skip(1)
+        .collect()
+}
+
+pub(crate) fn face_stabilizers(orders: [u32; 3], marks: [bool; 3]) -> Vec<Word> {
+    let active = |side: u8| marks[usize::from((side + 1) % 3)];
+    (0_u8..3)
+        .flat_map(|corner| {
+            let order = orders[usize::from(corner)];
+            let sides = [corner, (corner + 1) % 3];
+            match sides.map(active) {
+                [true, true] => dihedral_stabilizer(sides[1], sides[0], order),
+                [false, false] => Vec::new(),
+                _ if order == 2 => Vec::new(),
+                [true, false] => dihedral_stabilizer(sides[0], sides[1], order),
+                [false, true] => dihedral_stabilizer(sides[1], sides[0], order),
+            }
+        })
         .collect()
 }
 

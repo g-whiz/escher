@@ -8,7 +8,7 @@ use escher_group::{
 
 use crate::common::{
     Expected, SEARCH_BUDGET, SEARCH_FIXTURES, SearchFixture, Table, budget, conway,
-    corner_stabilizer, coxeter, index_limit, presentation, word,
+    corner_stabilizer, coxeter, face_stabilizers, index_limit, presentation, word,
 };
 
 pub(crate) fn listing(presentation: &Presentation, limit: u32) -> Colourings {
@@ -811,7 +811,7 @@ pub(crate) fn free_filter_laws(
     colours: u32,
     steps: u64,
 ) -> Result<Option<usize>, String> {
-    let free = free_classes_of_index(presentation, words, index_limit(colours), budget(steps))
+    let free = free_classes_of_index(presentation, words, colours, budget(steps))
         .map_err(|error| error.to_string())?;
     let all = colourings_of_index(
         presentation,
@@ -876,5 +876,19 @@ fn the_free_filter_keeps_the_class_tables_whose_corner_stabilizer_fixes_no_coset
             SEARCH_BUDGET,
         );
         assert_eq!(found, Ok(Some(kept)), "*{p}{q}2");
+    }
+}
+
+#[test]
+fn the_free_filter_reads_the_union_of_the_words_of_several_face_types() {
+    for (label, orders, index, kept) in [("*442", [4, 4, 2], 8, 3), ("*632", [6, 3, 2], 12, 3)] {
+        let [p, q, r] = orders;
+        let found = free_filter_laws(
+            &coxeter(p, q, r),
+            &face_stabilizers(orders, [true; 3]),
+            index,
+            SEARCH_BUDGET,
+        );
+        assert_eq!(found, Ok(Some(kept)), "{label}");
     }
 }

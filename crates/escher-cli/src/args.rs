@@ -442,7 +442,7 @@ fn parse_wythoff(text: &str) -> Result<[bool; 3], &'static str> {
 }
 
 fn parse_arrangement(text: &str) -> Result<ColouringId, &'static str> {
-    text.parse()
+    ColouringId::parse_arrangement(text)
         .ok()
         .ok_or("expected an arrangement id such as 12a")
 }
@@ -785,7 +785,7 @@ mod tests {
 
     #[test]
     fn parse_arrangement_reads_the_ids_of_escher_group_only() {
-        for text in ["6a", "12a", "14c", "64zzzz"] {
+        for text in ["6a", "12a", "14c", "64zzzz", "65a", "84zzzz"] {
             assert_eq!(
                 parse_arrangement(text).map(|id| id.to_string()),
                 Ok(text.to_owned()),
@@ -793,7 +793,7 @@ mod tests {
             );
         }
         for text in [
-            "12A", "12", "012a", "65a", "a", "", " 12a", "12a ", "one", "parity",
+            "12A", "12", "012a", "85a", "a", "", " 12a", "12a ", "one", "parity",
         ] {
             assert_eq!(
                 parse_arrangement(text),

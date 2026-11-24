@@ -108,7 +108,7 @@ As of 2026-11-24, the tool `escher` has three commands:
 | `escher-render` | Renders the tiling of a domain per pixel and encodes it as PNG | `docs/design/render.md` |
 | `escher-reference` | Test support: the shared reference arithmetic of the accuracy tests | `docs/design/architecture.md` |
 
-Milestones `M1` to `M13`, `M20` to `M25`, and `M27` of `docs/design/poc-plan.md` are complete, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
+Milestones `M1` to `M13`, `M20` to `M25`, and `M27` of `docs/design/poc-plan.md` are complete, `M26` is in progress in the branches of Section 5.26 of that document, and no other milestone has started. Section 3.4 of that document gives the order of the rest.
 
 What does not exist yet:
 

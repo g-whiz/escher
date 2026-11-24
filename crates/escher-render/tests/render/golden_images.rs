@@ -1110,12 +1110,10 @@ pub(crate) fn arrangements(face: &WholeFace) -> Vec<Colouring> {
 
 pub(crate) fn arrangements_with(face: &WholeFace, pictures: u32) -> Vec<Colouring> {
     let index = pictures * face.index();
-    let colours = IndexLimit::new(index)
-        .unwrap_or_else(|error| panic!("the index {index} is too large: {error}"));
     let found = free_classes_of_index(
         face.presentation(),
         face.stabilizer(),
-        colours,
+        index,
         SearchBudget::DEFAULT,
     )
     .unwrap_or_else(|error| panic!("the search of the arrangements fails: {error}"));

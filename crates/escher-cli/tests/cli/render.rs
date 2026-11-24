@@ -12,7 +12,8 @@ use escher_signature::Signature;
 
 use crate::common::{
     FailingWriter, NEVER_WRITTEN, PNG_SIGNATURE, assert_png_bytes, failure_with_no_file_change,
-    output_path, path_text, regular_arrangement, run_args, snapshot, write_image,
+    failure_with_no_mask_change, output_path, path_text, regular_arrangement, run_args, snapshot,
+    write_image,
 };
 
 fn render_snapshot(test: &str, args: &[&str]) -> String {
@@ -2185,4 +2186,33 @@ fn render_diagnostic_says_the_tiling_has_no_arrangement_with_2_pictures() {
         "arrangement_none_of_two_pictures",
         &["*732", "--wythoff", "100", "--arrangement", "12a"]
     ));
+}
+
+#[test]
+fn an_arrangement_id_above_the_index_limit_on_a_regular_tiling_fails_before_its_colours_are_read() {
+    let without: &[&str] = &[];
+    let with = &["--colours", "#000"][..];
+    for (command, task, extras) in [
+        ("render", "*732", &[without, with][..]),
+        ("render-masks", "the masks of *732", &[without][..]),
+    ] {
+        for (id, index) in [("70a", 70), ("66a", 66)] {
+            for (number, extra) in extras.iter().enumerate() {
+                let mut args = vec!["*732", "--wythoff", "010", "--arrangement", id];
+                args.extend_from_slice(extra);
+                assert_eq!(
+                    failure_with_no_mask_change(
+                        command,
+                        &format!("index_above_limit_{command}_{id}_{number}"),
+                        &args,
+                        5
+                    ),
+                    format!(
+                        "error: cannot render {task}\n  caused by: cannot search subgroups: the index limit {index} is not between 1 and 64\n"
+                    ),
+                    "{args:?}"
+                );
+            }
+        }
+    }
 }

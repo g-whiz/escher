@@ -75,7 +75,7 @@ const VERTEX_MIRROR: usize = 1;
 ///
 /// ```
 /// use escher_domain::FundamentalDomain;
-/// use escher_group::{IndexLimit, SearchBudget, free_classes_of_index};
+/// use escher_group::{SearchBudget, free_classes_of_index};
 /// use escher_render::{WholeFace, Wythoff};
 /// use escher_signature::Signature;
 ///
@@ -86,7 +86,7 @@ const VERTEX_MIRROR: usize = 1;
 /// let found = free_classes_of_index(
 ///     hexagons.presentation(),
 ///     hexagons.stabilizer(),
-///     IndexLimit::new(2 * hexagons.index())?,
+///     2 * hexagons.index(),
 ///     SearchBudget::DEFAULT,
 /// )?;
 /// let first = found.list().first().ok_or("no arrangement")?;
@@ -129,7 +129,7 @@ pub struct WholeFace {
 ///
 /// ```
 /// use escher_domain::FundamentalDomain;
-/// use escher_group::{IndexLimit, SearchBudget, free_classes_of_index};
+/// use escher_group::{SearchBudget, free_classes_of_index};
 /// use escher_render::{WholeFace, Wythoff};
 /// use escher_signature::Signature;
 ///
@@ -138,7 +138,7 @@ pub struct WholeFace {
 /// let found = free_classes_of_index(
 ///     squares.presentation(),
 ///     squares.stabilizer(),
-///     IndexLimit::new(2 * squares.index())?,
+///     2 * squares.index(),
 ///     SearchBudget::DEFAULT,
 /// )?;
 /// for arrangement in found.list() {
@@ -635,7 +635,7 @@ pub(crate) fn face_mask_styles(edges: &[EdgeMeeting], order: usize) -> Vec<EdgeS
 ///
 /// ```
 /// use escher_domain::FundamentalDomain;
-/// use escher_group::{IndexLimit, SearchBudget, free_classes_of_index};
+/// use escher_group::{SearchBudget, free_classes_of_index};
 /// use escher_render::{Colour, Fill, Paint, RenderOptions, Renderer, WholeFace, WholeFaceFill, Wythoff};
 /// use escher_signature::Signature;
 ///
@@ -644,7 +644,7 @@ pub(crate) fn face_mask_styles(edges: &[EdgeMeeting], order: usize) -> Vec<EdgeS
 /// let found = free_classes_of_index(
 ///     triangles.presentation(),
 ///     triangles.stabilizer(),
-///     IndexLimit::new(3 * triangles.index())?,
+///     3 * triangles.index(),
 ///     SearchBudget::DEFAULT,
 /// )?;
 /// let arrangement = found.list().first().ok_or("no arrangement")?.clone();

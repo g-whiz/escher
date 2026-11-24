@@ -632,15 +632,16 @@ The design branch settled the rest as proposals, and the owner has decided none 
 
 **Tests and acceptance.** The tests of the layer "Several face types" of Section 8.1 of `docs/design/render.md`: "Several scope", "Type stabilizers", "Region map", "Type pictures", which states the numbering of the pictures without the traversal of the code, "Several worked by hand", which holds the coset table, the pictures, and every meeting of the arrangement of the translations of `*442` with `111` as values worked by hand in Section 5.36 of that document, "Type meetings", "Meeting geometry", "Same meetings", "Several whole picture", which compares whole images in the three geometries with an oracle that walks the faces across their edges in the reference arithmetic, with a handedness check from the rendered pixels, "Several wedge continuity", "Known translation fill", which compares that arrangement with an image periodic under the translations that the oracle computes without the coset table, "Several seams", which lays the masks of different types edge to edge, "Several mask content", "Several upright pictures" in the plane and in the disk, and "Index 84", with "Mask edge lengths" of the layer "Whole faces", the golden images of Section 8.4 of that document for several face types, and every golden image of `M27` and earlier unchanged except those of `M25` that the arrangement placement changes (RND-87). The code branch that changes a golden image or a snapshot of `M25` regenerates it and names it in its commit message. The tests "Arrangement index limit", "Arrangement ids", and "Several face types" of Section 10.1 of `docs/design/group.md`. The snapshots and plain tests of several face types of Section 8.1 of `docs/design/cli.md`: the listings that equal the search, the listing of `*732` with `111` at the index 84, the error of the limit on `*752` with `111`, the whole flow with four masks, the order of the items, the diagnostics, and failures that leave every file as it was, with every listing and diagnostic of a regular construction, and every mask and image of one that RND-87 keeps, byte for byte as before (CLI-75).
 
-The acceptance of the arrangement index limit of 84 reads the owner's rule of `DEC-138`, "unless it makes testing / CI run for too long", with a threshold that this plan proposes. Two tests carry the bound, and each of them runs in under 3 seconds when it runs alone under the nextest profile `default`, in the time that nextest reports for it in the development container:
+The acceptance of the arrangement index limit of 84 reads the owner's rule of `DEC-138`, "unless it makes testing / CI run for too long", with a threshold that this plan proposes. Three tests carry the bound, and each of them runs in under 3 seconds when it runs alone under the nextest profile `default`, in the time that nextest reports for it in the development container:
 
-- The library test "Index 84" of Section 8.1 of `docs/design/render.md`.
-- The snapshot of `escher info '*732' --wythoff 111` at the index 84, the acceptance test of the command line of Section 8.1 of `docs/design/cli.md`.
+- The unit test "Arrangement index limit" of Section 10.1 of `docs/design/group.md`, which asserts that `free_classes_of_index` on `*732` with `111` at the index 84 returns a complete result. The group branch measures it, and its time decides whether that branch raises the limit.
+- The library test "Index 84" of Section 8.1 of `docs/design/render.md`, which the library branch measures.
+- The snapshot of `escher info '*732' --wythoff 111` at the index 84, the acceptance test of the command line of Section 8.1 of `docs/design/cli.md`, which the command-line branch measures.
 
-No project document states a bound on the time of one test, so this bound is this plan's own. The code branch measures both times and has one of two outcomes:
+Each measurement has one of two outcomes:
 
-- Each under 3 seconds: the arrangement index limit is 84, as GRP-47 and GRP-48 of `docs/design/group.md` state, and both tests stay.
-- Either 3 seconds or more: the code branch does not raise the limit, and stops. A limit of 64 changes the values that the design documents derive from 84 and the exception of CLI-75 of `docs/design/cli.md`, so a design branch restates the documents for the limit of 64 before the code continues.
+- Under 3 seconds: the arrangement index limit is 84, as GRP-47 and GRP-48 of `docs/design/group.md` state, and the test stays.
+- 3 seconds or more: the limit of 84 is not adopted, and the branch that measured the time stops. A limit of 64 changes the values that the design documents derive from 84 and the exception of CLI-75 of `docs/design/cli.md`, so a design branch restates the documents for the limit of 64 before the code continues.
 
 **Dependencies and `deny.toml` work.** None new.
 
@@ -649,7 +650,7 @@ No project document states a bound on the time of one test, so this bound is thi
 **Split.** Four branches, in this order:
 
 1. Design: the design documents above.
-2. Group: the arrangement index limit of `free_classes_of_index` with its index as a `u32`, `ColouringId::parse_arrangement`, their tests, the change of the callers in `escher-cli` with the regular listings unchanged, and the measurement of the acceptance condition of `DEC-139`.
+2. Group: the arrangement index limit of `free_classes_of_index` with its index as a `u32`, `ColouringId::parse_arrangement`, their tests, the change of the callers in `escher-cli` with the regular listings unchanged, and the measurement of the test "Arrangement index limit" under the acceptance condition of `DEC-139`.
 3. Library: `FaceType`, the steps of several face types in `WholeFace`, the region maps, the pictures and meetings of each type, the face type passed to the fill, the masks, and the tests and golden images of `escher-render`.
 4. Command line: the listing of several face types in `info --wythoff`, the resolution of their ids, the masks and the items of `--colours` in the order of the picture names, the diagnostics, their snapshots and plain tests, the usage of several kinds of polygon in `README.md`, and Project Status in `AGENTS.md`.
 

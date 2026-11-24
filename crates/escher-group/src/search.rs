@@ -9,6 +9,7 @@ use crate::table::{CosetTable, UNDEFINED, index};
 use crate::word::Word;
 
 pub(crate) const MAX_INDEX: u32 = 64;
+pub(crate) const MAX_ARRANGEMENT_INDEX: u32 = 84;
 pub(crate) const MAX_STEPS: u64 = 1 << 36;
 pub(crate) const MAX_STORED_COLOURINGS: usize = 1 << 16;
 pub(crate) const MAX_STORED_ENTRIES: usize = 1 << 22;
@@ -342,8 +343,12 @@ pub fn colourings_of_index(
 }
 
 /// Lists the class table of each conjugacy class of the subgroups of index
-/// exactly `colours` in the group of `presentation` in whose coset table no
+/// exactly `index` in the group of `presentation` in whose coset table no
 /// word of `stabilizer` fixes a coset, ordered by id.
+///
+/// `index` can be up to 84, the arrangement index limit, which is above
+/// [`IndexLimit::MAX`], so that a tiling whose faces need an index above 64
+/// can be searched. Every other search keeps [`IndexLimit::MAX`].
 ///
 /// The search is that of [`colourings_of_index`] with [`ColouringSet::All`],
 /// and of each class it considers only the class table, the table that names
@@ -377,10 +382,10 @@ pub fn colourings_of_index(
 /// let words: Vec<Word> = (1..12)
 ///     .map(|length| (0..length).map(|position| if position % 2 == 0 { s0 } else { s1 }).collect())
 ///     .collect();
-/// let colours = IndexLimit::new(12)?;
-/// let free = free_classes_of_index(&presentation, &words, colours, SearchBudget::DEFAULT)?;
+/// let free = free_classes_of_index(&presentation, &words, 12, SearchBudget::DEFAULT)?;
 /// assert!(free.is_complete());
 /// assert!(free.list().iter().all(|colouring| colouring.class() == colouring.id()));
+/// let colours = IndexLimit::new(12)?;
 /// let all = colourings_of_index(&presentation, ColouringSet::All, colours, SearchBudget::DEFAULT)?;
 /// assert!(free.list().len() < all.list().len());
 /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -390,6 +395,8 @@ pub fn colourings_of_index(
 ///
 /// Returns an [`Error`] for the first of these causes, in this order:
 ///
+/// - [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) when
+///   `index` is 0 or above 84, before the words are read,
 /// - [`ErrorKind::LimitExceeded`](crate::ErrorKind::LimitExceeded) when
 ///   `stabilizer` has more than 256 words,
 /// - for the first word in order that has one,
@@ -405,24 +412,19 @@ pub fn colourings_of_index(
 pub fn free_classes_of_index(
     presentation: &Presentation,
     stabilizer: &[Word],
-    colours: IndexLimit,
+    index: u32,
     budget: SearchBudget,
 ) -> Result<ColouringsOfIndex> {
+    if !(1..=MAX_ARRANGEMENT_INDEX).contains(&index) {
+        return Err(Error::search(Detail::LimitExceeded(
+            Limit::ArrangementIndex(index),
+        )));
+    }
     check_stabilizer(presentation, stabilizer)?;
     let settings = Settings::new(budget);
-    let (found, _) = search_with(
-        presentation,
-        stabilizer,
-        colours.get(),
-        Request::Free,
-        settings,
-    )?;
-    let complete = found.complete_to == colours.get();
-    Ok(ColouringsOfIndex::new(
-        colours.get(),
-        complete,
-        found.into_list(),
-    ))
+    let (found, _) = search_with(presentation, stabilizer, index, Request::Free, settings)?;
+    let complete = found.complete_to == index;
+    Ok(ColouringsOfIndex::new(index, complete, found.into_list()))
 }
 
 fn check_stabilizer(presentation: &Presentation, stabilizer: &[Word]) -> Result<()> {
@@ -1255,8 +1257,8 @@ mod tests {
     };
     use crate::colouring::{ColouringId, fixed_generator};
     use crate::common::{
-        Expected, SEARCH_BUDGET, SEARCH_FIXTURES, budget, corner_stabilizer, coxeter, letters,
-        names, presentation, small_presentation, word,
+        Expected, SEARCH_BUDGET, SEARCH_FIXTURES, budget, corner_stabilizer, coxeter,
+        face_stabilizers, letters, names, presentation, small_presentation, word,
     };
     use crate::enumerate::build;
     use crate::error::ErrorKind;
@@ -1904,13 +1906,8 @@ mod tests {
             ),
         ];
         for (presentation, words, kind, text) in cases {
-            let error = free_classes_of_index(
-                &presentation,
-                &words,
-                IndexLimit::new(1).expect("valid"),
-                SearchBudget::DEFAULT,
-            )
-            .expect_err("a word or the presentation is over a limit");
+            let error = free_classes_of_index(&presentation, &words, 1, SearchBudget::DEFAULT)
+                .expect_err("a word or the presentation is over a limit");
             assert_eq!(
                 (error.kind(), error.to_string()),
                 (kind, format!("cannot search subgroups: {text}"))
@@ -1920,10 +1917,55 @@ mod tests {
         let found = free_classes_of_index(
             &coxeter(6, 4, 2),
             &vec![widest; 256],
-            IndexLimit::new(2).expect("valid"),
+            2,
             SearchBudget::DEFAULT,
         )
         .expect("256 words of 4096 letters are within the limits");
         assert!(found.is_complete());
+    }
+
+    #[test]
+    fn the_arrangement_index_limit_is_84_and_comes_before_the_words() {
+        let found = free_classes_of_index(
+            &coxeter(7, 3, 2),
+            &face_stabilizers([7, 3, 2], [true; 3]),
+            84,
+            SearchBudget::DEFAULT,
+        )
+        .expect("the index 84 is within the arrangement index limit");
+        assert_eq!((found.is_complete(), found.list().len()), (true, 12));
+        let found = free_classes_of_index(&coxeter(6, 4, 2), &[], 1, SearchBudget::DEFAULT)
+            .expect("the index 1 is within the arrangement index limit");
+        assert_eq!((found.is_complete(), found.list().len()), (true, 1));
+        let over: Word = core::iter::repeat_n(Letter::generator(3), 4097).collect();
+        let fine = [Word::new()];
+        let too_many = vec![over; 257];
+        let one_step = budget(1);
+        for (index, words, steps) in [
+            (0, &fine[..], SearchBudget::DEFAULT),
+            (85, &fine[..], SearchBudget::DEFAULT),
+            (85, &too_many[..], SearchBudget::DEFAULT),
+            (85, &fine[..], one_step),
+        ] {
+            let error = free_classes_of_index(&coxeter(6, 4, 2), words, index, steps)
+                .expect_err("the index is outside the arrangement index limit");
+            assert_eq!(
+                (error.kind(), error.to_string()),
+                (
+                    ErrorKind::LimitExceeded,
+                    format!(
+                        "cannot search subgroups: the arrangement index {index} is not between 1 and 84"
+                    )
+                ),
+                "{index} {} {}",
+                words.len(),
+                steps.get()
+            );
+        }
+        let error = IndexLimit::new(65).expect_err("colourings keep the limit of 64");
+        assert_eq!(
+            error.to_string(),
+            "cannot search subgroups: the index limit 65 is not between 1 and 64"
+        );
     }
 }
